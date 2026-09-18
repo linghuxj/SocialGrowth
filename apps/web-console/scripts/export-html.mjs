@@ -19,7 +19,7 @@ const css=(await Promise.all(cssFiles.map(f=>readFile(path.join(cssDir,f),'utf8'
 const js=browser.outputFiles[0].text.replace(/<\/script/gi,'<\\/script');
 const html=`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>账号成长与创作者收益 · 商务研究报告</title><style>${css}</style></head><body><div id="root">${markup}</div><script>${js}</script></body></html>`;
 await writeFile(path.join(root,'public/creator-revenue-report.html'),html);
-const artifacts=path.resolve(root,'../artifacts');
+const artifacts=path.resolve(root,'../../artifacts/reports');
 await mkdir(artifacts,{recursive:true});
 await writeFile(path.join(artifacts,'创作者收益与电商佣金-独立复核.html'),html);
 await writeFile(path.join(artifacts,'账号成长与创作者收益-FacebookReels专项.html'),html);

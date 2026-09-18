@@ -72,6 +72,8 @@ def calculate():
 
 
 if __name__ == "__main__":
-    output = Path(__file__).with_name("前三个月发布测算-数据.json")
+    root = Path(__file__).resolve().parents[2]
+    output = root / "artifacts/data/前三个月发布测算-数据.json"
+    output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(calculate(), ensure_ascii=False, indent=2) + "\n")
     print(output)

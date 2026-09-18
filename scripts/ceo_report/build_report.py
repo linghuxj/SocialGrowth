@@ -8,7 +8,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
 ROOT=Path('/Users/linghuxj/Documents/myproject/project/SocialGrowth')
-OUT=ROOT/'artifacts/SocialGrowth年度技术规划与预算汇报.docx'
+OUT=ROOT/'artifacts/reports/SocialGrowth年度技术规划与预算汇报.docx'
 doc=Document();sec=doc.sections[0]
 sec.page_width=Cm(21);sec.page_height=Cm(29.7)
 sec.top_margin=Cm(2);sec.bottom_margin=Cm(1.8);sec.left_margin=Cm(2);sec.right_margin=Cm(2)

@@ -1,0 +1,20 @@
+[
+  {
+    "deviceId": "samsung-s23-001",
+    "deviceType": "physical",
+    "model": "Samsung Galaxy S23",
+    "platformBound": ["facebook", "instagram"],
+    "boundAccounts": ["fb-page-101", "ig-prof-201"],
+    "status": "idle",
+    "lastHeartbeat": "2026-09-18T00:00:00Z"
+  },
+  {
+    "deviceId": "emu-pixel7-001",
+    "deviceType": "emulator",
+    "model": "Pixel 7 API 34",
+    "platformBound": ["youtube"],
+    "boundAccounts": ["yt-brand-301"],
+    "status": "idle",
+    "lastHeartbeat": "2026-09-18T00:00:00Z"
+  }
+]

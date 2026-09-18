@@ -1,5 +1,5 @@
 {
-  "name": "sites-project",
+  "name": "@socialgrowth/web-console",
   "version": "0.1.0",
   "private": true,
   "engines": {

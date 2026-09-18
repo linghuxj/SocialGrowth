@@ -1,0 +1,19 @@
+{
+  "name": "@socialgrowth/ai-engine",
+  "version": "0.1.0",
+  "description": "AI strategy generation, slice matching and experience rule engine service for SocialGrowth",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "lint": "oxlint"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.0",
+    "tsx": "^4.19.0"
+  }
+}

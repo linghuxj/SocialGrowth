@@ -28,7 +28,7 @@ YouTube 的垃圾内容政策还覆盖重复性评论推广、虚假互动及自
 
 本次官方帮助页请求受到限流，未取得足够正文。不将 Facebook 的具体规则直接认定为 Instagram 的同等规则。
 
-注：Instagram 的差异化处理规范（包含 Professional Account 创作者/商务账号转换、必须关联 Facebook Page、独立 API 申请审核、Reels/Feed 文案外链不可点击、Bio 主页链接与 Stories 贴纸导流路径、Insights API 指标字段及单机多账号切换限制）已在 [SocialGrowth 核心交付模块与内容规格规划书](delivery-specification.md) 第二节及对应模块中完整确立与落实。
+注：Instagram 的差异化处理规范（包含 Professional Account 创作者/商务账号转换、必须关联 Facebook Page、Reels/Feed 文案外链不可点击、Bio 主页链接导流路径、第三方数据服务双轨兜底采集及单台真机 1:1 专属绑定账号约束，封号后冷备换号）已在 [SocialGrowth 核心交付模块与内容规格规划书](delivery-specification.md) 第二节及对应模块中完整确立与落实。
 
 ## 共同待核实与对齐事项
 
