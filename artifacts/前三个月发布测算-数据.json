@@ -1,0 +1,135 @@
+{
+  "assumptions": {
+    "month_days": 30,
+    "realization": 0.9,
+    "current_month_share": 0.5,
+    "next_month_share": 0.5,
+    "long_tail_after_30_days": 0,
+    "note": "参数为情景假设；FB公开观看与YT合格观看不得合并为同口径受众。"
+  },
+  "per_platform_plan": [
+    450,
+    900,
+    3450
+  ],
+  "both_platforms_plan": [
+    900,
+    1800,
+    6900
+  ],
+  "per_platform_realized": [
+    405.0,
+    810.0,
+    3105.0
+  ],
+  "both_platforms_realized": [
+    810.0,
+    1620.0,
+    6210.0
+  ],
+  "calendar_month_view_coefficients": [
+    202.5,
+    607.5,
+    1957.5
+  ],
+  "monthly_views": {
+    "低表现": {
+      "facebook_public": [
+        20250.0,
+        60750.0,
+        195750.0
+      ],
+      "youtube_qualified": [
+        101250.0,
+        303750.0,
+        978750.0
+      ]
+    },
+    "工作假设": {
+      "facebook_public": [
+        60750.0,
+        182250.0,
+        587250.0
+      ],
+      "youtube_qualified": [
+        405000.0,
+        1215000.0,
+        3915000.0
+      ]
+    },
+    "较强表现": {
+      "facebook_public": [
+        202500.0,
+        607500.0,
+        1957500.0
+      ],
+      "youtube_qualified": [
+        2025000.0,
+        6075000.0,
+        19575000.0
+      ]
+    }
+  },
+  "cohorts": [
+    {
+      "name": "首批",
+      "accounts_per_platform": 15,
+      "daily": [
+        1,
+        2,
+        3
+      ],
+      "per_account_realized_posts": [
+        27.0,
+        54.0,
+        81.0
+      ],
+      "cumulative_view_coefficients": [
+        13.5,
+        54.0,
+        121.5
+      ],
+      "q_required_at_month3": {
+        "expanded_3m": 24692,
+        "full_10m": 82305
+      },
+      "month3_views_by_q": {
+        "500": 60750.0,
+        "2000": 243000.0,
+        "10000": 1215000.0,
+        "30000": 3645000.0,
+        "100000": 12150000.0
+      }
+    },
+    {
+      "name": "第三个月新增",
+      "accounts_per_platform": 35,
+      "daily": [
+        0,
+        0,
+        2
+      ],
+      "per_account_realized_posts": [
+        0.0,
+        0.0,
+        54.0
+      ],
+      "cumulative_view_coefficients": [
+        0.0,
+        0.0,
+        27.0
+      ],
+      "q_required_at_month3": {
+        "expanded_3m": 111112,
+        "full_10m": 370371
+      },
+      "month3_views_by_q": {
+        "500": 13500.0,
+        "2000": 54000.0,
+        "10000": 270000.0,
+        "30000": 810000.0,
+        "100000": 2700000.0
+      }
+    }
+  ]
+}
