@@ -8,7 +8,7 @@
 
 ```mermaid
 flowchart TD
-    subgraph UI ["统一现代 Web 运营管理控制台"]
+    subgraph UI ["统一现代 Web 运营管理控制台 (apps/web-console)"]
         A1["账号矩阵与设备映射管理"]
         A2["切片资产库 (独占式匹配与防重)"]
         A3["策略工作台 (自主托管/审核流)"]
@@ -19,7 +19,7 @@ flowchart TD
         A8["账号风控与冷备换号中心"]
     end
 
-    subgraph Core ["SocialGrowth 核心中枢服务"]
+    subgraph Core ["SocialGrowth 核心中枢服务 (services/ai-engine + shortlink)"]
         B1["账号生命周期与画像中心"]
         B2["智能匹配引擎 (Tag-to-Profile + 独占锁)"]
         B3["策略生成引擎 (LLM + 规则库)"]
@@ -29,6 +29,13 @@ flowchart TD
         B7["账号异常识别与冷备换号调度"]
     end
 
+    subgraph Storage ["基础设施与持久化存储层 (infra/)"]
+        E1[("核心业务数据库 (PostgreSQL)<br>账号/规则/策略/任务/切片锁")]
+        E2[("缓存与分布式锁 (Redis)<br>短链点击流/设备心跳/排他锁")]
+        E3[("二进制对象存储 (S3/MinIO)<br>切片原片/执行截屏/回执日志")]
+        E4[("凭证安全保险库 (Vault)<br>账号密码/2FA/Session/API Token")]
+    end
+
     subgraph Data ["数据采集与聚合层 (双轨支持)"]
         C1["社媒官方 API (FB Insights / YT Analytics)"]
         C2["第三方社媒数据服务 (统计数据抓取/API兜底)"]
@@ -36,12 +43,19 @@ flowchart TD
     end
 
     subgraph Execution ["设备自动化执行底座 (Google Artemis 纯真机)"]
-        D1["Artemis 守护调度服务"]
-        D2["真实移动设备池 (Samsung S23 等纯真机，首月3–5台，3月内约20台)"]
+        D1["Artemis 守护调度中枢 (apps/artemis-controller)"]
+        D2["海外物理纯真机设备池 (Samsung Galaxy S23 等，首月3–5台，3月约20台)"]
     end
 
-    UI --> Core
-    Core --> Execution
+    UI -->|REST / RPC 交互| Core
+    Core <--> Storage
+    Core -->|标准化 API/MCP 下发指令| D1
+    D1 <--> E4
+    D2 -->|WebSocket/gRPC Pull 模式主动连接中枢并拉取任务| D1
+    D2 -->|云端预签名 URL 安全拉取切片| E3
+    D2 -->|驱动原生 App UI 自动化执行| D2
+    D2 -->|回传截屏证据 / 自愈日志 / 执行回执| D1
+    D1 --> Storage
     Execution --> Data
     Data --> B5
     B5 --> B3
@@ -179,6 +193,9 @@ flowchart TD
   4. **归因边界**：
      - 短链统计仅证明点击事件发生和跳转处理结果，不证明目标页面成功到达或后续转化。
      - 单条短链可归因到具体发布任务时，按任务维度统计；多条内容共用账号主页链接时，按可识别的来源范围统计，不推定单条内容归因。
+  5. **多域名防封轮换与容灾机制 (Anti-Scam & Domain Pool)**：
+     - 系统维护统一短链跳转域名池（包含主推域名与备用跳板域名）；
+     - 针对 Meta 等平台对外部短链域名的严格风控，采用中间安全中转页与动态风控探测机制；当探测到某域名被平台标记或爬虫拦截时，控制台自动熔断并一键平滑切换至备用安全域名，保障全矩阵推广链接持续可用。
 
 - **平台差异化处理**：
 
@@ -192,7 +209,7 @@ flowchart TD
 
 ### 模块 5：账号异常与风控管理模块 (Account Risk & Anomaly Management)
 
-- **交付目标**：建立账号异常识别、任务暂停、异常通知、冷备账号置换与证据保留机制，确保首批 30 个初始账号的全部结果（含受限账号）可追溯。
+- **交付目标**：建立账号异常识别、任务暂停、异常通知、冷备账号置换与证据保留机制，确保首月 3~5 台物理真机（6~10 个账号）至第 3 个月约 20 台真机（约 40 个账号）的全部结果（含受限账号）完整可追溯。
 - **核心功能**：
   1. **异常识别与分类**：
 
@@ -231,11 +248,11 @@ flowchart TD
   1. **标准化任务分发协议**：中台将策略指令（目标平台、包名、独占素材路径、文案内容、点击交互逻辑）通过标准 API/MCP 下发给 Artemis 调度器。
   2. **纯真机设备池端到端自动化执行**：
      - 对接真实 Android 移动设备池（如 Samsung Galaxy S23 等纯真机），假设设备已在海外物理分散部署。
-     - 驱动目标原生应用（Facebook App、Instagram App、YouTube App/Studio）落实打开应用、导航、粘贴文案、上传切片等真实 UI 动作，不走官方发布 API。
-  3. **1 机 1 平台 1 号专属约束**：单台真机在同一时期各平台 App 内仅登录 1 个有效账号，绝不在同一 App 内频繁切换多账号，保障设备环境纯净。
+     - 驱动目标原生应用（Facebook App、YouTube App/Studio，Instagram 预留）落实打开应用、导航、粘贴文案、上传切片等真实 UI 动作，不走官方发布 API。
+  3. **单机跨平台隔离，同平台专属 1:1 强绑定**：单台物理真机在同一时期在各平台 App 内仅登录 1 个有效账号（单机承载上限 1 FB + 1 YT），绝不在同一 App 内频繁切换多账号，保障设备环境纯净。
   4. **执行证据与自愈回执捕获**：实时收集每一步的截屏证据、动作坐标修正自愈日志（Self-healing Logs）以及 Logcat 运行回执。
-  5. **任务状态流转**：任务经历"待执行 → 已下发 → 执行中 → 已完成/失败"状态流转，每个状态转换记录时间戳和证据。
-  6. **任务控制**：支持待执行任务的取消与暂停、过期任务处理、重复下发识别，以及执行结果未知时的人工介入确认机制。
+  5. **任务状态流转**：任务经历"待执行 → 已下发 → 执行中 → 已完成/失败/等待人工接管"状态流转，每个状态转换记录时间戳和证据。
+  6. **看门狗与超时自愈**：调度端部署 10 分钟硬超时看门狗，超时自动强杀 App、回退 Home 键并释放设备，避免设备死锁。
 
 - **平台差异化处理**：
 
@@ -255,16 +272,19 @@ flowchart TD
   1. **双轨数据采集看板**：
      - **自有短链数据**：来自模块 4 的短链点击统计，FB 提供单条发布归因，IG/YT 提供账号/频道级点击归因。
      - **社媒表现数据（双轨采集机制）**：
-       - **主通道**：社媒官方 API（Facebook Insights / Instagram Insights / YouTube Analytics）。
+       - **主通道**：社媒官方 API（Facebook Insights / YouTube Analytics）。
        - **兜底/替代通道**：**第三方社媒数据服务**（Third-party Analytics/Scraper API）。在官方 API 权限审核受限（如 Meta App Review 周期长）或数据延迟较大时，全量由第三方数据服务提供视频播放量、完播率、点赞、评论、分享及关注增长等指标，确保闭环数据链不断裂。
-  2. **量化 A/B 策略实验**：
-     - 划分基线策略组与候选实验组（10%~20% 账号小批次试点），设置 7~14 天观察窗口。
-     - 针对平台特性进行差异化效果评估：
-       - **Facebook**：综合对比完播率、互动率与帖文单条短链点击转化率。
-       - **Instagram / YouTube**：以视频完播率、互动率及主页访问增量（Profile Views）为核心优化目标，结合频道级短链表现综合评估。
-  3. **实验晋级与一键回退 (Rollback)**：
-     - **达标晋级**：效果显著提升的策略一键推广并替换原基线策略。
-     - **未达标回退**：转化衰退或触发异常的策略一键回退至上一稳定版本，并生成完整复盘日志。
+  2. **量化 A/B 策略实验（小样本加权评分模型）**：
+     - 鉴于前 3 个月总账号体量在 6~40 个之间，实验组样本仅 2~4 个账号，**不采用传统大样本高斯分布的 p-value 假设检验**（避免统计功效不足导致的假阴性/假阳性）；
+     - 采用**历史同态基线对照 + 综合绩效加权评分算法（Composite Performance Score）**：
+       - 当私有完播率可得时：
+         $$\text{Score} = \text{CompletionRate} \times 0.4 + \text{EngagementRate} \times 0.3 + \text{ClickThroughRate} \times 0.3$$
+       - 当官方数据受限降级为第三方公开数据时：
+         $$\text{Score}_{\text{public}} = \Delta \text{Views} \times 0.7 + (\text{Likes} \times 1.5 + \text{Comments} \times 2.0 + \text{Shares} \times 3.0) \times 0.3$$
+     - 实验组得分需在 7~14 天观察窗口内持续超越基线组 15% 以上，方可触发全量晋级。
+  3. **实验晋级与一键安全回退 (Rollback)**：
+     - **达标晋级**：效果显著达标的策略版本一键推广并更新为主基线策略。
+     - **未达标回退**：转化衰退或触发风控告警的策略一键回退至上一稳定版本，并生成完整复盘日志。
 
 - **三平台数据采集与字段规范（官方 API / 第三方数据服务通用）**：
 
@@ -306,6 +326,124 @@ flowchart TD
 针对代码实现层（调度器精确路由、切片独占锁、Watchdog 自愈、2FA 人机接管）与衍生交付物（测算模型、CEO Word 汇报）的详细研发整改任务及当前完成状态，请查阅配套交接目录：
 - **[研发交接台账与状态看板 (Handoff Tracker)](handoff/README.md)**
 - **[2026-09-18 研发交接与审计整改任务书](handoff/2026-09-18-developer-handoff.md)**
+
+---
+
+## 七、 系统核心工程与技术架构规范（架构师与开发必读）
+
+为彻底消除概念拓扑与工程落地的断层，本章节系统性确立持久化存储、海外通信、素材管道、安全凭证与网络防封五大底层架构标准。
+
+### 7.1 数据存储与实体持久化模型设计
+
+系统数据按读写频次与一致性要求划分为三层存储架构：
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        数据持久化分层架构                                │
+├─────────────────────────┬────────────────────────┬─────────────────────┤
+│   关系型核心库 (PostgreSQL) │  高频缓存与分布式锁 (Redis)  │ 二进制对象存储 (S3/MinIO) │
+├─────────────────────────┼────────────────────────┼─────────────────────┤
+│ 1. accounts (账号资产)   │ 1. slice:lock:{id} (独占锁)│ 1. bucket-raw-slices│
+│ 2. devices (真机映射)    │ 2. device:heartbeat:{id}│    (切片原片与元数据) │
+│ 3. slice_metadata (切片) │ 3. shortlink:click:stream│ 2. bucket-evidence  │
+│ 4. strategy_versions (策略)│   (点击流实时入队缓冲)    │    (截屏证据与回执日志)│
+│ 5. task_directives (任务)│ 4. domain:status (域名池) │                     │
+│ 6. audit_rules (经验规则)│                        │                     │
+└─────────────────────────┴────────────────────────┴─────────────────────┘
+```
+
+#### 核心数据表 Schema 约束
+1. **`accounts` (账号表)**：`account_id` (PK), `platform` (ENUM: fb/yt/ins), `account_name`, `profile_type`, `stage` (cold_start/active/suspended), `bound_device_id` (FK), `created_at`, `updated_at`。
+2. **`devices` (物理真机表)**：`device_id` (PK), `serial_number`, `model` (如 S23), `status` (idle/busy/offline/error), `ip_address`, `location_tag`, `last_heartbeat_at`。
+3. **`slice_metadata` (切片资产表)**：`slice_id` (PK), `drama_id`, `episode_num`, `duration_sec`, `video_s3_key`, `sha256`, `allocation_status` (unallocated/assigned_locked/published), `assigned_account_id` (FK), `locked_at`, `published_at`。
+   - **独占索引保证**：在 `(slice_id, allocation_status)` 上建立联合索引，状态非 `unallocated` 时前置拦截。
+4. **`task_directives` (调度任务表)**：`task_id` (PK), `strategy_version_id`, `device_id` (FK), `account_id` (FK), `platform`, `target_package`, `status` (pending/dispatched/executing/completed/failed/waiting_2fa), `retry_count`, `created_at`, `executed_at`, `receipt_s3_key`。
+
+---
+
+### 7.2 海外物理真机网络通信拓扑与拉取模型 (Gateway Pull)
+
+针对海外物理真机分布于各局域网私网、云端无法主动穿透 NAT 的现实约束，系统彻底摒弃云端主动 Push 模型，采用 **基于 WebSocket / gRPC 的客户端长连接拉取模型（Client Pull）**：
+
+```mermaid
+sequenceDiagram
+    participant DEV as 海外物理真机 (Agent)
+    participant GW as 中枢调度网关 (Artemis Controller)
+    participant S3 as 云端对象存储 (S3)
+
+    DEV->>GW: 1. 发起 WebSocket 连接并携带 deviceId & token
+    GW-->>DEV: 2. 鉴权通过，建立双向保活通道 (Heartbeat 15s)
+    loop 定时拉取与事件驱动
+        DEV->>GW: 3. 发送 PullTask 请求 (设备状态: idle)
+        alt 队列中有专属任务
+            GW-->>DEV: 4. 下发 PublishTaskDirective (含素材预签名下载 URL)
+            DEV->>DEV: 5. 设备状态转为 busy，启动端侧硬超时计时器
+            DEV->>S3: 6. 依据预签名 URL 极速拉取切片并校验 sha256
+            DEV->>DEV: 7. 执行 UI 自动化原生发布动作流
+            DEV->>GW: 8. 上报截屏与 ExecutionReceipt，状态转为 idle
+        else 无专属任务
+            GW-->>DEV: 4b. 保持 idle 心跳等待
+        end
+    end
+```
+
+- **心跳与保活**：真机 Agent 每 15 秒上报一次端侧状态（电量、温度、前台 App、可用空间）。若连续 3 次心跳丢失，中枢自动标记设备 `offline` 并挂起队列任务。
+- **排他路由约束**：网关在出队匹配时，必须严格校验 `task.accountId == device.boundAccountId`，严禁借调其他空闲真机。
+
+---
+
+### 7.3 切片素材端到端分发与端侧磁盘 LRU 清理机制
+
+物理手机内部存储资源极其宝贵，系统实施严格的**临时预签名按需拉取 + 瞬时物理清理 + LRU 保底回收策略**：
+
+1. **预签名下发**：云端 S3 为切片生成有效期仅 15 分钟的临时 Download URL，防止切片外链泄漏；
+2. **端侧落盘与校验**：真机下载至沙箱临时目录（`/data/local/tmp/slices/`），校验 SHA256 无误后导入系统相册；
+3. **发布后即时销毁**：自动化发布流程成功结束（或收到超时自愈强杀指令）后，脚本立即执行：
+   ```bash
+   rm -f /data/local/tmp/slices/<slice_id>.mp4
+   # 触发 Android 媒体库静默扫描，清除相册缩略图索引
+   am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d "file:///data/local/tmp/slices/<slice_id>.mp4"
+   ```
+4. **LRU 水位线防爆看门狗**：真机 Agent 内置磁盘监控线程。当设备存储空间可用容量低于 **20%** 时，强制按最近最少使用（LRU）清理全部历史缓存和截屏证据，杜绝因存储满载导致的 Android 系统卡死。
+
+---
+
+### 7.4 账号资产安全凭据托管架构 (Credential Vault)
+
+为防范数十个社媒高价值资产的泄漏，引入企业级凭据保险库管理机制：
+
+1. **密文存储隔离**：账号主密码、辅助邮箱密码、2FA 种子密钥（Secret Key）均采用 AES-256-GCM 加密后存入独立保险库（如 HashiCorp Vault 或云 KMS），数据库主表仅保存凭据引用 ID；
+2. **动态 TOTP 生成**：对于开通两步验证的账号，由中枢网关或调度端根据 2FA 种子动态计算 6 位一次性验证码，在 Artemis 执行界面通过 UI 自动化自动注入；
+3. **Session 租约与脱敏**：真机上登录成功后，禁止在任何回执日志中明文打印 Cookie 或 Auth Token；日志中涉及敏感账号信息的统一进行掩码脱敏（如 `us***@gmail.com`）。
+
+---
+
+### 7.5 导流短链多域名风控防封与容灾路由架构
+
+为应对 Meta、Google 对未报备新短链域名的严格封禁（Block/Spam Flag），短链服务架构实施多层容灾屏障：
+
+```
+[社媒受众点击短链]
+       │
+       ▼
+┌───────────────────────────────────────┐
+│ 1. 动态跳转域名池 (Active Domain Pool) │ <─── 域名健康探测器 (每 5 分钟轮询)
+└──────────────────┬────────────────────┘      (检测是否被平台报毒/返回安全警告)
+                   │
+                   ▼ (302 重定向)
+┌───────────────────────────────────────┐
+│ 2. 中间安全缓冲页 (Safe Landing Buffer)│ <─── 动态渲染与真实受众特征验证
+└──────────────────┬────────────────────┘      (过滤爬虫探测、预取机器流量)
+                   │
+                   ▼ (用户手势/自动无缝跳转)
+┌───────────────────────────────────────┐
+│ 3. 甲方漫剧平台入口 / 业务落地页       │
+└───────────────────────────────────────┘
+```
+
+1. **多域名动态轮换**：系统预备 3~5 个经过基础养育的独立短域名；根据发布任务与账号分组分摊流量；
+2. **实时熔断自愈**：一旦探测到某短域名被 Facebook 判定为不安全链接，系统立即将该域名移出活跃池，并将所有关联短链的解析路由平滑切换至健康的备用域名，无需重新编辑已发布的社媒帖文。
+
 
 
 

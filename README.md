@@ -1,6 +1,6 @@
 # SocialGrowth
 
-面向企业提供内容生产与媒体运营自动化增长能力的核心工程仓库。前 3 个月聚焦于已有 AI 漫剧切片的高精度匹配分发、多平台（Facebook / Instagram / YouTube）自动化运营闭环以及基于 Google Artemis 的设备群控调度。
+面向企业提供内容生产与媒体运营自动化增长能力的核心工程仓库。前 3 个月聚焦于已有 AI 漫剧切片的高精度独占分发、核心双平台（Facebook / YouTube）自动化运营闭环以及基于 Google Artemis 的 100% 物理真机自动化调度（Instagram 待稳定后接入）。
 
 ---
 
@@ -14,20 +14,31 @@ flowchart TD
     end
 
     subgraph Service ["核心中枢与独立服务层 (services/)"]
-        AI["ai-engine<br>(AI 策略生成与规则推理中枢)"]
+        AI["ai-engine<br>(AI 策略生成、规则推理与 A/B 评估中枢)"]
         SL["shortlink-service<br>(导流短链与归因分析服务)"]
     end
 
-    subgraph Execution ["设备硬件底座"]
-        DEV["移动真机池 (Samsung S23 等) + 模拟器矩阵"]
+    subgraph Infra ["基础设施与持久化存储层 (infra/)"]
+        DB[("核心关系型业务库<br>(PostgreSQL: 账号/策略/任务/切片锁)")]
+        REDIS[("缓存与高频日志<br>(Redis: 短链点击/排他锁/心跳)")]
+        S3[("对象存储<br>(S3/MinIO: 切片视频原片/截屏证据)")]
+    end
+
+    subgraph Execution ["设备硬件底座 (海外物理分散部署)"]
+        DEV["海外物理纯真机设备池<br>(Samsung Galaxy S23 等，彻底排除模拟器)"]
     end
 
     WC -->|人机确认 / 规则配置 / 监控大屏| AI
     WC -->|短链配置与点击查询| SL
     AI -->|下发标准化策略指令 (API/MCP)| AC
-    AC -->|驱动目标 App 落实 UI 自动化| DEV
-    DEV -->|截屏 / 自愈日志 / 执行回执| AC
-    AC -->|执行状态上报| WC
+    AI <-->|读写账号画像/规则版本/策略快照| DB
+    SL <-->|点击流写入与跳转校验| REDIS
+    AC -->|安全拉取预签名素材| S3
+    DEV -->|WebSocket/gRPC Pull 模式建立心跳与拉取任务| AC
+    DEV -->|驱动原生 App UI 自动化执行| DEV
+    DEV -->|上报截屏证据 / 自愈日志 / 执行回执| AC
+    AC -->|执行状态上报与归档| WC
+    AC -->|持久化任务与执行证据| DB
 ```
 
 ---
@@ -45,7 +56,7 @@ SocialGrowth/
 │   │   └── package.json                # 包名: @socialgrowth/web-console
 │   │
 │   └── artemis-controller/             # Google Artemis 设备自动化群控调度端
-│       ├── src/                        # 调度器、真机/模拟器连接池、UI 驱动器
+│       ├── src/                        # 调度器、纯真机连接池、UI 驱动器
 │       ├── config/                     # 设备绑定映射配置示例
 │       └── package.json                # 包名: @socialgrowth/artemis-controller
 │
@@ -101,11 +112,14 @@ SocialGrowth/
 
 ## 四、 快速使用指引
 
+> [!NOTE]
+> 根据项目最高开发准则 [`CLAUDE.md`](CLAUDE.md)，本地开发环境所有服务均由开发者手动按需启动，严禁自动化脚本自行后台驻留。
+
 ### 1. Web 运营控制台 (`apps/web-console`)
 ```bash
 cd apps/web-console
 npm install
-npm run dev        # 本地开发服务器启动
+npm run dev        # 手动启动 Web 控制台开发服务器
 npm run build      # 编译构建生产版本
 ```
 
@@ -113,7 +127,7 @@ npm run build      # 编译构建生产版本
 ```bash
 cd apps/artemis-controller
 npm install
-npm run dev        # 启动调度守护进程
+npm run dev        # 手动启动调度控制服务
 ```
 
 ### 3. AI 策略引擎 (`services/ai-engine`)
@@ -123,7 +137,14 @@ npm install
 npm run build      # 编译 TypeScript 模块
 ```
 
-### 4. 工具脚本运行
+### 4. 导流短链服务 (`services/shortlink-service`)
+```bash
+cd services/shortlink-service
+npm install
+npm run build      # 编译 TypeScript 模块
+```
+
+### 5. 工具脚本运行
 ```bash
 # 重新计算前 3 个月发布容量并生成数据
 python3 scripts/analytics/calc_launch_capacity.py

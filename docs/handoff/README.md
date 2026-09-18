@@ -27,6 +27,10 @@
 | **DONE-05** | 独占切片分发机制确认 | [`docs/business-requirements.md`](../business-requirements.md) | ✅ 已完成 | 2026-09-18 | 切片由人工确认后加锁，绝不出现同一切片跨账号重复分发。 |
 | **DONE-06** | 双轨数据采集策略确认 | [`docs/delivery-specification.md`](../delivery-specification.md) | ✅ 已完成 | 2026-09-18 | 确立官方 API 优先、第三方数据服务全量保底的双轨采集策略。 |
 | **DONE-07** | Monorepo 工程结构搭建 | [`README.md`](../../README.md) | ✅ 已完成 | 2026-09-18 | 完成 `apps/`、`services/`、`scripts/`、`artifacts/` 目录组织与脚手架。 |
+| **DONE-08** | 全局工程规范与开发准则确立 | [`CLAUDE.md`](../../CLAUDE.md) | ✅ 已完成 | 2026-09-18 | 确立最高开发指南，明确禁止主动启动后台服务，索引架构五大铁律。 |
+| **DONE-09** | 系统底层技术架构补强 | [`docs/delivery-specification.md`](../delivery-specification.md) | ✅ 已完成 | 2026-09-18 | 增补第 7 章：持久化存储 Schema、真机 WebSocket Pull 通信、磁盘清理、凭据安全、短链防封。 |
+| **DONE-10** | 子模块工程文档补全与纯化 | [`apps/web-console/README.md`](../../apps/web-console/README.md)<br>[`apps/artemis-controller/README.md`](../../apps/artemis-controller/README.md) | ✅ 已完成 | 2026-09-18 | 补齐 Web 控制台说明；Artemis README 彻底剔除模拟器并发布声明式 UI 动作流契约。 |
+| **DONE-11** | 容量测算模型与报告全面重构 | [`artifacts/data/3至20台真机设备-前三个月发布与准入测算.md`](../../artifacts/data/3至20台真机设备-前三个月发布与准入测算.md) | ✅ 已完成 | 2026-09-18 | 重构 `calc_launch_capacity.py`，生成 3~5 至 20 台真机数据，归档旧报告。 |
 
 ---
 
@@ -42,9 +46,9 @@
 | **TASK-05** | `services/ai-engine` | **P0** | 落地切片排他独占锁（Exclusive Lock），匹配引擎前置过滤已占用切片 | 🔴 待开发 | 后端研发 | [TASK-05 规范](2026-09-18-developer-handoff.md#task-05-落地切片排他独占锁exclusive-distribution-lock机制) |
 | **TASK-06** | `services/ai-engine` | **P1** | 补充第三方数据抓取接口契约，并在缺少完播率时降级为公开互动指标评分 | 🔴 待开发 | 后端研发 | [TASK-06 规范](2026-09-18-developer-handoff.md#task-06-补充第三方数据服务契约与-ab-策略降级评分算法) |
 | **TASK-07** | `services/shortlink-service` | **P2** | 平台枚举收敛至 FB/YT，增加针对 YT Shorts 描述不可点的主页归因标记 | 🔴 待开发 | 后端研发 | [TASK-07 规范](2026-09-18-developer-handoff.md#task-07-平台枚举收敛至-fb-与-yt保留-ins-扩展预留) |
-| **TASK-08** | `scripts/analytics` | **P1** | 重构 `calc_launch_capacity.py`，生成 3~5 台至 20 台真机发布测算数据 | 🔴 待开发 | 数据脚本研发 | [TASK-08 规范](2026-09-18-developer-handoff.md#task-08-重构发布容量与准入测算脚本scriptsanalyticscalc_launch_capacitypy) |
+| **TASK-08** | `scripts/analytics` | **P1** | 重构 `calc_launch_capacity.py`，生成 3~5 台至 20 台真机发布测算数据 | ✅ 已完成 | 数据脚本研发 | [TASK-08 规范](2026-09-18-developer-handoff.md#task-08-重构发布容量与准入测算脚本scriptsanalyticscalc_launch_capacitypy) |
 | **TASK-09** | `scripts/ceo_report` | **P1** | 修正 `build_report.py` 中的旧数据（30/90号），重新生成正式 Word 汇报 | 🔴 待开发 | 工具研发 | [TASK-09 规范](2026-09-18-developer-handoff.md#task-09-修正-ceo-汇报-word-文档构建脚本scriptsceo_reportbuild_reportpy) |
-| **TASK-10** | 根目录文档 | **P2** | 更新 `README.md` 架构拓扑图与正文，删除模拟器并收敛平台为 FB+YT | 🔴 待开发 | 全栈研发 | [TASK-10 规范](2026-09-18-developer-handoff.md#task-10-修正根目录顶层工程导航readmemd) |
+| **TASK-10** | 根目录文档 | **P2** | 更新 `README.md` 架构拓扑图与正文，删除模拟器并收敛平台为 FB+YT | ✅ 已完成 | 全栈研发 | [TASK-10 规范](2026-09-18-developer-handoff.md#task-10-修正根目录顶层工程导航readmemd) |
 
 ---
 

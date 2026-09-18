@@ -1,0 +1,14 @@
+{
+  "name": "socialgrowth-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "services/*"
+  ],
+  "scripts": {
+    "dev": "npm run --prefix apps/web-console dev",
+    "build": "npm run --prefix apps/web-console build",
+    "lint": "npm run --prefix apps/web-console lint"
+  }
+}

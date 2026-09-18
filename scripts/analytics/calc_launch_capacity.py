@@ -1,4 +1,4 @@
-"""重算配套报告中的情景数值；不连接平台、不预测获批概率。"""
+"""重算 3~5 台至 20 台纯真机设备前 3 个月发布产能与观看增长测算；不连接平台、不预测获批概率。"""
 import json
 from math import ceil
 from pathlib import Path
@@ -6,9 +6,14 @@ from pathlib import Path
 REALIZATION = 0.9
 CURRENT_MONTH_SHARE = 0.5
 MONTH_DAYS = 30
+# 最新基准：单机 1 FB + 1 YT
+# 第 1 月：4 台设备（各平台 4 号，双平台 8 号，范围 3~5 台 / 6~10 号）
+# 第 2 月：累计 9 台设备（新增 5 台，各平台 9 号，双平台 18 号，范围 8~10 台 / 16~20 号）
+# 第 3 月：累计 20 台设备（新增 11 台，各平台 20 号，双平台 40 号）
 COHORTS = [
-    {"name": "首批", "accounts_per_platform": 15, "daily": [1, 2, 3]},
-    {"name": "第三个月新增", "accounts_per_platform": 35, "daily": [0, 0, 2]},
+    {"name": "首批试点(第1月投入-4台真机)", "accounts_per_platform": 4, "daily": [1, 2, 2]},
+    {"name": "第2月爬坡新增(5台真机)", "accounts_per_platform": 5, "daily": [0, 1, 2]},
+    {"name": "第3月规模化新增(11台真机)", "accounts_per_platform": 11, "daily": [0, 0, 2]},
 ]
 SCENARIOS = {
     "低表现": {"facebook_public": 100, "youtube_qualified": 500},

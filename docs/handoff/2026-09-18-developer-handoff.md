@@ -146,30 +146,29 @@
 
 #### [TASK-08] 重构发布容量与准入测算脚本 (`scripts/analytics/calc_launch_capacity.py`)
 - **优先级**：P1
+- **当前状态**：✅ **已完成 (2026-09-18)**
 - **问题文件**：[`scripts/analytics/calc_launch_capacity.py`](../../scripts/analytics/calc_launch_capacity.py)
-- **开发要求**：
-  1. 将批次重构为最新基线：
-     - 首月（第 1 月）：3~5 台设备，每台承载 1 FB + 1 YT（6~10 个账号），日更 1 条/账号；
-     - 第 2 月：8~10 台设备（16~20 个账号），日更 1~2 条/账号；
-     - 第 3 月：约 20 台设备（约 40 个账号），日更 2 条/账号。
-  2. 执行脚本重新生成 [`artifacts/data/前三个月发布测算-数据.json`](../../artifacts/data/前三个月发布测算-数据.json)。
-  3. 更新配套报告 [`artifacts/data/15至50台设备-前三个月发布与准入测算.md`](../../artifacts/data/15至50台设备-前三个月发布与准入测算.md)，更名为 `3至20台真机设备-前三个月发布与准入测算.md` 并同步数据。
-- **验收标准**：数据文件生成正常，数字严格匹配 3~5 台至 20 台规模。
+- **交付内容**：
+  1. 批次已重构为最新 3~5 台（6~10 号）、第 2 月 8~10 台（16~20 号）、第 3 月 20 台（40 号）纯真机基线；
+  2. 脚本运行重新生成 [`artifacts/data/前三个月发布测算-数据.json`](../../artifacts/data/前三个月发布测算-数据.json)；
+  3. 新建权威配套报告 [`artifacts/data/3至20台真机设备-前三个月发布与准入测算.md`](../../artifacts/data/3至20台真机设备-前三个月发布与准入测算.md)，并将原 15~50 台旧报告标记为历史归档。
 
 #### [TASK-09] 修正 CEO 汇报 Word 文档构建脚本 (`scripts/ceo_report/build_report.py`)
 - **优先级**：P1
+- **当前状态**：🟡 **文本已修正，待生产环境生成 docx**
 - **问题文件**：[`scripts/ceo_report/build_report.py`](../../scripts/ceo_report/build_report.py)
 - **开发要求**：
   1. 修正第 74 行、第 124-125 行文字：
      - 首期平台：Facebook、YouTube 双平台验证，首月 3~5 台真机（共 6~10 个账号）；第二月爬坡至 8~10 台真机；第三个月约 20 台真机（约 40 个账号）。
      - 验收材料：双平台真实发布与执行记录、短链统计、独占切片排他流。
   2. 运行 `build_report.py` 重新生成正式交付物：[`artifacts/reports/SocialGrowth年度技术规划与预算汇报.docx`](../../artifacts/reports/SocialGrowth年度技术规划与预算汇报.docx)。
-- **验收标准**：重新编译生成 Word 文档，文本无“三平台 30/90 账号”历史残留。
+- **验收标准**：文本无“三平台 30/90 账号”历史残留。
 
 #### [TASK-10] 修正根目录顶层工程导航 (`README.md`)
 - **优先级**：P2
+- **当前状态**：✅ **已完成 (2026-09-18)**
 - **问题文件**：[`README.md`](../../README.md)
-- **开发要求**：
-  1. 修正第 3 行平台描述：聚焦于已有 AI 漫剧切片的高精度独占分发、双平台（Facebook / YouTube）自动化运营闭环以及基于 Google Artemis 的纯真机群控调度。
-  2. 修正 Mermaid 架构拓扑图：将 `DEV["移动真机池 (Samsung S23 等) + 模拟器矩阵"]` 更改为 `DEV["海外移动纯真机设备池 (Samsung Galaxy S23 等)"]`。
-- **验收标准**：文档渲染效果良好，无模拟器字样。
+- **交付内容**：
+  1. 平台描述已收敛为 Facebook / YouTube 双平台，Instagram 待稳定后接入；
+  2. 拓扑图彻底清除模拟器，改为纯物理真机设备池，并增补 PostgreSQL、Redis、S3 基础设施层与 WebSocket/gRPC Pull 通信管道；
+  3. 补齐 `shortlink-service` 启动指引与 `CLAUDE.md` 开发纪律引用。
