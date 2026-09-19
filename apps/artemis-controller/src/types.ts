@@ -25,6 +25,7 @@ export interface PublishTaskDirective {
   schemaVersion: "design-v1";
   taskId: string;
   attemptId: string;
+  previousAttemptId?: string;
   projectId: string;
   strategyVersionId: string;
   approvalId: string;

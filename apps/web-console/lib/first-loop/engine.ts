@@ -325,6 +325,10 @@ export class FirstLoopEngine {
       );
     }
     relation.revokedAt = this.now();
+    this.invalidateProjectAuthority(
+      relation.projectId,
+      'ACCOUNT_AUTHORIZATION_REVOKED',
+    );
     this.accept(
       'account.authorization_revoked',
       'account_service_relation',
@@ -417,6 +421,8 @@ export class FirstLoopEngine {
       createdAt: timestamp,
     };
     this.state.sliceAssets.push(asset);
+    if (input.identity)
+      this.invalidateContentAuthority(identity.id, 'CONTENT_VERSION_CHANGED');
     this.accept(
       'content.admitted',
       'content_identity',
@@ -819,6 +825,11 @@ export class FirstLoopEngine {
       (item) => item.id === entry.activeVersionId,
     );
     if (previous) previous.isActive = false;
+    if (previous)
+      this.invalidateDestinationAuthority(
+        previous.id,
+        'DESTINATION_VERSION_CHANGED',
+      );
     const version: DestinationVersion = {
       id: this.nextId('destination-version'),
       destinationEntryId,
@@ -1530,6 +1541,155 @@ export class FirstLoopEngine {
     return { ok: true, value: structuredClone(review) };
   }
 
+  recordExecutionReceipt(
+    input: {
+      attemptId: string;
+      contentIdentityId: string;
+      sliceId: string;
+      accountId: string;
+      publishStatus: PublishStatus;
+      evidenceRefs: string[];
+    },
+    context: CommandContext,
+  ): CommandResult<PublicationAttempt> {
+    const identity = this.state.contentIdentities.find(
+      (item) => item.id === input.contentIdentityId,
+    );
+    const asset = this.state.sliceAssets.find(
+      (item) =>
+        item.id === input.sliceId &&
+        item.contentIdentityId === input.contentIdentityId,
+    );
+    if (!identity || !asset || identity.assignedAccountId !== input.accountId) {
+      return this.reject(
+        'EXECUTION_RECEIPT_SCOPE_INVALID',
+        '回执与内容、文件或账号归属不一致',
+        'publication_attempt',
+        input.attemptId,
+        context,
+      );
+    }
+    const existing = this.state.publicationAttempts.find(
+      (item) => item.id === input.attemptId,
+    );
+    if (existing) {
+      if (existing.publishStatus === 'published')
+        return { ok: true, value: structuredClone(existing) };
+      if (
+        input.publishStatus === 'published' &&
+        input.evidenceRefs.length === 0
+      ) {
+        return this.reject(
+          'PUBLICATION_EVIDENCE_REQUIRED',
+          '确认公开必须提供证据引用',
+          'publication_attempt',
+          input.attemptId,
+          context,
+        );
+      }
+      existing.publishStatus = input.publishStatus;
+      existing.evidenceRefs = normalizeStrings([
+        ...existing.evidenceRefs,
+        ...input.evidenceRefs,
+      ]);
+      existing.updatedAt = this.now();
+      if (input.publishStatus === 'published') {
+        identity.firstPublishedAt ??= existing.updatedAt;
+        identity.updatedAt = existing.updatedAt;
+      }
+      this.accept(
+        'publication.receipt_updated',
+        'publication_attempt',
+        existing.id,
+        context,
+        {
+          publishStatus: existing.publishStatus,
+          evidenceCount: existing.evidenceRefs.length,
+        },
+        input.evidenceRefs,
+      );
+      return { ok: true, value: structuredClone(existing) };
+    }
+    if (
+      input.publishStatus === 'published' &&
+      input.evidenceRefs.length === 0
+    ) {
+      return this.reject(
+        'PUBLICATION_EVIDENCE_REQUIRED',
+        '确认公开必须提供证据引用',
+        'publication_attempt',
+        input.attemptId,
+        context,
+      );
+    }
+    const timestamp = this.now();
+    const attempt: PublicationAttempt = {
+      id: input.attemptId,
+      contentIdentityId: input.contentIdentityId,
+      sliceId: input.sliceId,
+      accountId: input.accountId,
+      publishStatus: input.publishStatus,
+      evidenceRefs: normalizeStrings(input.evidenceRefs),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    this.state.publicationAttempts.push(attempt);
+    if (attempt.publishStatus === 'published')
+      identity.firstPublishedAt ??= timestamp;
+    this.accept(
+      'publication.receipt_recorded',
+      'publication_attempt',
+      attempt.id,
+      context,
+      {
+        publishStatus: attempt.publishStatus,
+        contentIdentityId: attempt.contentIdentityId,
+      },
+      attempt.evidenceRefs,
+    );
+    return { ok: true, value: structuredClone(attempt) };
+  }
+
+  exitProject(
+    projectId: string,
+    context: CommandContext,
+  ): CommandResult<Project> {
+    const project = this.state.projects.find((item) => item.id === projectId);
+    if (!project)
+      return this.reject(
+        'PROJECT_NOT_FOUND',
+        '项目不存在',
+        'project',
+        projectId,
+        context,
+      );
+    project.status = 'exited';
+    project.updatedAt = this.now();
+    for (const relation of this.state.accountServiceRelations) {
+      if (relation.projectId === projectId && !relation.revokedAt)
+        relation.revokedAt = project.updatedAt;
+    }
+    this.invalidateProjectAuthority(projectId, 'PROJECT_EXITED');
+    for (const entry of this.state.destinationEntries.filter(
+      (item) => item.projectId === projectId,
+    )) {
+      const version = this.state.destinationVersions.find(
+        (item) => item.id === entry.activeVersionId,
+      );
+      if (entry.exitPolicy === 'disable' && version) version.isActive = false;
+      entry.updatedAt = project.updatedAt;
+    }
+    this.accept('project.exited', 'project', project.id, context, {
+      revokedRelationCount: this.state.accountServiceRelations.filter(
+        (item) => item.projectId === projectId && item.revokedAt,
+      ).length,
+      destinationCount: this.state.destinationEntries.filter(
+        (item) => item.projectId === projectId,
+      ).length,
+    });
+    return { ok: true, value: structuredClone(project) };
+  }
+
   private invalidateProjectAuthority(projectId: string, reason: string): void {
     const approvalIds = new Set<string>();
     for (const approval of this.state.executionApprovals) {
@@ -1539,6 +1699,52 @@ export class FirstLoopEngine {
         approvalIds.add(approval.id);
       }
     }
+    for (const schedule of this.state.publicationSchedules) {
+      if (
+        approvalIds.has(schedule.approvalId) &&
+        schedule.status === 'scheduled'
+      )
+        schedule.status = 'cancelled';
+    }
+  }
+
+  private invalidateContentAuthority(
+    contentIdentityId: string,
+    reason: string,
+  ): void {
+    const approvalIds = new Set<string>();
+    for (const approval of this.state.executionApprovals) {
+      if (
+        approval.contentIdentityId === contentIdentityId &&
+        approval.status === 'active'
+      ) {
+        approval.status = 'invalidated';
+        approval.invalidationReason = reason;
+        approvalIds.add(approval.id);
+      }
+    }
+    this.cancelSchedulesForApprovals(approvalIds);
+  }
+
+  private invalidateDestinationAuthority(
+    destinationVersionId: string,
+    reason: string,
+  ): void {
+    const approvalIds = new Set<string>();
+    for (const approval of this.state.executionApprovals) {
+      if (
+        approval.destinationVersionId === destinationVersionId &&
+        approval.status === 'active'
+      ) {
+        approval.status = 'invalidated';
+        approval.invalidationReason = reason;
+        approvalIds.add(approval.id);
+      }
+    }
+    this.cancelSchedulesForApprovals(approvalIds);
+  }
+
+  private cancelSchedulesForApprovals(approvalIds: Set<string>): void {
     for (const schedule of this.state.publicationSchedules) {
       if (
         approvalIds.has(schedule.approvalId) &&

@@ -130,6 +130,21 @@ void test("T-06/T-08: duplicate delivery submits once and published fact survive
   assert.equal(controller.recordLateReceipt(task, lateFailure).publishStatus, "published");
 });
 
+void test("T-12: conflicting duplicate payload and published receipt without evidence are rejected", async () => {
+  const task = directive();
+  const adapter = new FakeAdapter((value) => receipt(value, { evidenceRefs: [] }));
+  const controller = scheduler(adapter);
+  assert.equal(controller.enqueueTask(task), true);
+  assert.equal(controller.enqueueTask({ ...task, captionText: "different payload" }), false);
+  assert.equal(
+    controller.listAuditEntries().at(-1)?.reasonCode,
+    "DUPLICATE_ATTEMPT_PAYLOAD_CONFLICT",
+  );
+  const result = await controller.dispatchNext();
+  assert.equal(result?.publishStatus, "unknown");
+  assert.equal(result?.failureCode, "RECEIPT_CONFLICT");
+});
+
 void test("T-05/T-07: technical exception becomes unknown and late public evidence updates history without resubmission", async () => {
   const task = directive();
   const adapter = new FakeAdapter(() => {
@@ -160,6 +175,17 @@ void test("C-09/T-09: challenge pauses the binding and resume requires all busin
   controller.enqueueTask(task);
   await controller.dispatchNext();
   assert.equal(
+    controller.enqueueTask(
+      directive({
+        taskId: "task-unrelated",
+        attemptId: "attempt-unrelated",
+        bindingId: "binding-b",
+        deviceId: "device-b",
+      }),
+    ),
+    true,
+  );
+  assert.equal(
     controller.enqueueTask(directive({ taskId: "task-2", attemptId: "attempt-2" })),
     false,
   );
@@ -176,6 +202,18 @@ void test("C-09/T-09: challenge pauses the binding and resume requires all busin
       challengeResolved: true,
       authorizationValid: true,
       scheduleStillValid: true,
+    }),
+    true,
+  );
+  assert.equal(
+    controller.enqueueTask(directive({ taskId: "task-2", attemptId: "attempt-2" })),
+    false,
+  );
+  assert.equal(
+    controller.resumeDevice("device-a", {
+      challengeResolved: true,
+      relatedScopeReviewed: true,
+      schedulesRevalidated: true,
     }),
     true,
   );

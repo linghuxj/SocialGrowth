@@ -17,7 +17,9 @@ export interface SchedulerDependencies {
 export class TaskScheduler {
   private queue: PublishTaskDirective[] = [];
   private readonly queuedAttempts = new Set<string>();
+  private readonly queuedPayloads = new Map<string, string>();
   private readonly pausedBindings = new Map<string, string>();
+  private readonly pausedDevices = new Map<string, string>();
   private readonly auditEntries: ControllerAuditEntry[] = [];
   private readonly now: () => string;
   private readonly nextId: () => string;
@@ -35,17 +37,28 @@ export class TaskScheduler {
   public enqueueTask(task: PublishTaskDirective): boolean {
     const attemptKey = this.attemptKey(task.taskId, task.attemptId);
     if (this.receiptStore.get(task.taskId, task.attemptId) || this.queuedAttempts.has(attemptKey)) {
-      this.audit(task, "task.enqueue", "rejected", "DUPLICATE_ATTEMPT", {});
+      const payloadConflict =
+        this.queuedPayloads.has(attemptKey) &&
+        this.queuedPayloads.get(attemptKey) !== JSON.stringify(task);
+      this.audit(
+        task,
+        "task.enqueue",
+        "rejected",
+        payloadConflict ? "DUPLICATE_ATTEMPT_PAYLOAD_CONFLICT" : "DUPLICATE_ATTEMPT",
+        {},
+      );
       return false;
     }
-    if (this.pausedBindings.has(task.bindingId)) {
-      this.audit(task, "task.enqueue", "rejected", "BINDING_PAUSED", {
-        reason: this.pausedBindings.get(task.bindingId) ?? null,
+    if (this.pausedBindings.has(task.bindingId) || this.pausedDevices.has(task.deviceId)) {
+      this.audit(task, "task.enqueue", "rejected", "RELATED_SCOPE_PAUSED", {
+        bindingReason: this.pausedBindings.get(task.bindingId) ?? null,
+        deviceReason: this.pausedDevices.get(task.deviceId) ?? null,
       });
       return false;
     }
     this.queue.push(structuredClone(task));
     this.queuedAttempts.add(attemptKey);
+    this.queuedPayloads.set(attemptKey, JSON.stringify(task));
     this.audit(task, "task.enqueue", "accepted", "OK", { queueDepth: this.queue.length });
     return true;
   }
@@ -128,7 +141,8 @@ export class TaskScheduler {
       receipt.taskId !== task.taskId ||
       receipt.attemptId !== task.attemptId ||
       receipt.deviceId !== device.deviceId ||
-      receipt.accountId !== task.accountId
+      receipt.accountId !== task.accountId ||
+      (receipt.publishStatus === "published" && receipt.evidenceRefs.length === 0)
     ) {
       receipt = this.createReceipt(
         task,
@@ -140,8 +154,10 @@ export class TaskScheduler {
       );
     }
     this.receiptStore.save(receipt);
-    if (receipt.failureCode === "IDENTITY_CHALLENGE")
+    if (receipt.failureCode === "IDENTITY_CHALLENGE") {
       this.pausedBindings.set(task.bindingId, "IDENTITY_CHALLENGE");
+      this.pausedDevices.set(task.deviceId, "IDENTITY_CHALLENGE_RELATED_SCOPE");
+    }
     this.devicePool.updateStatus(
       device.deviceId,
       receipt.resourceStatus === "available" ? "idle" : receipt.resourceStatus,
@@ -199,6 +215,19 @@ export class TaskScheduler {
     return this.pausedBindings.delete(bindingId);
   }
 
+  public resumeDevice(
+    deviceId: string,
+    checks: {
+      challengeResolved: boolean;
+      relatedScopeReviewed: boolean;
+      schedulesRevalidated: boolean;
+    },
+  ): boolean {
+    if (!checks.challengeResolved || !checks.relatedScopeReviewed || !checks.schedulesRevalidated)
+      return false;
+    return this.pausedDevices.delete(deviceId);
+  }
+
   private createReceipt(
     task: PublishTaskDirective,
     deviceId: string,
@@ -226,7 +255,9 @@ export class TaskScheduler {
 
   private removeHead(task: PublishTaskDirective): void {
     this.queue.shift();
-    this.queuedAttempts.delete(this.attemptKey(task.taskId, task.attemptId));
+    const attemptKey = this.attemptKey(task.taskId, task.attemptId);
+    this.queuedAttempts.delete(attemptKey);
+    this.queuedPayloads.delete(attemptKey);
   }
   private attemptKey(taskId: string, attemptId: string): string {
     return `${taskId}:${attemptId}`;

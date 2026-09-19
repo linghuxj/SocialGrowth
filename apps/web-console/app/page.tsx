@@ -94,40 +94,40 @@ function ConsoleContent() {
       id: 'strategy',
       label: '3. 策略与规则引擎',
       icon: Sliders,
-      badge: pendingReviewsCount > 0 ? `${pendingReviewsCount}待审` : '75%托管',
+      badge: pendingReviewsCount > 0 ? `${pendingReviewsCount}条演示待审` : '旧演示',
       alertDot: pendingReviewsCount > 0
     },
     {
       id: 'shortlinks',
       label: '4. 导流短链与防封',
       icon: Link2,
-      badge: '98.6%'
+      badge: '待真实入口验收'
     },
     {
       id: 'risk',
       label: '5. 风控与冷备换号',
       icon: ShieldAlert,
-      badge: waiting2FaCount > 0 ? `${waiting2FaCount}待验码` : '2次SOP',
+      badge: waiting2FaCount > 0 ? `${waiting2FaCount}条演示待办` : '旧演示',
       alertDot: waiting2FaCount > 0
     },
     {
       id: 'artemis',
       label: '6. Artemis真机群控',
       icon: Cpu,
-      badge: `${devices.length}在线`,
+      badge: `${devices.length}条演示记录`,
       alertDot: warningDevicesCount > 0
     },
     {
       id: 'experiments',
       label: '7. A/B策略优化屏',
       icon: GitCompare,
-      badge: '+18.2%'
+      badge: '受控数据'
     },
     {
       id: 'database',
       label: '8. 数据库与持久化',
       icon: Database,
-      badge: '11张表'
+      badge: '本地演示'
     },
     {
       id: 'research',
@@ -169,7 +169,7 @@ function ConsoleContent() {
                 SocialGrowth Web 运营平台
               </span>
               <span className="text-[10px] text-slate-400 font-mono block leading-none">
-                前 3 个月交付规范 · 标准运营作业台 (11 表持久化驱动)
+                首批业务闭环 · 受控工作台（外部接入证据单列）
               </span>
             </div>
           </div>
@@ -179,12 +179,12 @@ function ConsoleContent() {
         <div className="hidden xl:flex items-center gap-2.5 text-xs font-mono">
           <div className="flex items-center gap-1.5 bg-slate-900 px-2.5 py-1 rounded border border-slate-800">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-slate-400 text-[11px]">真机底座:</span>
-            <strong className="text-emerald-400">{devices.length} 台 S23 在线</strong>
+            <span className="text-slate-400 text-[11px]">旧设备演示记录:</span>
+            <strong className="text-amber-400">{devices.length} 条，未核验在线</strong>
           </div>
 
           <div className="flex items-center gap-1.5 bg-slate-900 px-2.5 py-1 rounded border border-slate-800">
-            <span className="text-slate-400 text-[11px]">排他锁:</span>
+            <span className="text-slate-400 text-[11px]">旧演示排他锁:</span>
             <strong className="text-amber-400">{lockedClipsCount} 条独占锁定</strong>
           </div>
 
@@ -324,7 +324,7 @@ function ConsoleContent() {
               <span>CLAUDE.md 合规准则</span>
             </div>
             <p className="text-[10px] text-slate-500 leading-normal">
-              100% 纯真机 · 1:1 设备隔离 · 切片排他独占 · 11 表数据持久化 · 本地服务手动启动
+              目标为纯真机与账号精确绑定；当前受控实现、生产接入与真实平台证据分别验收
             </p>
           </div>
         </aside>
@@ -357,4 +357,3 @@ export default function ConsolePage() {
     </DatabaseProvider>
   );
 }
-
