@@ -10,7 +10,7 @@
 - [业务审计处理结果](docs/handoff/2026-09-19-business-audit-closure.md)：12 组业务问题、原 45 项发现的逐项处理。
 - [月度商业交付](docs/monthly-delivery.md)与[预算](docs/budget-summary.md)：商业目标和投入；[年度访谈](docs/annual-plan.md)保留历史追溯。
 - [Handoff 台账](docs/handoff/README.md)：既有研发任务及其状态；文档更新不代表实现完成。
-- [首批开发规格与任务入口](docs/specs/README.md)：PG-01～PG-10 总规格及 FL-01～FL-06 开发任务，采用 GitHub Issues 跟踪。
+- [首批开发规格与任务入口](docs/specs/README.md)：PG-01～PG-10 总规格及 FL-01～FL-06 开发任务，采用 GitHub Issues 跟踪。 总规格见 [Issue #1](https://github.com/linghuxj/SocialGrowth/issues/1)。
 
 ---
 
