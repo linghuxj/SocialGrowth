@@ -49,4 +49,4 @@
 - [F 样例](../../engineering/fixtures/metric-availability.json)
 - [服务边界](../../engineering/execution-contract.md)
 - [观察复盘行为](../../product-first-loop-spec.md)
-- [当前报表类型](../../../apps/web-console/lib/db/types.ts)
+- [当前闭环类型](../../../apps/web-console/lib/first-loop/types.ts)；旧演示报表类型已移除，保留于 Git 历史

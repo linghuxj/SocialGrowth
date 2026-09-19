@@ -23,6 +23,7 @@ import type {
   ExecutionApproval,
   FirstLoopState,
   MetricObservation,
+  PublicationSchedule,
   Project,
   SliceAsset,
   StrategyDraft,
@@ -31,6 +32,8 @@ import type {
 
 interface FirstLoopContextValue {
   state: FirstLoopState;
+  activeProjectId: string;
+  selectProject: (projectId: string) => void;
   saveProject: (
     input: Omit<Project, 'id' | 'status' | 'createdAt' | 'updatedAt'> & {
       id?: string;
@@ -62,6 +65,9 @@ interface FirstLoopContextValue {
   approveStrategy: (
     input: Parameters<FirstLoopEngine['approveStrategy']>[0],
   ) => CommandResult<ExecutionApproval>;
+  scheduleApproval: (
+    input: Omit<PublicationSchedule, 'id' | 'status' | 'createdAt'>,
+  ) => CommandResult<PublicationSchedule>;
   recordMetricObservation: (
     input: Omit<MetricObservation, 'id' | 'capturedAt'>,
   ) => CommandResult<MetricObservation>;
@@ -103,6 +109,11 @@ function loadInitialState(): FirstLoopState {
 
 export function FirstLoopProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<FirstLoopState>(loadInitialState);
+  const [activeProjectId, setActiveProjectId] = useState(
+    () =>
+      loadInitialState().projects.find((item) => item.status !== 'exited')
+        ?.id ?? '',
+  );
   const [engine] = useState(
     () =>
       new FirstLoopEngine(state, {
@@ -129,6 +140,8 @@ export function FirstLoopProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<FirstLoopContextValue>(
     () => ({
       state,
+      activeProjectId,
+      selectProject: setActiveProjectId,
       saveProject: (input) =>
         execute(() => engine.saveProjectDraft(input, createCommandContext())),
       activateProject: (projectId) =>
@@ -149,6 +162,8 @@ export function FirstLoopProvider({ children }: { children: React.ReactNode }) {
         ),
       approveStrategy: (input) =>
         execute(() => engine.approveStrategy(input, createCommandContext())),
+      scheduleApproval: (input) =>
+        execute(() => engine.scheduleApproval(input, createCommandContext())),
       recordMetricObservation: (input) =>
         execute(() =>
           engine.recordMetricObservation(input, createCommandContext()),
@@ -191,7 +206,7 @@ export function FirstLoopProvider({ children }: { children: React.ReactNode }) {
       projectGaps: (projectId) =>
         engine.listProjectGaps(projectId).map((gap) => gap.message),
     }),
-    [engine, execute, state],
+    [activeProjectId, engine, execute, state],
   );
 
   return (

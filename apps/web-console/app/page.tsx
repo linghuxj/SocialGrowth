@@ -1,347 +1,182 @@
 'use client';
 
 import React, { useState } from 'react';
-import { DatabaseProvider, useDatabase } from '@/lib/db';
-import { OverviewView } from '@/components/views/overview-view';
-import { MatrixView } from '@/components/views/matrix-view';
-import { ClipsView } from '@/components/views/clips-view';
-import { StrategyView } from '@/components/views/strategy-view';
-import { ShortlinksView } from '@/components/views/shortlinks-view';
-import { RiskView } from '@/components/views/risk-view';
-import { ArtemisView } from '@/components/views/artemis-view';
-import { ExperimentsView } from '@/components/views/experiments-view';
-import { DatabaseView } from '@/components/views/database-view';
-import { ResearchView } from '@/components/views/research-view';
-import { FirstLoopView } from '@/components/views/first-loop-view';
-import { FirstLoopProvider } from '@/lib/first-loop/context';
 import {
-  LayoutDashboard,
-  Smartphone,
-  Lock,
-  Sliders,
-  Link2,
-  ShieldAlert,
-  Cpu,
-  GitCompare,
-  FileText,
-  CheckCircle2,
-  Menu,
-  X,
-  Database,
+  Activity,
+  Archive,
+  Boxes,
+  ClipboardCheck,
   Download,
-  AlertTriangle,
-  Info,
-  Check,
-  Workflow
+  FileClock,
+  FolderKanban,
+  Menu,
+  Settings2,
+  ShieldCheck,
+  X,
 } from 'lucide-react';
+import {
+  FirstLoopView,
+  type OperationsSection,
+} from '@/components/views/first-loop-view';
+import { FirstLoopProvider, useFirstLoop } from '@/lib/first-loop/context';
 
-export type NavTab =
-  | 'overview'
-  | 'first-loop'
-  | 'matrix'
-  | 'clips'
-  | 'strategy'
-  | 'shortlinks'
-  | 'risk'
-  | 'artemis'
-  | 'experiments'
-  | 'database'
-  | 'research';
+const NAV: Array<{
+  id: OperationsSection;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}> = [
+  { id: 'overview', label: '运营总览', icon: Activity },
+  { id: 'projects', label: '项目与授权', icon: FolderKanban },
+  { id: 'content', label: '内容库存', icon: Boxes },
+  { id: 'strategy', label: '入口与策略', icon: Settings2 },
+  { id: 'execution', label: '批准与排期', icon: ShieldCheck },
+  { id: 'review', label: '观察与复盘', icon: ClipboardCheck },
+  { id: 'audit', label: '审计日志', icon: FileClock },
+];
 
 function ConsoleContent() {
-  const [activeTab, setActiveTab] = useState<NavTab>('overview');
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { state, activeProjectId, selectProject } = useFirstLoop();
+  const [section, setSection] = useState<OperationsSection>('overview');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const activeProject = state.projects.find(
+    (item) => item.id === activeProjectId,
+  );
+  const activeApprovals = state.executionApprovals.filter(
+    (item) => item.status === 'active',
+  ).length;
+  const unresolvedAttempts = state.publicationAttempts.filter(
+    (item) => item.publishStatus === 'unknown',
+  ).length;
 
-  const {
-    reviews,
-    hitl2FaEvents,
-    devices,
-    clips,
-    notification,
-    clearNotification,
-    exportCurrentDatabaseJson
-  } = useDatabase();
-
-  // Dynamic Badges & Action Counters
-  const pendingReviewsCount = reviews.filter(r => r.status === 'pending').length;
-  const waiting2FaCount = hitl2FaEvents.filter(e => e.status === 'waiting_operator').length;
-  const warningDevicesCount = devices.filter(d => d.health === 'warning').length;
-  const lockedClipsCount = clips.filter(c => c.lockStatus === 'assigned_locked' || c.lockedAt).length;
-
-  const navItems: {
-    id: NavTab;
-    label: string;
-    icon: React.ComponentType<{ className?: string }>;
-    badge?: string;
-    badgeColor?: string;
-    alertDot?: boolean;
-  }[] = [
-    { id: 'overview', label: '3个月成果总览', icon: LayoutDashboard },
-    { id: 'first-loop', label: '首条业务闭环', icon: Workflow, badge: 'PG-01~10' },
-    {
-      id: 'matrix',
-      label: '1. 账号与真机拓扑',
-      icon: Smartphone,
-      badge: `${devices.length}台/40号`
-    },
-    {
-      id: 'clips',
-      label: '2. 切片素材独占锁',
-      icon: Lock,
-      badge: `${clips.length}条`
-    },
-    {
-      id: 'strategy',
-      label: '3. 策略与规则引擎',
-      icon: Sliders,
-      badge: pendingReviewsCount > 0 ? `${pendingReviewsCount}条演示待审` : '旧演示',
-      alertDot: pendingReviewsCount > 0
-    },
-    {
-      id: 'shortlinks',
-      label: '4. 导流短链与防封',
-      icon: Link2,
-      badge: '待真实入口验收'
-    },
-    {
-      id: 'risk',
-      label: '5. 风控与冷备换号',
-      icon: ShieldAlert,
-      badge: waiting2FaCount > 0 ? `${waiting2FaCount}条演示待办` : '旧演示',
-      alertDot: waiting2FaCount > 0
-    },
-    {
-      id: 'artemis',
-      label: '6. Artemis真机群控',
-      icon: Cpu,
-      badge: `${devices.length}条演示记录`,
-      alertDot: warningDevicesCount > 0
-    },
-    {
-      id: 'experiments',
-      label: '7. A/B策略优化屏',
-      icon: GitCompare,
-      badge: '受控数据'
-    },
-    {
-      id: 'database',
-      label: '8. 数据库与持久化',
-      icon: Database,
-      badge: '本地演示'
-    },
-    {
-      id: 'research',
-      label: '归档：政策与测算',
-      icon: FileText
-    }
-  ];
-
-  const handleDownloadSnapshot = () => {
-    const jsonStr = exportCurrentDatabaseJson();
-    const blob = new Blob([jsonStr], { type: 'application/json' });
+  const exportSnapshot = () => {
+    const blob = new Blob([JSON.stringify(state, null, 2)], {
+      type: 'application/json',
+    });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `database_snapshot_${new Date().toISOString().slice(0, 10)}.json`;
-    link.click();
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `socialgrowth-first-loop-${new Date().toISOString().slice(0, 10)}.json`;
+    anchor.click();
     URL.revokeObjectURL(url);
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col text-slate-900 font-sans">
-      {/* Global Topbar Header */}
-      <header className="bg-slate-950 text-white border-b border-slate-800 px-4 lg:px-6 py-2.5 sticky top-0 z-40 flex items-center justify-between shadow-md">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            className="lg:hidden p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-white"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
-            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
-
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded bg-blue-600 flex items-center justify-center font-bold text-white text-xs font-mono">
+    <div className="min-h-screen bg-slate-100 text-slate-900">
+      <header className="sticky top-0 z-40 border-b border-slate-800 bg-slate-950 text-white">
+        <div className="mx-auto flex min-h-14 max-w-[1600px] items-center justify-between gap-3 px-4 lg:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              aria-label="打开导航"
+              className="rounded-md p-2 text-slate-300 hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-blue-400 lg:hidden"
+              onClick={() => setMenuOpen(!menuOpen)}
+            >
+              {menuOpen ? (
+                <X className="h-5 w-5" />
+              ) : (
+                <Menu className="h-5 w-5" />
+              )}
+            </button>
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-600 text-xs font-bold">
               SG
             </div>
-            <div>
-              <span className="font-bold text-sm tracking-tight text-white block leading-tight">
-                SocialGrowth Web 运营平台
-              </span>
-              <span className="text-[10px] text-slate-400 font-mono block leading-none">
-                首批业务闭环 · 受控工作台（外部接入证据单列）
-              </span>
+            <div className="min-w-0">
+              <h1 className="truncate text-sm font-semibold">
+                SocialGrowth 运营工作台
+              </h1>
+              <p className="truncate text-[11px] text-slate-400">
+                首批业务闭环 · 本地受控数据
+              </p>
             </div>
           </div>
-        </div>
-
-        {/* Global Live System Telemetry Bar */}
-        <div className="hidden xl:flex items-center gap-2.5 text-xs font-mono">
-          <div className="flex items-center gap-1.5 bg-slate-900 px-2.5 py-1 rounded border border-slate-800">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-slate-400 text-[11px]">旧设备演示记录:</span>
-            <strong className="text-amber-400">{devices.length} 条，未核验在线</strong>
+          <div className="hidden items-center gap-2 text-xs xl:flex">
+            <span className="rounded border border-amber-700/70 bg-amber-950/50 px-2 py-1 text-amber-200">
+              外部发布连接未配置
+            </span>
+            <span className="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-300">
+              有效批准 {activeApprovals}
+            </span>
+            <span className="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-300">
+              待核回执 {unresolvedAttempts}
+            </span>
           </div>
-
-          <div className="flex items-center gap-1.5 bg-slate-900 px-2.5 py-1 rounded border border-slate-800">
-            <span className="text-slate-400 text-[11px]">旧演示排他锁:</span>
-            <strong className="text-amber-400">{lockedClipsCount} 条独占锁定</strong>
-          </div>
-
-          {/* Action Notification Badges */}
-          {pendingReviewsCount > 0 && (
-            <button
-              type="button"
-              onClick={() => setActiveTab('strategy')}
-              className="flex items-center gap-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 px-2 py-1 rounded text-xs transition-colors"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-              <span>待审策略: {pendingReviewsCount} 条</span>
-            </button>
-          )}
-
-          {waiting2FaCount > 0 && (
-            <button
-              type="button"
-              onClick={() => setActiveTab('risk')}
-              className="flex items-center gap-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 px-2 py-1 rounded text-xs transition-colors animate-pulse"
-            >
-              <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
-              <span>2FA 拦截: {waiting2FaCount} 台</span>
-            </button>
-          )}
-        </div>
-
-        {/* Header Right Action Area */}
-        <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={handleDownloadSnapshot}
-            title="导出当前已修改的数据库快照为 database.json"
-            className="flex items-center gap-1.5 px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white font-medium rounded shadow-xs transition-colors"
+            onClick={exportSnapshot}
+            className="inline-flex h-8 items-center gap-2 rounded-md bg-blue-600 px-3 text-xs font-medium text-white hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-blue-300"
           >
-            <Download className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">导出最新 database.json</span>
-            <span className="sm:hidden font-mono">导出快照</span>
+            <Download className="h-4 w-4" />
+            <span className="hidden sm:inline">导出审计快照</span>
           </button>
         </div>
       </header>
-
-      {/* Floating Real-time Toast Notifications */}
-      {notification && (
-        <div className="fixed top-14 right-4 z-50 max-w-sm pointer-events-none">
-          <div
-            className={`pointer-events-auto p-3.5 rounded-lg shadow-xl border text-xs flex items-start gap-2.5 transition-all bg-white ${
-              notification.type === 'success'
-                ? 'border-emerald-400 text-slate-800 ring-1 ring-emerald-200'
-                : notification.type === 'error'
-                ? 'border-rose-400 text-slate-800 ring-1 ring-rose-200'
-                : notification.type === 'warning'
-                ? 'border-amber-400 text-slate-800 ring-1 ring-amber-200'
-                : 'border-blue-400 text-slate-800 ring-1 ring-blue-200'
-            }`}
-          >
-            {notification.type === 'success' && <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />}
-            {notification.type === 'error' && <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />}
-            {notification.type === 'warning' && <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />}
-            {notification.type === 'info' && <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />}
-
-            <div className="flex-1">
-              <span className="font-semibold block">{notification.message}</span>
-              <span className="text-[10px] text-slate-400 font-mono">{notification.timestamp}</span>
-            </div>
-
-            <button
-              type="button"
-              onClick={clearNotification}
-              className="text-slate-400 hover:text-slate-600 shrink-0"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Main Layout Container */}
-      <div className="flex-1 flex flex-col lg:flex-row max-w-[1600px] w-full mx-auto p-3 lg:p-6 gap-6">
-        {/* Left Sidebar Navigation */}
+      <div className="mx-auto flex max-w-[1600px] flex-col gap-5 p-3 lg:flex-row lg:p-6">
         <aside
-          className={`${
-            mobileMenuOpen ? 'block' : 'hidden'
-          } lg:block w-full lg:w-64 shrink-0 bg-white border border-slate-200 rounded-lg p-3 shadow-xs self-start sticky top-18`}
+          className={`${menuOpen ? 'block' : 'hidden'} w-full shrink-0 self-start rounded-lg border border-slate-200 bg-white p-3 shadow-sm lg:sticky lg:top-20 lg:block lg:w-64`}
         >
-          <div className="px-2 py-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-            运营工作台导航
-          </div>
-
-          <nav className="space-y-1">
-            {navItems.map(item => {
+          <label className="mb-3 block text-xs font-medium text-slate-700">
+            当前项目
+            <select
+              aria-label="当前项目"
+              className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              value={activeProjectId}
+              onChange={(event) => selectProject(event.target.value)}
+            >
+              <option value="">全部项目 / 尚未选择</option>
+              {state.projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name} · {project.status}
+                </option>
+              ))}
+            </select>
+          </label>
+          <nav aria-label="运营工作台导航" className="space-y-1">
+            {NAV.map((item) => {
               const Icon = item.icon;
-              const isActive = activeTab === item.id;
+              const selected = section === item.id;
               return (
                 <button
                   key={item.id}
+                  type="button"
                   onClick={() => {
-                    setActiveTab(item.id);
-                    setMobileMenuOpen(false);
+                    setSection(item.id);
+                    setMenuOpen(false);
                   }}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium transition-colors ${
-                    isActive
-                      ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                      : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-                  }`}
+                  className={`flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-blue-500 ${selected ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-100'}`}
                 >
-                  <div className="flex items-center gap-2.5 truncate">
-                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
-                    <span className="truncate">{item.label}</span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {item.alertDot && (
-                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-                    )}
-                    {item.badge && (
-                      <span
-                        className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${
-                          isActive
-                            ? 'bg-blue-700 text-blue-100'
-                            : 'bg-slate-100 text-slate-600 border border-slate-200'
-                        }`}
-                      >
-                        {item.badge}
-                      </span>
-                    )}
-                  </div>
+                  <Icon className="h-4 w-4" />
+                  {item.label}
                 </button>
               );
             })}
           </nav>
-
-          {/* Bottom Compliance Reminder */}
-          <div className="mt-6 pt-4 border-t border-slate-100 text-[11px] text-slate-400 px-2 space-y-1 font-mono">
-            <div className="flex items-center gap-1 text-slate-600 font-semibold">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-              <span>CLAUDE.md 合规准则</span>
+          <div className="mt-5 border-t border-slate-200 pt-4 text-[11px] leading-5 text-slate-500">
+            <div className="flex items-center gap-1.5 font-medium text-slate-700">
+              <Archive className="h-3.5 w-3.5" />
+              演示模块已下线
             </div>
-            <p className="text-[10px] text-slate-500 leading-normal">
-              目标为纯真机与账号精确绑定；当前受控实现、生产接入与真实平台证据分别验收
+            <p className="mt-1">
+              页面只展示当前闭环状态；设备在线、平台发布和真实成效需由外部回执证明。
             </p>
           </div>
         </aside>
-
-        {/* Central Dynamic View Workspace */}
-        <main className="flex-1 min-w-0 bg-white border border-slate-200 rounded-lg p-5 lg:p-7 shadow-xs">
-          {activeTab === 'overview' && <OverviewView onNavigate={tab => setActiveTab(tab as NavTab)} />}
-          {activeTab === 'first-loop' && <FirstLoopView />}
-          {activeTab === 'matrix' && <MatrixView />}
-          {activeTab === 'clips' && <ClipsView />}
-          {activeTab === 'strategy' && <StrategyView />}
-          {activeTab === 'shortlinks' && <ShortlinksView />}
-          {activeTab === 'risk' && <RiskView />}
-          {activeTab === 'artemis' && <ArtemisView />}
-          {activeTab === 'experiments' && <ExperimentsView />}
-          {activeTab === 'database' && <DatabaseView />}
-          {activeTab === 'research' && <ResearchView />}
+        <main className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white p-4 shadow-sm lg:p-7">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-4">
+            <div>
+              <h2 className="text-lg font-semibold">
+                {NAV.find((item) => item.id === section)?.label}
+              </h2>
+              <p className="mt-1 text-xs text-slate-500">
+                {activeProject
+                  ? `当前范围：${activeProject.name}`
+                  : '请选择项目，或先创建项目草稿。'}
+              </p>
+            </div>
+            <span className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-800">
+              受控工作区 · 非生产回执
+            </span>
+          </div>
+          <FirstLoopView section={section} />
         </main>
       </div>
     </div>
@@ -350,10 +185,8 @@ function ConsoleContent() {
 
 export default function ConsolePage() {
   return (
-    <DatabaseProvider>
-      <FirstLoopProvider>
-        <ConsoleContent />
-      </FirstLoopProvider>
-    </DatabaseProvider>
+    <FirstLoopProvider>
+      <ConsoleContent />
+    </FirstLoopProvider>
   );
 }

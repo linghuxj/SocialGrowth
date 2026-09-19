@@ -97,4 +97,4 @@
 - [数据模型](../engineering/data-model.md)、[执行契约](../engineering/execution-contract.md)、[关键表单](../engineering/console-form-spec.md)
 - [离线 T/F 规格](../engineering/offline-verification.md)、[合成指标样例](../engineering/fixtures/metric-availability.json)
 - [审计修复及尚未实现事项](../handoff/2026-09-19-readiness-remediation.md)、[原 TASK](../handoff/2026-09-18-developer-handoff.md)
-- [Controller 源码](../../apps/artemis-controller/src/scheduler.ts)、[设备样例](../../apps/artemis-controller/config/devices.example.json)、[AI 匹配](../../services/ai-engine/src/matching-engine.ts)、[Web 状态](../../apps/web-console/lib/db/context.tsx)
+- [Controller 源码](../../apps/artemis-controller/src/scheduler.ts)、[设备样例](../../apps/artemis-controller/config/devices.example.json)、[AI 匹配](../../services/ai-engine/src/matching-engine.ts)、[现行 Web 状态](../../apps/web-console/lib/first-loop/context.tsx)；旧 `lib/db/context.tsx` 已移除，保留于 Git 历史

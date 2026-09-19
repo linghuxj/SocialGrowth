@@ -1,0 +1,130 @@
+- banner:
+  - generic: SG
+  - generic: SocialGrowth Web 运营平台
+  - generic: 首批业务闭环 · 受控工作台（外部接入证据单列）
+  - generic: "旧设备演示记录:"
+  - strong: 20 条，未核验在线
+  - generic: "旧演示排他锁:"
+  - strong: 6 条独占锁定
+  - 'button "待审策略: 3 条"':
+    - generic: "待审策略: 3 条"
+  - button "导出最新 database.json":
+    - generic: 导出最新 database.json
+- generic: "Artemis 真机 dev-001 物理巡检心跳回执正常 (RTT: 42ms，ADB TCP: OK)。"
+- text: 00:40:42
+- button:
+- complementary:
+  - generic: 运营工作台导航
+  - navigation:
+    - button "3个月成果总览":
+      - generic: 3个月成果总览
+    - button "首条业务闭环 PG-01~10":
+      - generic: 首条业务闭环
+      - generic: PG-01~10
+    - button "1. 账号与真机拓扑 20台/40号":
+      - generic: 1. 账号与真机拓扑
+      - generic: 20台/40号
+    - button "2. 切片素材独占锁 8条":
+      - generic: 2. 切片素材独占锁
+      - generic: 8条
+    - button "3. 策略与规则引擎 3条演示待审":
+      - generic: 3. 策略与规则引擎
+      - generic: 3条演示待审
+    - button "4. 导流短链与防封 待真实入口验收":
+      - generic: 4. 导流短链与防封
+      - generic: 待真实入口验收
+    - button "5. 风控与冷备换号 旧演示":
+      - generic: 5. 风控与冷备换号
+      - generic: 旧演示
+    - button "6. Artemis真机群控 20条演示记录":
+      - generic: 6. Artemis真机群控
+      - generic: 20条演示记录
+    - button "7. A/B策略优化屏 受控数据" [active]:
+      - generic: 7. A/B策略优化屏
+      - generic: 受控数据
+    - button "8. 数据库与持久化 本地演示":
+      - generic: 8. 数据库与持久化
+      - generic: 本地演示
+    - button "归档：政策与测算":
+      - generic: 归档：政策与测算
+  - generic: CLAUDE.md 合规准则
+  - paragraph: 目标为纯真机与账号精确绑定；当前受控实现、生产接入与真实平台证据分别验收
+- main:
+  - heading "模块 7：数据采集与 A/B 策略优化闭环大屏 双轨数据采集 / 小样本加权算法" [level=2]:
+    - generic: 模块 7：数据采集与 A/B 策略优化闭环大屏
+    - generic: 双轨数据采集 / 小样本加权算法
+  - paragraph: 打通社媒官方 API 与第三方数据服务双轨采集机制。针对前 3 个月小样本环境采用综合绩效加权评分模型，支持达标全量晋级与不佳一键安全回退 (Rollback)。
+  - text: 数据双轨采集与保底降级机制
+  - generic: 主备无缝切换
+  - generic: 主通道：社媒官方 API
+  - strong: 82.4%
+  - generic: FB Page Insights / YT Analytics
+  - generic: 保底通道：第三方数据服务
+  - strong: 17.6%
+  - generic: 权限受限/时滞时全量接管兜底
+  - paragraph:
+    - strong: 保底准则
+    - text: ：在官方 API 权限审核延迟或数据回调滞后时，系统无缝降级为第三方社媒数据服务，以公开互动指标加权打分，严禁因缺字段抛出异常。
+  - text: 小样本综合绩效加权评分模型 (Composite Score)
+  - generic: 非 p-value 假设检验
+  - generic: 标准完播私有指标加权公式：
+  - code: Score = CompletionRate*0.4 + EngagementRate*0.3 + ClickThroughRate*0.3
+  - generic: 第三方公开指标降级打分公式：
+  - code: Score_pub = DeltaViews*0.7 + (Likes*1.5 + Comments*2.0 + Shares*3.0)*0.3
+  - generic: 实验晋级阈值：7~14天窗口超越基线组 15%
+  - generic: 达标一键推广 / 恶化一键回退
+  - heading "前 3 个月量化 A/B 策略实验实盘闭环结果 对照组（基线组） vs 实验组（10%~20% 样本）" [level=3]:
+    - generic: 前 3 个月量化 A/B 策略实验实盘闭环结果
+    - generic: 对照组（基线组） vs 实验组（10%~20% 样本）
+  - generic: EXP-2026-03
+  - strong: 前置悬念钩子与文案独立短链融合实验 (Hook & Direct Link)
+  - generic: 假设：在 Facebook Reels 帖文前 90 字符直接暴露极端反差剧情，并挂载单帖独占短链，可显著提升有效点击与完播率。
+  - generic: 14 天观察窗口
+  - text: 已全量晋级 (+18.2%)
+  - generic: 对照基线组 (Baseline)
+  - generic: 36 个账号
+  - generic: "平均完播率 (Completion):"
+  - generic: 38.5%
+  - generic: "互动率 (Engagement):"
+  - generic: 4.2%
+  - generic: "综合绩效得分 (Score):"
+  - generic: "71.4"
+  - generic: 实验测试组 (Experiment)
+  - generic: 4 个账号
+  - generic: "平均完播率 (Completion):"
+  - generic: 46.2%
+  - generic: "互动率 (Engagement):"
+  - generic: 5.8%
+  - generic: "综合绩效得分 (Score):"
+  - generic: "84.4"
+  - generic: (+18.2%)
+  - strong: 复盘与操作结论
+  - text: ：在 14 天观察窗口期内，实验组综合加权绩效评分持续超越基线组 18.2%（超过 15% 达标线），已触发全量晋级为主基线策略。
+  - button "已晋级为主基线策略" [disabled]:
+    - text: 已晋级为主基线策略
+  - generic: EXP-2026-02
+  - strong: Shorts 描述区全量文本引导 vs 纯主页引导对照实验
+  - generic: 假设：在 YouTube Shorts 描述中插入过长文本指引能否弥补无法点击短链的导流损失。
+  - generic: 10 天观察窗口
+  - text: 已安全回退 (-17.3%)
+  - generic: 对照基线组 (Baseline)
+  - generic: 16 个账号
+  - generic: "平均完播率 (Completion):"
+  - generic: 41.0%
+  - generic: "互动率 (Engagement):"
+  - generic: 4.8%
+  - generic: "综合绩效得分 (Score):"
+  - generic: "74"
+  - generic: 实验测试组 (Experiment)
+  - generic: 2 个账号
+  - generic: "平均完播率 (Completion):"
+  - generic: 35.0%
+  - generic: "互动率 (Engagement):"
+  - generic: 3.1%
+  - generic: "综合绩效得分 (Score):"
+  - generic: "61.2"
+  - generic: (-17.3%)
+  - strong: 复盘与操作结论
+  - text: ：过长文本导致观众划走率上升，综合得分衰退 17.3%，已执行一键安全回退 (Rollback) 至 v1.8 基线。
+  - button "已回退至上个稳定版本" [disabled]:
+    - text: 已回退至上个稳定版本

@@ -1,0 +1,91 @@
+- banner:
+  - generic: SG
+  - generic: SocialGrowth Web 运营平台
+  - generic: 首批业务闭环 · 受控工作台（外部接入证据单列）
+  - generic: "旧设备演示记录:"
+  - strong: 20 条，未核验在线
+  - generic: "旧演示排他锁:"
+  - strong: 6 条独占锁定
+  - 'button "待审策略: 3 条"':
+    - generic: "待审策略: 3 条"
+  - button "导出最新 database.json":
+    - generic: 导出最新 database.json
+- complementary:
+  - generic: 运营工作台导航
+  - navigation:
+    - button "3个月成果总览":
+      - generic: 3个月成果总览
+    - button "首条业务闭环 PG-01~10":
+      - generic: 首条业务闭环
+      - generic: PG-01~10
+    - button "1. 账号与真机拓扑 20台/40号":
+      - generic: 1. 账号与真机拓扑
+      - generic: 20台/40号
+    - button "2. 切片素材独占锁 8条":
+      - generic: 2. 切片素材独占锁
+      - generic: 8条
+    - button "3. 策略与规则引擎 3条演示待审":
+      - generic: 3. 策略与规则引擎
+      - generic: 3条演示待审
+    - button "4. 导流短链与防封 待真实入口验收":
+      - generic: 4. 导流短链与防封
+      - generic: 待真实入口验收
+    - button "5. 风控与冷备换号 旧演示":
+      - generic: 5. 风控与冷备换号
+      - generic: 旧演示
+    - button "6. Artemis真机群控 20条演示记录":
+      - generic: 6. Artemis真机群控
+      - generic: 20条演示记录
+    - button "7. A/B策略优化屏 受控数据":
+      - generic: 7. A/B策略优化屏
+      - generic: 受控数据
+    - button "8. 数据库与持久化 本地演示":
+      - generic: 8. 数据库与持久化
+      - generic: 本地演示
+    - button "归档：政策与测算":
+      - generic: 归档：政策与测算
+  - generic: CLAUDE.md 合规准则
+  - paragraph: 目标为纯真机与账号精确绑定；当前受控实现、生产接入与真实平台证据分别验收
+- main:
+  - heading "模块 2：切片素材管理与排他独占锁（Exclusive Lock） 独占排他 100% 拦截" [level=2]:
+    - generic: 模块 2：切片素材管理与排他独占锁（Exclusive Lock）
+    - generic: 独占排他 100% 拦截
+  - paragraph: 专注管理已有成品漫剧切片资产。每条切片人工确认后强制加注唯一目标账号独占锁，严禁跨账号重复分发，从源头根除搬运降权。
+  - textbox "搜索切片标题/剧集/标签..." [active]: Chrome回归内容
+  - button:
+  - combobox:
+    - option "全部短剧系列" [selected]
+    - option "The"
+    - option "Love"
+    - option "Mistress"
+    - option "Billionaire"
+  - button "全部"
+  - button "已发布"
+  - button "锁定中"
+  - button "待排期"
+  - generic: 切片素材储备总量
+  - generic: 3,420 条
+  - generic: 均为 9:16 竖版成品切片（Reels/Shorts 规格）。
+  - generic: 累计有效公开发布
+  - generic: 3,078 条
+  - generic: 按 90% 实现率完成，FB 1,539 条 + YT 1,539 条。
+  - generic: 独占锁拦截搬运次数
+  - generic: 142 次
+  - generic: 成功拦截跨账号重复下发，排他锁生效。
+  - generic: 跨账号内容重复率
+  - generic: 0.0%
+  - generic: 严格遵守 CLAUDE.md 第 4 铁律，排他独占。
+  - heading "切片素材资产与独占加锁明细表（展示 0 条） 每条素材全局唯一锁定至单个账号" [level=3]:
+    - generic: 切片素材资产与独占加锁明细表（展示 0 条）
+    - generic: 每条素材全局唯一锁定至单个账号
+  - generic: 提示：对未分配切片点击“加注排他锁”可直接指派目标账号
+  - table:
+    - rowgroup:
+      - row "素材标识 剧目名称与分集标题 规格与时长 题材与爆点标签 排他独占锁状态 独占绑定账号与操作":
+        - columnheader "素材标识"
+        - columnheader "剧目名称与分集标题"
+        - columnheader "规格与时长"
+        - columnheader "题材与爆点标签"
+        - columnheader "排他独占锁状态"
+        - columnheader "独占绑定账号与操作"
+    - rowgroup

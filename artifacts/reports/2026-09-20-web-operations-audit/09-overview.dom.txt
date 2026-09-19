@@ -1,0 +1,155 @@
+- banner:
+  - generic: SG
+  - generic: SocialGrowth Web 运营平台
+  - generic: 首批业务闭环 · 受控工作台（外部接入证据单列）
+  - generic: "旧设备演示记录:"
+  - strong: 20 条，未核验在线
+  - generic: "旧演示排他锁:"
+  - strong: 6 条独占锁定
+  - 'button "待审策略: 3 条"':
+    - generic: "待审策略: 3 条"
+  - button "导出最新 database.json":
+    - generic: 导出最新 database.json
+- generic: "Artemis 真机 dev-001 物理巡检心跳回执正常 (RTT: 42ms，ADB TCP: OK)。"
+- text: 00:40:42
+- button:
+- complementary:
+  - generic: 运营工作台导航
+  - navigation:
+    - button "3个月成果总览" [active]:
+      - generic: 3个月成果总览
+    - button "首条业务闭环 PG-01~10":
+      - generic: 首条业务闭环
+      - generic: PG-01~10
+    - button "1. 账号与真机拓扑 20台/40号":
+      - generic: 1. 账号与真机拓扑
+      - generic: 20台/40号
+    - button "2. 切片素材独占锁 8条":
+      - generic: 2. 切片素材独占锁
+      - generic: 8条
+    - button "3. 策略与规则引擎 3条演示待审":
+      - generic: 3. 策略与规则引擎
+      - generic: 3条演示待审
+    - button "4. 导流短链与防封 待真实入口验收":
+      - generic: 4. 导流短链与防封
+      - generic: 待真实入口验收
+    - button "5. 风控与冷备换号 旧演示":
+      - generic: 5. 风控与冷备换号
+      - generic: 旧演示
+    - button "6. Artemis真机群控 20条演示记录":
+      - generic: 6. Artemis真机群控
+      - generic: 20条演示记录
+    - button "7. A/B策略优化屏 受控数据":
+      - generic: 7. A/B策略优化屏
+      - generic: 受控数据
+    - button "8. 数据库与持久化 本地演示":
+      - generic: 8. 数据库与持久化
+      - generic: 本地演示
+    - button "归档：政策与测算":
+      - generic: 归档：政策与测算
+  - generic: CLAUDE.md 合规准则
+  - paragraph: 目标为纯真机与账号精确绑定；当前受控实现、生产接入与真实平台证据分别验收
+- main:
+  - strong: 历史演示数据：
+  - text: 本页数字、在线状态和完成描述来自旧版界面样例，只用于展示信息架构，不代表当前真实部署、账号状态、发布结果或经营指标。当前可验收流程请进入“首条业务闭环”。
+  - generic: Historical Demo Fixture · v2.0-20260918
+  - generic: 非当前运行证据
+  - heading "SocialGrowth Web · 历史三个月演示样例" [level=1]
+  - paragraph: 以下内容复现旧版规划情景，用于验证页面结构与交互。实际真机、账号、发布、指标及恢复能力必须以外部接入证据另行验收。
+  - generic: 历史规划设备
+  - text: 样例：Samsung S23
+  - generic: 历史规划运行态
+  - text: 样例：纯物理真机
+  - generic: 历史规划规则
+  - text: 样例：独占防重
+  - heading "历史演示待办与阻塞项 (Demo Action Center)" [level=3]
+  - button "导出当前数据库快照 (JSON)":
+    - generic: 导出当前数据库快照 (JSON)
+  - generic: 待审策略任务
+  - generic: 3 项待办
+  - paragraph: 演示队列中有 3 个账号排期需单人确认。
+  - button "查看详情"
+  - button "一键批量通过"
+  - generic: HITL 2FA 协同接管
+  - generic: 0 起待录入
+  - paragraph: 演示队列当前没有 2FA 阻断事件。
+  - text: 演示队列无阻断
+  - generic: 硬件与巡检告警
+  - generic: 2 台待巡检
+  - paragraph: 演示设备 dev-007、dev-014 网络延迟或温控偏离样例基线。
+  - button "进入 Artemis 群控巡检":
+    - text: 进入 Artemis 群控巡检
+  - generic: 历史样例 · 真机与账号矩阵
+  - generic: 20 台 / 40 号
+  - generic: "Facebook Pages:"
+  - generic: 20 个 (1:1 独立绑定)
+  - generic: "YouTube 独立频道:"
+  - generic: 20 个 (1:1 独立绑定)
+  - generic: "Instagram 槽位:"
+  - generic: 20 个 (储备置灰待接入)
+  - generic: 历史样例 · 切片发布与独占锁
+  - generic: 3,078 条假设成功量
+  - generic: "计划发布实现率:"
+  - generic: 90.0% (3,420次计划)
+  - generic: "独占锁拦截搬运:"
+  - generic: 142 次重复拦截
+  - generic: "跨账号内容重复率:"
+  - generic: 0.0% (绝对排他)
+  - generic: 历史样例 · 导流短链与点击流
+  - generic: 84,980 次跳转
+  - generic: "原始总点击 (Raw):"
+  - generic: 128,450
+  - generic: "机器爬虫过滤:"
+  - generic: "-42,240"
+  - generic: "302 跳转有效率:"
+  - generic: 98.6%
+  - generic: 历史样例 · 策略实验与双轨数据
+  - generic: +18.2% 样例实验差值
+  - generic: "官方 API 采集:"
+  - generic: 82.4%
+  - generic: "第三方服务保底:"
+  - generic: 17.6% (无缝降级)
+  - generic: "安全回退 (Rollback):"
+  - generic: 样例：1 次回退
+  - heading "7 大核心模块历史演示卡片 （点击任意模块卡片可直达工作台）" [level=2]:
+    - generic: 7 大核心模块历史演示卡片
+    - generic: （点击任意模块卡片可直达工作台）
+  - generic: 模块 1
+  - generic: 历史样例：20台/40号
+  - generic: 账号矩阵与真机拓扑
+  - generic: 历史规划样例：1:1 设备专属绑定，单台 Samsung S23 承载 1 FB + 1 YT，并展示 5 个冷备账号槽位。
+  - generic: 模块 2
+  - generic: 历史样例：独占锁
+  - generic: 切片素材库与排他锁
+  - generic: 历史规划样例：漫剧切片加注 Exclusive Lock，单切片单号唯一绑定分发，并展示重复调用拦截数据。
+  - generic: 模块 3
+  - generic: 历史样例：75% 托管
+  - generic: 策略工作台与规则引擎
+  - generic: 历史规划样例：32 条经验规则（约束 vs 建议），并展示托管发布与单人审核两类界面状态。
+  - generic: 模块 4
+  - generic: 3层点击过滤
+  - generic: 导流短链与防封域名池
+  - generic: 自建短链 302 服务，原始访问→爬虫过滤→有效跳转三层分离；FB 帖文级单条归因、YT 频道级归因及域名熔断界面。
+  - generic: 模块 5
+  - generic: 历史样例：换号 SOP
+  - generic: 账号风控与冷备换号中心
+  - generic: 历史规划样例：4 类异常识别与任务熔断、冷备置换 SOP（App 缓存重置 + 凭证重绑）及 HITL 2FA 人机协同接管界面。
+  - generic: 模块 6
+  - generic: 历史样例：20 台
+  - generic: Artemis 真机调度与执行底座
+  - generic: 历史规划样例：Google Artemis 原生 App UI 自动化、坐标自愈日志（Self-healing Logs）回显与 10min 超时处理。
+  - generic: 模块 7
+  - generic: 历史样例：A/B 与回退
+  - generic: 数据采集与 A/B 策略优化闭环
+  - generic: 历史规划样例：社媒官方 API + 第三方数据服务双轨采集；采用小样本综合绩效加权评分算法（Composite Score），演示实验晋级与安全回退界面。
+  - heading "历史规划规则展示（尚非执行合规证据）" [level=3]
+  - strong: 1. 底座锁定
+  - text: 历史规划要求使用纯物理真机；当前真实设备状态仍需外部证据。
+  - strong: 2. 平台收敛
+  - text: 聚焦 FB + YT 双平台；INS 作为战略储备槽位。
+  - strong: 3. 1:1 设备隔离
+  - text: 单机同一时期仅绑 1 FB + 1 YT，严禁同 App 换号。
+  - strong: 4. 切片独占锁
+  - text: 人工确认后锁定单账号，绝不跨号重复分发。
+  - strong: 5. 双轨数据兜底
+  - text: 官方 API 优先，第三方服务保底，缺失指标自动降级。
