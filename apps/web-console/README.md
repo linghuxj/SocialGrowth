@@ -4,6 +4,8 @@ SocialGrowth 统一现代 Web 运营管理控制台（Human-in-the-loop 人机�
 
 **当前证据边界**：应用读取本地演示 JSON；现有按钮与提示不证明真实数据库、真机执行或供应商接入。B-05 对应的[关键表单与交互规格](../../docs/engineering/console-form-spec.md)已补齐，B-01 对应[目标持久化模型](../../docs/engineering/data-model.md)已修订；当前页面/类型/数据仍需在实现任务按本版对齐，不能把文档更新作为应用验收。
 
+FL-01 已加入“首条业务闭环”受控工作区：项目草稿、内容准入、身份级归属和操作日志保存在浏览器 localStorage，便于前端流程验证。每个领域命令同时产生结构化日志，字段包括 correlationId、actor、action、entity、result、reasonCode、facts 和 evidenceRefs，并以 `[first-loop-audit]` 输出到浏览器控制台。该本地适配不是 PostgreSQL 已接入的证据；生产适配须将同一状态和审计记录持久化至 `data/schema.sql` 的 design-v1 表。
+
 ---
 
 ## 一、 系统定位与架构

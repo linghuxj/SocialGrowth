@@ -12,6 +12,8 @@ import { ArtemisView } from '@/components/views/artemis-view';
 import { ExperimentsView } from '@/components/views/experiments-view';
 import { DatabaseView } from '@/components/views/database-view';
 import { ResearchView } from '@/components/views/research-view';
+import { FirstLoopView } from '@/components/views/first-loop-view';
+import { FirstLoopProvider } from '@/lib/first-loop/context';
 import {
   LayoutDashboard,
   Smartphone,
@@ -27,14 +29,15 @@ import {
   X,
   Database,
   Download,
-  Bell,
   AlertTriangle,
   Info,
-  Check
+  Check,
+  Workflow
 } from 'lucide-react';
 
 export type NavTab =
   | 'overview'
+  | 'first-loop'
   | 'matrix'
   | 'clips'
   | 'strategy'
@@ -74,6 +77,7 @@ function ConsoleContent() {
     alertDot?: boolean;
   }[] = [
     { id: 'overview', label: '3个月成果总览', icon: LayoutDashboard },
+    { id: 'first-loop', label: '首条业务闭环', icon: Workflow, badge: 'PG-01~10' },
     {
       id: 'matrix',
       label: '1. 账号与真机拓扑',
@@ -328,6 +332,7 @@ function ConsoleContent() {
         {/* Central Dynamic View Workspace */}
         <main className="flex-1 min-w-0 bg-white border border-slate-200 rounded-lg p-5 lg:p-7 shadow-xs">
           {activeTab === 'overview' && <OverviewView onNavigate={tab => setActiveTab(tab as NavTab)} />}
+          {activeTab === 'first-loop' && <FirstLoopView />}
           {activeTab === 'matrix' && <MatrixView />}
           {activeTab === 'clips' && <ClipsView />}
           {activeTab === 'strategy' && <StrategyView />}
@@ -346,7 +351,9 @@ function ConsoleContent() {
 export default function ConsolePage() {
   return (
     <DatabaseProvider>
-      <ConsoleContent />
+      <FirstLoopProvider>
+        <ConsoleContent />
+      </FirstLoopProvider>
     </DatabaseProvider>
   );
 }
