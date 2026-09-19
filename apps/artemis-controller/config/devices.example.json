@@ -9,9 +9,9 @@
     "lastHeartbeat": "2026-09-18T00:00:00Z"
   },
   {
-    "deviceId": "emu-pixel7-001",
-    "deviceType": "emulator",
-    "model": "Pixel 7 API 34",
+    "deviceId": "samsung-s23-002",
+    "deviceType": "physical",
+    "model": "Samsung Galaxy S23",
     "platformBound": ["youtube"],
     "boundAccounts": ["yt-brand-301"],
     "status": "idle",

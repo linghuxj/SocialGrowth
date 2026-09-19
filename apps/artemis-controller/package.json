@@ -1,12 +1,13 @@
 {
   "name": "@socialgrowth/artemis-controller",
   "version": "0.1.0",
-  "description": "Google Artemis-based device automation controller and scheduler for SocialGrowth",
   "private": true,
+  "description": "Google Artemis-based device automation controller and scheduler for SocialGrowth",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
+    "test": "tsx --test src/*.test.ts",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "lint": "oxlint"
@@ -14,7 +15,8 @@
   "dependencies": {},
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "typescript": "^5.9.0",
-    "tsx": "^4.19.0"
+    "oxlint": "^1.76.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.9.0"
   }
 }
