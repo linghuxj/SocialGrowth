@@ -378,7 +378,7 @@ flowchart TD
 ├─────────────────────────┬────────────────────────┬─────────────────────┤
 │   关系型核心库 (PostgreSQL) │  高频缓存与分布式锁 (Redis)  │ 二进制对象存储 (S3/MinIO) │
 ├─────────────────────────┼────────────────────────┼─────────────────────┤
-│ 1. accounts (账号资产)   │ 1. slice:lock:{id} (独占锁)│ 1. bucket-raw-slices│
+│ 1. accounts (账号资产)   │ 1. content:lock:{id} (辅助锁)│ 1. bucket-raw-slices│
 │ 2. devices (真机映射)    │ 2. device:heartbeat:{id}│    (切片原片与元数据) │
 │ 3. slice_metadata (切片) │ 3. shortlink:click:stream│ 2. bucket-evidence  │
 │ 4. strategy_versions (策略)│   (点击流实时入队缓冲)    │    (截屏证据与回执日志)│
@@ -388,14 +388,16 @@ flowchart TD
 ```
 
 #### 核心数据表 Schema 约束
-1. **`accounts` (账号表)**：`account_id` (PK), `platform` (ENUM: fb/yt/ins), `account_name`, `profile_type`, `stage` (cold_start/active/suspended), `bound_device_id` (FK), `created_at`, `updated_at`。
-2. **`devices` (物理真机表)**：`device_id` (PK), `serial_number`, `model` (如 S23), `status` (idle/busy/offline/error), `ip_address`, `location_tag`, `last_heartbeat_at`。
-3. **`slice_metadata` (切片资产表)**：`slice_id` (PK), `drama_id`, `episode_num`, `duration_sec`, `video_s3_key`, `sha256`, `allocation_status` (ENUM: `unallocated`, `assigned_pending`, `assigned_locked`, `published`), `assigned_account_id` (FK), `pre_locked_at`, `locked_at`, `published_at`。
-   - **排他索引与锁约束**：建立 `(slice_id, allocation_status)` 联合索引与唯一约束，非 `unallocated` 状态前置排他拦截，杜绝跨账号重复分发。
-4. **`strategy_versions` (排期策略表)**：`strategy_version_id` (PK), `account_id` (FK), `slice_id` (FK), `version_tag`, `status` (ENUM: `draft`, `approved`, `rejected`, `archived`), `scheduled_time`, `caption`, `shortlink_url`, `created_at`, `reviewed_at`。
-5. **`task_directives` (调度任务表)**：`task_id` (PK), `strategy_version_id` (FK), `device_id` (FK), `account_id` (FK), `platform`, `target_package`, `status` (ENUM: `pending`, `dispatched`, `executing`, `completed`, `failed`, `waiting_2fa`), `retry_count`, `created_at`, `executed_at`, `receipt_s3_key`。
-6. **`domain_pool` (跳转域名池表)**：`domain_id` (PK), `domain_name`, `status` (ENUM: `active`, `standby`, `blocked`), `last_probed_at`, `error_message`。
-7. **`shortlink_events` (短链点击流事件表)**：`event_id` (PK), `short_code`, `account_id` (FK), `platform`, `raw_ip`, `user_agent`, `referer`, `is_bot` (BOOLEAN), `is_valid` (BOOLEAN), `http_status` (200/302), `created_at`。
+
+**2026-09-19 B-01 规格修复**：完整关系、字段与转移约束见[持久化模型 design-v1](engineering/data-model.md)。以下替代旧扁平 Schema；属于待实现规格，不表示数据库或演示 JSON 已迁移。
+
+1. **账号与客户**：`accounts` 保存平台和所有方；`projects` 保存客户及主目标版本；`account_service_relations` 保存账号/项目/客户、授权方、范围、期限、撤回及共享批准。不能以一个当前 `client_id` 覆盖共享例外或历史。
+2. **设备与绑定**：`devices` 保存资源状态；`device_bindings` 保存平台、账号和有效区间，禁止同设备同平台重叠绑定；在线与业务授权分开判断。
+3. **内容与文件**：`content_identities` 管理所有语言版本的共同归属，`allocation_status = unallocated / reserved / assigned_locked`；`slice_metadata` 通过 `content_identity_id` 引用身份并保存语言、文件及权利记录；`content_reviews` 保存准入及重叠人工依据。
+4. **排他与发布**：按身份行实施数据库事务/等效原子保护，不以文件级联合索引代替跨版本约束。`publication_attempts.publish_status = not_submitted / in_progress / unknown / confirmed_not_published / published`；身份保留首次已发事实，原账号和其他账号均不得重发。
+5. **批准与任务**：`strategy_versions` 引用项目/目标/规则/内容/入口版本，`approvals` 保存具体批准及撤销；`task_directives.execution_status` 只表达技术进度，`execution_events` 追加证据，`incident_scopes` 记录影响及人工恢复。超时、资源恢复与发布事实不相互替代。
+6. **取消与恢复**：释放须确认所有版本未提交、无历史且全部旧批准与安排失效；已提交的明确失败仅按当前条件经人工确认原账号恢复，不自动跨账号释放；未知结果不重试或释放。
+7. **入口及观察**：域名池、短链事件和指标分别关联项目、来源与实际可观察范围；原始访问、过滤点击及跳转响应分开。频道级数据不伪分摊给单条内容；缺失/延迟/无权限不填零。
 
 ---
 
@@ -418,7 +420,7 @@ sequenceDiagram
             DEV->>DEV: 5. 设备状态转为 busy，启动端侧硬超时计时器
             DEV->>S3: 6. 依据预签名 URL 极速拉取切片并校验 sha256
             DEV->>DEV: 7. 执行 UI 自动化原生发布动作流
-            DEV->>GW: 8. 上报截屏与 ExecutionReceipt，状态转为 idle
+            DEV->>GW: 8. 上报证据与 ExecutionReceipt，分别记录资源和发布状态
         else 无专属任务
             GW-->>DEV: 4b. 保持 idle 心跳等待
         end
@@ -427,6 +429,7 @@ sequenceDiagram
 
 - **心跳与保活**：真机 Agent 每 15 秒上报一次端侧状态（电量、温度、前台 App、可用空间）。若连续 3 次心跳丢失，中枢自动标记设备 `offline` 并挂起队列任务。
 - **排他路由约束**：网关在出队匹配时，必须严格校验 `task.accountId == device.boundAccountId`，严禁借调其他空闲真机。
+- **协议及异常**：载荷、回执、错误码、重复/迟到消息及暂停范围以[执行契约 design-v1](engineering/execution-contract.md)为准；回执接收和资源空闲都不自动恢复业务。离线替身及断言见[验证规格](engineering/offline-verification.md)。当前源码占位行为不是本节的实现证据。
 
 ---
 

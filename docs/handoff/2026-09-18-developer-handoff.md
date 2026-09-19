@@ -81,10 +81,10 @@
 - **优先级**：P1
 - **问题文件**：[`apps/artemis-controller/src/types.ts`](../../apps/artemis-controller/src/types.ts)
 - **开发要求**：
-  1. 在 `TaskStatus` 中扩展 `'waiting_human_takeover'` 状态。
-  2. 在 `ExecutionReceipt` 中增加 `challengeType?: '2fa_sms' | '2fa_email' | 'device_verify'`。
+  1. 按[执行契约 design-v1](../engineering/execution-contract.md)采用独立技术状态 `executionStatus: 'waiting_human'`，不以此推定发布结果；旧 `waiting_human_takeover`/`waiting_2fa` 命名不再作为目标契约。
+  2. 回执另带 `publishStatus`、证据引用及 `challengeType`（短信、邮箱、设备验证、平台限制或其他）；字段条件以同一契约为准，避免各文档复制不同枚举。
   3. 当自动化脚本检测到平台 2FA 验证码输入界面时，自动挂起任务，截屏并向调度中枢上报事件，等待操作员处理验证；注入验证码后仍须按 G-04a 核对限制、发布结果、授权与排期，经确认后恢复，不把验证完成直接等同业务恢复。
-- **验收标准**：类型定义完备，具备模拟 2FA 挂起与恢复的接口契约定义。
+- **验收标准**：目标契约已定义不等于实现通过；实现测试须覆盖[离线场景 T-05/T-08/T-09](../engineering/offline-verification.md)，验证挑战完成不能直接恢复未知结果或过期排期。
 
 ---
 
@@ -94,28 +94,43 @@
 
 #### [TASK-05] 落地切片排他独占锁（Exclusive Distribution Lock）机制
 
-> **2026-09-19 业务规则补充（G-03 系列）**：同一画面片段的字幕/配音语言版本共用内容身份和账号归属。审批后取消原安排，确认全部版本均未提交、无发布历史且旧批准与执行安排失效后可释放；新分配重新审核。进行中、已提交或结果未知不释放，已发内容不跨账号复用，原账号也不得重发；同一内容只选一个语言版本发布一次，删除原帖不恢复资格。编辑原帖、确定从未发布后的恢复与重发分别判断，重复发布不增加合格交付量。G-03c 允许不同切片必要的少量剧情衔接，须人工确认主体剧情不同并记录片段、重叠范围及依据后才可分别发布；重叠关系不等于同一身份，不能靠语言变化或轻微改剪绕过一次发布。下列既有字段示例不能完整表达这些业务状态，不作为当前业务流程的完整定义；本轮仅更新文档，原研发任务状态不变。详见[当前确认记录](2026-09-19-business-flow-proposal.md#8-逐项确认与整改记录)。
+> **2026-09-19 业务规则补充（G-03 系列）**：同一画面片段的字幕/配音语言版本共用内容身份和账号归属。审批后取消原安排，确认全部版本均未提交、无发布历史且旧批准与执行安排失效后可释放；新分配重新审核。进行中、已提交或结果未知不释放，已发内容不跨账号复用，原账号也不得重发；同一内容只选一个语言版本发布一次，删除原帖不恢复资格。编辑原帖、确定从未发布后的恢复与重发分别判断，重复发布不增加合格交付量。G-03c 允许不同切片必要的少量剧情衔接，须人工确认主体剧情不同并记录片段、重叠范围及依据后才可分别发布；重叠关系不等于同一身份，不能靠语言变化或轻微改剪绕过一次发布。下列目标设计用于后续实现；文档修复不表示源码、数据库或测试已经完成。详见[当前确认记录](2026-09-19-business-flow-proposal.md#8-逐项确认与整改记录)。
 
 - **优先级**：P0（运营核心规则）
 - **问题文件**：[`services/ai-engine/src/types.ts`](../../services/ai-engine/src/types.ts)、[`services/ai-engine/src/matching-engine.ts`](../../services/ai-engine/src/matching-engine.ts)
-- **缺陷分析**：`SliceMetadata` 缺乏独占锁定与归属账号字段，匹配引擎未做过滤，同一短剧切片会被同时计算并推荐给多个账号。
+- **当前状态**：B-02 旧示例已修订；TASK-05 应用实现与验收仍待完成。
+- **已核实差距**：AI 源码的 `SliceMetadata` 尚无统一内容身份/归属，匹配仍只算标签分；前端另有旧文件级锁。文档中的错误同账号放行条件已移除，不能以任一旧层作为完整业务实现。
 - **开发要求**：
-  1. 在 `SliceMetadata` 中增加排他状态与归属字段：
+  1. 以[数据模型 design-v1](../engineering/data-model.md)为唯一目标关系，文件引用共同内容身份；类型示意如下（不是已合并的源码接口）：
      ```typescript
-     export type SliceAllocationStatus = 'unallocated' | 'assigned_locked' | 'published';
-     
-     export interface SliceMetadata {
-       // ...既有字段
-       allocationStatus: SliceAllocationStatus;
+     type AllocationStatus = 'unallocated' | 'reserved' | 'assigned_locked';
+     type PublishStatus = 'not_submitted' | 'in_progress' | 'unknown'
+       | 'confirmed_not_published' | 'published';
+     interface ContentIdentity {
+       contentIdentityId: string;
+       allocationStatus: AllocationStatus;
        assignedAccountId?: string;
-       lockedAt?: string;
-       publishedAt?: string;
+       firstPublishedAt?: string;
+     }
+     interface SliceAsset {
+       sliceId: string;
+       contentIdentityId: string;
+       language: string;
+     }
+     interface PublicationAttempt {
+       attemptId: string;
+       contentIdentityId: string;
+       sliceId: string;
+       accountId: string;
+       publishStatus: PublishStatus;
+       evidenceRefs: string[];
      }
      ```
-  2. 在 `TagMatchingEngine` 中增加前置排他校验：
-     - 若 `slice.allocationStatus !== 'unallocated'` 且 `slice.assignedAccountId !== account.accountId`，直接跳过或返回匹配分 0 分（标记 `recommended: false, reason: 'ALREADY_LOCKED_OR_PUBLISHED'`）。
-  3. 增加切片独占锁定与释放方法：`lockSlice(sliceId: string, accountId: string): void`。
-- **验收标准**：单元测试断言已锁定的切片在对其他账号计算匹配度时被强制拦截。
+  2. 匹配先校验身份/权利/归属及当前资格，再给合格候选评分；已发历史对原账号也拦截。进行中/未知不能形成第二份可执行安排，明确失败后的原账号恢复另经人工确认。
+  3. 批准/分配以内容身份为原子边界核对归属版本和全部尝试，不能靠单文件 `lockSlice(sliceId, accountId): void` 提供并发保障。
+  4. 释放必须核实全部语言版本均未提交、无发布历史，且旧批准及全部在途安排失效；失败、超时、删除、退出均不能作为通用解锁条件。
+- **验收标准**：按[离线规格 T-02 至 T-07](../engineering/offline-verification.md)验证跨语言竞争、同账号重发、合法取消、未知结果及明确失败恢复；核对前端、AI、数据库和执行层一致性。原“只断言其他账号匹配被拦截”不足以通过本任务。
+
 
 #### [TASK-06] 补充第三方数据服务契约与 A/B 策略降级评分算法
 
@@ -125,6 +140,7 @@
 - **问题文件**：[`services/ai-engine/src/types.ts`](../../services/ai-engine/src/types.ts)、新增 `services/ai-engine/src/third-party-analytics.ts`
 - **开发要求**：
   1. 定义第三方数据采集服务标准化接口（适配社媒公开指标抓取服务）：
+     > 下列是历史公开字段示例，不是当前完整可用性契约；目标观察结构及零值/缺失/延迟/无权限/来源切换样例见[离线验证规格](../engineering/offline-verification.md)，真实字段需供应商证据。
      ```typescript
      export interface PublicMetricData {
        platform: 'facebook' | 'youtube';

@@ -21,8 +21,8 @@
 apps/artemis-controller/
 ├── src/
 │   ├── types.ts          # 指令协议、设备状态、动作流契约与执行回执类型
-│   ├── device-pool.ts    # 纯真机状态管理池（1:1 账号精确路由匹配）
-│   ├── scheduler.ts      # 任务队列调度、看门狗超时自愈与执行驱动
+│   ├── device-pool.ts    # 设备状态池（当前仅按平台选设备，账号精确路由待实现）
+│   ├── scheduler.ts      # 当前任务队列及占位回执；真实执行/看门狗待实现
 │   └── index.ts          # 模块统一入口
 ├── config/
 │   └── devices.example.json # 纯真机映射与专属平台绑定样例
@@ -33,67 +33,19 @@ apps/artemis-controller/
 
 ## 三、 接口协议与动作流规范 (Action Protocol)
 
-### 1. 任务下发指令 (`PublishTaskDirective`)
+**B-03 修订：当前源码与目标契约分开记录。** 当前模块仍含占位执行，未实现完整 Agent 通信、Watchdog 或人机恢复。下表只描述现有 [types.ts](src/types.ts)，不表示符合最新业务的协议已完成。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `taskId` | `string` | 全局唯一任务标识符 |
-| `platform` | `'facebook' \| 'youtube' \| 'instagram'` | 目标平台（前期激活 `facebook` 与 `youtube`） |
-| `accountId` | `string` | 专属绑定的账号 ID（调度器严格匹配设备绑定的账号） |
-| `targetAppPackage` | `string` | 原生 App 包名（如 `com.facebook.katana`, `com.google.android.youtube`） |
-| `mediaDownloadUrl` | `string` | 云端对象存储生成的临时预签名切片视频下载地址 |
-| `mediaSha256` | `string` | 视频文件完整性校验哈希值 |
-| `captionText` | `string` | 拟定文案（针对平台差异化处理短链） |
-| `shortLinkUrl` | `string` | 导流短链 |
-| `steps` | `ActionStep[]` | 声明式端到端 UI 动作流列表（详见下文） |
-| `taskTimeoutMs` | `number` | 硬超时阈值（默认 600,000ms 即 10 分钟） |
+| 当前源码类型 | 实际字段/枚举 | 已知限制 |
+| --- | --- | --- |
+| `PublishTaskDirective` | `taskId`、`strategyVersion`、`batchId`、`platform`、`accountId`、`targetAppPackage`、`mediaAssetPath`、`captionText`、`shortLinkUrl`、`steps`、`deadline` | 无共同内容身份、当前授权/批准引用、独立尝试及预签名素材校验字段 |
+| `AutomationStep` | `stepIndex`、`action`，可选 `targetSelector`、`coordinates`、`value`、`timeoutMs`；动作为 `open_app/navigate/click/input_text/select_media/scroll/wait` | 不使用旧 README 大写 `ActionStep` 定义；挑战在目标回执中处理 |
+| `ExecutionReceipt` | `taskId`、`deviceId`、`status`（`completed/failed`）、`startedAt`、`finishedAt`、`screenshotPaths`、`selfHealingLogs`；可选 `publishedUrl`、`publishedPostId`、`failureReason`、`logcatSnippet` | 缺独立发布事实、人工等待及事件去重；`failureReason` 只是字符串，未实现目标错误码体系 |
 
-### 2. 声明式 UI 动作流契约 (`ActionStep`)
+### 目标开发契约 design-v1
 
-每个动作步骤必须遵循严格的结构化定义，支持元素定位自愈与容错：
+后续实现统一采用[执行契约](../../docs/engineering/execution-contract.md)：定义 Pull/指令/回执信封、字段、技术/发布状态、绑定与批准核对、错误码、未知结果、重复/迟到消息和恢复边界。该文档已取代本节旧字段表作为目标设计；不要将其误认为 v0.1 已支持的 API。
 
-```typescript
-export type ActionType = 
-  | 'LAUNCH_APP'        // 冷启动或前台调起目标应用
-  | 'WAIT_ELEMENT'     // 等待指定 UI 元素出现
-  | 'CLICK'            // 点击目标元素或指定比例坐标
-  | 'INPUT_TEXT'       // 在目标输入框中填入文本/粘贴文案
-  | 'SCROLL'           // 屏幕滑动 (UP / DOWN / LEFT / RIGHT)
-  | 'SELECT_MEDIA'     // 在系统相册选择下载好的切片视频
-  | 'ASSERT_TEXT'      // 断言屏幕中存在目标文字（用于验证发布成功）
-  | 'HANDLE_2FA';      // 检测到双重认证时自动挂起并请求人工接管
-
-export interface ActionStep {
-  stepId: number;
-  action: ActionType;
-  description: string;
-  // 选择器优先级：resourceId > accessibilityId > textRegex > fallbackCoordinate
-  selector?: {
-    resourceId?: string;          // Android View ID (如 com.facebook.katana:id/upload_btn)
-    accessibilityId?: string;     // ContentDescription
-    textRegex?: string;           // OCR 或 UI 节点文字正则匹配
-    fallbackCoordinate?: {        // 基于屏幕分辨率百分比坐标 (0.0 ~ 1.0)
-      xRatio: number;
-      yRatio: number;
-    };
-  };
-  payload?: {
-    text?: string;                // 输入文本或文案
-    scrollDirection?: 'up' | 'down';
-    timeoutMs?: number;           // 单步超时（默认 15,000ms）
-  };
-  optional?: boolean;             // 是否为可选弹窗处理（如“允许通知”弹窗）
-}
-```
-
-### 3. 执行回执 (`ExecutionReceipt`)
-- `taskId`: 对应任务 ID
-- `status`: `'completed' | 'failed' | 'waiting_human_takeover'`
-- `publishedUrl`: 真实发布成功后的公开可核对 URL 或 Post ID（发布失败时为空）
-- `screenshotPaths`: 关键节点（进入上传、文案填写、点击发布、发布成功展示）的截屏本地路径/云端路径
-- `selfHealingLogs`: Artemis 动态修正元素定位或自愈处理的结构化日志
-- `failureReason`: 失败错误码（如 `TASK_TIMEOUT_WATCHDOG_TRIGGERED`, `ELEMENT_NOT_FOUND`, `APP_CRASHED`）
-- `challengeType`: 若进入人工接管状态，指定类型（`2fa_sms` | `2fa_email` | `device_verify`）
+[数据模型](../../docs/engineering/data-model.md)说明内容身份、发布尝试与授权关系；[离线验证规格](../../docs/engineering/offline-verification.md)定义可控替身及正常/异常断言。实现时一起更新 types、调度、端侧与测试；受控验证不替代真实设备和平台证据。
 
 ---
 

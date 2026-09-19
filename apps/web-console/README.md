@@ -2,6 +2,8 @@
 
 SocialGrowth 统一现代 Web 运营管理控制台（Human-in-the-loop 人机协同界面）。
 
+**当前证据边界**：应用读取本地演示 JSON；现有按钮与提示不证明真实数据库、真机执行或供应商接入。B-05 对应的[关键表单与交互规格](../../docs/engineering/console-form-spec.md)已补齐，B-01 对应[目标持久化模型](../../docs/engineering/data-model.md)已修订；当前页面/类型/数据仍需在实现任务按本版对齐，不能把文档更新作为应用验收。
+
 ---
 
 ## 一、 系统定位与架构

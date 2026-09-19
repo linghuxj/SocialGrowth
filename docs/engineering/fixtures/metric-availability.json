@@ -1,0 +1,39 @@
+{
+  "version": "design-v1",
+  "synthetic": true,
+  "description": "仅验证内部数据状态，不证明平台或供应商字段可得。expected 是未执行的应用测试期望。",
+  "cases": [
+    {
+      "id": "F-01",
+      "observation": {"metricId": "primary_metric", "unit": "count", "scopeId": "sample-account-a", "source": "synthetic-source-a", "window": {"from": "2026-09-01T00:00:00Z", "to": "2026-09-02T00:00:00Z"}, "observedAt": "2026-09-02T01:00:00Z", "availability": "available", "value": 0, "reason": null, "evidenceRef": "synthetic:zero"},
+      "expected": {"display": "zero", "missing": false}
+    },
+    {
+      "id": "F-02",
+      "observation": {"metricId": "primary_metric", "unit": "count", "scopeId": "sample-account-a", "source": "synthetic-source-a", "window": {"from": "2026-09-01T00:00:00Z", "to": "2026-09-02T00:00:00Z"}, "observedAt": "2026-09-02T01:00:00Z", "availability": "missing", "value": null, "reason": "source_did_not_return_metric", "evidenceRef": "synthetic:missing"},
+      "expected": {"display": "missing", "requiredEvaluationComplete": false, "declareWinner": false}
+    },
+    {
+      "id": "F-03",
+      "observation": {"metricId": "primary_metric", "unit": "count", "scopeId": "sample-account-a", "source": "synthetic-source-a", "window": {"from": "2026-09-01T00:00:00Z", "to": "2026-09-02T00:00:00Z"}, "observedAt": "2026-09-02T01:00:00Z", "availability": "delayed", "value": null, "reason": "source_processing", "evidenceRef": "synthetic:delayed"},
+      "expected": {"display": "delayed", "requiredEvaluationComplete": false, "declareWinner": false}
+    },
+    {
+      "id": "F-04",
+      "observation": {"metricId": "primary_metric", "unit": "count", "scopeId": "sample-account-a", "source": "synthetic-source-a", "window": {"from": "2026-09-01T00:00:00Z", "to": "2026-09-02T00:00:00Z"}, "observedAt": "2026-09-02T01:00:00Z", "availability": "unauthorized", "value": null, "reason": "permission_unavailable", "evidenceRef": "synthetic:unauthorized"},
+      "expected": {"display": "unauthorized", "requiredEvaluationComplete": false, "declareWinner": false, "fallbackWinner": false}
+    },
+    {
+      "id": "F-05",
+      "observation": {"metricId": "primary_metric", "unit": "count", "scopeId": "sample-account-a", "source": "synthetic-source-b", "window": {"from": "2026-09-01T00:00:00Z", "to": "2026-09-02T00:00:00Z"}, "observedAt": "2026-09-02T01:00:00Z", "availability": "available", "value": 12, "reason": null, "evidenceRef": "synthetic:changed-source"},
+      "approvedSource": "synthetic-source-a",
+      "comparabilityChecked": false,
+      "expected": {"sourceChangeVisible": true, "declareWinner": false}
+    },
+    {
+      "id": "F-06",
+      "evaluation": {"requiredExecutionComplete": true, "requiredCollectionComplete": true, "requiredEvaluationComplete": true, "approvedImprovementCriterionMet": false},
+      "expected": {"loopComplete": true, "strategyEffective": false, "automaticExpansionAllowed": false}
+    }
+  ]
+}

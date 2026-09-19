@@ -85,6 +85,7 @@ SocialGrowth/
 
 ## 五、 核心基准文档索引
 
+- **开发规格及 Issue 跟踪**：[`docs/specs/README.md`](docs/specs/README.md)。个人公开仓库 `linghuxj/SocialGrowth` 使用 GitHub Issues；规格标签 `ready-for-agent`，同编号优先更新已有 Issue。任务范围与依赖以首批总规格及 FL 清单为准，标签不替代真实接入或生产动作授权。
 - 7 大交付模块完整规格：[`docs/delivery-specification.md`](docs/delivery-specification.md)
 - 最新业务细节对齐规格书：[`docs/handoff/2026-09-19-aligned-business-spec.md`](docs/handoff/2026-09-19-aligned-business-spec.md)
 - 研发交接任务书与整改看板：[`docs/handoff/README.md`](docs/handoff/README.md)
@@ -92,5 +93,6 @@ SocialGrowth/
 - **原项目文档审计报告（历史发现）**：[`docs/handoff/2026-09-19-document-audit-report.md`](docs/handoff/2026-09-19-document-audit-report.md)
 - **需求与规划文档全面审计报告（原发现及复核标注）**：[`docs/handoff/2026-09-19-full-document-audit.md`](docs/handoff/2026-09-19-full-document-audit.md)
 - **44 项复核、修复及待核证据**：[`docs/handoff/2026-09-19-audit-verification.md`](docs/handoff/2026-09-19-audit-verification.md)
+- **开发实施准备度审查（原意见及复核标注）**：[`docs/handoff/2026-09-19-implementation-readiness-audit.md`](docs/handoff/2026-09-19-implementation-readiness-audit.md)；首次事实判断见[逐项复核](docs/handoff/2026-09-19-readiness-verification.md)，最新规格修复与待实现事项见[修复台账](docs/handoff/2026-09-19-readiness-remediation.md)；不能将原 5 项一概视为全局开工阻断，也不能把规格修复等同应用验收。
 - 业务术语字典：[`CONTEXT.md`](CONTEXT.md)
 - 测算数据基准：[`artifacts/data/3至20台真机设备-前三个月发布与准入测算.md`](artifacts/data/3至20台真机设备-前三个月发布与准入测算.md)
