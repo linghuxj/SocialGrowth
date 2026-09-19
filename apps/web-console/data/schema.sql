@@ -367,3 +367,41 @@ CREATE TABLE IF NOT EXISTS publication_schedules (
     status VARCHAR(16) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS metric_observations (
+    observation_id VARCHAR(64) PRIMARY KEY,
+    project_id VARCHAR(64) NOT NULL REFERENCES projects(project_id),
+    strategy_version INTEGER NOT NULL,
+    approval_id VARCHAR(64) NOT NULL REFERENCES execution_approvals(approval_id),
+    metric_key VARCHAR(128) NOT NULL,
+    value NUMERIC,
+    availability VARCHAR(24) NOT NULL CHECK (availability IN ('observed_value', 'observed_zero', 'missing', 'delayed', 'unauthorized')),
+    source TEXT NOT NULL,
+    unit VARCHAR(64) NOT NULL,
+    scope TEXT NOT NULL,
+    window_start TIMESTAMP WITH TIME ZONE NOT NULL,
+    window_end TIMESTAMP WITH TIME ZONE NOT NULL,
+    comparison_role VARCHAR(16) NOT NULL CHECK (comparison_role IN ('baseline', 'current')),
+    controlled_data BOOLEAN NOT NULL,
+    captured_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    CHECK ((availability = 'observed_zero' AND value = 0) OR (availability = 'observed_value' AND value IS NOT NULL) OR (availability NOT IN ('observed_zero', 'observed_value') AND value IS NULL))
+);
+
+CREATE TABLE IF NOT EXISTS basic_reviews (
+    review_id VARCHAR(64) PRIMARY KEY,
+    project_id VARCHAR(64) NOT NULL REFERENCES projects(project_id),
+    approval_id VARCHAR(64) NOT NULL REFERENCES execution_approvals(approval_id),
+    strategy_version INTEGER NOT NULL,
+    primary_goal_snapshot TEXT NOT NULL,
+    primary_metric_key VARCHAR(128) NOT NULL,
+    outcome VARCHAR(32) NOT NULL,
+    facts JSONB NOT NULL,
+    limitations JSONB NOT NULL,
+    source_changed BOOLEAN NOT NULL,
+    controlled_data BOOLEAN NOT NULL,
+    ai_analysis TEXT NOT NULL,
+    confirmed_by VARCHAR(64),
+    next_action VARCHAR(32),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    confirmed_at TIMESTAMP WITH TIME ZONE
+);

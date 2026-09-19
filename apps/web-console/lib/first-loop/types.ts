@@ -187,6 +187,54 @@ export interface PublicationSchedule {
   createdAt: string;
 }
 
+export type MetricAvailability =
+  | 'observed_value'
+  | 'observed_zero'
+  | 'missing'
+  | 'delayed'
+  | 'unauthorized';
+
+export interface MetricObservation {
+  id: string;
+  projectId: string;
+  strategyVersion: number;
+  approvalId: string;
+  metricKey: string;
+  value?: number;
+  availability: MetricAvailability;
+  source: string;
+  unit: string;
+  scope: string;
+  windowStart: string;
+  windowEnd: string;
+  comparisonRole: 'baseline' | 'current';
+  controlledData: boolean;
+  capturedAt: string;
+}
+
+export interface BasicReview {
+  id: string;
+  projectId: string;
+  approvalId: string;
+  strategyVersion: number;
+  primaryGoalSnapshot: string;
+  primaryMetricKey: string;
+  outcome:
+    | 'required_work_incomplete'
+    | 'evidence_insufficient'
+    | 'no_improvement'
+    | 'limited_improvement';
+  facts: string[];
+  limitations: string[];
+  sourceChanged: boolean;
+  controlledData: boolean;
+  aiAnalysis: string;
+  confirmedBy?: string;
+  nextAction?: 'stop' | 'continue_observation' | 'create_new_draft';
+  createdAt: string;
+  confirmedAt?: string;
+}
+
 export interface AuditLogEntry {
   id: string;
   timestamp: string;
@@ -214,6 +262,8 @@ export interface FirstLoopState {
   strategyDrafts: StrategyDraft[];
   executionApprovals: ExecutionApproval[];
   publicationSchedules: PublicationSchedule[];
+  metricObservations: MetricObservation[];
+  basicReviews: BasicReview[];
   auditLogs: AuditLogEntry[];
 }
 

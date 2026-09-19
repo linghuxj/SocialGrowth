@@ -54,6 +54,19 @@ const EMPTY_STRATEGY = {
   rationale: '',
 };
 const EMPTY_APPROVAL = { quantity: '', validUntil: '' };
+const EMPTY_OBSERVATION = {
+  projectId: '',
+  approvalId: '',
+  metricKey: '',
+  value: '',
+  availability: 'observed_value',
+  source: '',
+  unit: '',
+  scope: '',
+  windowStart: '',
+  windowEnd: '',
+  comparisonRole: 'current',
+};
 
 export function FirstLoopView() {
   const {
@@ -65,6 +78,9 @@ export function FirstLoopView() {
     addStrategyRule,
     generateStrategyDraft,
     approveStrategy,
+    recordMetricObservation,
+    createBasicReview,
+    confirmReview,
     addContent,
     allocateContent,
     projectGaps,
@@ -75,6 +91,7 @@ export function FirstLoopView() {
   const [destination, setDestination] = useState(EMPTY_DESTINATION);
   const [strategy, setStrategy] = useState(EMPTY_STRATEGY);
   const [approval, setApproval] = useState(EMPTY_APPROVAL);
+  const [observation, setObservation] = useState(EMPTY_OBSERVATION);
   const [feedback, setFeedback] = useState(
     '当前为本地受控工作区；真实数据库、账号和发布接入仍需分别验证。',
   );
@@ -157,6 +174,47 @@ export function FirstLoopView() {
       draft.ok
         ? `策略草案 ${draft.value!.id} 已生成；必须明确数量、有效期、停止及观察条件后才能批准。`
         : `${draft.error?.code}: ${draft.error?.message}`,
+    );
+  };
+
+  const submitObservation = (event: React.SyntheticEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const approvalRecord = state.executionApprovals.find(
+      (item) => item.id === observation.approvalId,
+    );
+    if (!approvalRecord)
+      return setFeedback('OBSERVATION_SCOPE_INVALID: 未找到批准记录');
+    const hasValue =
+      observation.availability === 'observed_value' ||
+      observation.availability === 'observed_zero';
+    const result = recordMetricObservation({
+      projectId: observation.projectId,
+      approvalId: observation.approvalId,
+      strategyVersion: approvalRecord.strategyVersion,
+      metricKey: observation.metricKey,
+      value: hasValue ? Number(observation.value) : undefined,
+      availability: observation.availability as
+        | 'observed_value'
+        | 'observed_zero'
+        | 'missing'
+        | 'delayed'
+        | 'unauthorized',
+      source: observation.source,
+      unit: observation.unit,
+      scope: observation.scope,
+      windowStart: observation.windowStart
+        ? new Date(observation.windowStart).toISOString()
+        : '',
+      windowEnd: observation.windowEnd
+        ? new Date(observation.windowEnd).toISOString()
+        : '',
+      comparisonRole: observation.comparisonRole as 'baseline' | 'current',
+      controlledData: true,
+    });
+    setFeedback(
+      result.ok
+        ? `观察 ${result.value!.id} 已记录，受控数据标记保持可见。`
+        : `${result.error?.code}: ${result.error?.message}`,
     );
   };
 
@@ -322,6 +380,164 @@ export function FirstLoopView() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">观察、可用性与基础复盘</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <form
+            className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
+            onSubmit={submitObservation}
+          >
+            <Input
+              required
+              placeholder="项目 ID"
+              value={observation.projectId}
+              onChange={(e) =>
+                setObservation({ ...observation, projectId: e.target.value })
+              }
+            />
+            <Input
+              required
+              placeholder="批准 ID"
+              value={observation.approvalId}
+              onChange={(e) =>
+                setObservation({ ...observation, approvalId: e.target.value })
+              }
+            />
+            <Input
+              required
+              placeholder="主指标键"
+              value={observation.metricKey}
+              onChange={(e) =>
+                setObservation({ ...observation, metricKey: e.target.value })
+              }
+            />
+            <select
+              className="h-9 rounded-md border border-slate-200 px-3 text-xs"
+              value={observation.availability}
+              onChange={(e) =>
+                setObservation({ ...observation, availability: e.target.value })
+              }
+            >
+              <option value="observed_value">已观察数值</option>
+              <option value="observed_zero">真实零值</option>
+              <option value="missing">缺失</option>
+              <option value="delayed">延迟</option>
+              <option value="unauthorized">无权限</option>
+            </select>
+            <Input
+              placeholder="数值（不可用状态留空）"
+              value={observation.value}
+              onChange={(e) =>
+                setObservation({ ...observation, value: e.target.value })
+              }
+            />
+            <Input
+              required
+              placeholder="来源"
+              value={observation.source}
+              onChange={(e) =>
+                setObservation({ ...observation, source: e.target.value })
+              }
+            />
+            <Input
+              required
+              placeholder="单位"
+              value={observation.unit}
+              onChange={(e) =>
+                setObservation({ ...observation, unit: e.target.value })
+              }
+            />
+            <Input
+              required
+              placeholder="范围"
+              value={observation.scope}
+              onChange={(e) =>
+                setObservation({ ...observation, scope: e.target.value })
+              }
+            />
+            <Input
+              required
+              type="datetime-local"
+              aria-label="观察窗开始"
+              value={observation.windowStart}
+              onChange={(e) =>
+                setObservation({ ...observation, windowStart: e.target.value })
+              }
+            />
+            <Input
+              required
+              type="datetime-local"
+              aria-label="观察窗结束"
+              value={observation.windowEnd}
+              onChange={(e) =>
+                setObservation({ ...observation, windowEnd: e.target.value })
+              }
+            />
+            <select
+              className="h-9 rounded-md border border-slate-200 px-3 text-xs"
+              value={observation.comparisonRole}
+              onChange={(e) =>
+                setObservation({
+                  ...observation,
+                  comparisonRole: e.target.value,
+                })
+              }
+            >
+              <option value="baseline">基线</option>
+              <option value="current">当前</option>
+            </select>
+            <Button type="submit">记录观察</Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                const result = createBasicReview({
+                  projectId: observation.projectId,
+                  approvalId: observation.approvalId,
+                  primaryMetricKey: observation.metricKey,
+                  requiredWorkComplete: true,
+                  sourceComparisonAccepted: false,
+                });
+                setFeedback(
+                  result.ok
+                    ? `复盘 ${result.value!.id}: ${result.value!.outcome}`
+                    : `${result.error?.code}: ${result.error?.message}`,
+                );
+              }}
+            >
+              按当前事实生成复盘
+            </Button>
+          </form>
+          {state.basicReviews.map((review) => (
+            <div
+              key={review.id}
+              className="rounded border border-slate-200 p-3 text-xs"
+            >
+              <strong>
+                {review.outcome} · 原目标：{review.primaryGoalSnapshot}
+              </strong>
+              <p className="mt-1 text-slate-500">{review.aiAnalysis}</p>
+              <Button
+                size="sm"
+                className="mt-2 h-7 text-xs"
+                onClick={() => {
+                  const result = confirmReview(review.id, 'create_new_draft');
+                  setFeedback(
+                    result.ok
+                      ? '后续动作已由人工确认为新草案；系统未自动扩大执行。'
+                      : `${result.error?.code}: ${result.error?.message}`,
+                  );
+                }}
+              >
+                确认新草案后续动作
+              </Button>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

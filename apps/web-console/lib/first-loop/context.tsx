@@ -15,12 +15,14 @@ import {
 import { loadFirstLoopState, saveFirstLoopState } from './storage';
 import type {
   AccountServiceRelation,
+  BasicReview,
   CommandResult,
   ContentIdentity,
   DestinationEntry,
   DestinationVersion,
   ExecutionApproval,
   FirstLoopState,
+  MetricObservation,
   Project,
   SliceAsset,
   StrategyDraft,
@@ -60,6 +62,20 @@ interface FirstLoopContextValue {
   approveStrategy: (
     input: Parameters<FirstLoopEngine['approveStrategy']>[0],
   ) => CommandResult<ExecutionApproval>;
+  recordMetricObservation: (
+    input: Omit<MetricObservation, 'id' | 'capturedAt'>,
+  ) => CommandResult<MetricObservation>;
+  createBasicReview: (input: {
+    projectId: string;
+    approvalId: string;
+    primaryMetricKey: string;
+    requiredWorkComplete: boolean;
+    sourceComparisonAccepted: boolean;
+  }) => CommandResult<BasicReview>;
+  confirmReview: (
+    reviewId: string,
+    nextAction: NonNullable<BasicReview['nextAction']>,
+  ) => CommandResult<BasicReview>;
   addContent: (input: {
     identityId?: string;
     title: string;
@@ -133,6 +149,16 @@ export function FirstLoopProvider({ children }: { children: React.ReactNode }) {
         ),
       approveStrategy: (input) =>
         execute(() => engine.approveStrategy(input, createCommandContext())),
+      recordMetricObservation: (input) =>
+        execute(() =>
+          engine.recordMetricObservation(input, createCommandContext()),
+        ),
+      createBasicReview: (input) =>
+        execute(() => engine.createBasicReview(input, createCommandContext())),
+      confirmReview: (reviewId, nextAction) =>
+        execute(() =>
+          engine.confirmReview(reviewId, nextAction, createCommandContext()),
+        ),
       addContent: (input) =>
         execute(() =>
           engine.admitContent(

@@ -1,6 +1,7 @@
 import type {
   AccountServiceRelation,
   AuditLogEntry,
+  BasicReview,
   CommandContext,
   CommandResult,
   ContentIdentity,
@@ -9,6 +10,7 @@ import type {
   DestinationHealth,
   DestinationVersion,
   FirstLoopState,
+  MetricObservation,
   Project,
   ProjectGap,
   PublicationSchedule,
@@ -39,6 +41,8 @@ const EMPTY_STATE: FirstLoopState = {
   strategyDrafts: [],
   executionApprovals: [],
   publicationSchedules: [],
+  metricObservations: [],
+  basicReviews: [],
   auditLogs: [],
 };
 
@@ -1320,6 +1324,210 @@ export class FirstLoopEngine {
       );
     }
     return structuredClone(expired);
+  }
+
+  recordMetricObservation(
+    input: Omit<MetricObservation, 'id' | 'capturedAt'>,
+    context: CommandContext,
+  ): CommandResult<MetricObservation> {
+    const approval = this.state.executionApprovals.find(
+      (item) =>
+        item.id === input.approvalId &&
+        item.projectId === input.projectId &&
+        item.strategyVersion === input.strategyVersion,
+    );
+    if (!approval)
+      return this.reject(
+        'OBSERVATION_SCOPE_INVALID',
+        '观察记录与批准、项目或策略版本不一致',
+        'metric_observation',
+        'new',
+        context,
+      );
+    if (
+      !input.metricKey.trim() ||
+      !input.source.trim() ||
+      !input.unit.trim() ||
+      !input.scope.trim() ||
+      input.windowStart >= input.windowEnd
+    ) {
+      return this.reject(
+        'OBSERVATION_METADATA_INCOMPLETE',
+        '指标、来源、单位、范围和时间窗必须完整',
+        'metric_observation',
+        'new',
+        context,
+      );
+    }
+    const hasValue =
+      typeof input.value === 'number' && Number.isFinite(input.value);
+    if (input.availability === 'observed_zero' && input.value !== 0) {
+      return this.reject(
+        'OBSERVATION_ZERO_MISMATCH',
+        '真实零值必须明确记录数值 0',
+        'metric_observation',
+        'new',
+        context,
+      );
+    }
+    if (input.availability === 'observed_value' && !hasValue) {
+      return this.reject(
+        'OBSERVATION_VALUE_REQUIRED',
+        '已观察值必须提供有限数值',
+        'metric_observation',
+        'new',
+        context,
+      );
+    }
+    if (
+      !['observed_value', 'observed_zero'].includes(input.availability) &&
+      input.value !== undefined
+    ) {
+      return this.reject(
+        'OBSERVATION_UNAVAILABLE_HAS_VALUE',
+        '缺失、延迟或无权限不能填入数值',
+        'metric_observation',
+        'new',
+        context,
+      );
+    }
+    const observation: MetricObservation = {
+      ...input,
+      id: this.nextId('observation'),
+      metricKey: input.metricKey.trim(),
+      source: input.source.trim(),
+      unit: input.unit.trim(),
+      scope: input.scope.trim(),
+      capturedAt: this.now(),
+    };
+    this.state.metricObservations.push(observation);
+    this.accept(
+      'observation.recorded',
+      'metric_observation',
+      observation.id,
+      context,
+      {
+        metricKey: observation.metricKey,
+        availability: observation.availability,
+        value: observation.value ?? null,
+        source: observation.source,
+        controlledData: observation.controlledData,
+      },
+    );
+    return { ok: true, value: structuredClone(observation) };
+  }
+
+  createBasicReview(
+    input: {
+      projectId: string;
+      approvalId: string;
+      primaryMetricKey: string;
+      requiredWorkComplete: boolean;
+      sourceComparisonAccepted: boolean;
+    },
+    context: CommandContext,
+  ): CommandResult<BasicReview> {
+    const project = this.state.projects.find(
+      (item) => item.id === input.projectId,
+    );
+    const approval = this.state.executionApprovals.find(
+      (item) =>
+        item.id === input.approvalId && item.projectId === input.projectId,
+    );
+    if (!project || !approval)
+      return this.reject(
+        'REVIEW_SCOPE_INVALID',
+        '复盘引用的项目或批准不存在',
+        'basic_review',
+        'new',
+        context,
+      );
+    const observations = this.state.metricObservations.filter(
+      (item) =>
+        item.projectId === input.projectId &&
+        item.approvalId === input.approvalId &&
+        item.metricKey === input.primaryMetricKey,
+    );
+    const baseline = observations.find(
+      (item) => item.comparisonRole === 'baseline',
+    );
+    const current = observations.find(
+      (item) => item.comparisonRole === 'current',
+    );
+    const sources = new Set(observations.map((item) => item.source));
+    const sourceChanged = sources.size > 1;
+    const limitations: string[] = [];
+    let outcome: BasicReview['outcome'];
+    if (!input.requiredWorkComplete) {
+      outcome = 'required_work_incomplete';
+      limitations.push('必需工作未完成，不能评价策略改善');
+    } else if (
+      !baseline ||
+      !current ||
+      !['observed_value', 'observed_zero'].includes(baseline.availability) ||
+      !['observed_value', 'observed_zero'].includes(current.availability)
+    ) {
+      outcome = 'evidence_insufficient';
+      limitations.push('基线或当前主指标缺失、延迟或无权限');
+    } else if (sourceChanged && !input.sourceComparisonAccepted) {
+      outcome = 'evidence_insufficient';
+      limitations.push('数据来源已变化且可比性尚未确认');
+    } else if ((current.value ?? 0) > (baseline.value ?? 0)) {
+      outcome = 'limited_improvement';
+      limitations.push('改善仅适用于当前批准范围与观察窗');
+    } else {
+      outcome = 'no_improvement';
+      limitations.push('完整观察未显示主指标改善，不自动推广');
+    }
+    const facts = observations.map(
+      (item) =>
+        `${item.comparisonRole}:${item.metricKey}:${item.availability}:${item.value ?? 'NA'} ${item.unit}@${item.source}`,
+    );
+    const review: BasicReview = {
+      id: this.nextId('review'),
+      projectId: project.id,
+      approvalId: approval.id,
+      strategyVersion: approval.strategyVersion,
+      primaryGoalSnapshot: project.primaryGoal ?? '',
+      primaryMetricKey: input.primaryMetricKey,
+      outcome,
+      facts,
+      limitations,
+      sourceChanged,
+      controlledData: observations.some((item) => item.controlledData),
+      aiAnalysis: `基于 ${facts.length} 条可用性记录得出 ${outcome}；限制：${limitations.join('；')}`,
+      createdAt: this.now(),
+    };
+    this.state.basicReviews.push(review);
+    this.accept('review.created', 'basic_review', review.id, context, {
+      outcome: review.outcome,
+      sourceChanged: review.sourceChanged,
+      controlledData: review.controlledData,
+    });
+    return { ok: true, value: structuredClone(review) };
+  }
+
+  confirmReview(
+    reviewId: string,
+    nextAction: NonNullable<BasicReview['nextAction']>,
+    context: CommandContext,
+  ): CommandResult<BasicReview> {
+    const review = this.state.basicReviews.find((item) => item.id === reviewId);
+    if (!review)
+      return this.reject(
+        'REVIEW_NOT_FOUND',
+        '复盘不存在',
+        'basic_review',
+        reviewId,
+        context,
+      );
+    review.confirmedBy = context.actorId;
+    review.confirmedAt = this.now();
+    review.nextAction = nextAction;
+    this.accept('review.confirmed', 'basic_review', review.id, context, {
+      nextAction,
+    });
+    return { ok: true, value: structuredClone(review) };
   }
 
   private invalidateProjectAuthority(projectId: string, reason: string): void {
