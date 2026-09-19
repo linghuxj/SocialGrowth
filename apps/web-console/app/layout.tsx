@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'SocialGrowth Web 运营管理控制台 (前 3 个月成果基线)',
-  description: 'SocialGrowth 统一现代 Web 运营管理控制台，7 大核心模块纯真机矩阵中枢'
+  title: 'SocialGrowth 运营工作台',
+  description: 'SocialGrowth 首批业务闭环受控运营工作台',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

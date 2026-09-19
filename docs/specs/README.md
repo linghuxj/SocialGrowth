@@ -1,6 +1,6 @@
 # 首批开发规格与任务管理
 
-用户已确认对 PG-01～PG-10 进行规格化，并授权在个人公开仓库 `linghuxj/SocialGrowth` 管理。业务规则沿用现有决定；规格化不代表代码实现或真实运营许可。
+用户已确认对 PG-01～PG-10 进行规格化和首批受控开发，并授权在个人公开仓库 `linghuxj/SocialGrowth` 管理。FL-01～06 的受控实现和自动化验收已完成；生产迁移、真实外部接入、部署与运营许可仍分别判断。
 
 - [首批总规格](2026-09-19-first-loop.md)：完整范围、完成标准、用户故事、实施与测试决定。
 - [FL-01 客户授权与内容准入](first-loop/FL-01-context-assets.md)
@@ -12,7 +12,7 @@
 
 ## 任务跟踪约定
 
-GitHub Issues 为任务跟踪入口，规格发布使用 `ready-for-agent` 标签。该标签表示规格可领取，集成依赖、未接入事实与额外授权边界仍按正文执行；不触发本轮代码实现，也不表示某项已通过验收。
+GitHub Issues 为任务跟踪入口。首批完成后将移除 `ready-for-agent` 并关闭对应 Issue；关闭只表示受控实现满足任务内完成标准，真实接入门仍按正文保留。
 
 同一 FL 编号优先更新已有 Issue，避免重复任务。每项完成时记录实现提交、实际测试命令/结果及受控/真实接入状态；保留 PG、旧 TASK 与 C/T/F 的映射。规格变更同步本地正文与 Issue，不让历史审计意见重新覆盖已确认规则。
 
@@ -32,8 +32,8 @@ GitHub Issues 为任务跟踪入口，规格发布使用 `ready-for-agent` 标�
 | [FL-05] 观察与基础复盘 | [#6](https://github.com/linghuxj/SocialGrowth/issues/6) | FL-02、FL-03、FL-04 |
 | [FL-06] 首批集成与变更退出验收 | [#7](https://github.com/linghuxj/SocialGrowth/issues/7) | FL-01、FL-02、FL-03、FL-04、FL-05 |
 
-发布后已从 GitHub 读回核对：7 个 Issue 正文与本地发布文本一致，7 个均带 `ready-for-agent` 标签，28 个不同的固定版本源链接均指向已推送文件；总规格与子任务已互链。发布前仓库无既有 Issue，未重复建单。
+初次发布后已从 GitHub 读回核对：7 个 Issue 正文与本地发布文本一致，均曾带 `ready-for-agent` 标签，28 个不同的固定版本源链接均指向已推送文件；总规格与子任务已互链。完成处置见各 Issue 的最终验收评论。
 
-本地规格检查：7 份规格均具备技能要求的七个章节；`python3 scripts/analytics/verify_handoff_audit.py` 通过，覆盖 39 份 Markdown、444 个本地链接及原编号/预算/容量一致性；空白检查通过。这些属于文档及发布验证，不是应用测试。
+最终本地检查：`python3 scripts/analytics/verify_handoff_audit.py` 通过，覆盖 46 份 Markdown、442 个本地链接及原编号/预算/容量一致性；Web 领域测试 17/17、Controller 测试 5/5、跨模块集成 3/3，并完成两模块构建和相关 lint。
 
-当前应用实现状态：未开始本轮功能开发、未部署。发布只完成规格和任务管理；各项依赖、测试及真实接入边界继续有效。
+当前应用实现状态：首批受控开发已完成、未部署。浏览器存储和 DDL 不等于生产数据库迁移；真实 Provider、入口、WebSocket Agent、物理真机、原生 App 发布和供应商指标仍待实际接入证据。

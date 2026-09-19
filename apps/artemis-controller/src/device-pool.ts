@@ -1,37 +1,39 @@
-import type { DeviceInfo, PlatformType } from './types.js';
+import type { DeviceInfo, PlatformType } from "./types.js";
 
-/**
- * Google Artemis 设备连接与管理池
- */
 export class DevicePool {
   private devices = new Map<string, DeviceInfo>();
 
   public registerDevice(device: DeviceInfo): void {
-    this.devices.set(device.deviceId, device);
+    if (device.deviceType !== "physical") throw new Error("PHYSICAL_DEVICE_REQUIRED");
+    this.devices.set(device.deviceId, structuredClone(device));
   }
 
   public getDevice(deviceId: string): DeviceInfo | undefined {
-    return this.devices.get(deviceId);
+    const device = this.devices.get(deviceId);
+    return device ? structuredClone(device) : undefined;
   }
 
   public listDevices(): DeviceInfo[] {
-    return Array.from(this.devices.values());
+    return Array.from(this.devices.values(), (device) => structuredClone(device));
   }
 
-  public getAvailableDeviceForPlatform(platform: PlatformType): DeviceInfo | undefined {
-    for (const dev of this.devices.values()) {
-      if (dev.status === 'idle' && dev.platformBound.includes(platform)) {
-        return dev;
-      }
-    }
-    return undefined;
+  public getAvailableBoundDevice(
+    platform: PlatformType,
+    accountId: string,
+    requiredDeviceId: string,
+  ): DeviceInfo | undefined {
+    const device = this.devices.get(requiredDeviceId);
+    if (!device || device.status !== "idle" || device.deviceType !== "physical") return undefined;
+    if (!device.platformBound.includes(platform) || !device.boundAccounts.includes(accountId))
+      return undefined;
+    return structuredClone(device);
   }
 
-  public updateStatus(deviceId: string, status: DeviceInfo['status']): void {
-    const dev = this.devices.get(deviceId);
-    if (dev) {
-      dev.status = status;
-      dev.lastHeartbeat = new Date().toISOString();
+  public updateStatus(deviceId: string, status: DeviceInfo["status"]): void {
+    const device = this.devices.get(deviceId);
+    if (device) {
+      device.status = status;
+      device.lastHeartbeat = new Date().toISOString();
     }
   }
 }

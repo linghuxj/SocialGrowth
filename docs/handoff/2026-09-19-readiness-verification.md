@@ -33,9 +33,9 @@
 3. **账号关系表达不完整属实**。只给 `accounts` 增加一个当前 `client_id` 并不能完整涵盖 G-02a 已批准共享的范围/期间和历史关系。原报告的四字段方案可供设计参考，不能原样作为已批准且充分的修复。
 4. **任务与发布事实映射缺失属实**。保留 `pending/completed/failed` 等技术状态本身不违反 G-04a；必须另能记录人工等待、发布事实、暂停及恢复依据，不能把 `failed` 自动解释为未发布。具体采用字段、关系表或事件记录仍由工程设计决定。
 
-**源码抽查补证**：[SQL 说明](../../apps/web-console/data/schema.sql)第 24–58 行与[前端类型](../../apps/web-console/lib/db/types.ts)的 `AccountEntity`、`ClipAssetEntity` 也保留旧表达；[AI 类型](../../services/ai-engine/src/types.ts)的 `SliceMetadata` 没有统一内容身份或独占字段。不是仅靠新增表名就能证明各层已经一致。
+**源码抽查补证**：[SQL 说明](../../apps/web-console/data/schema.sql)第 24–58 行及当时的 `lib/db/types.ts` 中 `AccountEntity`、`ClipAssetEntity` 保留旧表达；历史 Web 类型已于 2026-09-20 移除，可从 Git 历史复核。[AI 类型](../../services/ai-engine/src/types.ts)的 `SliceMetadata` 没有统一内容身份或独占字段。不是仅靠新增表名就能证明各层已经一致。
 
-**边界**：[前端数据读取](../../apps/web-console/lib/db/client.ts)直接导入本地 JSON，不能把 SQL 文件视为已部署 PostgreSQL 的实测结构。本次确认的是仓库模型缺口，不推定线上已有错发。后续应对照 G-02/G-03/G-04a 核对受影响模型和迁移/验证方式；本次未修改 Schema 或业务代码。
+**边界**：当时的 `lib/db/client.ts` 直接导入本地 JSON；该演示读取层已于 2026-09-20 移除，可从 Git 历史复核。不能把 SQL 文件视为已部署 PostgreSQL 的实测结构。本次确认的是仓库模型缺口，不推定线上已有错发。后续应对照 G-02/G-03/G-04a 核对受影响模型和迁移/验证方式；本次未修改 Schema 或业务代码。
 
 ## B-02：TASK-05 属实，不能连带认定 TASK-02/04 的旧业务解释仍有效
 

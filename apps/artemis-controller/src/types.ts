@@ -1,29 +1,20 @@
-/**
- * SocialGrowth Google Artemis 设备执行控制端类型定义
- */
-
-export type PlatformType = 'facebook' | 'instagram' | 'youtube';
-
-export type DeviceType = 'physical' | 'emulator';
-
-export type DeviceStatus = 'idle' | 'busy' | 'offline' | 'error';
+export type PlatformType = "facebook" | "instagram" | "youtube";
+export type DeviceStatus = "idle" | "busy" | "offline" | "error";
 
 export interface DeviceInfo {
   deviceId: string;
-  deviceType: DeviceType;
-  model: string; // e.g., "Samsung Galaxy S23"
+  deviceType: "physical";
+  model: string;
   platformBound: PlatformType[];
-  boundAccounts: string[]; // 绑定的社媒账号 ID 清单
+  boundAccounts: string[];
   status: DeviceStatus;
   batteryLevel?: number;
   lastHeartbeat: string;
 }
 
-export type TaskStatus = 'pending' | 'dispatched' | 'running' | 'completed' | 'failed' | 'paused';
-
 export interface AutomationStep {
   stepIndex: number;
-  action: 'open_app' | 'navigate' | 'click' | 'input_text' | 'select_media' | 'scroll' | 'wait';
+  action: "open_app" | "navigate" | "click" | "input_text" | "select_media" | "scroll" | "wait";
   targetSelector?: string;
   coordinates?: { x: number; y: number };
   value?: string;
@@ -31,29 +22,79 @@ export interface AutomationStep {
 }
 
 export interface PublishTaskDirective {
+  schemaVersion: "design-v1";
   taskId: string;
-  strategyVersion: string;
-  batchId: string;
-  platform: PlatformType;
+  attemptId: string;
+  previousAttemptId?: string;
+  projectId: string;
+  strategyVersionId: string;
+  approvalId: string;
+  bindingId: string;
+  deviceId: string;
   accountId: string;
-  targetAppPackage: string; // e.g. "com.facebook.katana", "com.instagram.android", "com.google.android.youtube"
-  mediaAssetPath: string;
+  platform: PlatformType;
+  targetAppPackage: string;
+  contentIdentityId: string;
+  sliceId: string;
+  media: { url: string; sha256: string; expiresAt: string };
   captionText: string;
-  shortLinkUrl: string;
+  destinationVersionId: string;
+  shortLinkUrl?: string;
+  scheduledAt: string;
+  expiresAt: string;
+  timeZone: string;
   steps: AutomationStep[];
-  deadline: string;
+  taskTimeoutMs: number;
 }
 
+export type ExecutionStatus = "accepted" | "running" | "blocked" | "completed" | "failed";
+export type ReceiptPublishStatus =
+  | "not_submitted"
+  | "in_progress"
+  | "unknown"
+  | "confirmed_not_published"
+  | "published";
+
 export interface ExecutionReceipt {
+  schemaVersion: "design-v1";
+  eventId: string;
   taskId: string;
+  attemptId: string;
   deviceId: string;
-  status: 'completed' | 'failed';
-  startedAt: string;
-  finishedAt: string;
+  accountId: string;
+  occurredAt: string;
+  executionStatus: ExecutionStatus;
+  publishStatus: ReceiptPublishStatus;
+  evidenceRefs: string[];
   publishedUrl?: string;
   publishedPostId?: string;
-  failureReason?: string;
-  screenshotPaths: string[];
-  selfHealingLogs: string[];
-  logcatSnippet?: string;
+  failureCode?:
+    | "EXECUTOR_NOT_CONFIGURED"
+    | "DEVICE_UNAVAILABLE"
+    | "IDENTITY_CHALLENGE"
+    | "TECHNICAL_FAILURE"
+    | "DEADLINE_EXPIRED"
+    | "RECEIPT_CONFLICT";
+  challengeType?: string;
+  resourceStatus: "available" | "busy" | "offline" | "error";
+}
+
+export interface ExecutionAdapter {
+  execute(task: PublishTaskDirective, device: DeviceInfo): Promise<ExecutionReceipt>;
+}
+
+export interface ReceiptStore {
+  get(taskId: string, attemptId: string): ExecutionReceipt | undefined;
+  save(receipt: ExecutionReceipt): void;
+}
+
+export interface ControllerAuditEntry {
+  occurredAt: string;
+  correlationId: string;
+  action: string;
+  taskId: string;
+  attemptId: string;
+  result: "accepted" | "rejected" | "waiting";
+  reasonCode: string;
+  facts: Record<string, string | number | boolean | null>;
 }

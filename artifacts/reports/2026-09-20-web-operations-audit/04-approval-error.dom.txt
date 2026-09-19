@@ -1,0 +1,231 @@
+- banner:
+  - generic: SG
+  - generic: SocialGrowth Web 运营平台
+  - generic: 首批业务闭环 · 受控工作台（外部接入证据单列）
+  - generic: "旧设备演示记录:"
+  - strong: 20 条，未核验在线
+  - generic: "旧演示排他锁:"
+  - strong: 6 条独占锁定
+  - 'button "待审策略: 3 条"':
+    - generic: "待审策略: 3 条"
+  - button "导出最新 database.json":
+    - generic: 导出最新 database.json
+- complementary:
+  - generic: 运营工作台导航
+  - navigation:
+    - button "3个月成果总览":
+      - generic: 3个月成果总览
+    - button "首条业务闭环 PG-01~10":
+      - generic: 首条业务闭环
+      - generic: PG-01~10
+    - button "1. 账号与真机拓扑 20台/40号":
+      - generic: 1. 账号与真机拓扑
+      - generic: 20台/40号
+    - button "2. 切片素材独占锁 8条":
+      - generic: 2. 切片素材独占锁
+      - generic: 8条
+    - button "3. 策略与规则引擎 3条演示待审":
+      - generic: 3. 策略与规则引擎
+      - generic: 3条演示待审
+    - button "4. 导流短链与防封 待真实入口验收":
+      - generic: 4. 导流短链与防封
+      - generic: 待真实入口验收
+    - button "5. 风控与冷备换号 旧演示":
+      - generic: 5. 风控与冷备换号
+      - generic: 旧演示
+    - button "6. Artemis真机群控 20条演示记录":
+      - generic: 6. Artemis真机群控
+      - generic: 20条演示记录
+    - button "7. A/B策略优化屏 受控数据":
+      - generic: 7. A/B策略优化屏
+      - generic: 受控数据
+    - button "8. 数据库与持久化 本地演示":
+      - generic: 8. 数据库与持久化
+      - generic: 本地演示
+    - button "归档：政策与测算":
+      - generic: 归档：政策与测算
+  - generic: CLAUDE.md 合规准则
+  - paragraph: 目标为纯真机与账号精确绑定；当前受控实现、生产接入与真实平台证据分别验收
+- main:
+  - heading "首条业务闭环 · 项目与内容准入" [level=2]
+  - generic: FL-01 受控实现
+  - paragraph: 草稿、授权、内容身份、归属及发布事实分开记录；页面操作会产生结构化审计日志。
+  - status: "APPROVAL_SCOPE_INCOMPLETE: 批准必须明确数量、有效期、停止和观察条件"
+  - text: 项目草稿
+  - textbox "项目名称"
+  - textbox "服务客户 ID"
+  - textbox "当前主目标"
+  - textbox "目标受众"
+  - textbox "责任人 ID"
+  - button "保存草稿":
+    - text: 保存草稿
+  - text: 内容身份与文件版本
+  - textbox "已有内容身份 ID（新增语言版本时填写）"
+  - textbox "内容标题"
+  - textbox "来源引用"
+  - textbox "剧情范围说明"
+  - textbox "语言，如 en-US": en-US
+  - textbox "受控文件引用"
+  - textbox "SHA256（64位）"
+  - textbox "权利依据引用"
+  - button "准入素材":
+    - text: 准入素材
+  - generic: 观察、可用性与基础复盘
+  - textbox "项目 ID"
+  - textbox "批准 ID"
+  - textbox "主指标键"
+  - combobox:
+    - option "已观察数值" [selected]
+    - option "真实零值"
+    - option "缺失"
+    - option "延迟"
+    - option "无权限"
+  - textbox "数值（不可用状态留空）"
+  - textbox "来源"
+  - textbox "单位"
+  - textbox "范围"
+  - textbox "观察窗开始"
+  - textbox "观察窗结束"
+  - combobox:
+    - option "基线"
+    - option "当前" [selected]
+  - button "记录观察"
+  - button "按当前事实生成复盘"
+  - strong: limited_improvement · 原目标：验证受控闭环
+  - paragraph: 基于 2 条可用性记录得出 limited_improvement；限制：改善仅适用于当前批准范围与观察窗
+  - button "确认新草案后续动作"
+  - text: 账号服务授权
+  - textbox "项目 ID"
+  - textbox "账号 ID"
+  - textbox "服务客户 ID"
+  - textbox "账号所有方 ID"
+  - textbox "授权方 ID"
+  - textbox "授权依据引用"
+  - textbox "共享批准引用（按需）"
+  - button "记录授权"
+  - generic: 项目与资料缺口
+  - strong: Chrome验收项目
+  - generic: active
+  - paragraph: 资料完整；仍需核对真实授权事实。
+  - strong: 【演练】星河短剧｜英语受众首发
+  - generic: active
+  - paragraph: 资料完整；仍需核对真实授权事实。
+  - generic: 内容归属
+  - strong: Chrome验收内容
+  - generic: assigned_locked
+  - paragraph: 身份 content-5fd981f9-91ba-41db-b08c-1086964a008e · 1 个文件版本
+  - paragraph: 归属账号：controlled-account-1
+  - strong: Chrome回归内容
+  - generic: assigned_locked
+  - paragraph: 身份 content-c05db6bb-5727-4554-b2d4-e84ad486eb19 · 1 个文件版本
+  - paragraph: 归属账号：account-chrome
+  - strong: Chrome多内容回归
+  - generic: assigned_locked
+  - paragraph: 身份 content-3aacd5d0-9625-4b4d-a599-8266c7aa2c29 · 1 个文件版本
+  - paragraph: 归属账号：account-chrome
+  - text: 导流入口与版本
+  - textbox "项目 ID"
+  - textbox "账号 ID"
+  - textbox "频道/范围 ID"
+  - textbox "实际目的地 URL"
+  - textbox "维护权限依据"
+  - button "保存共享入口"
+  - strong: channel/channel-chrome
+  - paragraph: https://example.com/chrome-acceptance · available · 活动
+  - paragraph: 共享入口只保留频道级观察，不伪分摊到单条内容。
+  - generic: 规则、受控草案与明确批准
+  - textbox "项目 ID"
+  - textbox "规则陈述"
+  - textbox "规则来源引用"
+  - textbox "草案依据说明"
+  - button "生成受控草案"
+  - strong: strategy-6ee8d214-f802-43f7-b47c-a9aa892dc389 · v1 · controlled
+  - paragraph: 基于授权、内容归属及活动入口生成受控草案
+  - spinbutton
+  - textbox "批准有效期"
+  - button "批准单条受控试验" [active]
+  - text: 核心流程审计日志
+  - generic: 2026-09-19T16:39:50.809Z
+  - strong: execution_approval.rejected
+  - generic: rejected
+  - generic: "corr=c0583a76-4523-4080-a847-8cccc6954caf entity=execution_approval/new reason=APPROVAL_SCOPE_INCOMPLETE facts={\"message\":\"批准必须明确数量、有效期、停止和观察条件\"}"
+  - generic: 2026-09-19T16:39:31.561Z
+  - strong: project.activated
+  - generic: accepted
+  - generic: "corr=82fefce5-5b48-40fc-ba5e-03514a5b6177 entity=project/project-6f9caf73-3c75-4c78-9dee-7d538a5e4dcf reason=OK facts={\"gapCount\":0}"
+  - generic: 2026-09-19T16:39:22.616Z
+  - strong: project.saved
+  - generic: accepted
+  - generic: "corr=70dcf6ed-2b72-4306-a219-086219af1adb entity=project/project-6f9caf73-3c75-4c78-9dee-7d538a5e4dcf reason=OK facts={\"gapCount\":0,\"status\":\"draft\"}"
+  - generic: 2026-09-19T16:32:28.892Z
+  - strong: content.allocated
+  - generic: accepted
+  - generic: "corr=aa662e65-2b59-4edd-841d-1b75cd81bde2 entity=content_identity/content-3aacd5d0-9625-4b4d-a599-8266c7aa2c29 reason=OK facts={\"accountId\":\"account-chrome\",\"allocationVersion\":1}"
+  - generic: 2026-09-19T16:32:28.143Z
+  - strong: content.admitted
+  - generic: accepted
+  - generic: "corr=f8452f24-d96d-4155-b20d-d34502817d64 entity=content_identity/content-3aacd5d0-9625-4b4d-a599-8266c7aa2c29 reason=OK facts={\"sliceId\":\"slice-bd37e5bb-c533-4ca4-b2cb-ae5397e7c1b8\",\"versionCount\":1,\"eligible\":true}"
+  - generic: 2026-09-19T16:26:01.344Z
+  - strong: content.allocated
+  - generic: accepted
+  - generic: "corr=5c6f5e62-654f-4570-9860-e38c40142e72 entity=content_identity/content-c05db6bb-5727-4554-b2d4-e84ad486eb19 reason=OK facts={\"accountId\":\"account-chrome\",\"allocationVersion\":1}"
+  - generic: 2026-09-19T16:25:48.844Z
+  - strong: content.admitted
+  - generic: accepted
+  - generic: "corr=fcaa5dfa-5ed2-43c3-b7aa-0a9396043eb7 entity=content_identity/content-c05db6bb-5727-4554-b2d4-e84ad486eb19 reason=OK facts={\"sliceId\":\"slice-1cf6ad79-3893-4ad6-bc62-057a044a1136\",\"versionCount\":1,\"eligible\":true}"
+  - generic: 2026-09-19T16:18:49.393Z
+  - strong: review.confirmed
+  - generic: accepted
+  - generic: "corr=0cfb1be9-053e-438b-9c4a-43bc24c3076c entity=basic_review/review-d1796444-4376-4e01-9223-283d8b002181 reason=OK facts={\"nextAction\":\"create_new_draft\"}"
+  - generic: 2026-09-19T16:18:44.395Z
+  - strong: review.created
+  - generic: accepted
+  - generic: "corr=159ff02f-306c-44c9-ae5c-30a0034aa3c5 entity=basic_review/review-d1796444-4376-4e01-9223-283d8b002181 reason=OK facts={\"outcome\":\"limited_improvement\",\"sourceChanged\":false,\"controlledData\":true}"
+  - generic: 2026-09-19T16:18:39.693Z
+  - strong: observation.recorded
+  - generic: accepted
+  - generic: "corr=73bf2fd7-5613-4e29-a6c2-20aee535790e entity=metric_observation/observation-a408bfd1-554f-4d0f-abe0-863285e6cbc0 reason=OK facts={\"metricKey\":\"valid_clicks\",\"availability\":\"observed_value\",\"value\":12,\"source\":\"shortlink-controlled\",\"controlledData\":true}"
+  - generic: 2026-09-19T16:18:32.346Z
+  - strong: observation.recorded
+  - generic: accepted
+  - generic: "corr=244fd436-6d20-401e-8d50-93acc88c26bc entity=metric_observation/observation-55708fa4-868d-4463-b367-3897389e9310 reason=OK facts={\"metricKey\":\"valid_clicks\",\"availability\":\"observed_value\",\"value\":10,\"source\":\"shortlink-controlled\",\"controlledData\":true}"
+  - generic: 2026-09-19T16:18:19.444Z
+  - strong: strategy.approved
+  - generic: accepted
+  - generic: "corr=a12cbfe9-0a34-411e-a8c5-c50d82683c4b entity=execution_approval/approval-0374085e-44b5-4fa1-b0b6-79bb1fc544c9 reason=OK facts={\"strategyVersion\":1,\"quantity\":1,\"costLimit\":null}"
+  - generic: 2026-09-19T16:18:10.295Z
+  - strong: strategy.draft_generated
+  - generic: accepted
+  - generic: "corr=3575de12-b6e0-4028-9311-eed370e08726 entity=strategy_draft/strategy-6ee8d214-f802-43f7-b47c-a9aa892dc389 reason=OK facts={\"version\":1,\"outputMode\":\"controlled\",\"contentIdentityId\":\"content-5fd981f9-91ba-41db-b08c-1086964a008e\"}"
+  - generic: 2026-09-19T16:18:10.294Z
+  - strong: strategy.rule_versioned
+  - generic: accepted
+  - generic: "corr=b795e65d-3d57-425a-ba6e-36d732c2b030 entity=strategy_rule/rule-5657fbc4-a3a6-4099-81a2-5efb4c0b214a reason=OK facts={\"projectId\":\"project-ebeab289-fa79-4fe6-b2c5-72180f878f0c\",\"category\":\"internal_rule\",\"version\":1}"
+  - generic: 2026-09-19T16:18:02.195Z
+  - strong: destination.created
+  - generic: accepted
+  - generic: "corr=c9574bc9-f249-45ca-961d-af7eb31683b1 entity=destination_entry/destination-96e969d6-93c2-48b5-8ecf-f866ff9d9383 reason=OK facts={\"projectId\":\"project-ebeab289-fa79-4fe6-b2c5-72180f878f0c\",\"accountId\":\"controlled-account-1\",\"scope\":\"channel\",\"sharedAttribution\":true}"
+  - generic: 2026-09-19T16:17:54.045Z
+  - strong: account.authorization_granted
+  - generic: accepted
+  - generic: "corr=42243308-13b8-44d2-a8c6-062a4c695e2c entity=account_service_relation/relation-7f1a7231-3da8-476e-92a1-4ddaf55db293 reason=OK facts={\"projectId\":\"project-ebeab289-fa79-4fe6-b2c5-72180f878f0c\",\"accountId\":\"controlled-account-1\",\"shared\":false}"
+  - generic: 2026-09-19T16:17:42.795Z
+  - strong: content.allocated
+  - generic: accepted
+  - generic: "corr=f418412e-e7d5-47d3-916f-210d290e301a entity=content_identity/content-5fd981f9-91ba-41db-b08c-1086964a008e reason=OK facts={\"accountId\":\"controlled-account-1\",\"allocationVersion\":1}"
+  - generic: 2026-09-19T16:17:32.847Z
+  - strong: content.admitted
+  - generic: accepted
+  - generic: "corr=396ecdfe-11a6-485a-b01e-75998ebac94c entity=content_identity/content-5fd981f9-91ba-41db-b08c-1086964a008e reason=OK facts={\"sliceId\":\"slice-97da3edb-9271-4d37-8fb0-b4f8f8d819af\",\"versionCount\":1,\"eligible\":true}"
+  - generic: 2026-09-19T16:17:25.946Z
+  - strong: account.authorization_granted
+  - generic: accepted
+  - generic: "corr=3aefbcbc-25e2-4015-84b7-fc7720286003 entity=account_service_relation/relation-4fa96e08-a1bd-4d44-a07b-7ca78f2bebf6 reason=OK facts={\"projectId\":\"project-ebeab289-fa79-4fe6-b2c5-72180f878f0c\",\"accountId\":\"account-chrome\",\"shared\":false}"
+  - generic: 2026-09-19T16:17:17.146Z
+  - strong: project.activated
+  - generic: accepted
+  - generic: "corr=caad75cd-0b1c-4b38-abac-f9aa391cdc0d entity=project/project-ebeab289-fa79-4fe6-b2c5-72180f878f0c reason=OK facts={\"gapCount\":0}"
+  - generic: 2026-09-19T16:17:12.498Z
+  - strong: project.saved
+  - generic: accepted
+  - generic: "corr=f155af43-d946-4204-81ce-00f49dd03c0d entity=project/project-ebeab289-fa79-4fe6-b2c5-72180f878f0c reason=OK facts={\"gapCount\":0,\"status\":\"draft\"}"

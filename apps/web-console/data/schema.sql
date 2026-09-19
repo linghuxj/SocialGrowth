@@ -166,3 +166,242 @@ CREATE TABLE IF NOT EXISTS ab_experiments (
     dual_track_source JSONB NOT NULL,
     conclusion TEXT NOT NULL
 );
+
+-- ==============================================================================
+-- design-v1：FL-01 客户授权、内容身份与发布事实
+-- 这些表替代旧 accounts/slice_metadata 中混合的客户、归属与发布语义。
+-- 旧表保留为演示快照；迁移时不得从 failed/completed/unallocated 推断发布事实。
+-- ==============================================================================
+
+CREATE TABLE IF NOT EXISTS projects (
+    project_id VARCHAR(64) PRIMARY KEY,
+    name VARCHAR(256) NOT NULL,
+    client_id VARCHAR(64),
+    primary_goal TEXT,
+    audience TEXT,
+    owner_id VARCHAR(64),
+    starts_at TIMESTAMP WITH TIME ZONE,
+    ends_at TIMESTAMP WITH TIME ZONE,
+    status VARCHAR(16) NOT NULL CHECK (status IN ('draft', 'active', 'exited')),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (ends_at IS NULL OR starts_at IS NULL OR ends_at > starts_at)
+);
+
+CREATE TABLE IF NOT EXISTS account_service_relations (
+    relation_id VARCHAR(64) PRIMARY KEY,
+    account_id VARCHAR(64) NOT NULL,
+    project_id VARCHAR(64) NOT NULL REFERENCES projects(project_id),
+    client_id VARCHAR(64) NOT NULL,
+    owner_party_id VARCHAR(64) NOT NULL,
+    authorizer_party_id VARCHAR(64) NOT NULL,
+    authorization_ref TEXT NOT NULL,
+    allowed_actions JSONB NOT NULL,
+    allowed_data JSONB NOT NULL,
+    valid_from TIMESTAMP WITH TIME ZONE NOT NULL,
+    valid_until TIMESTAMP WITH TIME ZONE,
+    shared_approval_ref TEXT,
+    revoked_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (valid_until IS NULL OR valid_until > valid_from)
+);
+
+CREATE INDEX IF NOT EXISTS idx_account_service_relations_active
+    ON account_service_relations (account_id, valid_from, valid_until)
+    WHERE revoked_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS content_identities (
+    content_identity_id VARCHAR(64) PRIMARY KEY,
+    title VARCHAR(256) NOT NULL,
+    source_ref TEXT NOT NULL,
+    story_summary TEXT NOT NULL,
+    allocation_status VARCHAR(24) NOT NULL
+        CHECK (allocation_status IN ('unallocated', 'reserved', 'assigned_locked')),
+    assigned_account_id VARCHAR(64),
+    allocation_version INTEGER NOT NULL DEFAULT 0 CHECK (allocation_version >= 0),
+    first_published_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (
+        (allocation_status = 'unallocated' AND assigned_account_id IS NULL)
+        OR (allocation_status <> 'unallocated' AND assigned_account_id IS NOT NULL)
+    )
+);
+
+CREATE TABLE IF NOT EXISTS slice_assets (
+    slice_id VARCHAR(64) PRIMARY KEY,
+    content_identity_id VARCHAR(64) NOT NULL REFERENCES content_identities(content_identity_id),
+    language VARCHAR(32) NOT NULL,
+    variant VARCHAR(16) NOT NULL CHECK (variant IN ('subtitle', 'voiceover', 'cover', 'master')),
+    file_ref TEXT NOT NULL,
+    sha256 CHAR(64) NOT NULL,
+    rights_ref TEXT NOT NULL,
+    rights_valid_until TIMESTAMP WITH TIME ZONE,
+    destination_fit VARCHAR(24) NOT NULL
+        CHECK (destination_fit IN ('eligible', 'ineligible', 'pending_review')),
+    overlap_review JSONB,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (content_identity_id, slice_id)
+);
+
+CREATE TABLE IF NOT EXISTS publication_attempts (
+    attempt_id VARCHAR(64) PRIMARY KEY,
+    content_identity_id VARCHAR(64) NOT NULL REFERENCES content_identities(content_identity_id),
+    slice_id VARCHAR(64) NOT NULL REFERENCES slice_assets(slice_id),
+    account_id VARCHAR(64) NOT NULL,
+    publish_status VARCHAR(32) NOT NULL CHECK (
+        publish_status IN ('not_submitted', 'in_progress', 'unknown', 'confirmed_not_published', 'published')
+    ),
+    evidence_refs JSONB NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_publication_attempts_identity_status
+    ON publication_attempts (content_identity_id, publish_status);
+
+CREATE TABLE IF NOT EXISTS audit_log (
+    log_id VARCHAR(64) PRIMARY KEY,
+    occurred_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    correlation_id VARCHAR(64) NOT NULL,
+    actor_id VARCHAR(64) NOT NULL,
+    action VARCHAR(128) NOT NULL,
+    entity_type VARCHAR(64) NOT NULL,
+    entity_id VARCHAR(64) NOT NULL,
+    result VARCHAR(16) NOT NULL CHECK (result IN ('accepted', 'rejected')),
+    reason_code VARCHAR(64) NOT NULL,
+    facts JSONB NOT NULL,
+    evidence_refs JSONB NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_correlation ON audit_log (correlation_id, occurred_at);
+
+CREATE TABLE IF NOT EXISTS destination_entries (
+    destination_entry_id VARCHAR(64) PRIMARY KEY,
+    project_id VARCHAR(64) NOT NULL REFERENCES projects(project_id),
+    account_id VARCHAR(64) NOT NULL,
+    scope VARCHAR(16) NOT NULL CHECK (scope IN ('content', 'channel')),
+    scope_id VARCHAR(64) NOT NULL,
+    maintenance_permission_ref TEXT NOT NULL,
+    shared_attribution BOOLEAN NOT NULL DEFAULT FALSE,
+    exit_policy VARCHAR(16) NOT NULL CHECK (exit_policy IN ('continue', 'disable')),
+    active_version_id VARCHAR(64) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS destination_versions (
+    destination_version_id VARCHAR(64) PRIMARY KEY,
+    destination_entry_id VARCHAR(64) NOT NULL REFERENCES destination_entries(destination_entry_id),
+    url TEXT NOT NULL,
+    health VARCHAR(32) NOT NULL CHECK (health IN ('available', 'service_failure', 'destination_invalid', 'platform_restricted')),
+    is_active BOOLEAN NOT NULL,
+    change_reason TEXT NOT NULL,
+    supersedes_version_id VARCHAR(64) REFERENCES destination_versions(destination_version_id),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS destination_events (
+    destination_event_id VARCHAR(64) PRIMARY KEY,
+    destination_entry_id VARCHAR(64) NOT NULL REFERENCES destination_entries(destination_entry_id),
+    destination_version_id VARCHAR(64) NOT NULL REFERENCES destination_versions(destination_version_id),
+    event_type VARCHAR(32) NOT NULL CHECK (event_type IN ('raw_visit', 'filtered_click', 'redirect_response')),
+    observed_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    response_status INTEGER,
+    reason_code VARCHAR(64) NOT NULL,
+    correlation_id VARCHAR(64) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS strategy_rules (
+    strategy_rule_id VARCHAR(64) PRIMARY KEY,
+    project_id VARCHAR(64) NOT NULL REFERENCES projects(project_id),
+    version INTEGER NOT NULL,
+    category VARCHAR(32) NOT NULL,
+    statement TEXT NOT NULL,
+    source_ref TEXT NOT NULL,
+    status VARCHAR(16) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS strategy_drafts (
+    strategy_draft_id VARCHAR(64) PRIMARY KEY,
+    project_id VARCHAR(64) NOT NULL REFERENCES projects(project_id),
+    version INTEGER NOT NULL,
+    rule_ids JSONB NOT NULL,
+    content_identity_id VARCHAR(64) NOT NULL REFERENCES content_identities(content_identity_id),
+    account_id VARCHAR(64) NOT NULL,
+    destination_version_id VARCHAR(64) NOT NULL REFERENCES destination_versions(destination_version_id),
+    rationale TEXT NOT NULL,
+    assumptions JSONB NOT NULL,
+    evidence_refs JSONB NOT NULL,
+    output_mode VARCHAR(16) NOT NULL CHECK (output_mode IN ('controlled', 'provider')),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS execution_approvals (
+    approval_id VARCHAR(64) PRIMARY KEY,
+    project_id VARCHAR(64) NOT NULL REFERENCES projects(project_id),
+    strategy_draft_id VARCHAR(64) NOT NULL REFERENCES strategy_drafts(strategy_draft_id),
+    strategy_version INTEGER NOT NULL,
+    content_identity_id VARCHAR(64) NOT NULL REFERENCES content_identities(content_identity_id),
+    account_id VARCHAR(64) NOT NULL,
+    destination_version_id VARCHAR(64) NOT NULL REFERENCES destination_versions(destination_version_id),
+    quantity INTEGER NOT NULL CHECK (quantity > 0),
+    cost_limit NUMERIC,
+    valid_from TIMESTAMP WITH TIME ZONE NOT NULL,
+    valid_until TIMESTAMP WITH TIME ZONE NOT NULL,
+    stop_conditions JSONB NOT NULL,
+    observation_conditions JSONB NOT NULL,
+    status VARCHAR(16) NOT NULL,
+    invalidation_reason TEXT,
+    approved_by VARCHAR(64) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS publication_schedules (
+    schedule_id VARCHAR(64) PRIMARY KEY,
+    approval_id VARCHAR(64) NOT NULL REFERENCES execution_approvals(approval_id),
+    business_timezone VARCHAR(64) NOT NULL,
+    scheduled_for TIMESTAMP WITH TIME ZONE NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    status VARCHAR(16) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS metric_observations (
+    observation_id VARCHAR(64) PRIMARY KEY,
+    project_id VARCHAR(64) NOT NULL REFERENCES projects(project_id),
+    strategy_version INTEGER NOT NULL,
+    approval_id VARCHAR(64) NOT NULL REFERENCES execution_approvals(approval_id),
+    metric_key VARCHAR(128) NOT NULL,
+    value NUMERIC,
+    availability VARCHAR(24) NOT NULL CHECK (availability IN ('observed_value', 'observed_zero', 'missing', 'delayed', 'unauthorized')),
+    source TEXT NOT NULL,
+    unit VARCHAR(64) NOT NULL,
+    scope TEXT NOT NULL,
+    window_start TIMESTAMP WITH TIME ZONE NOT NULL,
+    window_end TIMESTAMP WITH TIME ZONE NOT NULL,
+    comparison_role VARCHAR(16) NOT NULL CHECK (comparison_role IN ('baseline', 'current')),
+    controlled_data BOOLEAN NOT NULL,
+    captured_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    CHECK ((availability = 'observed_zero' AND value = 0) OR (availability = 'observed_value' AND value IS NOT NULL) OR (availability NOT IN ('observed_zero', 'observed_value') AND value IS NULL))
+);
+
+CREATE TABLE IF NOT EXISTS basic_reviews (
+    review_id VARCHAR(64) PRIMARY KEY,
+    project_id VARCHAR(64) NOT NULL REFERENCES projects(project_id),
+    approval_id VARCHAR(64) NOT NULL REFERENCES execution_approvals(approval_id),
+    strategy_version INTEGER NOT NULL,
+    primary_goal_snapshot TEXT NOT NULL,
+    primary_metric_key VARCHAR(128) NOT NULL,
+    outcome VARCHAR(32) NOT NULL,
+    facts JSONB NOT NULL,
+    limitations JSONB NOT NULL,
+    source_changed BOOLEAN NOT NULL,
+    controlled_data BOOLEAN NOT NULL,
+    ai_analysis TEXT NOT NULL,
+    confirmed_by VARCHAR(64),
+    next_action VARCHAR(32),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    confirmed_at TIMESTAMP WITH TIME ZONE
+);

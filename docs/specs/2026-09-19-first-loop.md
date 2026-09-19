@@ -1,6 +1,6 @@
 # 首批开发总规格：PG-01～PG-10 完整业务闭环
 
-规格版本：2026-09-19-v1。范围已经用户确认；本次规格化和 GitHub 建档不代表功能实现、部署或真实运营授权。此规格汇总当前生效决定；G 系列业务规则优先，工程细节引用 design-v1，旧审计意见不自动成为新要求。
+规格版本：2026-09-20-v2。范围已经用户确认；FL-01～06 的受控实现与自动化验收已完成，未部署，也不代表生产迁移、真实平台接入或运营授权。G 系列业务规则优先，工程细节引用 design-v1，旧审计意见不自动成为新要求。
 
 ## 问题陈述
 
@@ -67,10 +67,10 @@
 
 | 层次 | 计划验证 | 当前证据 |
 | --- | --- | --- |
-| 模型/服务 | 权限、跨语言身份、并发、版本失效、历史保留；在实际服务/存储边界测试 | 待实现，未运行应用测试 |
-| 执行契约 | T-01～12 的路由、去重、超时未知、迟到、挑战、过期及关联暂停；可控时间、进程内替身 | 测试设计已记录，替身与实现断言待开发 |
-| 数据评价 | F-01～06 的零/缺失/延迟/无权限/来源切换/无改善；基于原批准指标与质量要求 | 合成样例结构检查已通过，不是评价算法验收 |
-| 关键界面/集成 | C-01～14，通过实际入口操作并读回存储/结果；覆盖批量部分失败、未知无重发和退出 | 计划新增可重复、单次运行的集成/E2E 验证；现有项目未提供完整应用测试基线 |
+| 模型/服务 | 权限、跨语言身份、并发、版本失效、历史保留；在实际服务/存储边界测试 | Web 领域测试 17/17；浏览器存储重读通过，生产 PostgreSQL 待接入 |
+| 执行契约 | T-01～12 的路由、去重、超时未知、迟到、挑战、过期及关联暂停；可控时间、进程内替身 | Controller 5/5；占位成功与模拟器支持已移除，真实 WebSocket Agent 待接入 |
+| 数据评价 | F-01～06 的零/缺失/延迟/无权限/来源切换/无改善；基于原批准指标与质量要求 | 受控评价测试通过；真实供应商证据待接入 |
+| 关键界面/集成 | C-01～14，通过实际入口操作并读回存储/结果；覆盖批量部分失败、未知无重发和退出 | 跨模块测试 3/3，Web 生产构建通过；人工业务验收待执行 |
 | 外部接入 | 真机原生 App 执行、公开证据、真实账号权限、供应商字段及受众入口 | 待真实接入核查；替身结果不能代替 |
 
 不启动常驻后台服务。测试框架和一次性执行入口由对应任务按现有依赖合理选用；遇到需要实际账号/付费调用/生产动作的验证时，先核实已有授权和接入事实。普通离线断言不逐项请求业务批准。测试报告必须保留失败证据，不靠跳过用例或降低断言通过。
@@ -88,7 +88,7 @@
 
 必须补充的外部事实包括真实账号/内容权利、平台许可、设备与 Agent 接入、指标供应商字段和项目具体运行窗口；它们只约束依赖这些事实的动作，不阻止其他开发。暂无需要用户再次选择的首批业务取舍。
 
-当前代码证据：Controller 仍按平台取设备并返回占位成功；设备样例仍有 emulator/早期平台组合；AI 匹配仍为标签评分；Web 数据与交互仍以本地 JSON/内存为主。不得把旧界面提示当作实际接入。
+当前代码证据：首批工作台实现 design-v1 受控状态和浏览器存储；Controller 已按指定真机/账号精确路由并删除占位成功与模拟器样例；策略生成仍为明确标记的受控输出。生产数据库、真实 Provider、WebSocket Agent、真机原生 App、真实入口和指标供应商均未接入，不得把受控结果当作实际接入。
 
 权威来源与支撑证据：
 
@@ -97,4 +97,4 @@
 - [数据模型](../engineering/data-model.md)、[执行契约](../engineering/execution-contract.md)、[关键表单](../engineering/console-form-spec.md)
 - [离线 T/F 规格](../engineering/offline-verification.md)、[合成指标样例](../engineering/fixtures/metric-availability.json)
 - [审计修复及尚未实现事项](../handoff/2026-09-19-readiness-remediation.md)、[原 TASK](../handoff/2026-09-18-developer-handoff.md)
-- [Controller 源码](../../apps/artemis-controller/src/scheduler.ts)、[设备样例](../../apps/artemis-controller/config/devices.example.json)、[AI 匹配](../../services/ai-engine/src/matching-engine.ts)、[Web 状态](../../apps/web-console/lib/db/context.tsx)
+- [Controller 源码](../../apps/artemis-controller/src/scheduler.ts)、[设备样例](../../apps/artemis-controller/config/devices.example.json)、[AI 匹配](../../services/ai-engine/src/matching-engine.ts)、[现行 Web 状态](../../apps/web-console/lib/first-loop/context.tsx)；旧 `lib/db/context.tsx` 已移除，保留于 Git 历史

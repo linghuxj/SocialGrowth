@@ -1,0 +1,196 @@
+- banner:
+  - generic: SG
+  - generic: SocialGrowth Web 运营平台
+  - generic: 首批业务闭环 · 受控工作台（外部接入证据单列）
+  - generic: "旧设备演示记录:"
+  - strong: 20 条，未核验在线
+  - generic: "旧演示排他锁:"
+  - strong: 6 条独占锁定
+  - 'button "待审策略: 3 条"':
+    - generic: "待审策略: 3 条"
+  - button "导出最新 database.json":
+    - generic: 导出最新 database.json
+- complementary:
+  - generic: 运营工作台导航
+  - navigation:
+    - button "3个月成果总览":
+      - generic: 3个月成果总览
+    - button "首条业务闭环 PG-01~10":
+      - generic: 首条业务闭环
+      - generic: PG-01~10
+    - button "1. 账号与真机拓扑 20台/40号":
+      - generic: 1. 账号与真机拓扑
+      - generic: 20台/40号
+    - button "2. 切片素材独占锁 8条":
+      - generic: 2. 切片素材独占锁
+      - generic: 8条
+    - button "3. 策略与规则引擎 3条演示待审":
+      - generic: 3. 策略与规则引擎
+      - generic: 3条演示待审
+    - button "4. 导流短链与防封 待真实入口验收":
+      - generic: 4. 导流短链与防封
+      - generic: 待真实入口验收
+    - button "5. 风控与冷备换号 旧演示":
+      - generic: 5. 风控与冷备换号
+      - generic: 旧演示
+    - button "6. Artemis真机群控 20条演示记录" [active]:
+      - generic: 6. Artemis真机群控
+      - generic: 20条演示记录
+    - button "7. A/B策略优化屏 受控数据":
+      - generic: 7. A/B策略优化屏
+      - generic: 受控数据
+    - button "8. 数据库与持久化 本地演示":
+      - generic: 8. 数据库与持久化
+      - generic: 本地演示
+    - button "归档：政策与测算":
+      - generic: 归档：政策与测算
+  - generic: CLAUDE.md 合规准则
+  - paragraph: 目标为纯真机与账号精确绑定；当前受控实现、生产接入与真实平台证据分别验收
+- main:
+  - heading "模块 6：Google Artemis 纯物理真机执行底座与群控看板 18 / 20 Samsung S23 在线" [level=2]:
+    - generic: 模块 6：Google Artemis 纯物理真机执行底座与群控看板
+    - generic: 18 / 20 Samsung S23 在线
+  - paragraph: 采用 Google Artemis 调度纯 Android 物理真机（杜绝云手机/虚拟化），驱动目标官方 App 原生 UI 执行发布动作，回传动作截屏与自愈回执。
+  - generic: "Watchdog 10min 超时保护: 运行中"
+  - heading "物理真机设备池 (20 台)" [level=3]
+  - generic: 100% 物理真机
+  - textbox "搜索设备ID/序列号/账号..."
+  - button "全部 (20)"
+  - button "健康 (18)"
+  - button "待关注 (2)"
+  - button "dev-001 Samsung Galaxy S23 (SM-S911U1) 88% 电量 33.2°C":
+    - generic: dev-001
+    - generic: Samsung Galaxy S23 (SM-S911U1)
+    - generic: 88% 电量
+    - generic: 33.2°C
+  - button "dev-002 Samsung Galaxy S23 (SM-S911U1) 82% 电量 34°C":
+    - generic: dev-002
+    - generic: Samsung Galaxy S23 (SM-S911U1)
+    - generic: 82% 电量
+    - generic: 34°C
+  - button "dev-003 Samsung Galaxy S23 (SM-S911U1) 91% 电量 32.8°C":
+    - generic: dev-003
+    - generic: Samsung Galaxy S23 (SM-S911U1)
+    - generic: 91% 电量
+    - generic: 32.8°C
+  - button "dev-004 Samsung Galaxy S23 (SM-S911U1) 79% 电量 35.1°C":
+    - generic: dev-004
+    - generic: Samsung Galaxy S23 (SM-S911U1)
+    - generic: 79% 电量
+    - generic: 35.1°C
+  - button "dev-005 Samsung Galaxy S23 (SM-S911U1) 85% 电量 33.6°C":
+    - generic: dev-005
+    - generic: Samsung Galaxy S23 (SM-S911U1)
+    - generic: 85% 电量
+    - generic: 33.6°C
+  - button "dev-006 Samsung Galaxy S23 (SM-S911U1) 94% 电量 31.9°C":
+    - generic: dev-006
+    - generic: Samsung Galaxy S23 (SM-S911U1)
+    - generic: 94% 电量
+    - generic: 31.9°C
+  - button "dev-007 Samsung Galaxy S23 (SM-S911U1) 73% 电量 36.4°C":
+    - generic: dev-007
+    - generic: Samsung Galaxy S23 (SM-S911U1)
+    - generic: 73% 电量
+    - generic: 36.4°C
+  - button "dev-008 Samsung Galaxy S23 (SM-S911U1) 89% 电量 33.1°C":
+    - generic: dev-008
+    - generic: Samsung Galaxy S23 (SM-S911U1)
+    - generic: 89% 电量
+    - generic: 33.1°C
+  - button "dev-009 Samsung Galaxy S23 (SM-S911U1) 81% 电量 34.5°C":
+    - generic: dev-009
+    - generic: Samsung Galaxy S23 (SM-S911U1)
+    - generic: 81% 电量
+    - generic: 34.5°C
+  - button "dev-010 Samsung Galaxy S23 (SM-S911U1) 86% 电量 32.7°C":
+    - generic: dev-010
+    - generic: Samsung Galaxy S23 (SM-S911U1)
+    - generic: 86% 电量
+    - generic: 32.7°C
+  - button "dev-011 Samsung Galaxy S23 (SM-S911U1) 90% 电量 33°C":
+    - generic: dev-011
+    - generic: Samsung Galaxy S23 (SM-S911U1)
+    - generic: 90% 电量
+    - generic: 33°C
+  - button "dev-012 Samsung Galaxy S23 (SM-S911U1) 78% 电量 34.2°C":
+    - generic: dev-012
+    - generic: Samsung Galaxy S23 (SM-S911U1)
+    - generic: 78% 电量
+    - generic: 34.2°C
+  - button "dev-013 Samsung Galaxy S23 (SM-S911U1) 84% 电量 33.8°C":
+    - generic: dev-013
+    - generic: Samsung Galaxy S23 (SM-S911U1)
+    - generic: 84% 电量
+    - generic: 33.8°C
+  - button "dev-014 Samsung Galaxy S23 (SM-S911U1) 71% 电量 36.8°C":
+    - generic: dev-014
+    - generic: Samsung Galaxy S23 (SM-S911U1)
+    - generic: 71% 电量
+    - generic: 36.8°C
+  - button "dev-015 Samsung Galaxy S23 (SM-S911U1) 93% 电量 32.4°C":
+    - generic: dev-015
+    - generic: Samsung Galaxy S23 (SM-S911U1)
+    - generic: 93% 电量
+    - generic: 32.4°C
+  - button "dev-016 Samsung Galaxy S23 (SM-S911U1) 87% 电量 33.3°C":
+    - generic: dev-016
+    - generic: Samsung Galaxy S23 (SM-S911U1)
+    - generic: 87% 电量
+    - generic: 33.3°C
+  - button "dev-017 Samsung Galaxy S23 (SM-S911U1) 83% 电量 34.1°C":
+    - generic: dev-017
+    - generic: Samsung Galaxy S23 (SM-S911U1)
+    - generic: 83% 电量
+    - generic: 34.1°C
+  - button "dev-018 Samsung Galaxy S23 (SM-S911U1) 89% 电量 32.9°C":
+    - generic: dev-018
+    - generic: Samsung Galaxy S23 (SM-S911U1)
+    - generic: 89% 电量
+    - generic: 32.9°C
+  - button "dev-019 Samsung Galaxy S23 (SM-S911U1) 76% 电量 35°C":
+    - generic: dev-019
+    - generic: Samsung Galaxy S23 (SM-S911U1)
+    - generic: 76% 电量
+    - generic: 35°C
+  - button "dev-020 Samsung Galaxy S23 (SM-S911U1) 92% 电量 32.2°C":
+    - generic: dev-020
+    - generic: Samsung Galaxy S23 (SM-S911U1)
+    - generic: 92% 电量
+    - generic: 32.2°C
+  - generic: dev-001 · Samsung Galaxy S23 (SM-S911U1)
+  - generic: 健康在运行
+  - generic: "序列号: R5CW908B19P · 部署地区: US-West (San Jose Equinix SV5) · 局域网延迟: 48ms"
+  - button "巡检 Ping":
+    - text: 巡检 Ping
+  - button "看门狗超时自愈":
+    - text: 看门狗超时自愈
+  - generic: "1:1 物理专属强绑定:"
+  - generic: "FB: fb-acc-001"
+  - generic: "YT: yt-acc-001"
+  - generic: "硬件隔离级别: 独立 USB Hub 端口与海外真实专线"
+  - text: Artemis UI 原生自动化执行流证据 (Samsung S23 App Stream · dev-001)
+  - generic: Task-Pipeline Active
+  - generic: 14:35:10 [EXEC]
+  - generic: adb shell monkey -p com.facebook.katana -c android.intent.category.LAUNCHER 1
+  - generic: 14:35:14 [ACTION]
+  - generic: "Artemis UI Driver: 查找并点击 \"Reels\" 创建入口控件 (NodeID: fb_reels_tab_create)"
+  - generic: "[SELF-HEALING]"
+  - generic: "控件坐标偏移 +12px (Meta 动态 AB 布局变动) · 智能自愈引擎自动修正点击坐标 (x: 842, y: 198) 命中成功"
+  - generic: 14:35:28 [MEDIA]
+  - generic: "从本地受保护存储拉取独占切片 clip-destiny-001 (MD5: e7f2a1b9c...) 注入系统相册"
+  - generic: 14:35:42 [INPUT]
+  - generic: 粘贴经审核文案（含单条独占短链 https://sg8.link/d-tyc03）并点击公开发布
+  - generic: 14:36:01 [VERIFIED]
+  - generic: 发布完成回执捕获，已生成执行截屏 evidence_dev-001_143601.png 并写入 S3 审计库
+  - text: 10 分钟看门狗硬监控：当前耗时 51 秒 / 600 秒上限 (状态正常)
+  - generic: "超时自愈流水线: am force-stop + input keyevent HOME"
+  - generic: CPU 与环境温度
+  - strong: 33.2°C
+  - generic: 温控巡检正常
+  - generic: 电池健康与充电
+  - strong: 88%
+  - generic: 智能慢充保护中
+  - generic: 真机海外网络延迟
+  - strong: 48 ms
+  - generic: 独立海外物理网关

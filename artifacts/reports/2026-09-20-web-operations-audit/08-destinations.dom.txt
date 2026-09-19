@@ -1,0 +1,170 @@
+- banner:
+  - generic: SG
+  - generic: SocialGrowth Web 运营平台
+  - generic: 首批业务闭环 · 受控工作台（外部接入证据单列）
+  - generic: "旧设备演示记录:"
+  - strong: 20 条，未核验在线
+  - generic: "旧演示排他锁:"
+  - strong: 6 条独占锁定
+  - 'button "待审策略: 3 条"':
+    - generic: "待审策略: 3 条"
+  - button "导出最新 database.json":
+    - generic: 导出最新 database.json
+- generic: "Artemis 真机 dev-001 物理巡检心跳回执正常 (RTT: 42ms，ADB TCP: OK)。"
+- text: 00:40:42
+- button:
+- complementary:
+  - generic: 运营工作台导航
+  - navigation:
+    - button "3个月成果总览":
+      - generic: 3个月成果总览
+    - button "首条业务闭环 PG-01~10":
+      - generic: 首条业务闭环
+      - generic: PG-01~10
+    - button "1. 账号与真机拓扑 20台/40号":
+      - generic: 1. 账号与真机拓扑
+      - generic: 20台/40号
+    - button "2. 切片素材独占锁 8条":
+      - generic: 2. 切片素材独占锁
+      - generic: 8条
+    - button "3. 策略与规则引擎 3条演示待审":
+      - generic: 3. 策略与规则引擎
+      - generic: 3条演示待审
+    - button "4. 导流短链与防封 待真实入口验收" [active]:
+      - generic: 4. 导流短链与防封
+      - generic: 待真实入口验收
+    - button "5. 风控与冷备换号 旧演示":
+      - generic: 5. 风控与冷备换号
+      - generic: 旧演示
+    - button "6. Artemis真机群控 20条演示记录":
+      - generic: 6. Artemis真机群控
+      - generic: 20条演示记录
+    - button "7. A/B策略优化屏 受控数据":
+      - generic: 7. A/B策略优化屏
+      - generic: 受控数据
+    - button "8. 数据库与持久化 本地演示":
+      - generic: 8. 数据库与持久化
+      - generic: 本地演示
+    - button "归档：政策与测算":
+      - generic: 归档：政策与测算
+  - generic: CLAUDE.md 合规准则
+  - paragraph: 目标为纯真机与账号精确绑定；当前受控实现、生产接入与真实平台证据分别验收
+- main:
+  - heading "模块 4：导流短链服务与防封域名池 302 稳定跳转 98.6%" [level=2]:
+    - generic: 模块 4：导流短链服务与防封域名池
+    - generic: 302 稳定跳转 98.6%
+  - paragraph: 自建导流短链中转服务，严格分离原始点击、机器爬虫过滤与真实有效跳转。实现 Facebook 帖文级单条归因与 YouTube 频道级归因。
+  - button "生成新导流短链 (UTM)":
+    - generic: 生成新导流短链 (UTM)
+  - heading "前 3 个月导流三层点击流转漏斗（严禁将爬虫过滤直接虚标为真实人数）" [level=3]:
+    - generic: 前 3 个月导流三层点击流转漏斗（严禁将爬虫过滤直接虚标为真实人数）
+  - generic: 1. 原始总访问 (Raw Hits)
+  - strong: 128,450
+  - generic: 短链触发的所有 HTTP GET
+  - generic: 2. 机器爬虫/预取过滤
+  - strong: "-42,240"
+  - generic: FB/YT 链接预览与自动化请求
+  - generic: 3. 有效点击 (Clean Clicks)
+  - strong: 86,210
+  - generic: 去除非人类请求后的真实交互
+  - generic: 4. 302 成功到达目标页
+  - strong: 84,980
+  - generic: 有效跳转率 98.6%
+  - heading "多域名防封轮换与跳板域名池状态 已完成 2 次自动熔断平滑切换" [level=3]:
+    - generic: 多域名防封轮换与跳板域名池状态
+    - generic: 已完成 2 次自动熔断平滑切换
+  - generic: 支持对高拦截率域名一键隔离熔断
+  - generic: sg8.link
+  - generic: 主推
+  - generic: "健康度: 96/100"
+  - generic: "拦截率: 1.2%"
+  - generic: 解析正常
+  - button "熔断"
+  - generic: sg-route.com
+  - generic: 主推
+  - generic: "健康度: 94/100"
+  - generic: "拦截率: 1.8%"
+  - generic: 解析正常
+  - button "熔断"
+  - generic: jump-spark.net
+  - generic: 备用跳板
+  - generic: "健康度: 100/100"
+  - generic: "拦截率: 0.0%"
+  - generic: 解析正常
+  - button "设为主推"
+  - button "熔断"
+  - generic: dramapass.co
+  - generic: 备用跳板
+  - generic: "健康度: 98/100"
+  - generic: "拦截率: 0.0%"
+  - generic: 解析正常
+  - button "设为主推"
+  - button "熔断"
+  - generic: sg-safeview.io
+  - generic: 隔离熔断
+  - generic: "健康度: 42/100"
+  - generic: "拦截率: 68.0%"
+  - generic: 平台拦截
+  - button "解除隔离"
+  - heading "核心短链与归因明细表 (4 条有效在跑) FB 帖文级单条归因 vs YT 频道主页级归因" [level=3]:
+    - generic: 核心短链与归因明细表 (4 条有效在跑)
+    - generic: FB 帖文级单条归因 vs YT 频道主页级归因
+  - table:
+    - rowgroup:
+      - row "短链 Slug / 链接 平台来源 归属账号 跳转目的地 (含 UTM 归因参数) 有效点击 302 成功 操作":
+        - columnheader "短链 Slug / 链接"
+        - columnheader "平台来源"
+        - columnheader "归属账号"
+        - columnheader "跳转目的地 (含 UTM 归因参数)"
+        - columnheader "有效点击"
+        - columnheader "302 成功"
+        - columnheader "操作"
+    - rowgroup:
+      - row "d-heiress01 https://sg8.link/d-heiress01 Facebook 帖文 fb-acc-001 https://drama.clientapp.com/watch/heiress-ep1?utm_source=fb_reels&utm_campaign=heiress_page1&utm_medium=post_link 2,980 2,945":
+        - cell "d-heiress01 https://sg8.link/d-heiress01":
+          - strong: d-heiress01
+          - text: https://sg8.link/d-heiress01
+        - cell "Facebook 帖文":
+          - generic: Facebook 帖文
+        - cell "fb-acc-001"
+        - cell "https://drama.clientapp.com/watch/heiress-ep1?utm_source=fb_reels&utm_campaign=heiress_page1&utm_medium=post_link"
+        - cell "2,980"
+        - cell "2,945"
+        - cell:
+          - button "复制完整短链":
+      - row "yt-heiress https://sg8.link/yt-heiress YouTube 频道 yt-acc-001 https://drama.clientapp.com/landing?channel=heiress_yt01&utm_source=yt_channel&utm_medium=bio_link 10,420 10,290":
+        - cell "yt-heiress https://sg8.link/yt-heiress":
+          - strong: yt-heiress
+          - text: https://sg8.link/yt-heiress
+        - cell "YouTube 频道":
+          - generic: YouTube 频道
+        - cell "yt-acc-001"
+        - cell "https://drama.clientapp.com/landing?channel=heiress_yt01&utm_source=yt_channel&utm_medium=bio_link"
+        - cell "10,420"
+        - cell "10,290"
+        - cell:
+          - button "复制完整短链":
+      - row "d-contract03 https://sg8.link/d-contract03 Facebook 帖文 fb-acc-002 https://drama.clientapp.com/watch/contract-ep3?utm_source=fb_reels&utm_campaign=contract_page2&utm_medium=post_link 2,610 2,580":
+        - cell "d-contract03 https://sg8.link/d-contract03":
+          - strong: d-contract03
+          - text: https://sg8.link/d-contract03
+        - cell "Facebook 帖文":
+          - generic: Facebook 帖文
+        - cell "fb-acc-002"
+        - cell "https://drama.clientapp.com/watch/contract-ep3?utm_source=fb_reels&utm_campaign=contract_page2&utm_medium=post_link"
+        - cell "2,610"
+        - cell "2,580"
+        - cell:
+          - button "复制完整短链":
+      - row "yt-tycoon04 https://sg-route.com/yt-tycoon04 YouTube 频道 yt-acc-004 https://drama.clientapp.com/landing?channel=tycoon_yt04&utm_source=yt_channel&utm_medium=bio_link 6,150 6,080":
+        - cell "yt-tycoon04 https://sg-route.com/yt-tycoon04":
+          - strong: yt-tycoon04
+          - text: https://sg-route.com/yt-tycoon04
+        - cell "YouTube 频道":
+          - generic: YouTube 频道
+        - cell "yt-acc-004"
+        - cell "https://drama.clientapp.com/landing?channel=tycoon_yt04&utm_source=yt_channel&utm_medium=bio_link"
+        - cell "6,150"
+        - cell "6,080"
+        - cell:
+          - button "复制完整短链":

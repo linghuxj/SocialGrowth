@@ -49,4 +49,4 @@
 
 ## 当前仓库与目标规格的区别
 
-[演示 SQL](../../apps/web-console/data/schema.sql)、[前端类型](../../apps/web-console/lib/db/types.ts)、[演示 JSON](../../apps/web-console/data/database.json)和[AI 类型](../../services/ai-engine/src/types.ts)仍是旧实现背景；应在对应实现任务一起迁移。只更新本文不能关闭模型实现工作。本次 B-01 修复的是原报告审查的**工程文档错误与不完整**。
+[演示 SQL](../../apps/web-console/data/schema.sql)、历史 `lib/db/types.ts`、历史 `data/database.json` 和[AI 类型](../../services/ai-engine/src/types.ts)是旧实现背景；旧 Web 演示类型与 JSON 已于 2026-09-20 移除，可从 Git 历史复核。只更新本文不能关闭模型实现工作。本次 B-01 修复的是原报告审查的**工程文档错误与不完整**。

@@ -1,0 +1,252 @@
+- banner:
+  - generic: SG
+  - generic: SocialGrowth Web 运营平台
+  - generic: 首批业务闭环 · 受控工作台（外部接入证据单列）
+  - generic: "旧设备演示记录:"
+  - strong: 20 条，未核验在线
+  - generic: "旧演示排他锁:"
+  - strong: 6 条独占锁定
+  - 'button "待审策略: 3 条"':
+    - generic: "待审策略: 3 条"
+  - button "导出最新 database.json":
+    - generic: 导出最新 database.json
+- complementary:
+  - generic: 运营工作台导航
+  - navigation:
+    - button "3个月成果总览":
+      - generic: 3个月成果总览
+    - button "首条业务闭环 PG-01~10":
+      - generic: 首条业务闭环
+      - generic: PG-01~10
+    - button "1. 账号与真机拓扑 20台/40号":
+      - generic: 1. 账号与真机拓扑
+      - generic: 20台/40号
+    - button "2. 切片素材独占锁 8条" [active]:
+      - generic: 2. 切片素材独占锁
+      - generic: 8条
+    - button "3. 策略与规则引擎 3条演示待审":
+      - generic: 3. 策略与规则引擎
+      - generic: 3条演示待审
+    - button "4. 导流短链与防封 待真实入口验收":
+      - generic: 4. 导流短链与防封
+      - generic: 待真实入口验收
+    - button "5. 风控与冷备换号 旧演示":
+      - generic: 5. 风控与冷备换号
+      - generic: 旧演示
+    - button "6. Artemis真机群控 20条演示记录":
+      - generic: 6. Artemis真机群控
+      - generic: 20条演示记录
+    - button "7. A/B策略优化屏 受控数据":
+      - generic: 7. A/B策略优化屏
+      - generic: 受控数据
+    - button "8. 数据库与持久化 本地演示":
+      - generic: 8. 数据库与持久化
+      - generic: 本地演示
+    - button "归档：政策与测算":
+      - generic: 归档：政策与测算
+  - generic: CLAUDE.md 合规准则
+  - paragraph: 目标为纯真机与账号精确绑定；当前受控实现、生产接入与真实平台证据分别验收
+- main:
+  - heading "模块 2：切片素材管理与排他独占锁（Exclusive Lock） 独占排他 100% 拦截" [level=2]:
+    - generic: 模块 2：切片素材管理与排他独占锁（Exclusive Lock）
+    - generic: 独占排他 100% 拦截
+  - paragraph: 专注管理已有成品漫剧切片资产。每条切片人工确认后强制加注唯一目标账号独占锁，严禁跨账号重复分发，从源头根除搬运降权。
+  - textbox "搜索切片标题/剧集/标签..."
+  - combobox:
+    - option "全部短剧系列" [selected]
+    - option "The"
+    - option "Love"
+    - option "Mistress"
+    - option "Billionaire"
+  - button "全部"
+  - button "已发布"
+  - button "锁定中"
+  - button "待排期"
+  - generic: 切片素材储备总量
+  - generic: 3,420 条
+  - generic: 均为 9:16 竖版成品切片（Reels/Shorts 规格）。
+  - generic: 累计有效公开发布
+  - generic: 3,078 条
+  - generic: 按 90% 实现率完成，FB 1,539 条 + YT 1,539 条。
+  - generic: 独占锁拦截搬运次数
+  - generic: 142 次
+  - generic: 成功拦截跨账号重复下发，排他锁生效。
+  - generic: 跨账号内容重复率
+  - generic: 0.0%
+  - generic: 严格遵守 CLAUDE.md 第 4 铁律，排他独占。
+  - heading "切片素材资产与独占加锁明细表（展示 8 条） 每条素材全局唯一锁定至单个账号" [level=3]:
+    - generic: 切片素材资产与独占加锁明细表（展示 8 条）
+    - generic: 每条素材全局唯一锁定至单个账号
+  - generic: 提示：对未分配切片点击“加注排他锁”可直接指派目标账号
+  - table:
+    - rowgroup:
+      - row "素材标识 剧目名称与分集标题 规格与时长 题材与爆点标签 排他独占锁状态 独占绑定账号与操作":
+        - columnheader "素材标识"
+        - columnheader "剧目名称与分集标题"
+        - columnheader "规格与时长"
+        - columnheader "题材与爆点标签"
+        - columnheader "排他独占锁状态"
+        - columnheader "独占绑定账号与操作"
+    - rowgroup:
+      - 'row "clip-heiress-001 SHA256 校验 The Heiress''s Revenge - Ep 01 (Airport Humiliation) The Heiress''s Revenge (千金归来：致命逆袭) · 第 1 集 78秒 9:16 竖屏 逆袭 爽剧 打脸豪门 机场决裂 已发布归档 fb-acc-001 锁定于: 2026-07-02 08:30:00"':
+        - cell "clip-heiress-001 SHA256 校验":
+          - text: clip-heiress-001
+          - button "SHA256 校验":
+            - generic: SHA256 校验
+        - cell "The Heiress's Revenge - Ep 01 (Airport Humiliation) The Heiress's Revenge (千金归来：致命逆袭) · 第 1 集":
+          - strong: The Heiress's Revenge - Ep 01 (Airport Humiliation)
+          - generic: The Heiress's Revenge (千金归来：致命逆袭) · 第 1 集
+        - cell "78秒 9:16 竖屏":
+          - generic: 78秒
+          - generic: 9:16 竖屏
+        - cell "逆袭 爽剧 打脸豪门 机场决裂":
+          - text: 逆袭
+          - text: 爽剧
+          - text: 打脸豪门
+          - text: 机场决裂
+        - cell "已发布归档":
+          - text: 已发布归档
+        - 'cell "fb-acc-001 锁定于: 2026-07-02 08:30:00"':
+          - text: fb-acc-001
+          - generic: "锁定于: 2026-07-02 08:30:00"
+      - 'row "clip-heiress-002 SHA256 校验 The Heiress''s Revenge - Ep 02 (The Secret Will Revealed) The Heiress''s Revenge (千金归来：致命逆袭) · 第 2 集 85秒 9:16 竖屏 逆袭 继承权反转 智商碾压 已发布归档 yt-acc-001 锁定于: 2026-07-02 08:35:00"':
+        - cell "clip-heiress-002 SHA256 校验":
+          - text: clip-heiress-002
+          - button "SHA256 校验":
+            - generic: SHA256 校验
+        - cell "The Heiress's Revenge - Ep 02 (The Secret Will Revealed) The Heiress's Revenge (千金归来：致命逆袭) · 第 2 集":
+          - strong: The Heiress's Revenge - Ep 02 (The Secret Will Revealed)
+          - generic: The Heiress's Revenge (千金归来：致命逆袭) · 第 2 集
+        - cell "85秒 9:16 竖屏":
+          - generic: 85秒
+          - generic: 9:16 竖屏
+        - cell "逆袭 继承权反转 智商碾压":
+          - text: 逆袭
+          - text: 继承权反转
+          - text: 智商碾压
+        - cell "已发布归档":
+          - text: 已发布归档
+        - 'cell "yt-acc-001 锁定于: 2026-07-02 08:35:00"':
+          - text: yt-acc-001
+          - generic: "锁定于: 2026-07-02 08:35:00"
+      - 'row "clip-contract-015 SHA256 校验 Love Under Contract - Ep 03 (The Gala Kiss) Love Under Contract (契约娇妻：霍总请自重) · 第 3 集 112秒 9:16 竖屏 甜宠 豪门婚恋 高光对峙 反差萌 已发布归档 fb-acc-002 锁定于: 2026-08-11 14:00:00"':
+        - cell "clip-contract-015 SHA256 校验":
+          - text: clip-contract-015
+          - button "SHA256 校验":
+            - generic: SHA256 校验
+        - cell "Love Under Contract - Ep 03 (The Gala Kiss) Love Under Contract (契约娇妻：霍总请自重) · 第 3 集":
+          - strong: Love Under Contract - Ep 03 (The Gala Kiss)
+          - generic: Love Under Contract (契约娇妻：霍总请自重) · 第 3 集
+        - cell "112秒 9:16 竖屏":
+          - generic: 112秒
+          - generic: 9:16 竖屏
+        - cell "甜宠 豪门婚恋 高光对峙 反差萌":
+          - text: 甜宠
+          - text: 豪门婚恋
+          - text: 高光对峙
+          - text: 反差萌
+        - cell "已发布归档":
+          - text: 已发布归档
+        - 'cell "fb-acc-002 锁定于: 2026-08-11 14:00:00"':
+          - text: fb-acc-002
+          - generic: "锁定于: 2026-08-11 14:00:00"
+      - 'row "clip-contract-016 SHA256 校验 Love Under Contract - Ep 04 (Cold Rain Confession) Love Under Contract (契约娇妻：霍总请自重) · 第 4 集 95秒 9:16 竖屏 甜宠 虐心反转 情感爆发 排他独占加锁中 yt-acc-002 锁定于: 2026-09-18 10:15:00"':
+        - cell "clip-contract-016 SHA256 校验":
+          - text: clip-contract-016
+          - button "SHA256 校验":
+            - generic: SHA256 校验
+        - cell "Love Under Contract - Ep 04 (Cold Rain Confession) Love Under Contract (契约娇妻：霍总请自重) · 第 4 集":
+          - strong: Love Under Contract - Ep 04 (Cold Rain Confession)
+          - generic: Love Under Contract (契约娇妻：霍总请自重) · 第 4 集
+        - cell "95秒 9:16 竖屏":
+          - generic: 95秒
+          - generic: 9:16 竖屏
+        - cell "甜宠 虐心反转 情感爆发":
+          - text: 甜宠
+          - text: 虐心反转
+          - text: 情感爆发
+        - cell "排他独占加锁中":
+          - text: 排他独占加锁中
+        - 'cell "yt-acc-002 锁定于: 2026-09-18 10:15:00"':
+          - text: yt-acc-002
+          - generic: "锁定于: 2026-09-18 10:15:00"
+      - 'row "clip-city-008 SHA256 校验 Mistress of the Silent City - Ep 02 (Vault Infiltration) Mistress of the Silent City (绝色狂花：雾城风暴) · 第 2 集 104秒 9:16 竖屏 悬疑 智谋决战 高能反转 排他独占加锁中 fb-acc-005 锁定于: 2026-09-18 11:30:00"':
+        - cell "clip-city-008 SHA256 校验":
+          - text: clip-city-008
+          - button "SHA256 校验":
+            - generic: SHA256 校验
+        - cell "Mistress of the Silent City - Ep 02 (Vault Infiltration) Mistress of the Silent City (绝色狂花：雾城风暴) · 第 2 集":
+          - strong: Mistress of the Silent City - Ep 02 (Vault Infiltration)
+          - generic: Mistress of the Silent City (绝色狂花：雾城风暴) · 第 2 集
+        - cell "104秒 9:16 竖屏":
+          - generic: 104秒
+          - generic: 9:16 竖屏
+        - cell "悬疑 智谋决战 高能反转":
+          - text: 悬疑
+          - text: 智谋决战
+          - text: 高能反转
+        - cell "排他独占加锁中":
+          - text: 排他独占加锁中
+        - 'cell "fb-acc-005 锁定于: 2026-09-18 11:30:00"':
+          - text: fb-acc-005
+          - generic: "锁定于: 2026-09-18 11:30:00"
+      - row "clip-city-009 SHA256 校验 Mistress of the Silent City - Ep 03 (The Trap Spring) Mistress of the Silent City (绝色狂花：雾城风暴) · 第 3 集 88秒 9:16 竖屏 悬疑 心理战 黑吃黑 未分配待排期 加注独占锁":
+        - cell "clip-city-009 SHA256 校验":
+          - text: clip-city-009
+          - button "SHA256 校验":
+            - generic: SHA256 校验
+        - cell "Mistress of the Silent City - Ep 03 (The Trap Spring) Mistress of the Silent City (绝色狂花：雾城风暴) · 第 3 集":
+          - strong: Mistress of the Silent City - Ep 03 (The Trap Spring)
+          - generic: Mistress of the Silent City (绝色狂花：雾城风暴) · 第 3 集
+        - cell "88秒 9:16 竖屏":
+          - generic: 88秒
+          - generic: 9:16 竖屏
+        - cell "悬疑 心理战 黑吃黑":
+          - text: 悬疑
+          - text: 心理战
+          - text: 黑吃黑
+        - cell "未分配待排期":
+          - generic: 未分配待排期
+        - cell "加注独占锁":
+          - button "加注独占锁":
+            - text: 加注独占锁
+      - 'row "clip-butler-021 SHA256 校验 Billionaire Butler - Ep 05 (Bidding War) Billionaire Butler (千亿执事的绝密契约) · 第 5 集 76秒 9:16 竖屏 甜宠 总裁暗护 拍卖高光 已发布归档 fb-acc-003 锁定于: 2026-08-28 09:20:00"':
+        - cell "clip-butler-021 SHA256 校验":
+          - text: clip-butler-021
+          - button "SHA256 校验":
+            - generic: SHA256 校验
+        - cell "Billionaire Butler - Ep 05 (Bidding War) Billionaire Butler (千亿执事的绝密契约) · 第 5 集":
+          - strong: Billionaire Butler - Ep 05 (Bidding War)
+          - generic: Billionaire Butler (千亿执事的绝密契约) · 第 5 集
+        - cell "76秒 9:16 竖屏":
+          - generic: 76秒
+          - generic: 9:16 竖屏
+        - cell "甜宠 总裁暗护 拍卖高光":
+          - text: 甜宠
+          - text: 总裁暗护
+          - text: 拍卖高光
+        - cell "已发布归档":
+          - text: 已发布归档
+        - 'cell "fb-acc-003 锁定于: 2026-08-28 09:20:00"':
+          - text: fb-acc-003
+          - generic: "锁定于: 2026-08-28 09:20:00"
+      - row "clip-butler-022 SHA256 校验 Billionaire Butler - Ep 06 (Identity Unmasked) Billionaire Butler (千亿执事的绝密契约) · 第 6 集 90秒 9:16 竖屏 逆袭 身份终极揭秘 双向奔赴 未分配待排期 加注独占锁":
+        - cell "clip-butler-022 SHA256 校验":
+          - text: clip-butler-022
+          - button "SHA256 校验":
+            - generic: SHA256 校验
+        - cell "Billionaire Butler - Ep 06 (Identity Unmasked) Billionaire Butler (千亿执事的绝密契约) · 第 6 集":
+          - strong: Billionaire Butler - Ep 06 (Identity Unmasked)
+          - generic: Billionaire Butler (千亿执事的绝密契约) · 第 6 集
+        - cell "90秒 9:16 竖屏":
+          - generic: 90秒
+          - generic: 9:16 竖屏
+        - cell "逆袭 身份终极揭秘 双向奔赴":
+          - text: 逆袭
+          - text: 身份终极揭秘
+          - text: 双向奔赴
+        - cell "未分配待排期":
+          - generic: 未分配待排期
+        - cell "加注独占锁":
+          - button "加注独占锁":
+            - text: 加注独占锁
