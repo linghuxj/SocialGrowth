@@ -88,6 +88,49 @@ export interface PublicationAttempt {
   updatedAt: string;
 }
 
+export type DestinationScope = 'content' | 'channel';
+export type DestinationHealth =
+  | 'available'
+  | 'service_failure'
+  | 'destination_invalid'
+  | 'platform_restricted';
+
+export interface DestinationVersion {
+  id: string;
+  destinationEntryId: string;
+  url: string;
+  health: DestinationHealth;
+  isActive: boolean;
+  changeReason: string;
+  supersedesVersionId?: string;
+  createdAt: string;
+}
+
+export interface DestinationEntry {
+  id: string;
+  projectId: string;
+  accountId: string;
+  scope: DestinationScope;
+  scopeId: string;
+  maintenancePermissionRef: string;
+  sharedAttribution: boolean;
+  exitPolicy: 'continue' | 'disable';
+  activeVersionId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DestinationEvent {
+  id: string;
+  destinationEntryId: string;
+  destinationVersionId: string;
+  eventType: 'raw_visit' | 'filtered_click' | 'redirect_response';
+  observedAt: string;
+  responseStatus?: number;
+  reasonCode: string;
+  correlationId: string;
+}
+
 export interface AuditLogEntry {
   id: string;
   timestamp: string;
@@ -108,6 +151,9 @@ export interface FirstLoopState {
   contentIdentities: ContentIdentity[];
   sliceAssets: SliceAsset[];
   publicationAttempts: PublicationAttempt[];
+  destinationEntries: DestinationEntry[];
+  destinationVersions: DestinationVersion[];
+  destinationEvents: DestinationEvent[];
   auditLogs: AuditLogEntry[];
 }
 

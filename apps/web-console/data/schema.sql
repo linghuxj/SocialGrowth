@@ -275,3 +275,39 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_audit_log_correlation ON audit_log (correlation_id, occurred_at);
+
+CREATE TABLE IF NOT EXISTS destination_entries (
+    destination_entry_id VARCHAR(64) PRIMARY KEY,
+    project_id VARCHAR(64) NOT NULL REFERENCES projects(project_id),
+    account_id VARCHAR(64) NOT NULL,
+    scope VARCHAR(16) NOT NULL CHECK (scope IN ('content', 'channel')),
+    scope_id VARCHAR(64) NOT NULL,
+    maintenance_permission_ref TEXT NOT NULL,
+    shared_attribution BOOLEAN NOT NULL DEFAULT FALSE,
+    exit_policy VARCHAR(16) NOT NULL CHECK (exit_policy IN ('continue', 'disable')),
+    active_version_id VARCHAR(64) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS destination_versions (
+    destination_version_id VARCHAR(64) PRIMARY KEY,
+    destination_entry_id VARCHAR(64) NOT NULL REFERENCES destination_entries(destination_entry_id),
+    url TEXT NOT NULL,
+    health VARCHAR(32) NOT NULL CHECK (health IN ('available', 'service_failure', 'destination_invalid', 'platform_restricted')),
+    is_active BOOLEAN NOT NULL,
+    change_reason TEXT NOT NULL,
+    supersedes_version_id VARCHAR(64) REFERENCES destination_versions(destination_version_id),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS destination_events (
+    destination_event_id VARCHAR(64) PRIMARY KEY,
+    destination_entry_id VARCHAR(64) NOT NULL REFERENCES destination_entries(destination_entry_id),
+    destination_version_id VARCHAR(64) NOT NULL REFERENCES destination_versions(destination_version_id),
+    event_type VARCHAR(32) NOT NULL CHECK (event_type IN ('raw_visit', 'filtered_click', 'redirect_response')),
+    observed_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    response_status INTEGER,
+    reason_code VARCHAR(64) NOT NULL,
+    correlation_id VARCHAR(64) NOT NULL
+);

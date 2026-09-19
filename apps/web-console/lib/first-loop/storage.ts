@@ -17,6 +17,9 @@ function hasStateShape(value: unknown): value is FirstLoopState {
     'contentIdentities',
     'sliceAssets',
     'publicationAttempts',
+    'destinationEntries',
+    'destinationVersions',
+    'destinationEvents',
     'auditLogs',
   ].every((key) => Array.isArray(state[key]));
 }

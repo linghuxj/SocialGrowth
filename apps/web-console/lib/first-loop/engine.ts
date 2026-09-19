@@ -4,6 +4,10 @@ import type {
   CommandContext,
   CommandResult,
   ContentIdentity,
+  DestinationEntry,
+  DestinationEvent,
+  DestinationHealth,
+  DestinationVersion,
   FirstLoopState,
   Project,
   ProjectGap,
@@ -24,6 +28,9 @@ const EMPTY_STATE: FirstLoopState = {
   contentIdentities: [],
   sliceAssets: [],
   publicationAttempts: [],
+  destinationEntries: [],
+  destinationVersions: [],
+  destinationEvents: [],
   auditLogs: [],
 };
 
@@ -39,6 +46,15 @@ function normalizeStrings(values: string[]): string[] {
 
 function isValidSha256(value: string): boolean {
   return /^[a-f0-9]{64}$/i.test(value);
+}
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:';
+  } catch {
+    return false;
+  }
 }
 
 export class FirstLoopEngine {
@@ -269,18 +285,38 @@ export class FirstLoopEngine {
     relationId: string,
     context: CommandContext,
   ): CommandResult<AccountServiceRelation> {
-    const relation = this.state.accountServiceRelations.find(item => item.id === relationId);
+    const relation = this.state.accountServiceRelations.find(
+      (item) => item.id === relationId,
+    );
     if (!relation) {
-      return this.reject('AUTHORIZATION_NOT_FOUND', '账号服务授权关系不存在', 'account_service_relation', relationId, context);
+      return this.reject(
+        'AUTHORIZATION_NOT_FOUND',
+        '账号服务授权关系不存在',
+        'account_service_relation',
+        relationId,
+        context,
+      );
     }
     if (relation.revokedAt) {
-      return this.reject('AUTHORIZATION_ALREADY_REVOKED', '账号服务授权已经撤销', 'account_service_relation', relationId, context);
+      return this.reject(
+        'AUTHORIZATION_ALREADY_REVOKED',
+        '账号服务授权已经撤销',
+        'account_service_relation',
+        relationId,
+        context,
+      );
     }
     relation.revokedAt = this.now();
-    this.accept('account.authorization_revoked', 'account_service_relation', relation.id, context, {
-      projectId: relation.projectId,
-      accountId: relation.accountId,
-    });
+    this.accept(
+      'account.authorization_revoked',
+      'account_service_relation',
+      relation.id,
+      context,
+      {
+        projectId: relation.projectId,
+        accountId: relation.accountId,
+      },
+    );
     return { ok: true, value: structuredClone(relation) };
   }
 
@@ -601,6 +637,317 @@ export class FirstLoopEngine {
       },
     );
     return { ok: true, value: structuredClone(identity) };
+  }
+
+  createDestination(
+    input: {
+      projectId: string;
+      accountId: string;
+      scope: DestinationEntry['scope'];
+      scopeId: string;
+      url: string;
+      maintenancePermissionRef: string;
+      sharedAttribution: boolean;
+      exitPolicy: DestinationEntry['exitPolicy'];
+    },
+    context: CommandContext,
+  ): CommandResult<{ entry: DestinationEntry; version: DestinationVersion }> {
+    const project = this.state.projects.find(
+      (item) => item.id === input.projectId,
+    );
+    if (!project)
+      return this.reject(
+        'PROJECT_NOT_FOUND',
+        '项目不存在',
+        'destination_entry',
+        'new',
+        context,
+      );
+    const relation = this.state.accountServiceRelations.find(
+      (item) =>
+        item.projectId === input.projectId &&
+        item.accountId === input.accountId &&
+        !item.revokedAt,
+    );
+    if (!relation)
+      return this.reject(
+        'DESTINATION_PERMISSION_MISSING',
+        '项目与账号之间没有有效服务授权',
+        'destination_entry',
+        'new',
+        context,
+      );
+    if (!input.maintenancePermissionRef.trim()) {
+      return this.reject(
+        'DESTINATION_MAINTENANCE_PERMISSION_REQUIRED',
+        '入口维护权限依据不能为空',
+        'destination_entry',
+        'new',
+        context,
+      );
+    }
+    if (!isHttpUrl(input.url)) {
+      return this.reject(
+        'DESTINATION_URL_INVALID',
+        '入口地址必须是 HTTP 或 HTTPS URL',
+        'destination_entry',
+        'new',
+        context,
+      );
+    }
+    if (
+      input.scope === 'content' &&
+      !this.state.contentIdentities.some((item) => item.id === input.scopeId)
+    ) {
+      return this.reject(
+        'DESTINATION_SCOPE_NOT_FOUND',
+        '内容范围不存在',
+        'destination_entry',
+        'new',
+        context,
+      );
+    }
+    const timestamp = this.now();
+    const entryId = this.nextId('destination');
+    const version: DestinationVersion = {
+      id: this.nextId('destination-version'),
+      destinationEntryId: entryId,
+      url: input.url,
+      health: 'available',
+      isActive: true,
+      changeReason: 'initial',
+      createdAt: timestamp,
+    };
+    const entry: DestinationEntry = {
+      id: entryId,
+      projectId: input.projectId,
+      accountId: input.accountId,
+      scope: input.scope,
+      scopeId: input.scopeId,
+      maintenancePermissionRef: input.maintenancePermissionRef.trim(),
+      sharedAttribution: input.sharedAttribution,
+      exitPolicy: input.exitPolicy,
+      activeVersionId: version.id,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    this.state.destinationEntries.push(entry);
+    this.state.destinationVersions.push(version);
+    this.accept(
+      'destination.created',
+      'destination_entry',
+      entry.id,
+      context,
+      {
+        projectId: entry.projectId,
+        accountId: entry.accountId,
+        scope: entry.scope,
+        sharedAttribution: entry.sharedAttribution,
+      },
+      [entry.maintenancePermissionRef],
+    );
+    return {
+      ok: true,
+      value: {
+        entry: structuredClone(entry),
+        version: structuredClone(version),
+      },
+    };
+  }
+
+  updateDestination(
+    destinationEntryId: string,
+    input: {
+      url: string;
+      health: DestinationHealth;
+      changeReason: string;
+      permissionRef: string;
+    },
+    context: CommandContext,
+  ): CommandResult<{
+    version: DestinationVersion;
+    affectedContentIdentityIds: string[];
+  }> {
+    const entry = this.state.destinationEntries.find(
+      (item) => item.id === destinationEntryId,
+    );
+    if (!entry)
+      return this.reject(
+        'DESTINATION_NOT_FOUND',
+        '入口不存在',
+        'destination_entry',
+        destinationEntryId,
+        context,
+      );
+    if (input.permissionRef !== entry.maintenancePermissionRef) {
+      return this.reject(
+        'DESTINATION_CHANGE_UNAUTHORIZED',
+        '当前依据无权维护该入口',
+        'destination_entry',
+        destinationEntryId,
+        context,
+      );
+    }
+    if (!isHttpUrl(input.url) || !input.changeReason.trim()) {
+      return this.reject(
+        'DESTINATION_CHANGE_INVALID',
+        '入口地址和变更原因必须有效',
+        'destination_entry',
+        destinationEntryId,
+        context,
+      );
+    }
+    const previous = this.state.destinationVersions.find(
+      (item) => item.id === entry.activeVersionId,
+    );
+    if (previous) previous.isActive = false;
+    const version: DestinationVersion = {
+      id: this.nextId('destination-version'),
+      destinationEntryId,
+      url: input.url,
+      health: input.health,
+      isActive: true,
+      changeReason: input.changeReason.trim(),
+      supersedesVersionId: previous?.id,
+      createdAt: this.now(),
+    };
+    this.state.destinationVersions.push(version);
+    entry.activeVersionId = version.id;
+    entry.updatedAt = this.now();
+    const affectedContentIdentityIds =
+      entry.scope === 'content'
+        ? [entry.scopeId]
+        : this.state.contentIdentities
+            .filter((item) => item.assignedAccountId === entry.accountId)
+            .map((item) => item.id);
+    this.accept(
+      'destination.updated',
+      'destination_entry',
+      entry.id,
+      context,
+      {
+        versionId: version.id,
+        previousVersionId: previous?.id ?? null,
+        affectedContentCount: affectedContentIdentityIds.length,
+      },
+      [input.permissionRef],
+    );
+    return {
+      ok: true,
+      value: { version: structuredClone(version), affectedContentIdentityIds },
+    };
+  }
+
+  recordDestinationEvent(
+    input: Omit<DestinationEvent, 'id' | 'observedAt' | 'correlationId'>,
+    context: CommandContext,
+  ): CommandResult<DestinationEvent> {
+    const entry = this.state.destinationEntries.find(
+      (item) => item.id === input.destinationEntryId,
+    );
+    const version = this.state.destinationVersions.find(
+      (item) =>
+        item.id === input.destinationVersionId &&
+        item.destinationEntryId === input.destinationEntryId,
+    );
+    if (!entry || !version)
+      return this.reject(
+        'DESTINATION_REFERENCE_INVALID',
+        '入口或入口版本不存在',
+        'destination_event',
+        'new',
+        context,
+      );
+    if (
+      input.eventType === 'redirect_response' &&
+      (!input.responseStatus ||
+        input.responseStatus < 100 ||
+        input.responseStatus > 599)
+    ) {
+      return this.reject(
+        'REDIRECT_STATUS_REQUIRED',
+        '跳转响应必须记录有效 HTTP 状态码',
+        'destination_event',
+        'new',
+        context,
+      );
+    }
+    const event: DestinationEvent = {
+      ...input,
+      id: this.nextId('destination-event'),
+      observedAt: this.now(),
+      correlationId: context.correlationId,
+    };
+    this.state.destinationEvents.push(event);
+    this.accept(
+      'destination.event_observed',
+      'destination_event',
+      event.id,
+      context,
+      {
+        destinationEntryId: entry.id,
+        eventType: event.eventType,
+        responseStatus: event.responseStatus ?? null,
+      },
+    );
+    return { ok: true, value: structuredClone(event) };
+  }
+
+  destinationObservation(destinationEntryId: string): {
+    rawVisits?: number;
+    filteredClicks?: number;
+    redirectResponses?: number;
+  } {
+    const events = this.state.destinationEvents.filter(
+      (item) => item.destinationEntryId === destinationEntryId,
+    );
+    const count = (eventType: DestinationEvent['eventType']) =>
+      events.filter((item) => item.eventType === eventType).length;
+    return {
+      ...(events.some((item) => item.eventType === 'raw_visit')
+        ? { rawVisits: count('raw_visit') }
+        : {}),
+      ...(events.some((item) => item.eventType === 'filtered_click')
+        ? { filteredClicks: count('filtered_click') }
+        : {}),
+      ...(events.some((item) => item.eventType === 'redirect_response')
+        ? { redirectResponses: count('redirect_response') }
+        : {}),
+    };
+  }
+
+  applyDestinationExit(
+    destinationEntryId: string,
+    context: CommandContext,
+  ): CommandResult<DestinationEntry> {
+    const entry = this.state.destinationEntries.find(
+      (item) => item.id === destinationEntryId,
+    );
+    if (!entry)
+      return this.reject(
+        'DESTINATION_NOT_FOUND',
+        '入口不存在',
+        'destination_entry',
+        destinationEntryId,
+        context,
+      );
+    const version = this.state.destinationVersions.find(
+      (item) => item.id === entry.activeVersionId,
+    );
+    if (entry.exitPolicy === 'disable' && version) version.isActive = false;
+    entry.updatedAt = this.now();
+    this.accept(
+      'destination.exit_policy_applied',
+      'destination_entry',
+      entry.id,
+      context,
+      {
+        exitPolicy: entry.exitPolicy,
+        active: Boolean(version?.isActive),
+        activeUrl: version?.url ?? null,
+      },
+    );
+    return { ok: true, value: structuredClone(entry) };
   }
 
   private accept(

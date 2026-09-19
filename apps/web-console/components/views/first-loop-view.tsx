@@ -40,6 +40,13 @@ const EMPTY_CONTENT = {
   sha256: '',
   rightsRef: '',
 };
+const EMPTY_DESTINATION = {
+  projectId: '',
+  accountId: '',
+  scopeId: '',
+  url: '',
+  maintenancePermissionRef: '',
+};
 
 export function FirstLoopView() {
   const {
@@ -47,6 +54,7 @@ export function FirstLoopView() {
     saveProject,
     activateProject,
     grantAccountServiceRelation,
+    createDestination,
     addContent,
     allocateContent,
     projectGaps,
@@ -54,6 +62,7 @@ export function FirstLoopView() {
   const [project, setProject] = useState(EMPTY_PROJECT);
   const [relation, setRelation] = useState(EMPTY_RELATION);
   const [content, setContent] = useState(EMPTY_CONTENT);
+  const [destination, setDestination] = useState(EMPTY_DESTINATION);
   const [feedback, setFeedback] = useState(
     '当前为本地受控工作区；真实数据库、账号和发布接入仍需分别验证。',
   );
@@ -98,6 +107,22 @@ export function FirstLoopView() {
       `素材已进入受控库存，内容身份 ${result.value!.identity.id}；尚未批准或发布。`,
     );
     setContent(EMPTY_CONTENT);
+  };
+
+  const submitDestination = (event: React.SyntheticEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const result = createDestination({
+      ...destination,
+      scope: 'channel',
+      sharedAttribution: true,
+      exitPolicy: 'continue',
+    });
+    setFeedback(
+      result.ok
+        ? `入口 ${result.value!.entry.id} 已保存，预览与活动版本 ${result.value!.version.id} 使用同一地址。`
+        : `${result.error?.code}: ${result.error?.message}`,
+    );
+    if (result.ok) setDestination(EMPTY_DESTINATION);
   };
 
   return (
@@ -438,6 +463,89 @@ export function FirstLoopView() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Activity className="h-4 w-4" />
+            导流入口与版本
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <form
+            className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
+            onSubmit={submitDestination}
+          >
+            <Input
+              required
+              placeholder="项目 ID"
+              value={destination.projectId}
+              onChange={(e) =>
+                setDestination({ ...destination, projectId: e.target.value })
+              }
+            />
+            <Input
+              required
+              placeholder="账号 ID"
+              value={destination.accountId}
+              onChange={(e) =>
+                setDestination({ ...destination, accountId: e.target.value })
+              }
+            />
+            <Input
+              required
+              placeholder="频道/范围 ID"
+              value={destination.scopeId}
+              onChange={(e) =>
+                setDestination({ ...destination, scopeId: e.target.value })
+              }
+            />
+            <Input
+              required
+              type="url"
+              placeholder="实际目的地 URL"
+              value={destination.url}
+              onChange={(e) =>
+                setDestination({ ...destination, url: e.target.value })
+              }
+            />
+            <Input
+              required
+              placeholder="维护权限依据"
+              value={destination.maintenancePermissionRef}
+              onChange={(e) =>
+                setDestination({
+                  ...destination,
+                  maintenancePermissionRef: e.target.value,
+                })
+              }
+            />
+            <Button type="submit">保存共享入口</Button>
+          </form>
+          {state.destinationEntries.map((entry) => {
+            const version = state.destinationVersions.find(
+              (item) => item.id === entry.activeVersionId,
+            );
+            return (
+              <div
+                key={entry.id}
+                className="rounded border border-slate-200 p-3 text-xs"
+              >
+                <strong>
+                  {entry.scope}/{entry.scopeId}
+                </strong>
+                <p className="mt-1 text-slate-500">
+                  {version?.url} · {version?.health} ·{' '}
+                  {version?.isActive ? '活动' : '停用'}
+                </p>
+                <p className="mt-1 text-slate-500">
+                  共享入口只保留频道级观察，不伪分摊到单条内容。
+                </p>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

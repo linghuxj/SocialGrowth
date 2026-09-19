@@ -17,6 +17,8 @@ import type {
   AccountServiceRelation,
   CommandResult,
   ContentIdentity,
+  DestinationEntry,
+  DestinationVersion,
   FirstLoopState,
   Project,
   SliceAsset,
@@ -33,6 +35,16 @@ interface FirstLoopContextValue {
   grantAccountServiceRelation: (
     input: Omit<AccountServiceRelation, 'id' | 'createdAt'>,
   ) => CommandResult<AccountServiceRelation>;
+  createDestination: (input: {
+    projectId: string;
+    accountId: string;
+    scope: DestinationEntry['scope'];
+    scopeId: string;
+    url: string;
+    maintenancePermissionRef: string;
+    sharedAttribution: boolean;
+    exitPolicy: DestinationEntry['exitPolicy'];
+  }) => CommandResult<{ entry: DestinationEntry; version: DestinationVersion }>;
   addContent: (input: {
     identityId?: string;
     title: string;
@@ -96,6 +108,8 @@ export function FirstLoopProvider({ children }: { children: React.ReactNode }) {
         execute(() =>
           engine.grantAccountServiceRelation(input, createCommandContext()),
         ),
+      createDestination: (input) =>
+        execute(() => engine.createDestination(input, createCommandContext())),
       addContent: (input) =>
         execute(() =>
           engine.admitContent(
