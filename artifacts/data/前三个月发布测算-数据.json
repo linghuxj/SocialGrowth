@@ -1,11 +1,27 @@
 {
   "assumptions": {
+    "model_version": "v2.1-20260919",
     "month_days": 30,
     "realization": 0.9,
     "current_month_share": 0.5,
     "next_month_share": 0.5,
     "long_tail_after_30_days": 0,
     "note": "参数为情景假设；FB公开观看与YT合格观看不得合并为同口径受众。"
+  },
+  "independent_content": {
+    "planned_monthly": [
+      240,
+      780,
+      2400
+    ],
+    "planned_total": 3420,
+    "successful_monthly": [
+      216.0,
+      702.0,
+      2160.0
+    ],
+    "successful_total": 3078.0,
+    "note": "本情景每个计划位使用独立合格内容；语言版本不增加库存，成功量不替代计划备货量。"
   },
   "per_platform_plan": [
     120,

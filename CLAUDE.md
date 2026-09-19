@@ -90,5 +90,7 @@ SocialGrowth/
 - 研发交接任务书与整改看板：[`docs/handoff/README.md`](docs/handoff/README.md)
 - 本轮业务审计处理结果：[`docs/handoff/2026-09-19-business-audit-closure.md`](docs/handoff/2026-09-19-business-audit-closure.md)
 - **原项目文档审计报告（历史发现）**：[`docs/handoff/2026-09-19-document-audit-report.md`](docs/handoff/2026-09-19-document-audit-report.md)
+- **需求与规划文档全面审计报告（原发现及复核标注）**：[`docs/handoff/2026-09-19-full-document-audit.md`](docs/handoff/2026-09-19-full-document-audit.md)
+- **44 项复核、修复及待核证据**：[`docs/handoff/2026-09-19-audit-verification.md`](docs/handoff/2026-09-19-audit-verification.md)
 - 业务术语字典：[`CONTEXT.md`](CONTEXT.md)
 - 测算数据基准：[`artifacts/data/3至20台真机设备-前三个月发布与准入测算.md`](artifacts/data/3至20台真机设备-前三个月发布与准入测算.md)

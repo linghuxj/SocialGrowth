@@ -160,6 +160,8 @@
 ### 模块 D：计算脚本与外部交付成果物 (`scripts/` & `artifacts/`)
 
 #### [TASK-08] 重构发布容量与准入测算脚本 (`scripts/analytics/calc_launch_capacity.py`)
+
+> **后续修订 v2.1（2026-09-19）**：修正配套MD的108观看分母及3,420计划库存，JSON补独立内容字段并重生成；本地检查与待审状态见[复核记录](2026-09-19-audit-verification.md)。下列“已完成”为原重构记录，不表示新修订已合并或实测。
 - **优先级**：P1
 - **当前状态**：✅ **已完成 (2026-09-18)**
 - **问题文件**：[`scripts/analytics/calc_launch_capacity.py`](../../scripts/analytics/calc_launch_capacity.py)

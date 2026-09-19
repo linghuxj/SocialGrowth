@@ -1,4 +1,5 @@
 """重算 3~5 台至 20 台纯真机设备前 3 个月发布产能与观看增长测算；不连接平台、不预测获批概率。"""
+import argparse
 import json
 from math import ceil
 from pathlib import Path
@@ -22,7 +23,7 @@ SCENARIOS = {
 }
 
 
-def monthly_weights(published):
+def monthly_weights(published: list[float]) -> list[float]:
     return [
         n * CURRENT_MONTH_SHARE
         + (published[m - 1] if m else 0) * (1 - CURRENT_MONTH_SHARE)
@@ -30,7 +31,7 @@ def monthly_weights(published):
     ]
 
 
-def calculate():
+def calculate() -> dict[str, object]:
     plan = [
         sum(c["accounts_per_platform"] * c["daily"][m] * MONTH_DAYS for c in COHORTS)
         for m in range(3)
@@ -56,12 +57,20 @@ def calculate():
         })
     return {
         "assumptions": {
+            "model_version": "v2.1-20260919",
             "month_days": MONTH_DAYS,
             "realization": REALIZATION,
             "current_month_share": CURRENT_MONTH_SHARE,
             "next_month_share": 1 - CURRENT_MONTH_SHARE,
             "long_tail_after_30_days": 0,
             "note": "参数为情景假设；FB公开观看与YT合格观看不得合并为同口径受众。",
+        },
+        "independent_content": {
+            "planned_monthly": [2 * n for n in plan],
+            "planned_total": 2 * sum(plan),
+            "successful_monthly": [2 * n for n in actual],
+            "successful_total": 2 * sum(actual),
+            "note": "本情景每个计划位使用独立合格内容；语言版本不增加库存，成功量不替代计划备货量。",
         },
         "per_platform_plan": plan,
         "both_platforms_plan": [2 * n for n in plan],
@@ -78,7 +87,9 @@ def calculate():
 
 if __name__ == "__main__":
     root = Path(__file__).resolve().parents[2]
-    output = root / "artifacts/data/前三个月发布测算-数据.json"
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--output", type=Path, default=root / "artifacts/data/前三个月发布测算-数据.json")
+    output = parser.parse_args().output
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(calculate(), ensure_ascii=False, indent=2) + "\n")
+    output.write_text(json.dumps(calculate(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(output)
