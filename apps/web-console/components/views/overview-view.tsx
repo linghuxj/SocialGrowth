@@ -13,7 +13,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   Sliders,
-  ShieldAlert,
   ArrowRight,
   Download,
   KeyRound
@@ -21,42 +20,47 @@ import {
 
 export function OverviewView({ onNavigate }: { onNavigate: (tab: string) => void }) {
   const db = useDatabase();
-  const { summary, clipVaultStats, shortlinkStats, pendingReviewCount, pending2FaCount, warningDeviceCount } = db;
+  const { clipVaultStats, shortlinkStats, pendingReviewCount, pending2FaCount, warningDeviceCount } = db;
 
   return (
     <div className="space-y-6">
-      {/* Top Banner: 3-month Milestone Announcement */}
+      <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+        <strong>历史演示数据：</strong>
+        本页数字、在线状态和完成描述来自旧版界面样例，只用于展示信息架构，不代表当前真实部署、账号状态、发布结果或经营指标。当前可验收流程请进入“首条业务闭环”。
+      </div>
+
+      {/* Top Banner: historical demonstration fixture */}
       <div className="bg-slate-900 text-white rounded-lg p-6 border border-slate-800 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
             <span className="text-xs font-mono font-medium text-emerald-400 uppercase tracking-wider">
-              System Benchmark · v2.0-20260918
+              Historical Demo Fixture · v2.0-20260918
             </span>
             <Badge variant="outline" className="text-xs border-slate-700 text-slate-300">
-              海外真实物理部署
+              非当前运行证据
             </Badge>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-white mb-1">
-            SocialGrowth Web 运营平台 · 前 3 个月成果总览
+            SocialGrowth Web · 历史三个月演示样例
           </h1>
           <p className="text-sm text-slate-400 max-w-3xl leading-relaxed">
-            已完成首批 3~5 台真机最小闭环验证、第 2 个月平滑爬坡及第 3 个月末 20 台纯真机规模化部署。全面落地 1:1 账号强绑定、切片素材排他独占锁、双轨数据采集降级及小样本 A/B 策略实验闭环。
+            以下内容复现旧版规划情景，用于验证页面结构与交互。实际真机、账号、发布、指标及恢复能力必须以外部接入证据另行验收。
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2 text-xs font-mono">
           <div className="bg-slate-800 px-3 py-2 rounded border border-slate-700">
-            <span className="text-slate-400 block text-[11px]">真机底座</span>
-            <span className="font-semibold text-emerald-400">100% Samsung S23</span>
+            <span className="text-slate-400 block text-[11px]">历史规划设备</span>
+            <span className="font-semibold text-emerald-400">样例：Samsung S23</span>
           </div>
           <div className="bg-slate-800 px-3 py-2 rounded border border-slate-700">
-            <span className="text-slate-400 block text-[11px]">虚拟化运行态</span>
-            <span className="font-semibold text-rose-400">0 实例 (纯物理真机)</span>
+            <span className="text-slate-400 block text-[11px]">历史规划运行态</span>
+            <span className="font-semibold text-rose-400">样例：纯物理真机</span>
           </div>
           <div className="bg-slate-800 px-3 py-2 rounded border border-slate-700">
-            <span className="text-slate-400 block text-[11px]">排他独占拦截</span>
-            <span className="font-semibold text-amber-400">100% 独占防重</span>
+            <span className="text-slate-400 block text-[11px]">历史规划规则</span>
+            <span className="font-semibold text-amber-400">样例：独占防重</span>
           </div>
         </div>
       </div>
@@ -67,7 +71,7 @@ export function OverviewView({ onNavigate }: { onNavigate: (tab: string) => void
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping" />
             <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-              今日运营作业驾驶舱 · 待办与阻塞项中枢 (Operator Action Center)
+              历史演示待办与阻塞项 (Demo Action Center)
             </h3>
           </div>
           <div className="flex items-center gap-2">
@@ -98,8 +102,8 @@ export function OverviewView({ onNavigate }: { onNavigate: (tab: string) => void
               </div>
               <p className="text-[11px] text-slate-600">
                 {pendingReviewCount > 0
-                  ? `存在 ${pendingReviewCount} 个未开启自主托管的账号排期需单人确认。`
-                  : '今日所有排期任务均已审核通过下发。'}
+                  ? `演示队列中有 ${pendingReviewCount} 个账号排期需单人确认。`
+                  : '演示队列当前没有待审排期。'}
               </p>
             </div>
             {pendingReviewCount > 0 ? (
@@ -113,7 +117,7 @@ export function OverviewView({ onNavigate }: { onNavigate: (tab: string) => void
               </div>
             ) : (
               <div className="text-[10px] text-emerald-600 font-medium flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" /> 队列畅通无积压
+                <CheckCircle2 className="w-3 h-3" /> 演示队列无积压
               </div>
             )}
           </div>
@@ -132,8 +136,8 @@ export function OverviewView({ onNavigate }: { onNavigate: (tab: string) => void
               </div>
               <p className="text-[11px] text-slate-600">
                 {pending2FaCount > 0
-                  ? '检测到真机在登录/换号过程中触发双重验证，需人工输入动态码。'
-                  : '所有真机登录会话与 2FA 凭证有效，无阻断事件。'}
+                  ? '演示数据包含登录/换号双重验证事件，需模拟人工输入动态码。'
+                  : '演示队列当前没有 2FA 阻断事件。'}
               </p>
             </div>
             {pending2FaCount > 0 ? (
@@ -142,7 +146,7 @@ export function OverviewView({ onNavigate }: { onNavigate: (tab: string) => void
               </Button>
             ) : (
               <div className="text-[10px] text-emerald-600 font-medium flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" /> 凭证认证正常
+                <CheckCircle2 className="w-3 h-3" /> 演示队列无阻断
               </div>
             )}
           </div>
@@ -161,8 +165,8 @@ export function OverviewView({ onNavigate }: { onNavigate: (tab: string) => void
               </div>
               <p className="text-[11px] text-slate-600">
                 {warningDeviceCount > 0
-                  ? `设备 dev-007、dev-014 网络延迟或温控偏离基线，需重点排查。`
-                  : '全部 20 台真机硬件指标均处于绿区标准。'}
+                  ? `演示设备 dev-007、dev-014 网络延迟或温控偏离样例基线。`
+                  : '演示队列当前没有设备告警。'}
               </p>
             </div>
             <Button size="sm" variant="outline" className="h-6 text-[11px] px-2 border-slate-300 text-slate-700 bg-white w-fit" onClick={() => onNavigate('artemis')}>
@@ -177,7 +181,7 @@ export function OverviewView({ onNavigate }: { onNavigate: (tab: string) => void
         <Card className="border-slate-200 shadow-xs cursor-pointer hover:border-blue-400 transition-colors" onClick={() => onNavigate('matrix')}>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between text-slate-500">
-              <span className="text-xs font-medium uppercase tracking-wider">真机与账号矩阵</span>
+              <span className="text-xs font-medium uppercase tracking-wider">历史样例 · 真机与账号矩阵</span>
               <Smartphone className="w-4 h-4 text-blue-600" />
             </div>
             <CardTitle className="text-3xl font-bold text-slate-900 mt-1">
@@ -203,11 +207,11 @@ export function OverviewView({ onNavigate }: { onNavigate: (tab: string) => void
         <Card className="border-slate-200 shadow-xs cursor-pointer hover:border-amber-400 transition-colors" onClick={() => onNavigate('clips')}>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between text-slate-500">
-              <span className="text-xs font-medium uppercase tracking-wider">切片发布与独占锁</span>
+              <span className="text-xs font-medium uppercase tracking-wider">历史样例 · 切片发布与独占锁</span>
               <Lock className="w-4 h-4 text-amber-600" />
             </div>
             <CardTitle className="text-3xl font-bold text-slate-900 mt-1">
-              3,078 <span className="text-sm font-normal text-slate-500">条有效发布</span>
+              3,078 <span className="text-sm font-normal text-slate-500">条假设成功量</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="text-xs text-slate-600 space-y-1">
@@ -229,7 +233,7 @@ export function OverviewView({ onNavigate }: { onNavigate: (tab: string) => void
         <Card className="border-slate-200 shadow-xs cursor-pointer hover:border-cyan-400 transition-colors" onClick={() => onNavigate('shortlinks')}>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between text-slate-500">
-              <span className="text-xs font-medium uppercase tracking-wider">导流短链与点击流</span>
+              <span className="text-xs font-medium uppercase tracking-wider">历史样例 · 导流短链与点击流</span>
               <Link2 className="w-4 h-4 text-cyan-600" />
             </div>
             <CardTitle className="text-3xl font-bold text-slate-900 mt-1">
@@ -255,11 +259,11 @@ export function OverviewView({ onNavigate }: { onNavigate: (tab: string) => void
         <Card className="border-slate-200 shadow-xs cursor-pointer hover:border-purple-400 transition-colors" onClick={() => onNavigate('experiments')}>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between text-slate-500">
-              <span className="text-xs font-medium uppercase tracking-wider">策略实验与双轨数据</span>
+              <span className="text-xs font-medium uppercase tracking-wider">历史样例 · 策略实验与双轨数据</span>
               <GitCompare className="w-4 h-4 text-purple-600" />
             </div>
             <CardTitle className="text-3xl font-bold text-slate-900 mt-1">
-              +18.2% <span className="text-sm font-normal text-slate-500">实验晋级</span>
+              +18.2% <span className="text-sm font-normal text-slate-500">样例实验差值</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="text-xs text-slate-600 space-y-1">
@@ -273,7 +277,7 @@ export function OverviewView({ onNavigate }: { onNavigate: (tab: string) => void
             </div>
             <div className="flex justify-between">
               <span>安全回退 (Rollback):</span>
-              <span className="font-semibold text-emerald-600">1 次实盘生效</span>
+              <span className="font-semibold text-emerald-600">样例：1 次回退</span>
             </div>
           </CardContent>
         </Card>
@@ -282,7 +286,7 @@ export function OverviewView({ onNavigate }: { onNavigate: (tab: string) => void
       {/* 7 Core Modules Navigation & Status Cards */}
       <div className="space-y-3">
         <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-          <span>7 大核心交付模块成熟态运行大屏</span>
+          <span>7 大核心模块历史演示卡片</span>
           <span className="text-xs text-slate-500 font-normal">（点击任意模块卡片可直达工作台）</span>
         </h2>
 
@@ -293,14 +297,14 @@ export function OverviewView({ onNavigate }: { onNavigate: (tab: string) => void
               <div className="flex justify-between items-center">
                 <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">模块 1</span>
                 <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs">
-                  20台/40号 就绪
+                  历史样例：20台/40号
                 </Badge>
               </div>
               <CardTitle className="text-base font-semibold text-slate-900 mt-1">
                 账号矩阵与真机拓扑
               </CardTitle>
               <CardDescription className="text-xs text-slate-500">
-                1:1 设备专属强绑定，单台 Samsung S23 严格承载 1 FB + 1 YT，彻底杜绝同机切换多账号；5个冷备账号池就绪。
+                历史规划样例：1:1 设备专属绑定，单台 Samsung S23 承载 1 FB + 1 YT，并展示 5 个冷备账号槽位。
               </CardDescription>
             </CardHeader>
           </Card>
@@ -311,14 +315,14 @@ export function OverviewView({ onNavigate }: { onNavigate: (tab: string) => void
               <div className="flex justify-between items-center">
                 <span className="text-xs font-bold text-amber-600 uppercase tracking-wider">模块 2</span>
                 <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-xs">
-                  排他独占锁 100%
+                  历史样例：独占锁
                 </Badge>
               </div>
               <CardTitle className="text-base font-semibold text-slate-900 mt-1">
                 切片素材库与排他锁
               </CardTitle>
               <CardDescription className="text-xs text-slate-500">
-                漫剧切片加注 Exclusive Lock，单切片单号唯一绑定分发，142次跨号重复调用拦截，从源头根除搬运与降权。
+                历史规划样例：漫剧切片加注 Exclusive Lock，单切片单号唯一绑定分发，并展示重复调用拦截数据。
               </CardDescription>
             </CardHeader>
           </Card>
@@ -329,14 +333,14 @@ export function OverviewView({ onNavigate }: { onNavigate: (tab: string) => void
               <div className="flex justify-between items-center">
                 <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider">模块 3</span>
                 <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 text-xs">
-                  75% 自主托管
+                  历史样例：75% 托管
                 </Badge>
               </div>
               <CardTitle className="text-base font-semibold text-slate-900 mt-1">
                 策略工作台与规则引擎
               </CardTitle>
               <CardDescription className="text-xs text-slate-500">
-                32条经验规则沉淀（约束 vs 建议），成熟账号开启自主托管无人值守发布，新号/高风险号保留单人审核流。
+                历史规划样例：32 条经验规则（约束 vs 建议），并展示托管发布与单人审核两类界面状态。
               </CardDescription>
             </CardHeader>
           </Card>
@@ -354,7 +358,7 @@ export function OverviewView({ onNavigate }: { onNavigate: (tab: string) => void
                 导流短链与防封域名池
               </CardTitle>
               <CardDescription className="text-xs text-slate-500">
-                自建短链 302 服务，原始访问→爬虫过滤→有效跳转三层分离；FB 帖文级单条归因，YT 频道级归因，动态防封熔断。
+                自建短链 302 服务，原始访问→爬虫过滤→有效跳转三层分离；FB 帖文级单条归因、YT 频道级归因及域名熔断界面。
               </CardDescription>
             </CardHeader>
           </Card>
@@ -365,14 +369,14 @@ export function OverviewView({ onNavigate }: { onNavigate: (tab: string) => void
               <div className="flex justify-between items-center">
                 <span className="text-xs font-bold text-rose-600 uppercase tracking-wider">模块 5</span>
                 <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 text-xs">
-                  2次换号SOP闭环
+                  历史样例：换号 SOP
                 </Badge>
               </div>
               <CardTitle className="text-base font-semibold text-slate-900 mt-1">
                 账号风控与冷备换号中心
               </CardTitle>
               <CardDescription className="text-xs text-slate-500">
-                4类异常自动识别与任务熔断，标准化冷备置换 SOP（App缓存重置 + 凭证重绑），HITL 2FA 人机协同接管完成。
+                历史规划样例：4 类异常识别与任务熔断、冷备置换 SOP（App 缓存重置 + 凭证重绑）及 HITL 2FA 人机协同接管界面。
               </CardDescription>
             </CardHeader>
           </Card>
@@ -383,14 +387,14 @@ export function OverviewView({ onNavigate }: { onNavigate: (tab: string) => void
               <div className="flex justify-between items-center">
                 <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">模块 6</span>
                 <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs">
-                  纯真机 20/20 在线
+                  历史样例：20 台
                 </Badge>
               </div>
               <CardTitle className="text-base font-semibold text-slate-900 mt-1">
                 Artemis 真机调度与执行底座
               </CardTitle>
               <CardDescription className="text-xs text-slate-500">
-                Google Artemis 原生 App UI 自动化执行（100% 纯物理真机），坐标自愈日志（Self-healing Logs）实时回显与 10min 超时自愈。
+                历史规划样例：Google Artemis 原生 App UI 自动化、坐标自愈日志（Self-healing Logs）回显与 10min 超时处理。
               </CardDescription>
             </CardHeader>
           </Card>
@@ -401,14 +405,14 @@ export function OverviewView({ onNavigate }: { onNavigate: (tab: string) => void
               <div className="flex justify-between items-center">
                 <span className="text-xs font-bold text-purple-600 uppercase tracking-wider">模块 7</span>
                 <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 text-xs">
-                  量化 A/B 闭环 & 一键回退可用
+                  历史样例：A/B 与回退
                 </Badge>
               </div>
               <CardTitle className="text-base font-semibold text-slate-900 mt-1">
                 数据采集与 A/B 策略优化闭环
               </CardTitle>
               <CardDescription className="text-xs text-slate-500">
-                社媒官方 API + 第三方数据服务双轨采集；采用小样本综合绩效加权评分算法（Composite Score），实现 1 组实验晋级与 1 次安全回退实盘生效。
+                历史规划样例：社媒官方 API + 第三方数据服务双轨采集；采用小样本综合绩效加权评分算法（Composite Score），演示实验晋级与安全回退界面。
               </CardDescription>
             </CardHeader>
           </Card>
@@ -418,12 +422,12 @@ export function OverviewView({ onNavigate }: { onNavigate: (tab: string) => void
       {/* Core Rules & Compliance Banner */}
       <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
         <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-          CLAUDE.md 核心架构五大铁律执行合规审计
+          历史规划规则展示（尚非执行合规证据）
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
           <div className="p-2.5 bg-white rounded border border-slate-200">
             <strong className="block text-slate-900 mb-1">1. 底座锁定</strong>
-            <span className="text-slate-500">100% 纯物理真机，彻底杜绝任何虚拟化设备。</span>
+            <span className="text-slate-500">历史规划要求使用纯物理真机；当前真实设备状态仍需外部证据。</span>
           </div>
           <div className="p-2.5 bg-white rounded border border-slate-200">
             <strong className="block text-slate-900 mb-1">2. 平台收敛</strong>

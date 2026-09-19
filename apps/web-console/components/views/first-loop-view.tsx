@@ -92,8 +92,25 @@ export function FirstLoopView() {
   const [strategy, setStrategy] = useState(EMPTY_STRATEGY);
   const [approval, setApproval] = useState(EMPTY_APPROVAL);
   const [observation, setObservation] = useState(EMPTY_OBSERVATION);
+  const [allocationAccountIds, setAllocationAccountIds] = useState<
+    Record<string, string>
+  >({});
   const [feedback, setFeedback] = useState(
     '当前为本地受控工作区；真实数据库、账号和发布接入仍需分别验证。',
+  );
+  const now = new Date().toISOString();
+  const authorizedAccountIds = Array.from(
+    new Set(
+      state.accountServiceRelations
+        .filter(
+          (item) =>
+            !item.revokedAt &&
+            item.validFrom <= now &&
+            (!item.validUntil || item.validUntil > now) &&
+            item.allowedActions.includes('publish'),
+        )
+        .map((item) => item.accountId),
+    ),
   );
 
   const submitProject = (event: React.SyntheticEvent<HTMLFormElement>) => {
@@ -685,25 +702,61 @@ export function FirstLoopView() {
                   个文件版本
                 </p>
                 {!item.assignedAccountId && (
-                  <Button
-                    size="sm"
-                    className="mt-2 h-7 text-xs"
-                    onClick={() => {
-                      const result = allocateContent(
-                        item.id,
-                        'controlled-account-1',
-                        item.allocationVersion,
-                      );
-                      setFeedback(
-                        result.ok
-                          ? '内容已归属 controlled-account-1；尚未批准或发布。'
-                          : `${result.error?.code}: ${result.error?.message}`,
-                      );
-                    }}
-                  >
-                    受控分配
-                  </Button>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <select
+                      aria-label={`为${item.title}选择已授权账号`}
+                      className="h-8 min-w-48 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-900"
+                      value={allocationAccountIds[item.id] ?? ''}
+                      onChange={(event) =>
+                        setAllocationAccountIds((current) => ({
+                          ...current,
+                          [item.id]: event.target.value,
+                        }))
+                      }
+                    >
+                      <option value="">选择当前有效的授权账号</option>
+                      {authorizedAccountIds.map((accountId) => (
+                        <option key={accountId} value={accountId}>
+                          {accountId}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      size="sm"
+                      className="h-8 text-xs"
+                      disabled={!allocationAccountIds[item.id]}
+                      onClick={() => {
+                        const accountId = allocationAccountIds[item.id];
+                        if (!accountId) return;
+                        const result = allocateContent(
+                          item.id,
+                          accountId,
+                          item.allocationVersion,
+                        );
+                        setFeedback(
+                          result.ok
+                            ? `内容已归属 ${accountId}；尚未批准或发布。`
+                            : `${result.error?.code}: ${result.error?.message}`,
+                        );
+                        if (result.ok) {
+                          setAllocationAccountIds((current) => {
+                            const next = { ...current };
+                            delete next[item.id];
+                            return next;
+                          });
+                        }
+                      }}
+                    >
+                      受控分配
+                    </Button>
+                  </div>
                 )}
+                {!item.assignedAccountId &&
+                  authorizedAccountIds.length === 0 && (
+                    <p className="mt-2 text-amber-700">
+                      尚无当前有效且允许发布的账号服务授权，不能分配内容。
+                    </p>
+                  )}
                 {item.assignedAccountId && (
                   <p className="mt-2 font-medium text-amber-700">
                     归属账号：{item.assignedAccountId}

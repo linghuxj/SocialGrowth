@@ -507,6 +507,25 @@ export class FirstLoopEngine {
         context,
       );
     }
+    const now = this.now();
+    const activeAuthorization = this.state.accountServiceRelations.find(
+      (relation) =>
+        relation.accountId === accountId &&
+        !relation.revokedAt &&
+        relation.validFrom <= now &&
+        (!relation.validUntil || relation.validUntil > now) &&
+        relation.allowedActions.includes('publish'),
+    );
+    if (!activeAuthorization) {
+      return this.reject(
+        'CONTENT_ACCOUNT_UNAUTHORIZED',
+        '目标账号没有当前有效的发布服务授权',
+        'content_identity',
+        contentIdentityId,
+        context,
+        { accountId },
+      );
+    }
     identity.allocationStatus = 'assigned_locked';
     identity.assignedAccountId = accountId;
     identity.allocationVersion += 1;
@@ -1786,6 +1805,7 @@ export class FirstLoopEngine {
     entityType: string,
     entityId: string,
     context: CommandContext,
+    facts: AuditLogEntry['facts'] = {},
   ): CommandResult<T> {
     this.appendLog({
       id: this.nextId('log'),
@@ -1797,7 +1817,7 @@ export class FirstLoopEngine {
       entityId,
       result: 'rejected',
       reasonCode: code,
-      facts: { message },
+      facts: { message, ...facts },
       evidenceRefs: normalizeStrings(context.evidenceRefs ?? []),
     });
     return { ok: false, error: { code, message } };

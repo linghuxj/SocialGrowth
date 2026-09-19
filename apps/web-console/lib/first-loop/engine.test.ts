@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { FirstLoopEngine, createEmptyFirstLoopState } from './engine.ts';
-import type { CommandContext, SliceAsset } from './types.ts';
+import type { AuditLogEntry, CommandContext, SliceAsset } from './types.ts';
 
 function harness() {
   let id = 0;
-  const logs: unknown[] = [];
+  const logs: AuditLogEntry[] = [];
   const engine = new FirstLoopEngine(createEmptyFirstLoopState(), {
     now: () => '2026-09-19T10:00:00.000Z',
     nextId: (prefix) => `${prefix}-${++id}`,
@@ -31,6 +31,31 @@ function completeProject(engine: FirstLoopEngine, context: CommandContext) {
   );
   assert.equal(result.ok, true);
   return result.value!;
+}
+
+function authorizeAccounts(
+  engine: FirstLoopEngine,
+  context: CommandContext,
+  ...accountIds: string[]
+) {
+  const project = completeProject(engine, context);
+  for (const accountId of accountIds) {
+    const result = engine.grantAccountServiceRelation(
+      {
+        accountId,
+        projectId: project.id,
+        clientId: project.clientId!,
+        ownerPartyId: 'company-owner',
+        authorizerPartyId: project.clientId!,
+        authorizationRef: `auth://${accountId}`,
+        allowedActions: ['publish'],
+        allowedData: ['public_metrics'],
+        validFrom: '2026-09-01T00:00:00Z',
+      },
+      context,
+    );
+    assert.equal(result.ok, true);
+  }
 }
 
 function asset(
@@ -117,7 +142,10 @@ void test('C-08: account ownership, client service and shared approval are separ
   assert.equal(shared.ok, true);
   assert.equal(shared.value?.ownerPartyId, 'company-owner');
   assert.equal(shared.value?.clientId, 'client-b');
-  const revoked = engine.revokeAccountServiceRelation(shared.value!.id, context);
+  const revoked = engine.revokeAccountServiceRelation(
+    shared.value!.id,
+    context,
+  );
   assert.equal(revoked.ok, true);
   assert.equal(revoked.value?.revokedAt, '2026-09-19T10:00:00.000Z');
   assert.equal(engine.snapshot().accountServiceRelations.length, 2);
@@ -125,6 +153,7 @@ void test('C-08: account ownership, client service and shared approval are separ
 
 void test('C-11/T-02: language variants share one identity and optimistic allocation blocks a competitor', () => {
   const { engine, context } = harness();
+  authorizeAccounts(engine, context, 'fb-account-1', 'yt-account-2');
   const first = engine.admitContent(
     {
       title: '第1集冲突',
@@ -177,6 +206,7 @@ void test('C-11/T-02: language variants share one identity and optimistic alloca
 
 void test('T-03: published history blocks the original account and every other account', () => {
   const { engine, context } = harness();
+  authorizeAccounts(engine, context, 'fb-account-1');
   const admitted = engine.admitContent(
     {
       title: '已发内容',
@@ -215,6 +245,7 @@ void test('T-03: published history blocks the original account and every other a
 
 void test('T-04/T-05/T-07: release only succeeds for resolved non-submission with old authority invalidated', () => {
   const { engine, context } = harness();
+  authorizeAccounts(engine, context, 'fb-account-1', 'fb-account-2');
   const unknown = engine.admitContent(
     {
       title: '未知结果',
@@ -285,6 +316,31 @@ void test('T-04/T-05/T-07: release only succeeds for resolved non-submission wit
   assert.equal(released.ok, true);
   assert.equal(released.value?.allocationStatus, 'unallocated');
   assert.equal(released.value?.assignedAccountId, undefined);
+});
+
+void test('content allocation rejects an account without an active publish authorization', () => {
+  const { engine, context, logs } = harness();
+  const admitted = engine.admitContent(
+    {
+      title: '未授权账号测试',
+      sourceRef: 'source://unauthorized-allocation',
+      storySummary: '校验账号服务授权',
+      asset: asset({ sha256: 'f'.repeat(64) }),
+    },
+    context,
+  ).value!;
+
+  const rejected = engine.allocateContent(
+    admitted.identity.id,
+    'account-without-authorization',
+    0,
+    context,
+  );
+
+  assert.equal(rejected.error?.code, 'CONTENT_ACCOUNT_UNAUTHORIZED');
+  assert.equal(admitted.identity.allocationStatus, 'unallocated');
+  assert.equal(logs.at(-1)?.reasonCode, 'CONTENT_ACCOUNT_UNAUTHORIZED');
+  assert.equal(logs.at(-1)?.facts.accountId, 'account-without-authorization');
 });
 
 void test('content admission rejects unresolved overlap and malformed checksums', () => {
