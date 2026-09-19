@@ -47,6 +47,13 @@ const EMPTY_DESTINATION = {
   url: '',
   maintenancePermissionRef: '',
 };
+const EMPTY_STRATEGY = {
+  projectId: '',
+  statement: '',
+  sourceRef: '',
+  rationale: '',
+};
+const EMPTY_APPROVAL = { quantity: '', validUntil: '' };
 
 export function FirstLoopView() {
   const {
@@ -55,6 +62,9 @@ export function FirstLoopView() {
     activateProject,
     grantAccountServiceRelation,
     createDestination,
+    addStrategyRule,
+    generateStrategyDraft,
+    approveStrategy,
     addContent,
     allocateContent,
     projectGaps,
@@ -63,6 +73,8 @@ export function FirstLoopView() {
   const [relation, setRelation] = useState(EMPTY_RELATION);
   const [content, setContent] = useState(EMPTY_CONTENT);
   const [destination, setDestination] = useState(EMPTY_DESTINATION);
+  const [strategy, setStrategy] = useState(EMPTY_STRATEGY);
+  const [approval, setApproval] = useState(EMPTY_APPROVAL);
   const [feedback, setFeedback] = useState(
     '当前为本地受控工作区；真实数据库、账号和发布接入仍需分别验证。',
   );
@@ -123,6 +135,29 @@ export function FirstLoopView() {
         : `${result.error?.code}: ${result.error?.message}`,
     );
     if (result.ok) setDestination(EMPTY_DESTINATION);
+  };
+
+  const submitStrategy = (event: React.SyntheticEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const rule = addStrategyRule({
+      projectId: strategy.projectId,
+      category: 'internal_rule',
+      statement: strategy.statement,
+      sourceRef: strategy.sourceRef,
+    });
+    if (!rule.ok)
+      return setFeedback(`${rule.error?.code}: ${rule.error?.message}`);
+    const draft = generateStrategyDraft({
+      projectId: strategy.projectId,
+      outputMode: 'controlled',
+      rationale: strategy.rationale,
+      assumptions: ['受控规则生成，尚未调用真实 AI Provider'],
+    });
+    setFeedback(
+      draft.ok
+        ? `策略草案 ${draft.value!.id} 已生成；必须明确数量、有效期、停止及观察条件后才能批准。`
+        : `${draft.error?.code}: ${draft.error?.message}`,
+    );
   };
 
   return (
@@ -544,6 +579,107 @@ export function FirstLoopView() {
               </div>
             );
           })}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">规则、受控草案与明确批准</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <form
+            className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+            onSubmit={submitStrategy}
+          >
+            <Input
+              required
+              placeholder="项目 ID"
+              value={strategy.projectId}
+              onChange={(e) =>
+                setStrategy({ ...strategy, projectId: e.target.value })
+              }
+            />
+            <Input
+              required
+              placeholder="规则陈述"
+              value={strategy.statement}
+              onChange={(e) =>
+                setStrategy({ ...strategy, statement: e.target.value })
+              }
+            />
+            <Input
+              required
+              placeholder="规则来源引用"
+              value={strategy.sourceRef}
+              onChange={(e) =>
+                setStrategy({ ...strategy, sourceRef: e.target.value })
+              }
+            />
+            <Input
+              required
+              placeholder="草案依据说明"
+              value={strategy.rationale}
+              onChange={(e) =>
+                setStrategy({ ...strategy, rationale: e.target.value })
+              }
+            />
+            <Button type="submit">生成受控草案</Button>
+          </form>
+          {state.strategyDrafts.map((draft) => (
+            <div
+              key={draft.id}
+              className="rounded border border-slate-200 p-3 text-xs"
+            >
+              <strong>
+                {draft.id} · v{draft.version} · {draft.outputMode}
+              </strong>
+              <p className="mt-1 text-slate-500">{draft.rationale}</p>
+              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Input
+                  type="number"
+                  min="1"
+                  placeholder="本批批准数量"
+                  value={approval.quantity}
+                  onChange={(e) =>
+                    setApproval({ ...approval, quantity: e.target.value })
+                  }
+                />
+                <Input
+                  type="datetime-local"
+                  aria-label="批准有效期"
+                  value={approval.validUntil}
+                  onChange={(e) =>
+                    setApproval({ ...approval, validUntil: e.target.value })
+                  }
+                />
+              </div>
+              <Button
+                size="sm"
+                className="mt-2 h-7 text-xs"
+                onClick={() => {
+                  const validFrom = new Date().toISOString();
+                  const result = approveStrategy({
+                    strategyDraftId: draft.id,
+                    expectedStrategyVersion: draft.version,
+                    quantity: Number(approval.quantity),
+                    validFrom,
+                    validUntil: approval.validUntil
+                      ? new Date(approval.validUntil).toISOString()
+                      : '',
+                    stopConditions: ['结果未知或身份冲突时停止'],
+                    observationConditions: ['保留公开证据及观察来源'],
+                  });
+                  setFeedback(
+                    result.ok
+                      ? `批准 ${result.value!.id} 已记录；数量和有效期来自本次明确输入。`
+                      : `${result.error?.code}: ${result.error?.message}`,
+                  );
+                }}
+              >
+                批准单条受控试验
+              </Button>
+            </div>
+          ))}
         </CardContent>
       </Card>
 

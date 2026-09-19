@@ -11,9 +11,13 @@ import type {
   FirstLoopState,
   Project,
   ProjectGap,
+  PublicationSchedule,
   PublicationAttempt,
   PublishStatus,
   SliceAsset,
+  StrategyDraft,
+  StrategyRule,
+  ExecutionApproval,
 } from './types.ts';
 
 export interface EngineDependencies {
@@ -31,6 +35,10 @@ const EMPTY_STATE: FirstLoopState = {
   destinationEntries: [],
   destinationVersions: [],
   destinationEvents: [],
+  strategyRules: [],
+  strategyDrafts: [],
+  executionApprovals: [],
+  publicationSchedules: [],
   auditLogs: [],
 };
 
@@ -159,6 +167,12 @@ export class FirstLoopEngine {
           item.id === project.id ? project : item,
         )
       : [...this.state.projects, project];
+    if (existing?.primaryGoal && existing.primaryGoal !== project.primaryGoal) {
+      this.invalidateProjectAuthority(
+        project.id,
+        'PROJECT_PRIMARY_GOAL_CHANGED',
+      );
+    }
     const gaps = this.listProjectGaps(project.id);
     this.accept('project.saved', 'project', project.id, context, {
       gapCount: gaps.length,
@@ -948,6 +962,382 @@ export class FirstLoopEngine {
       },
     );
     return { ok: true, value: structuredClone(entry) };
+  }
+
+  addStrategyRule(
+    input: Omit<StrategyRule, 'id' | 'version' | 'status' | 'createdAt'>,
+    context: CommandContext,
+  ): CommandResult<StrategyRule> {
+    if (!this.state.projects.some((item) => item.id === input.projectId)) {
+      return this.reject(
+        'PROJECT_NOT_FOUND',
+        '项目不存在',
+        'strategy_rule',
+        'new',
+        context,
+      );
+    }
+    if (!input.statement.trim() || !input.sourceRef.trim()) {
+      return this.reject(
+        'RULE_EVIDENCE_REQUIRED',
+        '规则陈述和来源引用不能为空',
+        'strategy_rule',
+        'new',
+        context,
+      );
+    }
+    const existing = this.state.strategyRules.filter(
+      (item) =>
+        item.projectId === input.projectId && item.category === input.category,
+    );
+    for (const item of existing) item.status = 'superseded';
+    const rule: StrategyRule = {
+      ...input,
+      id: this.nextId('rule'),
+      version: Math.max(0, ...existing.map((item) => item.version)) + 1,
+      statement: input.statement.trim(),
+      sourceRef: input.sourceRef.trim(),
+      status: 'active',
+      createdAt: this.now(),
+    };
+    this.state.strategyRules.push(rule);
+    this.accept(
+      'strategy.rule_versioned',
+      'strategy_rule',
+      rule.id,
+      context,
+      {
+        projectId: rule.projectId,
+        category: rule.category,
+        version: rule.version,
+      },
+      [rule.sourceRef],
+    );
+    return { ok: true, value: structuredClone(rule) };
+  }
+
+  generateStrategyDraft(
+    input: {
+      projectId: string;
+      outputMode: StrategyDraft['outputMode'];
+      rationale: string;
+      assumptions: string[];
+    },
+    context: CommandContext,
+  ): CommandResult<StrategyDraft> {
+    const project = this.state.projects.find(
+      (item) => item.id === input.projectId,
+    );
+    if (!project || project.status !== 'active') {
+      return this.reject(
+        'STRATEGY_PROJECT_NOT_ACTIVE',
+        '项目不存在或尚未激活',
+        'strategy_draft',
+        'new',
+        context,
+      );
+    }
+    const rules = this.state.strategyRules.filter(
+      (item) => item.projectId === input.projectId && item.status === 'active',
+    );
+    if (rules.length === 0)
+      return this.reject(
+        'STRATEGY_RULES_MISSING',
+        '缺少有来源的当前规则',
+        'strategy_draft',
+        'new',
+        context,
+      );
+    const relations = this.state.accountServiceRelations.filter(
+      (item) => item.projectId === input.projectId && !item.revokedAt,
+    );
+    const identity = this.state.contentIdentities.find(
+      (item) =>
+        item.allocationStatus === 'assigned_locked' &&
+        relations.some(
+          (relation) => relation.accountId === item.assignedAccountId,
+        ) &&
+        this.state.sliceAssets.some(
+          (asset) =>
+            asset.contentIdentityId === item.id &&
+            asset.destinationFit === 'eligible',
+        ),
+    );
+    if (!identity?.assignedAccountId)
+      return this.reject(
+        'STRATEGY_ELIGIBLE_CONTENT_MISSING',
+        '没有归属到已授权账号的合格内容',
+        'strategy_draft',
+        'new',
+        context,
+      );
+    const destination = this.state.destinationEntries.find(
+      (item) =>
+        item.projectId === input.projectId &&
+        item.accountId === identity.assignedAccountId,
+    );
+    const destinationVersion = destination
+      ? this.state.destinationVersions.find(
+          (item) =>
+            item.id === destination.activeVersionId &&
+            item.isActive &&
+            item.health === 'available',
+        )
+      : undefined;
+    if (!destinationVersion)
+      return this.reject(
+        'STRATEGY_DESTINATION_MISSING',
+        '没有可用的当前入口版本',
+        'strategy_draft',
+        'new',
+        context,
+      );
+    if (!input.rationale.trim())
+      return this.reject(
+        'STRATEGY_RATIONALE_REQUIRED',
+        '策略草案必须说明依据',
+        'strategy_draft',
+        'new',
+        context,
+      );
+    const draft: StrategyDraft = {
+      id: this.nextId('strategy'),
+      projectId: input.projectId,
+      version:
+        Math.max(
+          0,
+          ...this.state.strategyDrafts
+            .filter((item) => item.projectId === input.projectId)
+            .map((item) => item.version),
+        ) + 1,
+      ruleIds: rules.map((item) => item.id),
+      contentIdentityId: identity.id,
+      accountId: identity.assignedAccountId,
+      destinationVersionId: destinationVersion.id,
+      rationale: input.rationale.trim(),
+      assumptions: normalizeStrings(input.assumptions),
+      evidenceRefs: rules.map((item) => item.sourceRef),
+      outputMode: input.outputMode,
+      createdAt: this.now(),
+    };
+    this.state.strategyDrafts.push(draft);
+    this.accept(
+      'strategy.draft_generated',
+      'strategy_draft',
+      draft.id,
+      context,
+      {
+        version: draft.version,
+        outputMode: draft.outputMode,
+        contentIdentityId: draft.contentIdentityId,
+      },
+      draft.evidenceRefs,
+    );
+    return { ok: true, value: structuredClone(draft) };
+  }
+
+  approveStrategy(
+    input: {
+      strategyDraftId: string;
+      expectedStrategyVersion: number;
+      quantity: number;
+      costLimit?: number;
+      validFrom: string;
+      validUntil: string;
+      stopConditions: string[];
+      observationConditions: string[];
+    },
+    context: CommandContext,
+  ): CommandResult<ExecutionApproval> {
+    const draft = this.state.strategyDrafts.find(
+      (item) => item.id === input.strategyDraftId,
+    );
+    if (!draft)
+      return this.reject(
+        'STRATEGY_DRAFT_NOT_FOUND',
+        '策略草案不存在',
+        'execution_approval',
+        'new',
+        context,
+      );
+    if (draft.version !== input.expectedStrategyVersion)
+      return this.reject(
+        'STRATEGY_VERSION_CONFLICT',
+        '策略版本已变化',
+        'execution_approval',
+        'new',
+        context,
+      );
+    if (
+      !Number.isInteger(input.quantity) ||
+      input.quantity <= 0 ||
+      input.validFrom >= input.validUntil ||
+      input.stopConditions.length === 0 ||
+      input.observationConditions.length === 0
+    ) {
+      return this.reject(
+        'APPROVAL_SCOPE_INCOMPLETE',
+        '批准必须明确数量、有效期、停止和观察条件',
+        'execution_approval',
+        'new',
+        context,
+      );
+    }
+    const identity = this.state.contentIdentities.find(
+      (item) => item.id === draft.contentIdentityId,
+    );
+    const relation = this.state.accountServiceRelations.find(
+      (item) =>
+        item.projectId === draft.projectId &&
+        item.accountId === draft.accountId &&
+        !item.revokedAt,
+    );
+    const destination = this.state.destinationVersions.find(
+      (item) =>
+        item.id === draft.destinationVersionId &&
+        item.isActive &&
+        item.health === 'available',
+    );
+    if (
+      !identity ||
+      identity.assignedAccountId !== draft.accountId ||
+      identity.firstPublishedAt ||
+      !relation ||
+      !destination
+    ) {
+      return this.reject(
+        'APPROVAL_QUALIFICATION_CHANGED',
+        '内容归属、授权或入口资格已变化',
+        'execution_approval',
+        'new',
+        context,
+      );
+    }
+    const approval: ExecutionApproval = {
+      id: this.nextId('approval'),
+      projectId: draft.projectId,
+      strategyDraftId: draft.id,
+      strategyVersion: draft.version,
+      contentIdentityId: draft.contentIdentityId,
+      accountId: draft.accountId,
+      destinationVersionId: draft.destinationVersionId,
+      quantity: input.quantity,
+      costLimit: input.costLimit,
+      validFrom: input.validFrom,
+      validUntil: input.validUntil,
+      stopConditions: normalizeStrings(input.stopConditions),
+      observationConditions: normalizeStrings(input.observationConditions),
+      status: 'active',
+      approvedBy: context.actorId,
+      createdAt: this.now(),
+    };
+    this.state.executionApprovals.push(approval);
+    this.accept(
+      'strategy.approved',
+      'execution_approval',
+      approval.id,
+      context,
+      {
+        strategyVersion: approval.strategyVersion,
+        quantity: approval.quantity,
+        costLimit: approval.costLimit ?? null,
+      },
+    );
+    return { ok: true, value: structuredClone(approval) };
+  }
+
+  approveStrategyBatch(
+    requests: Parameters<FirstLoopEngine['approveStrategy']>[0][],
+    context: CommandContext,
+  ): CommandResult<ExecutionApproval>[] {
+    return requests.map((request) => this.approveStrategy(request, context));
+  }
+
+  scheduleApproval(
+    input: Omit<PublicationSchedule, 'id' | 'status' | 'createdAt'>,
+    context: CommandContext,
+  ): CommandResult<PublicationSchedule> {
+    const approval = this.state.executionApprovals.find(
+      (item) => item.id === input.approvalId && item.status === 'active',
+    );
+    if (!approval)
+      return this.reject(
+        'APPROVAL_NOT_ACTIVE',
+        '批准不存在或已经失效',
+        'publication_schedule',
+        'new',
+        context,
+      );
+    if (
+      !input.businessTimezone.trim() ||
+      input.scheduledFor >= input.expiresAt ||
+      input.expiresAt > approval.validUntil
+    ) {
+      return this.reject(
+        'SCHEDULE_WINDOW_INVALID',
+        '排期必须包含业务时区且位于批准有效期内',
+        'publication_schedule',
+        'new',
+        context,
+      );
+    }
+    const schedule: PublicationSchedule = {
+      ...input,
+      id: this.nextId('schedule'),
+      status: 'scheduled',
+      createdAt: this.now(),
+    };
+    this.state.publicationSchedules.push(schedule);
+    this.accept(
+      'schedule.created',
+      'publication_schedule',
+      schedule.id,
+      context,
+      {
+        approvalId: schedule.approvalId,
+        businessTimezone: schedule.businessTimezone,
+        expiresAt: schedule.expiresAt,
+      },
+    );
+    return { ok: true, value: structuredClone(schedule) };
+  }
+
+  expireSchedules(
+    asOf: string,
+    context: CommandContext,
+  ): PublicationSchedule[] {
+    const expired = this.state.publicationSchedules.filter(
+      (item) => item.status === 'scheduled' && item.expiresAt <= asOf,
+    );
+    for (const schedule of expired) {
+      schedule.status = 'expired';
+      this.accept(
+        'schedule.expired_without_backfill',
+        'publication_schedule',
+        schedule.id,
+        context,
+        { asOf },
+      );
+    }
+    return structuredClone(expired);
+  }
+
+  private invalidateProjectAuthority(projectId: string, reason: string): void {
+    const approvalIds = new Set<string>();
+    for (const approval of this.state.executionApprovals) {
+      if (approval.projectId === projectId && approval.status === 'active') {
+        approval.status = 'invalidated';
+        approval.invalidationReason = reason;
+        approvalIds.add(approval.id);
+      }
+    }
+    for (const schedule of this.state.publicationSchedules) {
+      if (
+        approvalIds.has(schedule.approvalId) &&
+        schedule.status === 'scheduled'
+      )
+        schedule.status = 'cancelled';
+    }
   }
 
   private accept(

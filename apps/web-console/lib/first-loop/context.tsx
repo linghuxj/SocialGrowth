@@ -19,9 +19,12 @@ import type {
   ContentIdentity,
   DestinationEntry,
   DestinationVersion,
+  ExecutionApproval,
   FirstLoopState,
   Project,
   SliceAsset,
+  StrategyDraft,
+  StrategyRule,
 } from './types';
 
 interface FirstLoopContextValue {
@@ -45,6 +48,18 @@ interface FirstLoopContextValue {
     sharedAttribution: boolean;
     exitPolicy: DestinationEntry['exitPolicy'];
   }) => CommandResult<{ entry: DestinationEntry; version: DestinationVersion }>;
+  addStrategyRule: (
+    input: Omit<StrategyRule, 'id' | 'version' | 'status' | 'createdAt'>,
+  ) => CommandResult<StrategyRule>;
+  generateStrategyDraft: (input: {
+    projectId: string;
+    outputMode: StrategyDraft['outputMode'];
+    rationale: string;
+    assumptions: string[];
+  }) => CommandResult<StrategyDraft>;
+  approveStrategy: (
+    input: Parameters<FirstLoopEngine['approveStrategy']>[0],
+  ) => CommandResult<ExecutionApproval>;
   addContent: (input: {
     identityId?: string;
     title: string;
@@ -110,6 +125,14 @@ export function FirstLoopProvider({ children }: { children: React.ReactNode }) {
         ),
       createDestination: (input) =>
         execute(() => engine.createDestination(input, createCommandContext())),
+      addStrategyRule: (input) =>
+        execute(() => engine.addStrategyRule(input, createCommandContext())),
+      generateStrategyDraft: (input) =>
+        execute(() =>
+          engine.generateStrategyDraft(input, createCommandContext()),
+        ),
+      approveStrategy: (input) =>
+        execute(() => engine.approveStrategy(input, createCommandContext())),
       addContent: (input) =>
         execute(() =>
           engine.admitContent(

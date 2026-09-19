@@ -20,6 +20,10 @@ function hasStateShape(value: unknown): value is FirstLoopState {
     'destinationEntries',
     'destinationVersions',
     'destinationEvents',
+    'strategyRules',
+    'strategyDrafts',
+    'executionApprovals',
+    'publicationSchedules',
     'auditLogs',
   ].every((key) => Array.isArray(state[key]));
 }

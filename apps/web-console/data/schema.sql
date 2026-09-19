@@ -311,3 +311,59 @@ CREATE TABLE IF NOT EXISTS destination_events (
     reason_code VARCHAR(64) NOT NULL,
     correlation_id VARCHAR(64) NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS strategy_rules (
+    strategy_rule_id VARCHAR(64) PRIMARY KEY,
+    project_id VARCHAR(64) NOT NULL REFERENCES projects(project_id),
+    version INTEGER NOT NULL,
+    category VARCHAR(32) NOT NULL,
+    statement TEXT NOT NULL,
+    source_ref TEXT NOT NULL,
+    status VARCHAR(16) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS strategy_drafts (
+    strategy_draft_id VARCHAR(64) PRIMARY KEY,
+    project_id VARCHAR(64) NOT NULL REFERENCES projects(project_id),
+    version INTEGER NOT NULL,
+    rule_ids JSONB NOT NULL,
+    content_identity_id VARCHAR(64) NOT NULL REFERENCES content_identities(content_identity_id),
+    account_id VARCHAR(64) NOT NULL,
+    destination_version_id VARCHAR(64) NOT NULL REFERENCES destination_versions(destination_version_id),
+    rationale TEXT NOT NULL,
+    assumptions JSONB NOT NULL,
+    evidence_refs JSONB NOT NULL,
+    output_mode VARCHAR(16) NOT NULL CHECK (output_mode IN ('controlled', 'provider')),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS execution_approvals (
+    approval_id VARCHAR(64) PRIMARY KEY,
+    project_id VARCHAR(64) NOT NULL REFERENCES projects(project_id),
+    strategy_draft_id VARCHAR(64) NOT NULL REFERENCES strategy_drafts(strategy_draft_id),
+    strategy_version INTEGER NOT NULL,
+    content_identity_id VARCHAR(64) NOT NULL REFERENCES content_identities(content_identity_id),
+    account_id VARCHAR(64) NOT NULL,
+    destination_version_id VARCHAR(64) NOT NULL REFERENCES destination_versions(destination_version_id),
+    quantity INTEGER NOT NULL CHECK (quantity > 0),
+    cost_limit NUMERIC,
+    valid_from TIMESTAMP WITH TIME ZONE NOT NULL,
+    valid_until TIMESTAMP WITH TIME ZONE NOT NULL,
+    stop_conditions JSONB NOT NULL,
+    observation_conditions JSONB NOT NULL,
+    status VARCHAR(16) NOT NULL,
+    invalidation_reason TEXT,
+    approved_by VARCHAR(64) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS publication_schedules (
+    schedule_id VARCHAR(64) PRIMARY KEY,
+    approval_id VARCHAR(64) NOT NULL REFERENCES execution_approvals(approval_id),
+    business_timezone VARCHAR(64) NOT NULL,
+    scheduled_for TIMESTAMP WITH TIME ZONE NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    status VARCHAR(16) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL
+);

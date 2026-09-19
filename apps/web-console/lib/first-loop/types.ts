@@ -131,6 +131,62 @@ export interface DestinationEvent {
   correlationId: string;
 }
 
+export interface StrategyRule {
+  id: string;
+  projectId: string;
+  version: number;
+  category: 'external_constraint' | 'internal_rule' | 'unverified_hypothesis';
+  statement: string;
+  sourceRef: string;
+  status: 'active' | 'superseded';
+  createdAt: string;
+}
+
+export interface StrategyDraft {
+  id: string;
+  projectId: string;
+  version: number;
+  ruleIds: string[];
+  contentIdentityId: string;
+  accountId: string;
+  destinationVersionId: string;
+  rationale: string;
+  assumptions: string[];
+  evidenceRefs: string[];
+  outputMode: 'controlled' | 'provider';
+  createdAt: string;
+}
+
+export interface ExecutionApproval {
+  id: string;
+  projectId: string;
+  strategyDraftId: string;
+  strategyVersion: number;
+  contentIdentityId: string;
+  accountId: string;
+  destinationVersionId: string;
+  quantity: number;
+  costLimit?: number;
+  validFrom: string;
+  validUntil: string;
+  stopConditions: string[];
+  observationConditions: string[];
+  status: 'active' | 'invalidated' | 'expired';
+  invalidationReason?: string;
+  approvedBy: string;
+  createdAt: string;
+}
+
+export interface PublicationSchedule {
+  id: string;
+  approvalId: string;
+  businessTimezone: string;
+  scheduledFor: string;
+  expiresAt: string;
+  status: 'scheduled' | 'cancelled' | 'expired' | 'started';
+  createdAt: string;
+}
+
 export interface AuditLogEntry {
   id: string;
   timestamp: string;
@@ -154,6 +210,10 @@ export interface FirstLoopState {
   destinationEntries: DestinationEntry[];
   destinationVersions: DestinationVersion[];
   destinationEvents: DestinationEvent[];
+  strategyRules: StrategyRule[];
+  strategyDrafts: StrategyDraft[];
+  executionApprovals: ExecutionApproval[];
+  publicationSchedules: PublicationSchedule[];
   auditLogs: AuditLogEntry[];
 }
 
