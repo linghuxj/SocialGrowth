@@ -1,8 +1,10 @@
 # Web 运营可用性审计：从受控验证转向实际业务工作台
 
-日期：2026-09-20。核查版本：`9951400`。状态：**已完成首轮整改与 Chrome 复验；部分生产接入项继续待办。**
+日期：2026-09-20。原核查版本：`9951400`。本报告保留历史发现；**当前状态以[整体重构台账](2026-09-20-operations-refactor.md)为准，不沿用下方早期的笼统完成标注。**
 
-## 2026-09-20 整改标注
+## 2026-09-20 早期整改标注（已被后续复核覆盖）
+
+后续菜单复核发现全局项目筛选误导、表单负担、缺少对象档案、无稳定 URL 及错误跨页面展示，因此下面“本地 Web 问题已修复”的表述不能作为整站验收结论。已重新建立逐项证据矩阵。旧导航及项目切换建议不再作为当前实现要求。
 
 本轮已将运行时收敛至首批闭环状态，删除旧静态数据库、旧成果总览及账号矩阵、素材、策略、短链、风控、Artemis、实验、数据库和研究演示视图。新导航按运营任务组织，并补入当前项目、账号选择、显式授权有效期、逐草案批准条件、排期、数据可用性、复盘完整性和审计时间线。页面持续标示本地受控数据及外部执行器未配置，不再提供可伪造设备或发布成功的操作。
 
@@ -95,8 +97,8 @@
 ## 源码复核定位
 
 - [统一工作台、项目上下文与任务导航](../../apps/web-console/app/page.tsx)。
-- [新闭环存储与动作](../../apps/web-console/lib/first-loop/context.tsx)、[localStorage](../../apps/web-console/lib/first-loop/storage.ts)。
-- [运营任务表单与状态呈现](../../apps/web-console/components/views/first-loop-view.tsx)。
+- [统一运营状态与动作](../../apps/web-console/lib/operations-context.tsx)、[本地存储](../../apps/web-console/lib/first-loop/storage.ts)。
+- [运营导航](../../apps/web-console/components/operations/console.tsx)及同目录业务页面。原 `first-loop-view.tsx` 已删除，可从历史提交查询。
 - [复盘输入完整性及后续动作](../../apps/web-console/lib/first-loop/engine.ts)：1450～1560 行附近。
 - 旧演示视图与 `lib/db` 已在本轮删除；原始行为证据保留在本报告截图目录及 Git 历史中。
 - 现行依据：[关键表单规格](../engineering/console-form-spec.md)、[首批规格](../specs/2026-09-19-first-loop.md)、[已确认业务决定](2026-09-19-business-flow-proposal.md)、[短链边界](../../services/shortlink-service/README.md)。

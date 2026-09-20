@@ -49,4 +49,4 @@
 - [T/F 验证](../../engineering/offline-verification.md)
 - [界面行为](../../engineering/console-form-spec.md)
 - [实现差距](../../handoff/2026-09-19-readiness-remediation.md)
-- [当前闭环交互](../../../apps/web-console/lib/first-loop/context.tsx)；旧演示交互已移除，保留于 Git 历史
+- [当前闭环交互](../../../apps/web-console/lib/operations-context.tsx)；旧演示交互已移除，保留于 Git 历史；现行验收边界见[整体重构台账](../../handoff/2026-09-20-operations-refactor.md)
