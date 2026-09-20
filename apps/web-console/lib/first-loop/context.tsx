@@ -4,6 +4,7 @@ import React, {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
 } from 'react';
@@ -102,18 +103,9 @@ interface FirstLoopContextValue {
 
 const FirstLoopContext = createContext<FirstLoopContextValue | null>(null);
 
-function loadInitialState(): FirstLoopState {
-  if (typeof window === 'undefined') return createEmptyFirstLoopState();
-  return loadFirstLoopState(window.localStorage);
-}
-
 export function FirstLoopProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<FirstLoopState>(loadInitialState);
-  const [activeProjectId, setActiveProjectId] = useState(
-    () =>
-      loadInitialState().projects.find((item) => item.status !== 'exited')
-        ?.id ?? '',
-  );
+  const [state, setState] = useState<FirstLoopState>(createEmptyFirstLoopState);
+  const [activeProjectId, setActiveProjectId] = useState('');
   const [engine] = useState(
     () =>
       new FirstLoopEngine(state, {
@@ -121,6 +113,15 @@ export function FirstLoopProvider({ children }: { children: React.ReactNode }) {
           console.info('[first-loop-audit]', JSON.stringify(entry)),
       }),
   );
+
+  useEffect(() => {
+    const persisted = loadFirstLoopState(window.localStorage);
+    engine.replaceState(persisted);
+    setState(persisted);
+    setActiveProjectId(
+      persisted.projects.find((item) => item.status !== 'exited')?.id ?? '',
+    );
+  }, [engine]);
 
   const sync = useCallback(() => {
     const snapshot = engine.snapshot();
