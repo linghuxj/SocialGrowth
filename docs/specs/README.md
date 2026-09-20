@@ -9,6 +9,7 @@
 - [FL-04 执行与异常核对](first-loop/FL-04-execution.md)
 - [FL-05 观察与基础复盘](first-loop/FL-05-observation-review.md)
 - [FL-06 首批集成与变更退出验收](first-loop/FL-06-integration.md)
+- [2026-09-20 核心业务流程与功能模块端到端验收报告](../acceptance/2026-09-20-core-process-acceptance.md)：验证正常自动完成、登录异常恢复、账号变化不误发、提交未知不重发。
 
 ## 任务跟踪约定
 
