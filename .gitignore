@@ -26,4 +26,4 @@ yarn-error.log*
 
 # Local Artemis extension/test cache and private login acceptance screenshots
 integrations/artemis/__pycache__/
-artifacts/acceptance/human-login/
+artifacts/acceptance/

@@ -20,6 +20,10 @@
     "runtime:agent": "node --env-file=.env.agent --import tsx services/execution-runtime/src/agent-cli.ts",
     "runtime:worker": "node --env-file=.env.agent --import tsx services/execution-runtime/src/worker-cli.ts",
     "runtime:check-artemis": "node --env-file=.env.agent --import tsx services/execution-runtime/src/check-artemis.ts",
-    "runtime:check-apps": "node --env-file=.env.agent --import tsx services/execution-runtime/src/check-apps.ts"
+    "runtime:check-apps": "node --env-file=.env.agent --import tsx services/execution-runtime/src/check-apps.ts",
+    "test:web-e2e": "tsx scripts/verify-web-e2e.mts"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0"
   }
 }
