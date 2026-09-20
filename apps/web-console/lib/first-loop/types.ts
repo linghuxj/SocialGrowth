@@ -21,6 +21,31 @@ export interface Project {
   updatedAt: string;
 }
 
+export interface ClientRecord {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
+export interface AccountRecord {
+  id: string;
+  name: string;
+  platform: 'facebook' | 'youtube';
+  owner: string;
+  positioning: string;
+  deviceRef?: string;
+  createdAt: string;
+}
+
+export interface ObservationPlan {
+  metricKey: string;
+  unit: string;
+  source: string;
+  scope: string;
+  windowStart: string;
+  windowEnd: string;
+}
+
 export interface ProjectGap {
   field: 'clientId' | 'primaryGoal' | 'audience' | 'ownerId';
   message: string;
@@ -166,6 +191,7 @@ export interface ExecutionApproval {
   accountId: string;
   destinationVersionId: string;
   quantity: number;
+  observationPlan?: ObservationPlan;
   costLimit?: number;
   validFrom: string;
   validUntil: string;
@@ -250,6 +276,8 @@ export interface AuditLogEntry {
 }
 
 export interface FirstLoopState {
+  clients: ClientRecord[];
+  accounts: AccountRecord[];
   projects: Project[];
   accountServiceRelations: AccountServiceRelation[];
   contentIdentities: ContentIdentity[];

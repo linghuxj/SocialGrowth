@@ -1,7 +1,7 @@
 import { createEmptyFirstLoopState } from './engine.ts';
 import type { FirstLoopState } from './types.ts';
 
-export const FIRST_LOOP_STORAGE_KEY = 'socialgrowth:first-loop:design-v1';
+export const FIRST_LOOP_STORAGE_KEY = 'socialgrowth:operations:v2';
 
 export interface StateStorage {
   getItem(key: string): string | null;
@@ -12,6 +12,8 @@ function hasStateShape(value: unknown): value is FirstLoopState {
   if (!value || typeof value !== 'object') return false;
   const state = value as Record<string, unknown>;
   return [
+    'clients',
+    'accounts',
     'projects',
     'accountServiceRelations',
     'contentIdentities',

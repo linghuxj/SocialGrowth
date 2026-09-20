@@ -1,5 +1,8 @@
 import type {
   AccountServiceRelation,
+  AccountRecord,
+  ClientRecord,
+  ObservationPlan,
   AuditLogEntry,
   BasicReview,
   CommandContext,
@@ -29,6 +32,8 @@ export interface EngineDependencies {
 }
 
 const EMPTY_STATE: FirstLoopState = {
+  clients: [],
+  accounts: [],
   projects: [],
   accountServiceRelations: [],
   contentIdentities: [],
@@ -92,6 +97,42 @@ export class FirstLoopEngine {
 
   replaceState(nextState: FirstLoopState): void {
     this.state = cloneState(nextState);
+  }
+
+  registerClient(name: string, context: CommandContext): CommandResult<ClientRecord> {
+    if (!name.trim() || this.state.clients.some((item) => item.name === name.trim()))
+      return this.reject('CLIENT_NAME_INVALID', '客户名称不能为空或与已有客户重复', 'client', 'new', context);
+    const record = { id: this.nextId('client'), name: name.trim(), createdAt: this.now() };
+    this.state.clients.push(record);
+    this.accept('client.created', 'client', record.id, context, { name: record.name });
+    return { ok: true, value: structuredClone(record) };
+  }
+
+  registerAccount(input: Omit<AccountRecord, 'id' | 'createdAt'>, context: CommandContext): CommandResult<AccountRecord> {
+    if (!input.name.trim() || !input.owner.trim() || !['facebook', 'youtube'].includes(input.platform))
+      return this.reject('ACCOUNT_DETAILS_REQUIRED', '请填写账号名称、平台和所有方', 'account', 'new', context);
+    if (this.state.accounts.some((item) => item.platform === input.platform &&
+      (item.name === input.name.trim() || (input.deviceRef && item.deviceRef === input.deviceRef))))
+      return this.reject('ACCOUNT_BINDING_CONFLICT', '同平台账号名称重复，或设备已绑定其他同平台账号', 'account', 'new', context);
+    const record = { ...input, name: input.name.trim(), owner: input.owner.trim(), id: this.nextId('account'), createdAt: this.now() };
+    this.state.accounts.push(record);
+    this.accept('account.created', 'account', record.id, context, { name: record.name, platform: record.platform, deviceRef: record.deviceRef ?? null });
+    return { ok: true, value: structuredClone(record) };
+  }
+
+  cancelSchedule(scheduleId: string, reason: string, context: CommandContext): CommandResult<PublicationSchedule> {
+    const schedule = this.state.publicationSchedules.find((item) => item.id === scheduleId);
+    const approval = this.state.executionApprovals.find((item) => item.id === schedule?.approvalId);
+    if (!schedule || !approval || schedule.status !== 'scheduled' || !reason.trim())
+      return this.reject('CANCELLATION_INVALID', '仅可取消尚未开始的安排，且必须记录原因', 'publication_schedule', scheduleId, context);
+    if (this.state.publicationAttempts.some((item) => item.contentIdentityId === approval.contentIdentityId && !['not_submitted', 'confirmed_not_published'].includes(item.publishStatus)))
+      return this.reject('PUBLICATION_UNRESOLVED', '内容存在进行中、未知或已发布记录，须先核对', 'publication_schedule', scheduleId, context);
+    schedule.status = 'cancelled';
+    approval.status = 'invalidated';
+    approval.invalidationReason = reason.trim();
+    this.cancelSchedulesForApprovals(new Set([approval.id]));
+    this.accept('schedule.cancelled', 'publication_schedule', schedule.id, context, { reason, approvalId: approval.id });
+    return { ok: true, value: structuredClone(schedule) };
   }
 
   listProjectGaps(projectId: string): ProjectGap[] {
@@ -238,6 +279,8 @@ export class FirstLoopEngine {
       input.authorizerPartyId,
       input.authorizationRef,
     ];
+    if (project.status === 'exited' || project.clientId !== input.clientId)
+      return this.reject('AUTHORIZATION_PROJECT_MISMATCH', '服务客户与项目不一致，或服务范围已退出', 'account_service_relation', 'new', context);
     if (
       required.some((value) => !value.trim()) ||
       input.allowedActions.length === 0
@@ -250,7 +293,7 @@ export class FirstLoopEngine {
         context,
       );
     }
-    if (input.validUntil && input.validFrom >= input.validUntil) {
+    if (!Number.isFinite(Date.parse(input.validFrom)) || (input.validUntil && (!Number.isFinite(Date.parse(input.validUntil)) || Date.parse(input.validFrom) >= Date.parse(input.validUntil)))) {
       return this.reject(
         'AUTHORIZATION_PERIOD_INVALID',
         '授权结束时间必须晚于开始时间',
@@ -1175,6 +1218,7 @@ export class FirstLoopEngine {
       strategyDraftId: string;
       expectedStrategyVersion: number;
       quantity: number;
+      observationPlan?: ObservationPlan;
       costLimit?: number;
       validFrom: string;
       validUntil: string;
@@ -1205,9 +1249,12 @@ export class FirstLoopEngine {
     if (
       !Number.isInteger(input.quantity) ||
       input.quantity <= 0 ||
-      input.validFrom >= input.validUntil ||
-      input.stopConditions.length === 0 ||
-      input.observationConditions.length === 0
+      !Number.isFinite(Date.parse(input.validFrom)) ||
+      !Number.isFinite(Date.parse(input.validUntil)) ||
+      Date.parse(input.validFrom) >= Date.parse(input.validUntil) ||
+      Date.parse(input.validUntil) <= Date.parse(this.now()) ||
+      normalizeStrings(input.stopConditions).length === 0 ||
+      normalizeStrings(input.observationConditions).length === 0
     ) {
       return this.reject(
         'APPROVAL_SCOPE_INCOMPLETE',
@@ -1224,7 +1271,9 @@ export class FirstLoopEngine {
       (item) =>
         item.projectId === draft.projectId &&
         item.accountId === draft.accountId &&
-        !item.revokedAt,
+        !item.revokedAt && item.allowedActions.includes('publish') &&
+        Date.parse(item.validFrom) <= Date.parse(this.now()) &&
+        (!item.validUntil || Date.parse(item.validUntil) > Date.parse(this.now())),
     );
     const destination = this.state.destinationVersions.find(
       (item) =>
@@ -1256,6 +1305,7 @@ export class FirstLoopEngine {
       accountId: draft.accountId,
       destinationVersionId: draft.destinationVersionId,
       quantity: input.quantity,
+      observationPlan: input.observationPlan,
       costLimit: input.costLimit,
       validFrom: input.validFrom,
       validUntil: input.validUntil,
@@ -1302,10 +1352,15 @@ export class FirstLoopEngine {
         'new',
         context,
       );
+    let validTimezone = true;
+    try { new Intl.DateTimeFormat('en', { timeZone: input.businessTimezone }).format(); } catch { validTimezone = false; }
     if (
-      !input.businessTimezone.trim() ||
-      input.scheduledFor >= input.expiresAt ||
-      input.expiresAt > approval.validUntil
+      !input.businessTimezone.trim() || !validTimezone ||
+      !Number.isFinite(Date.parse(input.scheduledFor)) || !Number.isFinite(Date.parse(input.expiresAt)) ||
+      Date.parse(input.scheduledFor) < Date.parse(approval.validFrom) ||
+      Date.parse(input.scheduledFor) < Date.parse(this.now()) ||
+      Date.parse(input.scheduledFor) >= Date.parse(input.expiresAt) ||
+      Date.parse(input.expiresAt) > Date.parse(approval.validUntil)
     ) {
       return this.reject(
         'SCHEDULE_WINDOW_INVALID',
@@ -1834,7 +1889,7 @@ export function createEmptyFirstLoopState(): FirstLoopState {
 }
 
 export function createCommandContext(
-  actorId = 'operator-demo',
+  actorId = 'local-operator',
   correlationId = crypto.randomUUID(),
 ): CommandContext {
   return { actorId, correlationId };
