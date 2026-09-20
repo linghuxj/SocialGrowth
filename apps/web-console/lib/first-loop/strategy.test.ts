@@ -183,3 +183,218 @@ void test('C-10/T-10: schedule keeps timezone, expires without backfill, and goa
     'cancelled',
   );
 });
+
+void test('operations: chosen content and entry are respected; stale authorization cannot draft', () => {
+  const { engine, context, project } = setup();
+  const snapshot = engine.snapshot();
+  const input = {
+    projectId: project.id,
+    outputMode: 'controlled' as const,
+    rationale: 'explicit selection',
+    assumptions: [],
+    contentIdentityId: snapshot.contentIdentities[0]!.id,
+    destinationEntryId: snapshot.destinationEntries[0]!.id,
+  };
+  assert.equal(
+    engine.generateStrategyDraft(
+      { ...input, contentIdentityId: 'missing' },
+      context,
+    ).error?.code,
+    'STRATEGY_ELIGIBLE_CONTENT_MISSING',
+  );
+  assert.equal(
+    engine.generateStrategyDraft(
+      { ...input, destinationEntryId: 'missing' },
+      context,
+    ).error?.code,
+    'STRATEGY_DESTINATION_MISSING',
+  );
+  assert.equal(
+    engine.generateStrategyDraft(input, context).value?.contentIdentityId,
+    input.contentIdentityId,
+  );
+  snapshot.accountServiceRelations[0]!.validUntil = '2026-09-18T00:00:00Z';
+  engine.replaceState(snapshot);
+  assert.equal(
+    engine.generateStrategyDraft(input, context).error?.code,
+    'STRATEGY_ELIGIBLE_CONTENT_MISSING',
+  );
+});
+
+void test('operations: invalid observation windows and duplicate approvals/schedules are rejected; cancellation releases authority', () => {
+  const { engine, context, project } = setup();
+  const draft = engine.generateStrategyDraft(
+    {
+      projectId: project.id,
+      outputMode: 'controlled',
+      rationale: 'test',
+      assumptions: [],
+    },
+    context,
+  ).value!;
+  const request = {
+    strategyDraftId: draft.id,
+    expectedStrategyVersion: draft.version,
+    quantity: 1,
+    validFrom: '2026-09-19T12:00:00Z',
+    validUntil: '2026-09-21T12:00:00Z',
+    stopConditions: ['stop'],
+    observationConditions: ['observe'],
+  };
+  assert.equal(
+    engine.approveStrategy(
+      {
+        ...request,
+        observationPlan: {
+          metricKey: 'views',
+          source: 'manual',
+          unit: 'count',
+          scope: 'one',
+          windowStart: '2026-09-22',
+          windowEnd: '2026-09-21',
+        },
+      },
+      context,
+    ).ok,
+    false,
+  );
+  const approval = engine.approveStrategy(request, context).value!;
+  assert.equal(
+    engine.approveStrategy(request, context).error?.code,
+    'APPROVAL_ALREADY_ACTIVE',
+  );
+  const scheduleRequest = {
+    approvalId: approval.id,
+    businessTimezone: 'Asia/Shanghai',
+    scheduledFor: '2026-09-20T01:00:00Z',
+    expiresAt: '2026-09-20T02:00:00Z',
+  };
+  const schedule = engine.scheduleApproval(scheduleRequest, context).value!;
+  assert.equal(
+    engine.scheduleApproval(scheduleRequest, context).error?.code,
+    'SCHEDULE_ALREADY_ACTIVE',
+  );
+  assert.equal(
+    engine.releaseContent(
+      draft.contentIdentityId,
+      { approvalsInvalidated: true, schedulesInvalidated: true },
+      context,
+    ).error?.code,
+    'CONTENT_OLD_AUTHORITY_ACTIVE',
+  );
+  assert.equal(
+    engine.cancelSchedule(schedule.id, 'cancel before submission', context).ok,
+    true,
+  );
+  assert.equal(engine.snapshot().executionApprovals[0]?.status, 'invalidated');
+  assert.equal(
+    engine.releaseContent(
+      draft.contentIdentityId,
+      { approvalsInvalidated: true, schedulesInvalidated: true },
+      context,
+    ).ok,
+    true,
+  );
+});
+
+void test('operations: asset fit downgrade invalidates authority and leaves an auditable reason', () => {
+  const { engine, context, project } = setup();
+  const draft = engine.generateStrategyDraft(
+    {
+      projectId: project.id,
+      outputMode: 'controlled',
+      rationale: 'test',
+      assumptions: [],
+    },
+    context,
+  ).value!;
+  const approval = engine.approveStrategy(
+    {
+      strategyDraftId: draft.id,
+      expectedStrategyVersion: draft.version,
+      quantity: 1,
+      validFrom: '2026-09-19T12:00:00Z',
+      validUntil: '2026-09-21T12:00:00Z',
+      stopConditions: ['stop'],
+      observationConditions: ['observe'],
+    },
+    context,
+  ).value!;
+  engine.scheduleApproval(
+    {
+      approvalId: approval.id,
+      businessTimezone: 'Asia/Shanghai',
+      scheduledFor: '2026-09-20T01:00:00Z',
+      expiresAt: '2026-09-20T02:00:00Z',
+    },
+    context,
+  );
+  const asset = engine.snapshot().sliceAssets[0]!;
+  assert.equal(
+    engine.reviewAssetFit(
+      asset.id,
+      'ineligible',
+      'rights evidence needs review',
+      context,
+    ).ok,
+    true,
+  );
+  const after = engine.snapshot();
+  assert.equal(after.executionApprovals[0]?.status, 'invalidated');
+  assert.equal(after.publicationSchedules[0]?.status, 'cancelled');
+  assert.deepEqual(after.auditLogs.at(-1)?.evidenceRefs, [
+    'rights evidence needs review',
+  ]);
+});
+
+void test('operations: unscheduled approval can be withdrawn, unresolved execution cannot be cleared by withdrawal', () => {
+  const { engine, context, project } = setup();
+  const draft = engine.generateStrategyDraft(
+    {
+      projectId: project.id,
+      outputMode: 'controlled',
+      rationale: 'test',
+      assumptions: [],
+    },
+    context,
+  ).value!;
+  const request = {
+    strategyDraftId: draft.id,
+    expectedStrategyVersion: draft.version,
+    quantity: 1,
+    validFrom: '2026-09-19T12:00:00Z',
+    validUntil: '2026-09-21T12:00:00Z',
+    stopConditions: ['stop'],
+    observationConditions: ['observe'],
+  };
+  assert.equal(
+    engine.approveStrategy({ ...request, quantity: 2 }, context).ok,
+    false,
+  );
+  const approval = engine.approveStrategy(request, context).value!;
+  assert.equal(
+    engine.cancelApproval(approval.id, 'correct observation plan', context).ok,
+    true,
+  );
+  const renewed = engine.approveStrategy(request, context).value!;
+  const asset = engine.snapshot().sliceAssets[0]!;
+  engine.recordExecutionReceipt(
+    {
+      attemptId: 'unknown-attempt',
+      contentIdentityId: draft.contentIdentityId,
+      sliceId: asset.id,
+      accountId: draft.accountId,
+      publishStatus: 'unknown',
+      evidenceRefs: ['lost-connection'],
+    },
+    context,
+  );
+  assert.equal(
+    engine.cancelApproval(renewed.id, 'try to clear', context).error?.code,
+    'PUBLICATION_UNRESOLVED',
+  );
+  assert.equal(
+    engine.snapshot().publicationAttempts[0]?.publishStatus,
+    'unknown',
+  );
+});

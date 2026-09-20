@@ -211,3 +211,53 @@ void test('F-05/F-06: incomplete work, no improvement and limited improvement re
   assert.equal(confirmed.value?.nextAction, 'create_new_draft');
   assert.equal(complete.engine.snapshot().strategyDrafts.length, 1);
 });
+
+void test('operations: latest comparable observation and approved direction govern numeric comparison', () => {
+  const current = setup();
+  const state = current.engine.snapshot();
+  state.executionApprovals[0]!.observationPlan = {
+    metricKey: 'valid_clicks',
+    direction: 'decrease',
+    unit: 'count',
+    source: 'manual',
+    scope: 'one',
+    windowStart: '2026-09-20',
+    windowEnd: '2026-09-21',
+  };
+  current.engine.replaceState(state);
+  current.engine.recordMetricObservation(
+    observation(current, 'baseline', { value: 10 }),
+    current.context,
+  );
+  current.engine.recordMetricObservation(
+    observation(current, 'current', { value: 12 }),
+    current.context,
+  );
+  const request = {
+    projectId: current.project.id,
+    approvalId: current.approval.id,
+    primaryMetricKey: 'valid_clicks',
+    requiredWorkComplete: true,
+    sourceComparisonAccepted: true,
+  };
+  assert.equal(
+    current.engine.createBasicReview(request, current.context).value?.outcome,
+    'no_improvement',
+  );
+  current.engine.recordMetricObservation(
+    observation(current, 'current', { value: 8 }),
+    current.context,
+  );
+  assert.equal(
+    current.engine.createBasicReview(request, current.context).value?.outcome,
+    'limited_improvement',
+  );
+  current.engine.recordMetricObservation(
+    observation(current, 'current', { value: 8, unit: 'percent' }),
+    current.context,
+  );
+  assert.equal(
+    current.engine.createBasicReview(request, current.context).value?.outcome,
+    'evidence_insufficient',
+  );
+});

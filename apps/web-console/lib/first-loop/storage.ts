@@ -35,14 +35,10 @@ function hasStateShape(value: unknown): value is FirstLoopState {
 export function loadFirstLoopState(storage: StateStorage): FirstLoopState {
   const stored = storage.getItem(FIRST_LOOP_STORAGE_KEY);
   if (!stored) return createEmptyFirstLoopState();
-  try {
-    const parsed: unknown = JSON.parse(stored);
-    return hasStateShape(parsed)
-      ? structuredClone(parsed)
-      : createEmptyFirstLoopState();
-  } catch {
-    return createEmptyFirstLoopState();
-  }
+  const parsed: unknown = JSON.parse(stored);
+  if (!hasStateShape(parsed))
+    throw new Error('当前工作区数据格式无效，原始数据已保留，禁止覆盖。');
+  return structuredClone(parsed);
 }
 
 export function saveFirstLoopState(

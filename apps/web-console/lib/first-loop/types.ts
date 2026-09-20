@@ -39,6 +39,7 @@ export interface AccountRecord {
 
 export interface ObservationPlan {
   metricKey: string;
+  direction?: 'increase' | 'decrease';
   unit: string;
   source: string;
   scope: string;

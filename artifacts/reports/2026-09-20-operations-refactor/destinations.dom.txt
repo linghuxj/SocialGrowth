@@ -1,0 +1,71 @@
+- banner:
+  - link "SG SocialGrowth 运营管理":
+    - /url: "#/home"
+    - generic: SG
+    - text: SocialGrowth
+    - strong: 运营管理
+  - link "本地工作区 · 外部服务未接入":
+    - /url: "#/connections"
+- complementary:
+  - navigation "运营业务导航":
+    - link "工作台":
+      - /url: "#/home"
+      - text: 工作台
+    - link "账号管理":
+      - /url: "#/accounts"
+      - text: 账号管理
+    - link "内容资产":
+      - /url: "#/content"
+      - text: 内容资产
+    - generic "策略管理 ›":
+      - text: 策略管理 ›
+    - generic "发布执行 ›":
+      - text: 发布执行 ›
+    - link "导流管理":
+      - /url: "#/destinations"
+      - text: 导流管理
+    - generic "数据与复盘 ›":
+      - text: 数据与复盘 ›
+    - link "客户服务":
+      - /url: "#/clients"
+      - text: 客户服务
+    - generic "系统管理 ›":
+      - text: 系统管理 ›
+  - paragraph:
+    - text: 按业务对象统一管理
+    - text: 服务范围在业务详情中关联
+- main:
+  - heading "导流管理" [level=1]
+  - generic: 搜索当前页面
+  - searchbox "搜索当前页面"
+  - button "搜索"
+  - paragraph: 这里维护导流目的地、权限、退出约定和历史版本。登记 URL 不证明目的地可达；当前没有在线短链或真实点击采集接入。
+  - generic "新增导流入口"
+  - option "请选择" [selected]
+  - option "英语短剧首轮观察"
+  - option "请选择" [selected]
+  - option "请选择" [selected]
+  - option "频道入口"
+  - option "内容入口"
+  - option "请选择" [selected]
+  - option "退出时停用"
+  - option "按约定继续维护"
+  - paragraph: 全部 1 条
+  - table:
+    - rowgroup:
+      - row "当前目的地 服务 / 账号 范围 本地准入状态 退出约定":
+        - columnheader "当前目的地"
+        - columnheader "服务 / 账号"
+        - columnheader "范围"
+        - columnheader "本地准入状态"
+        - columnheader "退出约定"
+    - rowgroup:
+      - row "https://example.com/acceptance-story 英语短剧首轮观察 / 验收用 Story English 频道入口 本地准入有效 退出时停用":
+        - cell "https://example.com/acceptance-story":
+          - link "https://example.com/acceptance-story":
+            - /url: "#/destinations?object=destination-2cd5f210-fad9-4fbd-b154-e184414782f3"
+        - cell "英语短剧首轮观察 / 验收用 Story English"
+        - cell "频道入口"
+        - cell "本地准入有效"
+        - cell "退出时停用"
+- contentinfo: 本地操作者 · 业务操作留痕 · 数据未同步至外部服务

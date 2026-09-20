@@ -36,7 +36,8 @@ void test('FL-01 storage boundary persists and reloads audit-ready state', () =>
 void test('FL-01 storage boundary rejects malformed or structurally incomplete state', () => {
   const storage = new MemoryStorage();
   storage.setItem(FIRST_LOOP_STORAGE_KEY, '{bad json');
-  assert.deepEqual(loadFirstLoopState(storage), createEmptyFirstLoopState());
+  assert.throws(() => loadFirstLoopState(storage));
+  assert.equal(storage.getItem(FIRST_LOOP_STORAGE_KEY), '{bad json');
   storage.setItem(FIRST_LOOP_STORAGE_KEY, JSON.stringify({ projects: [] }));
-  assert.deepEqual(loadFirstLoopState(storage), createEmptyFirstLoopState());
+  assert.throws(() => loadFirstLoopState(storage));
 });

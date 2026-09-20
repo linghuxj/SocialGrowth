@@ -1,0 +1,76 @@
+- banner:
+  - link "SG SocialGrowth 运营管理":
+    - /url: "#/home"
+    - generic: SG
+    - text: SocialGrowth
+    - strong: 运营管理
+  - link "本地工作区 · 外部服务未接入":
+    - /url: "#/connections"
+- complementary:
+  - navigation "运营业务导航":
+    - link "工作台":
+      - /url: "#/home"
+      - text: 工作台
+    - link "账号管理":
+      - /url: "#/accounts"
+      - text: 账号管理
+    - link "内容资产":
+      - /url: "#/content"
+      - text: 内容资产
+    - generic "策略管理 ›":
+      - text: 策略管理 ›
+    - generic "发布执行 ›":
+      - text: 发布执行 ›
+    - link "导流管理":
+      - /url: "#/destinations"
+      - text: 导流管理
+    - generic "数据与复盘 ›":
+      - text: 数据与复盘 ›
+    - link "客户服务":
+      - /url: "#/clients"
+      - text: 客户服务
+    - generic "系统管理 ›":
+      - text: 系统管理 ›
+    - link "接入状态":
+      - /url: "#/connections"
+    - link "操作审计":
+      - /url: "#/audit"
+  - paragraph:
+    - text: 按业务对象统一管理
+    - text: 服务范围在业务详情中关联
+- main:
+  - heading "操作审计" [level=1]
+  - generic: 搜索当前页面
+  - searchbox "搜索当前页面": 已拒绝
+  - button "搜索"
+  - link "清除":
+    - /url: "#/audit"
+  - paragraph: 所有本地业务命令的接受、拒绝与证据引用。操作者为本地开发身份。
+  - button "导出完整业务与审计快照"
+  - paragraph: 匹配 2 / 全部 13 条
+  - table:
+    - rowgroup:
+      - row "时间 操作 / 对象 结果 原因 操作者":
+        - columnheader "时间"
+        - columnheader "操作 / 对象"
+        - columnheader "结果"
+        - columnheader "原因"
+        - columnheader "操作者"
+    - rowgroup:
+      - row "2026/9/20 11:19:37 业务校验拒绝 / 验收用远山待完善服务 已拒绝 请先补齐：缺少服务客户、缺少当前主目标、缺少目标受众、缺少责任人 本地操作者":
+        - cell "2026/9/20 11:19:37":
+          - link "2026/9/20 11:19:37":
+            - /url: "#/audit?object=log-8eb73d41-5497-4d36-9134-bb05cdee3bfe"
+        - cell "业务校验拒绝 / 验收用远山待完善服务"
+        - cell "已拒绝"
+        - cell "请先补齐：缺少服务客户、缺少当前主目标、缺少目标受众、缺少责任人"
+        - cell "本地操作者"
+      - row "2026/9/20 11:15:18 业务校验拒绝 / 新建对象 已拒绝 客户名称不能为空或与已有客户重复 本地操作者":
+        - cell "2026/9/20 11:15:18":
+          - link "2026/9/20 11:15:18":
+            - /url: "#/audit?object=log-45ba5a14-9844-4526-93c3-cf63fdf77c48"
+        - cell "业务校验拒绝 / 新建对象"
+        - cell "已拒绝"
+        - cell "客户名称不能为空或与已有客户重复"
+        - cell "本地操作者"
+- contentinfo: 本地操作者 · 业务操作留痕 · 数据未同步至外部服务

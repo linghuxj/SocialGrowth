@@ -1,0 +1,80 @@
+[
+  {
+    "level": "info",
+    "message": "[operations-audit] {\"id\":\"log-c01c95d2-489f-4e08-a9a9-d41a76cadef0\",\"timestamp\":\"2026-09-20T03:05:36.700Z\",\"correlationId\":\"0c636a33-dfa9-460a-92c3-36e0a77dc911\",\"actorId\":\"local-operator\",\"action\":\"client.created\",\"entityType\":\"client\",\"entityId\":\"client-3783b5d7-32e5-4a5a-b408-83c381bc17a9\",\"result\":\"accepted\",\"reasonCode\":\"OK\",\"facts\":{\"name\":\"验收用星河内容\"},\"evidenceRefs\":[]}",
+    "timestamp": "2026-09-20T03:05:36.703Z",
+    "url": "http://127.0.0.1:3000/lib/operations-context.tsx?t=1789873479984"
+  },
+  {
+    "level": "info",
+    "message": "[operations-audit] {\"id\":\"log-7fbc54b0-c154-4584-84b0-547acfa34057\",\"timestamp\":\"2026-09-20T03:05:51.806Z\",\"correlationId\":\"5de21ad3-973b-4420-8145-7573c6799582\",\"actorId\":\"local-operator\",\"action\":\"project.saved\",\"entityType\":\"project\",\"entityId\":\"project-97d2a4fe-cbb1-410e-97e4-1b208d999474\",\"result\":\"accepted\",\"reasonCode\":\"OK\",\"facts\":{\"gapCount\":0,\"status\":\"draft\"},\"evidenceRefs\":[]}",
+    "timestamp": "2026-09-20T03:05:51.807Z",
+    "url": "http://127.0.0.1:3000/lib/operations-context.tsx?t=1789873479984"
+  },
+  {
+    "level": "info",
+    "message": "[operations-audit] {\"id\":\"log-878f45d1-957d-45a9-9957-1c0bbf6a27de\",\"timestamp\":\"2026-09-20T03:06:51.026Z\",\"correlationId\":\"005b81ec-4526-4582-a635-b13cd6e692e8\",\"actorId\":\"local-operator\",\"action\":\"project.activated\",\"entityType\":\"project\",\"entityId\":\"project-97d2a4fe-cbb1-410e-97e4-1b208d999474\",\"result\":\"accepted\",\"reasonCode\":\"OK\",\"facts\":{\"gapCount\":0},\"evidenceRefs\":[]}",
+    "timestamp": "2026-09-20T03:06:51.028Z",
+    "url": "http://127.0.0.1:3000/lib/operations-context.tsx?t=1789873596778"
+  },
+  {
+    "level": "info",
+    "message": "[operations-audit] {\"id\":\"log-2455d005-625f-4fa8-b2c0-c0c646094941\",\"timestamp\":\"2026-09-20T03:07:03.274Z\",\"correlationId\":\"1ce75684-ac6e-4440-b0d1-f9033374f1d4\",\"actorId\":\"local-operator\",\"action\":\"account.created\",\"entityType\":\"account\",\"entityId\":\"account-defbd642-4086-4108-8699-eb0530268c1b\",\"result\":\"accepted\",\"reasonCode\":\"OK\",\"facts\":{\"name\":\"验收用 Story English\",\"platform\":\"youtube\",\"deviceRef\":\"ACCEPTANCE-PHYSICAL-01\"},\"evidenceRefs\":[]}",
+    "timestamp": "2026-09-20T03:07:03.276Z",
+    "url": "http://127.0.0.1:3000/lib/operations-context.tsx?t=1789873596778"
+  },
+  {
+    "level": "info",
+    "message": "[operations-audit] {\"id\":\"log-fb7e0eab-308b-48cd-88cc-dea479117716\",\"timestamp\":\"2026-09-20T03:12:02.830Z\",\"correlationId\":\"b3a86ba2-ca03-418e-a69a-d7ae9c17b38e\",\"actorId\":\"local-operator\",\"action\":\"account.authorization_granted\",\"entityType\":\"account_service_relation\",\"entityId\":\"relation-e2f5752e-6cde-4326-919b-c296638d1f6e\",\"result\":\"accepted\",\"reasonCode\":\"OK\",\"facts\":{\"projectId\":\"project-97d2a4fe-cbb1-410e-97e4-1b208d999474\",\"accountId\":\"account-defbd642-4086-4108-8699-eb0530268c1b\",\"shared\":false},\"evidenceRefs\":[]}",
+    "timestamp": "2026-09-20T03:12:02.832Z",
+    "url": "http://127.0.0.1:3000/lib/operations-context.tsx?t=1789873842882"
+  },
+  {
+    "level": "info",
+    "message": "[operations-audit] {\"id\":\"log-007d9474-c875-48cb-b930-c5047962bc8c\",\"timestamp\":\"2026-09-20T03:12:17.434Z\",\"correlationId\":\"b36a222f-9167-4c17-ab06-9491cf94043e\",\"actorId\":\"local-operator\",\"action\":\"destination.created\",\"entityType\":\"destination_entry\",\"entityId\":\"destination-2cd5f210-fad9-4fbd-b154-e184414782f3\",\"result\":\"accepted\",\"reasonCode\":\"OK\",\"facts\":{\"projectId\":\"project-97d2a4fe-cbb1-410e-97e4-1b208d999474\",\"accountId\":\"account-defbd642-4086-4108-8699-eb0530268c1b\",\"scope\":\"channel\",\"sharedAttribution\":true},\"evidenceRefs\":[\"acceptance-local-maintenance\"]}",
+    "timestamp": "2026-09-20T03:12:17.435Z",
+    "url": "http://127.0.0.1:3000/lib/operations-context.tsx?t=1789873842882"
+  },
+  {
+    "level": "info",
+    "message": "[operations-audit] {\"id\":\"log-8e4f2c71-f166-48fd-a4b5-cf5c283cc9fc\",\"timestamp\":\"2026-09-20T03:13:32.390Z\",\"correlationId\":\"9eb89dd2-77ba-49f1-be12-4d079a5b575b\",\"actorId\":\"local-operator\",\"action\":\"strategy.rule_versioned\",\"entityType\":\"strategy_rule\",\"entityId\":\"rule-afbcb9cf-8c21-4cf4-bb89-466b44521167\",\"result\":\"accepted\",\"reasonCode\":\"OK\",\"facts\":{\"projectId\":\"project-97d2a4fe-cbb1-410e-97e4-1b208d999474\",\"category\":\"internal_rule\",\"version\":1},\"evidenceRefs\":[\"本项目 G-03 内容独占决定\"]}",
+    "timestamp": "2026-09-20T03:13:32.429Z",
+    "url": "http://127.0.0.1:3000/lib/operations-context.tsx?t=1789873842882"
+  },
+  {
+    "level": "info",
+    "message": "[operations-audit] {\"id\":\"log-45ba5a14-9844-4526-93c3-cf63fdf77c48\",\"timestamp\":\"2026-09-20T03:15:18.634Z\",\"correlationId\":\"46a99eb5-ba19-408f-aa12-50097c164971\",\"actorId\":\"local-operator\",\"action\":\"client.rejected\",\"entityType\":\"client\",\"entityId\":\"new\",\"result\":\"rejected\",\"reasonCode\":\"CLIENT_NAME_INVALID\",\"facts\":{\"message\":\"客户名称不能为空或与已有客户重复\"},\"evidenceRefs\":[]}",
+    "timestamp": "2026-09-20T03:15:18.635Z",
+    "url": "http://127.0.0.1:3000/lib/operations-context.tsx?t=1789873842882"
+  },
+  {
+    "level": "info",
+    "message": "[operations-audit] {\"id\":\"log-58e8bf8f-0718-4102-af77-7d938a1a8e51\",\"timestamp\":\"2026-09-20T03:15:19.290Z\",\"correlationId\":\"602f4e79-cf3b-4a56-b0e3-6ec11746f3e6\",\"actorId\":\"local-operator\",\"action\":\"client.created\",\"entityType\":\"client\",\"entityId\":\"client-82b1c432-7898-4790-a7b2-3af92a0c7d4a\",\"result\":\"accepted\",\"reasonCode\":\"OK\",\"facts\":{\"name\":\"验收用远山内容\"},\"evidenceRefs\":[]}",
+    "timestamp": "2026-09-20T03:15:19.291Z",
+    "url": "http://127.0.0.1:3000/lib/operations-context.tsx?t=1789873842882"
+  },
+  {
+    "level": "info",
+    "message": "[operations-audit] {\"id\":\"log-b32261f7-f96b-458a-b7de-4f1fb9396fc2\",\"timestamp\":\"2026-09-20T03:19:24.298Z\",\"correlationId\":\"798ed362-db31-478c-94bf-d8e2086220d4\",\"actorId\":\"local-operator\",\"action\":\"project.saved\",\"entityType\":\"project\",\"entityId\":\"project-57b707be-b483-4187-b74e-4564d4b1f221\",\"result\":\"accepted\",\"reasonCode\":\"OK\",\"facts\":{\"gapCount\":4,\"status\":\"draft\"},\"evidenceRefs\":[]}",
+    "timestamp": "2026-09-20T03:19:24.300Z",
+    "url": "http://127.0.0.1:3000/lib/operations-context.tsx?t=1789874304005"
+  },
+  {
+    "level": "info",
+    "message": "[operations-audit] {\"id\":\"log-8eb73d41-5497-4d36-9134-bb05cdee3bfe\",\"timestamp\":\"2026-09-20T03:19:37.947Z\",\"correlationId\":\"204b82b5-ff01-440a-b710-2dd7e23aad25\",\"actorId\":\"local-operator\",\"action\":\"project.rejected\",\"entityType\":\"project\",\"entityId\":\"project-57b707be-b483-4187-b74e-4564d4b1f221\",\"result\":\"rejected\",\"reasonCode\":\"PROJECT_INCOMPLETE\",\"facts\":{\"message\":\"请先补齐：缺少服务客户、缺少当前主目标、缺少目标受众、缺少责任人\"},\"evidenceRefs\":[]}",
+    "timestamp": "2026-09-20T03:19:37.949Z",
+    "url": "http://127.0.0.1:3000/lib/operations-context.tsx?t=1789874304005"
+  },
+  {
+    "level": "info",
+    "message": "[operations-audit] {\"id\":\"log-4c0a3a0e-0324-4a30-980a-52d48f088e9b\",\"timestamp\":\"2026-09-20T03:19:38.791Z\",\"correlationId\":\"a2cf8822-89c5-46f7-8c37-0f15875ad326\",\"actorId\":\"local-operator\",\"action\":\"project.saved\",\"entityType\":\"project\",\"entityId\":\"project-57b707be-b483-4187-b74e-4564d4b1f221\",\"result\":\"accepted\",\"reasonCode\":\"OK\",\"facts\":{\"gapCount\":3,\"status\":\"draft\"},\"evidenceRefs\":[]}",
+    "timestamp": "2026-09-20T03:19:38.793Z",
+    "url": "http://127.0.0.1:3000/lib/operations-context.tsx?t=1789874304005"
+  },
+  {
+    "level": "info",
+    "message": "[operations-audit] {\"id\":\"log-338b408a-e0ae-4f83-953b-e0879e97f09e\",\"timestamp\":\"2026-09-20T03:20:59.638Z\",\"correlationId\":\"ab469c55-d026-4d0c-ab22-14acfee00f4a\",\"actorId\":\"local-operator\",\"action\":\"account.profile_updated\",\"entityType\":\"account\",\"entityId\":\"account-defbd642-4086-4108-8699-eb0530268c1b\",\"result\":\"accepted\",\"reasonCode\":\"OK\",\"facts\":{\"before\":\"验收用 Story English\",\"name\":\"验收用 Story English\",\"positioning\":\"原创英语短剧 · 档案编辑验收\"},\"evidenceRefs\":[]}",
+    "timestamp": "2026-09-20T03:20:59.640Z",
+    "url": "http://127.0.0.1:3000/lib/operations-context.tsx?t=1789874304005"
+  }
+]
