@@ -1,4 +1,5 @@
 'use client';
+import { DeviceBindings, RuntimeReceipts, LegacyWorkspace } from './runtime';
 import React from 'react';
 import { useOperations } from '@/lib/operations-context';
 import {
@@ -73,8 +74,8 @@ export function Home({ query }: Props) {
         </div>
       </Panel>
       <Notice>
-        本地工作区：数据保存在当前浏览器。外部 AI、Artemis
-        真机、在线短链与指标采集未接入，当前不提供自动发布。
+        业务状态与素材保存至本机执行服务。真机任务须经过账号绑定、参数核对和明确批准；外部
+        AI 策略、在线短链与指标自动采集仍待接入。
       </Notice>
     </>
   );
@@ -84,7 +85,7 @@ export function Receipts({
   query,
   exceptions = false,
 }: Props & { exceptions?: boolean }) {
-  const { state, run } = useOperations();
+  const { state } = useOperations();
   const attempt = state.publicationAttempts.find((a) => a.id === object);
   const records = state.publicationAttempts.filter(
     (a) => !exceptions || ['unknown', 'in_progress'].includes(a.publishStatus),
@@ -94,8 +95,9 @@ export function Receipts({
       <Notice>
         {exceptions
           ? '结果未知或处理中时禁止盲目重发。先由执行方核对原始证据；确认未公开后才可解除相关限制。'
-          : '执行记录来自执行回执。当前 Web 尚未连接真机执行方，没有回执时不制造成功记录。'}
+          : '执行记录来自真机回执与归档证据；任务完成不等于帖子已公开。'}
       </Notice>
+      <RuntimeReceipts />
       <List
         query={query}
         columns={['内容', '目标账号', '结果', '证据', '最近更新']}
@@ -136,38 +138,7 @@ export function Receipts({
             ]}
           />
           {['unknown', 'in_progress'].includes(attempt.publishStatus) && (
-            <Form
-              id={`receipt-${attempt.id}`}
-              title="记录人工核对结论"
-              submit="保存核对回执"
-              description="须核查执行方原始证据。本地登记不替代平台核验；已公开状态不可撤销。"
-              fields={[
-                {
-                  key: 'status',
-                  label: '核对结果',
-                  options: options(
-                    ['published', 'confirmed_not_published'],
-                    names,
-                  ),
-                },
-                { key: 'evidence', label: '可核查的回执证据' },
-              ]}
-              onSubmit={(v) =>
-                run((e, c) =>
-                  e.recordExecutionReceipt(
-                    {
-                      ...attempt,
-                      attemptId: attempt.id,
-                      publishStatus: v.status as
-                        | 'published'
-                        | 'confirmed_not_published',
-                      evidenceRefs: [...attempt.evidenceRefs, v.evidence],
-                    },
-                    c,
-                  ),
-                )
-              }
-            />
+            <Notice>请在上方设备队列中上传核对证据并记录结论。</Notice>
           )}
           <Link page="content" id={attempt.contentIdentityId}>
             查看内容与归属
@@ -574,9 +545,11 @@ export function Connections() {
   return (
     <>
       <Notice>
-        当前是本地开发工作区。下列外部连接均未完成 Web
-        联调；登记业务数据不会自动连通服务。
+        当前工作区使用本机执行服务。真机由已配置的 Google Artemis
+        环境执行，账号绑定与实际验收按证据分别记录。
       </Notice>
+      <DeviceBindings />
+      <LegacyWorkspace />
       <List
         query=""
         columns={['能力', '当前状态', '接入后提供', '验收所需']}
@@ -596,7 +569,7 @@ export function Connections() {
             search: '',
             cells: [
               'Artemis 物理真机',
-              '未接入',
+              '运行时适配已提供，实际状态见绑定与回执',
               '执行调度、原生 App 发布与证据',
               '设备身份、账号路由与真实执行日志',
             ],
@@ -626,9 +599,9 @@ export function Connections() {
             search: '',
             cells: [
               '工作区存储',
-              '当前浏览器本地存储',
+              '本机服务 SQLite 与素材存储',
               '本机业务状态与素材保存',
-              '服务器持久化、身份与多人权限待接入',
+              '生产部署与多人权限待接入',
             ],
           },
         ]}

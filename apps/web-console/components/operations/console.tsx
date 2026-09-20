@@ -98,7 +98,7 @@ export function OperationsConsole() {
           <span>SG</span>SocialGrowth <strong>运营管理</strong>
         </a>
         <a href={href('connections')} className="op-environment">
-          本地工作区 · 外部服务未接入
+          本机执行工作区 · 发布结果以证据为准
         </a>
       </header>
       <div className="op-layout">
@@ -180,7 +180,7 @@ export function OperationsConsole() {
             )}
           </div>
           {!ready ? (
-            <output>{storageError || '正在读取本地工作区…'}</output>
+            <output>{storageError || '正在连接执行服务…'}</output>
           ) : (
             <div key={`${page}:${route.object}`}>{view()}</div>
           )}

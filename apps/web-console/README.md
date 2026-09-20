@@ -1,17 +1,17 @@
 # @socialgrowth/web-console
 
-SocialGrowth 运营工作区。当前导航和验收依据见[整体重构台账](../../docs/handoff/2026-09-20-operations-refactor.md)。
+SocialGrowth 运营工作区。导航依据见[整体重构台账](../../docs/handoff/2026-09-20-operations-refactor.md)；2026-09-20 执行服务接续与当前验收以[最新修复记录](../../docs/handoff/2026-09-20-execution-runtime-remediation.md)为准。
 
-当前版本统一使用 `lib/first-loop` 的领域状态，不再加载旧静态演示数据库，也不提供设备 Ping、自愈、2FA 注入、批量下发或伪发布成功等演示操作。页面中的项目、授权、内容、入口、策略、批准、排期、观察、复盘和审计记录保存在浏览器 `localStorage`，仅用于受控业务流程验证。
+当前版本统一使用 `lib/first-loop` 领域规则，通过本机执行服务 API 保存业务、审计和媒体。服务端 SQLite 是权威状态；前端不再以 localStorage 写入业务事实。原浏览器数据保留并提供显式备份/迁移，旧批准与排期迁移后须重新核对。
 
 ## 证据边界
 
-- 页面顶部持续显示“本地工作区 · 外部服务未接入”。
+- 页面顶部显示“本机执行工作区 · 发布结果以证据为准”。
 - 批准与排期表示业务授权边界，不表示任务已下发、设备在线或内容已发布。
 - 真实发布必须由外部执行器写入关联内容、文件、账号及证据引用的回执。
 - `unknown`、缺失、延迟、无权限和真实零值分别记录，不静默补零。
-- 每个领域命令产生结构化审计日志，并以 `[operations-audit]` 输出到浏览器控制台；失败的存储操作单独记录 `[operations-storage]`，不显示保存成功。
-- 生产数据库、身份权限、平台账号、真机执行器和真实指标源仍需单独接入与验收。
+- 领域命令在服务端复核并保存结构化审计，冲突或断线不显示保存成功；异步回执定期刷新。
+- 真机参数/绑定、队列、证据和人工核对已接入本机服务；真实平台发布、多人权限、生产部署和指标源仍须单独验收。
 
 目标 PostgreSQL 结构保留在 `data/schema.sql`；浏览器本地适配不是数据库已经接入的证据。
 
@@ -31,13 +31,14 @@ SocialGrowth 运营工作区。当前导航和验收依据见[整体重构台账
 
 没有全局项目选择器。列表默认跨服务展示；搜索范围仅限当前页面。`#/页面?object=对象&q=搜索` 可刷新和返回。业务对象名称来自统一档案；新增/编辑表单按需展开，文字草稿在当前浏览器会话恢复。批准时定义一次观察指标、方向、来源、单位、范围和时间窗，观察记录继承这些信息。
 
-实现入口：`components/operations/` 按业务拆分；`lib/operations-context.tsx` 负责状态持久化；`lib/first-loop/engine.ts` 负责领域校验。工作区使用 `socialgrowth:operations:v2`，不读取旧键。媒体文件保存在 IndexedDB，SHA256 自动计算；单文件上限 100 MB。JSON 快照只含元数据，不含二进制素材。存储损坏时拒绝覆盖原数据。
+实现入口：`components/operations/` 按业务拆分；`lib/operations-context.tsx` 负责异步 API 命令与快照；`lib/first-loop/engine.ts` 负责服务端复用的领域校验。旧 `socialgrowth:operations:v2` 与 IndexedDB 仅用于显式迁移。新素材上传后服务器复核 SHA-256；页面单文件上限 100 MB。JSON 快照只含元数据，备份还需保留运行时素材和数据库。
 
 ## 本地开发
 
 ```bash
 npm install
-npm run dev # 由开发者手动启动；Agent 不启动常驻服务
+npm run runtime:start # 仓库根目录，开发者手动启动
+npm run runtime:web   # 仓库根目录，另一终端手动启动
 npm test
 npm run build
 ```

@@ -2,6 +2,8 @@
 
 基于 **Google Artemis** 的纯物理真机自动化群控与调度中枢。
 
+2026-09-20 接续：本目录保留可复用控制器类型和受控调度器；实际本机持久化、WebSocket Pull 及 Google Artemis MCP Agent 在 [`services/execution-runtime`](../../services/execution-runtime/README.md)。下文“真实 Agent 待接入”是此前受控阶段边界，当前工程及真机验证以[新修复记录](../../docs/handoff/2026-09-20-execution-runtime-remediation.md)为准。工厂的未配置执行器继续明确阻断，不把库实例误作运行时。
+
 ---
 
 ## 一、 系统定位

@@ -351,16 +351,25 @@ export function Action({
   act,
 }: {
   name: string;
-  act: () => CommandResult<unknown>;
+  act: () => CommandResult<unknown> | Promise<CommandResult<unknown>>;
 }) {
   const [feedback, setFeedback] = useState('');
+  const [busy, setBusy] = useState(false);
   return (
     <div className="op-inline">
       <button
         className="op-button"
-        onClick={() => {
-          const r = act();
-          setFeedback(r.ok ? '已完成。' : (r.error?.message ?? '操作失败'));
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            const r = await act();
+            setFeedback(r.ok ? '已完成。' : (r.error?.message ?? '操作失败'));
+          } catch {
+            setFeedback('操作未确认完成，请刷新核对。');
+          } finally {
+            setBusy(false);
+          }
         }}
       >
         {name}

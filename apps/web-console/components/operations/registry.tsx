@@ -392,11 +392,11 @@ function AssetPreview({ asset }: { asset: SliceAsset }) {
         local = value;
         if (alive) {
           setUrl(value);
-          if (!value) setError('该素材文件不在当前浏览器，请核查原文件。');
+          if (!value) setError('找不到该素材，请核查执行服务或迁移原文件。');
         } else if (value?.startsWith('blob:')) URL.revokeObjectURL(value);
       })
       .catch(() => {
-        if (alive) setError('读取素材失败，请检查浏览器存储。');
+        if (alive) setError('读取素材失败，请检查执行服务连接。');
       });
     return () => {
       alive = false;
@@ -497,7 +497,7 @@ export function Content({ object, query }: { object: string; query: string }) {
             ),
           },
         ]}
-        description="文件保存在当前浏览器；指纹自动计算，不上传外部。请先人工核对故事范围与重叠情况；指纹只能识别文件相同，不能判断剧情重复。"
+        description="文件上传至本机执行服务并校验 SHA-256。请先人工核对故事范围与重叠情况；指纹只能识别文件相同，不能判断剧情重复。"
         onSubmit={async (v, form) => {
           const file = new FormData(form).get('file');
           if (!(file instanceof File) || !file.size)

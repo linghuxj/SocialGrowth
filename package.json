@@ -10,6 +10,12 @@
     "dev": "npm run --prefix apps/web-console dev",
     "build": "npm run --prefix apps/web-console build",
     "lint": "npm run --prefix apps/web-console lint",
-    "test:first-loop": "tsx --test tests/first-loop-integration.test.ts"
+    "test:first-loop": "tsx --test tests/first-loop-integration.test.ts",
+    "test:runtime": "npm test --workspace services/execution-runtime",
+    "runtime:setup": "tsx services/execution-runtime/src/setup-local.ts",
+    "runtime:start": "node --env-file=.env.runtime --import tsx services/execution-runtime/src/server.ts",
+    "runtime:web": "node --env-file=.env.runtime --run dev",
+    "runtime:agent": "node --env-file=.env.agent --import tsx services/execution-runtime/src/agent-cli.ts",
+    "runtime:check-artemis": "node --env-file=.env.agent --import tsx services/execution-runtime/src/check-artemis.ts"
   }
 }

@@ -18,3 +18,8 @@ out/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Local runtime state and credentials
+.runtime/
+.env.runtime
+.env.agent

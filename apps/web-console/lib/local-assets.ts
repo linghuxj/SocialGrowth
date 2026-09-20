@@ -7,19 +7,15 @@ export async function storeAsset(file: File) {
   const sha256 = Array.from(new Uint8Array(digest), (b) =>
     b.toString(16).padStart(2, '0'),
   ).join('');
-  const db = await assetDb();
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction('files', 'readwrite');
-      tx.objectStore('files').put(file, sha256);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-      tx.onabort = () => reject(tx.error);
-    });
-  } finally {
-    db.close();
-  }
-  return { sha256, fileRef: `local-asset:${sha256}` };
+  const response = await fetch('/api/runtime/assets', {
+    method: 'POST',
+    headers: { 'Content-Type': file.type, 'X-Content-Sha256': sha256 },
+    body: file,
+    signal: AbortSignal.timeout(120000),
+  });
+  if (!response.ok)
+    throw new Error('素材未保存到执行服务，请检查文件格式与连接');
+  return (await response.json()) as { sha256: string; fileRef: string };
 }
 function assetDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -30,6 +26,8 @@ function assetDb(): Promise<IDBDatabase> {
   });
 }
 export async function assetUrl(ref: string) {
+  if (/^runtime-asset:[a-f0-9]{64}$/.test(ref))
+    return `/api/runtime/assets/${ref.slice(14)}`;
   if (!ref.startsWith('local-asset:'))
     return /^https?:\/\//.test(ref) ? ref : undefined;
   const db = await assetDb();

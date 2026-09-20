@@ -7,6 +7,7 @@ export interface DeviceInfo {
   model: string;
   platformBound: PlatformType[];
   boundAccounts: string[];
+  accountBindings?: { platform: PlatformType; accountId: string }[];
   status: DeviceStatus;
   batteryLevel?: number;
   lastHeartbeat: string;

@@ -1,4 +1,5 @@
 'use client';
+import { ExecutionQueue } from './runtime';
 import React from 'react';
 import { useOperations } from '@/lib/operations-context';
 import { label, lookup, names, validRelation } from '@/lib/operations';
@@ -354,8 +355,7 @@ export function Plans({ object, query }: Props) {
   return (
     <>
       <Notice>
-        排期记录发布意图，不代表已下发或已发布。真机调度尚未接入此 Web
-        工作区，执行结果以回执证据为准。
+        排期保存后需核对素材、账号绑定与发布参数，再加入设备队列。执行结果以归档回执证据为准。
       </Notice>
       <Panel title="批准与排期">
         <List
@@ -476,6 +476,7 @@ export function Plans({ object, query }: Props) {
                 <p className="op-help">
                   截止 {date(s.expiresAt)} · {s.businessTimezone}
                 </p>
+                <ExecutionQueue scheduleId={s.id} />
                 {s.status === 'scheduled' && (
                   <Form
                     id={`cancel-${s.id}`}

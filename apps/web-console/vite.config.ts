@@ -46,9 +46,20 @@ export default defineConfig(async () => {
 
   return {
     css: { postcss: { plugins: [tailwindcss()] } },
-    server: isCodexSeatbeltSandbox
-      ? { watch: { useFsEvents: false, usePolling: true } }
-      : undefined,
+    server: {
+      ...(isCodexSeatbeltSandbox
+        ? { watch: { useFsEvents: false, usePolling: true } }
+        : {}),
+      proxy: {
+        '/api/runtime': {
+          target: process.env.SG_RUNTIME_URL ?? 'http://127.0.0.1:4318',
+          changeOrigin: true,
+          headers: {
+            Authorization: `Bearer ${process.env.SG_RUNTIME_TOKEN ?? ''}`,
+          },
+        },
+      },
+    },
     plugins: [
       vinext(),
       sites(),
