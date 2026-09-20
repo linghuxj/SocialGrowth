@@ -2,6 +2,8 @@
 
 依据：[最新真机交接 DP-01～DP-10](2026-09-20-device-publishing-verification.md)。本轮用户授权按该清单修复；补充指示是查找并复用已拉取、已配置的 Google Artemis。保留原交接文件、截图及已有未提交修改。
 
+后续更新：应用安装、账号类型及阻断提示、413/400 的新证据与兼容修复见 [应用准备交接](2026-09-20-app-readiness-remediation.md)。下文“YT 未安装”等为上一批现场记录；最新状态为 YT 已自动安装，账号/业务验收仍独立阻断。
+
 ## 结论
 
 新增 `services/execution-runtime`，接通本地 Web 命令、SQLite 持久化、WebSocket Pull 队列、Google Artemis MCP 适配、素材校验及归档回执。控制台现已使用运行时 API；原浏览器状态有显式备份与迁移入口。原控制器的提前派发、执行中重复入队、已排队任务绕过暂停、迟到回执归属不足及平台账号交叉匹配问题已修复。

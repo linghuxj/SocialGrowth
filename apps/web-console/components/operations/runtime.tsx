@@ -34,6 +34,13 @@ type TaskRecord = {
     evidenceRefs: string[];
     publishedUrl?: string;
     failureCode?: string;
+    actionRequired?: {
+      kind: 'account' | 'app';
+      reason: string;
+      expectedIdentity?: string;
+      observedIdentity?: string;
+      nextAction: string;
+    };
   };
 };
 type RuntimeStatus = {
@@ -270,6 +277,13 @@ export function RuntimeReceipts() {
             `${t.task.settings.mode} / ${t.status}`,
             t.receipt ? label(t.receipt.publishStatus) : '尚未收到回执',
             <div key="e">
+              {t.receipt?.actionRequired && (
+                <p>
+                  待{t.receipt.actionRequired.kind === 'account' ? '账号' : '设备'}负责人处理：{t.receipt.actionRequired.reason}。
+                  {t.receipt.actionRequired.expectedIdentity && `预期身份：${t.receipt.actionRequired.expectedIdentity}；实际身份：${t.receipt.actionRequired.observedIdentity || '未能读取'}。`}
+                  {t.receipt.actionRequired.nextAction}
+                </p>
+              )}
               {t.receipt?.evidenceRefs.map((ref, i) => (
                 <a
                   key={ref}
@@ -302,18 +316,20 @@ export function RuntimeReceipts() {
         </Notice>
       )}
       {status.tasks
-        .filter((t) => t.status === 'unknown')
+        .filter((t) => t.status === 'unknown' || (t.status === 'blocked' && t.receipt?.actionRequired))
         .map((t) => (
           <Form
             key={t.taskId}
             id={`review-${t.taskId}`}
-            title={`核对未知结果：${lookup(state, t.task.directive.contentIdentityId)}`}
+            title={`${t.status === 'blocked' ? '处理执行前阻断' : '核对未知结果'}：${lookup(state, t.task.directive.contentIdentityId)}`}
             submit="保存核对并重新审查相关范围"
             fields={[
               {
                 key: 'status',
                 label: '核对结论',
-                options: [
+                options: t.status === 'blocked' && t.receipt?.publishStatus === 'not_submitted' ? [
+                  { id: 'not_submitted', name: '未提交；已处理配置问题，下一次执行仍须自动复核身份并重新批准' },
+                ] : [
                   { id: 'published', name: '已公开' },
                   {
                     id: 'confirmed_not_published',

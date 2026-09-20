@@ -77,6 +77,13 @@ export interface ExecutionReceipt {
     | "DEADLINE_EXPIRED"
     | "RECEIPT_CONFLICT";
   challengeType?: string;
+  actionRequired?: {
+    kind: "account" | "app";
+    reason: string;
+    expectedIdentity?: string;
+    observedIdentity?: string;
+    nextAction: string;
+  };
   resourceStatus: "available" | "busy" | "offline" | "error";
 }
 

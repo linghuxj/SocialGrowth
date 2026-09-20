@@ -1,0 +1,74 @@
+diff --git a/artemis/agents/checker/checker.py b/artemis/agents/checker/checker.py
+index 40a90e2..13cdd25 100644
+--- a/artemis/agents/checker/checker.py
++++ b/artemis/agents/checker/checker.py
+@@ -410,3 +410,16 @@ def _format_check_items(check_items: list) -> str:
+ async def _structured_report(llm, messages) -> CheckReport:
+-    structured_llm = llm.with_structured_output(CheckReport)
++    # OpenAI-compatible Gemini proxies can reject $defs/$ref in response_schema.
++    # Function-calling converts the Pydantic model to an inlined tool schema,
++    # retaining the same strict Pydantic report parsing and verdict semantics.
++    from langchain_openai import ChatOpenAI
++
++    # The local router can force OpenAI transport while endpoint metadata still
++    # says Google. Inspect the concrete model, unwrapping runtime/config layers.
++    concrete_llm = getattr(llm, "base_model", llm)
++    concrete_llm = getattr(concrete_llm, "bound", concrete_llm)
++    structured_llm = (
++        llm.with_structured_output(CheckReport, method="function_calling")
++        if isinstance(concrete_llm, ChatOpenAI)
++        else llm.with_structured_output(CheckReport)
++    )
+     # A conversation must end with a user turn: Gemini rejects requests whose
+diff --git a/config/artemis.jsonc b/config/artemis.jsonc
+index 517d738..5cc253c 100644
+--- a/config/artemis.jsonc
++++ b/config/artemis.jsonc
+@@ -223,5 +223,7 @@
+         // restored; the depth only decides how long new ones stay.
+-        "image_scrub_depth": 3,
+-        "image_scrub_depth_relaxed": 6,
+-        "pending_grace_steps": 3,
++        // Local proxy: a four-image request exceeded its body limit. Keep only
++        // the current image; retain summaries and trace references for history.
++        "image_scrub_depth": 1,
++        "image_scrub_depth_relaxed": 1,
++        "pending_grace_steps": 0,
+         // Text edge: once a newer observation exists (depth 1) the UI element
+diff --git a/tests/unit/agents/test_checker_structured_report.py b/tests/unit/agents/test_checker_structured_report.py
+index 3eaa878..e591430 100644
+--- a/tests/unit/agents/test_checker_structured_report.py
++++ b/tests/unit/agents/test_checker_structured_report.py
+@@ -55 +55,32 @@ async def test_structured_report_keeps_user_ending_conversation_as_is():
+     assert structured.ainvoke.call_args.args[0] is messages
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("wrapped,provider", [(False, "openai"), (True, "openai"), (True, "google")])
++async def test_openai_compatible_checker_uses_inlined_function_schema(monkeypatch, wrapped, provider):
++    import json
++    from langchain_openai import ChatOpenAI
++    from langchain_core.utils.function_calling import convert_to_openai_tool
++
++    schema = json.dumps(convert_to_openai_tool(CheckReport))
++    assert '"$defs"' not in schema
++    assert '"$ref"' not in schema
++    structured = MagicMock()
++    structured.ainvoke = AsyncMock(return_value=CheckReport(verdicts=[]))
++    captured = {}
++
++    def build(self, schema, **kwargs):
++        captured.update(kwargs)
++        return structured
++
++    monkeypatch.setattr(ChatOpenAI, "with_structured_output", build)
++    llm = ChatOpenAI(api_key="test-not-real", model="gemini-test")
++    if wrapped:
++        from artemis.services.llm import RobustChatModelWrapper
++        from artemis.llm.router import ModelEndpoint, ModelProvider
++        llm = RobustChatModelWrapper(
++            llm.with_config(), None,
++            endpoint=ModelEndpoint(provider=ModelProvider.from_string(provider), model_name="gemini-test"),
++        )
++    await _structured_report(llm, [HumanMessage(content="Return verdict.")])
++    assert captured == {"method": "function_calling"}

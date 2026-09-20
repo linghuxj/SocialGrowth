@@ -539,7 +539,7 @@ export class ExecutionRuntime {
       };
     const status = ["unknown", "in_progress"].includes(retained.publishStatus)
       ? "unknown"
-      : "completed";
+      : retained.executionStatus === "blocked" ? "blocked" : "completed";
     this.store.db
       .prepare("UPDATE tasks SET status=?,receipt=? WHERE id=?")
       .run(status, JSON.stringify(retained), incoming.taskId);
@@ -588,7 +588,7 @@ export class ExecutionRuntime {
     const input = z
       .object({
         taskId: z.string(),
-        publishStatus: z.enum(["published", "confirmed_not_published"]),
+        publishStatus: z.enum(["published", "confirmed_not_published", "not_submitted"]),
         evidenceRefs: z.array(z.string()).min(1),
         publishedUrl: z.string().url().optional(),
         publishedPostId: z.string().optional(),
@@ -601,8 +601,13 @@ export class ExecutionRuntime {
     return this.store.transaction(() => {
       const record = this.tasks().find((t) => t.taskId === input.taskId);
       requireFact(
-        record && ["unknown", "completed"].includes(record.status),
+        record && ["unknown", "completed", "blocked"].includes(record.status),
         "TASK_NOT_REVIEWABLE",
+      );
+      requireFact(
+        input.publishStatus !== "not_submitted" ||
+          (record.status === "blocked" && record.receipt?.publishStatus === "not_submitted" && !!record.receipt.actionRequired),
+        "NON_SUBMISSION_NOT_ESTABLISHED",
       );
       requireFact(
         input.evidenceRefs.every((ref) =>
@@ -634,7 +639,8 @@ export class ExecutionRuntime {
       );
       this.applyReceipt(record.task, receipt);
       const outstanding = this.tasks().filter(
-        (t) => t.status === "unknown" || t.status === "running",
+        (t) => t.status === "unknown" || t.status === "running" ||
+          (t.status === "blocked" && t.receipt?.failureCode === "IDENTITY_CHALLENGE"),
       );
       for (const [kind, value] of [
         ["device", d.deviceId],

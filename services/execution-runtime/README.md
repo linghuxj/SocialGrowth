@@ -13,6 +13,23 @@ npm run runtime:setup -- /absolute/path/to/artemis PHYSICAL_ADB_SERIAL
 
 初始化只生成权限为 0600、被 Git 忽略的 `.env.runtime` 和 `.env.agent`；已有文件时拒绝覆盖。配置不包含业务账号绑定、素材权利或公开发布批准。这些信息由运营在控制台登记。
 
+### FB / YT 应用准备
+
+预下载已校验安装包，按 `examples/app-catalog.2026-09-20.json` 建立本机清单。示例内路径相对清单文件，实际 APK 不入 Git。将以下非秘密配置加入 `.env.agent`：
+
+```dotenv
+SG_APP_CATALOG=/absolute/path/to/android-packages/catalog.json
+SG_ANDROID_BUILD_TOOLS=/absolute/path/to/Android/sdk/build-tools/36.0.0
+```
+
+只检查已安装状态：`npm run runtime:check-apps`。
+补装缺失应用并复查：`npm run runtime:check-apps -- --install-missing`。
+正常 Agent 在导入素材前也自动执行同一检查/补装逻辑，不要求人工进入商店安装。缺包但清单/工具未配置则阻断，不下载未知来源包。
+
+候选 APK 按 SHA-256、包名、版本、签名证书、Android 最低版本、ABI、分包名称与必需类型逐项核验。多包必须版本/签名一致并采用一次 `adb install-multiple`；没有 `-r/-d`、卸载或重试安装。已安装应用仅接受候选相同版本或清单明确保留版本；本轮保留 FB 549 登录环境，不因为下载了 579 就替换它。现有应用保留基线不等于新版本业务验收。
+
+Artemis SDK 的 `app_path` 当前只有单 APK 接口。运行时通过 ADB 做确定性单包/分包安装；业务 UI 和账号核对仍只使用 Google Artemis。目录中的清单是受信任本机管理员配置，不允许由任务载荷或网页替换签名/哈希。
+
 由开发者在各终端**手动启动**：
 
 ```sh
@@ -48,8 +65,10 @@ npm run runtime:check-artemis
 4. 在发布计划选择准确素材版本、绑定、文案、公开受众、AI 标签和音乐/配音权利。YouTube 必须明确儿童受众。
 5. 选择 `preflight` 时在最终提交前停止；选择 `publish` 时必须额外填写本次公开发布批准记录。每个排期只能创建一个 task/attempt，重复请求返回原任务。
 6. Agent 下载签名 URL，核验 SHA-256，通过指定序列号导入手机并再次核验设备端哈希，触发媒体扫描。UI 操作由 Google Artemis MCP 完成；ADB 只承担物理设备/素材/截图桥接。
-7. Artemis 先核对当前唯一平台身份，再进入原生 App 流程。截图、结构化结果和 trace ID 先归档，随后回传回执。模型报告“完成”不直接等于发布成功；公开结果还须有平台 URL/ID、证据且 UI 层级包含所报 URL。无法满足时保持 `unknown`，交人工核验。
+7. Artemis 先核对当前唯一平台身份及类型，再进入原生 App 流程。FB 必须是 Page，个人 Profile 不通过；YT 必须是频道。登录缺失、验证挑战、唯一身份无法确认或不匹配时阻断，不自动切换账号。回执 `actionRequired` 显示预期/实际身份、负责角色与处理方式。已完成且明确无内容/账号修改的只读检查失败记 `blocked/not_submitted`；丢失响应、超时或进入发布工作后的失败仍保守记 `unknown`。截图、结构化结果和 trace ID 先归档，随后回传回执。模型报告“完成”不直接等于发布成功；公开结果还须有平台 URL/ID、证据且 UI 层级包含所报 URL。无法满足时保持 `unknown`，交人工核验。
 8. 未知状态暂停设备、账号、服务和内容范围。人工上传核对证据并确认关联范围/权限后恢复；原批准和排期失效，需重新批准安排。技术重连不恢复业务。
+
+明确的账号/App 执行前阻断有独立的配置处理提示。负责人处理后从执行记录归档证据并复核；`not_submitted` 只能保留已有确定的未提交事实，不能抹掉 `unknown`。下一次合法任务会自动重新检查应用和账号。**当前未实现独立常驻账号健康轮询、自动识别人工配置完成并解除暂停；不得将此批实现称为该恢复链路全自动验收。** 无论如何，绑定变更均不沿用旧批准/排期。
 
 `preflight` 的最终提交停止约束通过任务模式和 Artemis 指令实施，不是对任意 LLM 动作的形式化保证；正式启用前仍需对真实账号和 App 版本做场景验收。此轮未执行新发布场景。
 

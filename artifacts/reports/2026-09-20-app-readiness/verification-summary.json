@@ -1,0 +1,23 @@
+{
+  "date": "2026-09-20",
+  "device": {"serial": "RFCW40MYYCV", "sdk": 36, "abi": ["arm64-v8a", "armeabi-v7a", "armeabi"], "density": 480},
+  "apps": [
+    {"packageName": "com.facebook.katana", "downloadVersion": "579.0.0.52.74", "files": 2, "candidateSignatureAndHashVerified": true, "installedVersion": "549.0.0.61.62", "changedInstalledApp": false},
+    {"packageName": "com.google.android.youtube", "downloadVersion": "21.37.42", "files": 1, "candidateSignatureAndHashVerified": true, "installedVersion": "21.37.42", "installedThroughRuntime": true, "nativeObservedStatus": "sign_in_error", "businessChannelAligned": false}
+  ],
+  "tests": {"runtime": 26, "controller": 8, "integration": 3, "webDomain": 28, "artemis": 57, "failures": 0},
+  "builds": {"runtime": "passed", "controller": "passed", "web": "passed", "webTypes": "passed"},
+  "lint": {"runtime": "passed", "controller": "passed", "webChangedFile": "passed", "webWholeRepository": "not_claimed"},
+  "schemaProbes": [
+    {"nominalProvider": "openai", "actualClient": "ChatOpenAI", "result": "http_200_schema_parsed", "seconds": 2.77},
+    {"nominalProvider": "google", "actualClient": "ChatOpenAI", "result": "timeout", "seconds": 40}
+  ],
+  "realTraces": [
+    {"id": "58e286c4-8143-49f5-b7a1-5fecc4b9d36d", "status": "cancelled", "reason": "240_second_deadline", "schema400": 2, "http413": 0},
+    {"id": "e2bc909c-0282-433d-aa34-e67c5f04ff6a", "status": "failed", "seconds": 184.9, "inconclusiveChecks": 3, "schema400": 3, "http413": 0}
+  ],
+  "finalArtemisPatchFullyValidatedOnDevice": false,
+  "publicPostsCreated": 0,
+  "fullBusinessAcceptance": false,
+  "autonomousRecoveryAfterHumanAccountSetupImplemented": false
+}

@@ -311,6 +311,10 @@ test("unknown cannot be cleared by not_submitted; manual review requires evidenc
       "phone",
     );
     assert.equal(f.runtime.tasks()[0].receipt?.publishStatus, "unknown");
+    assert.throws(() => f.runtime.review({
+      taskId: task.taskId, publishStatus: "not_submitted", evidenceRefs: [evidence],
+      reason: "cannot erase uncertainty", relatedScopeReviewed: true, authorizationRechecked: true,
+    }, "reviewer"), /NON_SUBMISSION_NOT_ESTABLISHED/);
     f.runtime.review(
       {
         taskId: task.taskId,
@@ -560,16 +564,66 @@ test("device workflow checks hashes and identity before publishing; no model com
           return {
             status: "completed",
             device_serial: "RFC_TEST",
-            result: { observedIdentity: "wrong-account", matches: false },
+            result: { observedIdentity: "wrong-account", identityKind: "facebook_page", status: "verified", mutationsPerformed: 0 },
           };
         },
       },
     });
     assert.equal(starts, 1);
-    assert.equal(wrong.publishStatus, "unknown");
+    assert.equal(wrong.publishStatus, "not_submitted");
+    assert.equal(wrong.executionStatus, "blocked");
+    assert.equal(wrong.failureCode, "IDENTITY_CHALLENGE");
+    assert.equal(wrong.actionRequired?.observedIdentity, "wrong-account");
+    assert.equal(wrong.actionRequired?.expectedIdentity, task.binding.platformIdentity);
   } finally {
     f.store.close();
   }
+});
+
+test("account readiness blocks persist clear work instructions and require fresh approval after configuration review", () => {
+  const f = setup();
+  try {
+    claim(f);
+    const taskId = f.runtime.tasks()[0].taskId;
+    const evidence = f.runtime.archiveEvidence(taskId, "phone", "text/plain", Buffer.from("read-only identity mismatch"));
+    f.runtime.receive(receipt(f, {
+      executionStatus: "blocked", publishStatus: "not_submitted", failureCode: "IDENTITY_CHALLENGE", evidenceRefs: [evidence],
+      actionRequired: { kind: "account", reason: "ACCOUNT_IDENTITY_MISMATCH", expectedIdentity: "page-a", observedIdentity: "page-b", nextAction: "Assign the expected page without automatic account switching." },
+    }), "phone");
+    assert.equal(f.runtime.tasks()[0].status, "blocked");
+    assert.equal(f.store.db.prepare("SELECT * FROM pauses").all().length, 4);
+    f.runtime.review({ taskId, publishStatus: "not_submitted", evidenceRefs: [evidence], reason: "operator configured expected page; next attempt rechecks", relatedScopeReviewed: true, authorizationRechecked: true }, "operator");
+    assert.equal(f.store.db.prepare("SELECT * FROM pauses").all().length, 0);
+    assert.equal(f.store.snapshot().state.executionApprovals[0].status, "invalidated");
+    assert.equal(f.runtime.pull("phone"), null);
+  } finally { f.store.close(); }
+});
+
+for (const [status, identityKind, expectedReason] of [
+  ["verified", "facebook_profile", "ACCOUNT_TYPE_MISMATCH"],
+  ["login_required", "unknown", "ACCOUNT_LOGIN_REQUIRED"],
+  ["challenge", "unknown", "ACCOUNT_CHALLENGE"],
+  ["unverifiable", "unknown", "ACCOUNT_UNVERIFIABLE"],
+] as const) test(`${expectedReason} never starts publishing workflow`, async () => {
+  const bytes = Buffer.from("test-media");
+  const f = setup(undefined, createHash("sha256").update(bytes).digest("hex"));
+  try {
+    const task = f.runtime.enqueue(f.settings, "tester");
+    let starts = 0;
+    const result = await executeDeviceTask(task, {
+      device: { prepare: async () => "/sdcard/test.mp4", screenshot: async () => Buffer.from("png") },
+      download: async () => bytes, archive: async () => `evidence:${randomUUID()}`, trace: () => {},
+      now: () => Date.parse("2026-09-20T02:00:00Z"),
+      artemis: { close: async () => {}, call: async (name) => {
+        if (name === "mobile_run_task") { starts++; return { trace_id: "identity" }; }
+        return { status: "completed", result: { observedIdentity: task.binding.platformIdentity, identityKind, status, mutationsPerformed: 0 } };
+      } },
+    });
+    assert.equal(starts, 1);
+    assert.equal(result.executionStatus, "blocked");
+    assert.equal(result.publishStatus, "not_submitted");
+    assert.equal(result.actionRequired?.reason, expectedReason);
+  } finally { f.store.close(); }
 });
 
 test("legacy import preserves history but cannot activate old approvals or overwrite a workspace", () => {
@@ -670,7 +724,7 @@ test("Artemis preflight returns non-submission; claimed public success without U
                 device_serial: "RFC_TEST",
                 result:
                   starts === 1
-                    ? { observedIdentity: task.binding.platformIdentity, matches: true }
+                    ? { observedIdentity: task.binding.platformIdentity, identityKind: "facebook_page", status: "verified", mutationsPerformed: 0 }
                     : {
                         observedIdentity: task.binding.platformIdentity,
                         finalSubmitClicked: publish,

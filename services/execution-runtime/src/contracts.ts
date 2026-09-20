@@ -76,6 +76,13 @@ export const receiptSchema = z
       ])
       .optional(),
     challengeType: id.optional(),
+    actionRequired: z.object({
+      kind: z.enum(["account", "app"]),
+      reason: id,
+      expectedIdentity: id.optional(),
+      observedIdentity: id.optional(),
+      nextAction: z.string().min(1).max(1000),
+    }).strict().optional(),
     resourceStatus: z.enum(["available", "busy", "offline", "error"]),
   })
   .strict()
