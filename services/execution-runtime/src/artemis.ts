@@ -1,5 +1,8 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import {
+  StdioClientTransport,
+  getDefaultEnvironment,
+} from "@modelcontextprotocol/sdk/client/stdio.js";
 import { resolve } from "node:path";
 import { requireFact } from "./contracts.ts";
 
@@ -17,6 +20,12 @@ export class ArtemisMcp implements ArtemisPort {
       command: resolve(this.root, ".venv/bin/python"),
       args: ["-m", "artemis", "mcp"],
       cwd: this.root,
+      // This runtime already provides durable one-shot scheduling and polling.
+      // Force Artemis' standalone path so a separately running Artemis daemon
+      // cannot accept the task with a daemon-only launch/result shape and leave
+      // this process without a conclusive structured result. Artemis' shared
+      // device lock still prevents concurrent access to the same serial.
+      env: { ...getDefaultEnvironment(), ARTEMIS_STANDALONE: "1" },
       stderr: "pipe",
     });
     await this.client.connect(this.transport);

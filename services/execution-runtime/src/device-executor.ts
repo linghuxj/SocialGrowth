@@ -158,7 +158,13 @@ export async function executeDeviceTask(
     const run = async (description: string, output: string) => {
       launched = true; // A lost launch response may still have started device work. Never retry it.
       const launch = z
-        .object({ trace_id: z.string(), device_serial: z.string() })
+        .object({
+          trace_id: z.string(),
+          // Artemis standalone returns the selected serial here, while the daemon
+          // scheduler may omit it. The first status poll remains authoritative and
+          // is checked against the exact binding below.
+          device_serial: z.string().nullable().optional(),
+        })
         .passthrough()
         .parse(
           await call("mobile_run_task", {
@@ -170,7 +176,10 @@ export async function executeDeviceTask(
             expected_output_desc: output,
           }),
         );
-      requireFact(launch.device_serial === b.serial, "ARTEMIS_DEVICE_MISMATCH");
+      requireFact(
+        !launch.device_serial || launch.device_serial === b.serial,
+        "ARTEMIS_DEVICE_MISMATCH",
+      );
       activeTrace = launch.trace_id;
       dependencies.trace(activeTrace);
       await record({

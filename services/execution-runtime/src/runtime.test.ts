@@ -659,7 +659,9 @@ test("Artemis preflight returns non-submission; claimed public success without U
             call: async (name) => {
               if (name === "mobile_run_task") {
                 starts++;
-                return { trace_id: `trace-${starts}`, device_serial: "RFC_TEST" };
+                // Artemis daemon-scheduled launches omit device_serial. The
+                // subsequent status response carries the authoritative binding.
+                return { trace_id: `trace-${starts}`, status: "running" };
               }
               if (name === "mobile_get_device_state")
                 return "<screen>no public URL observed</screen>";
