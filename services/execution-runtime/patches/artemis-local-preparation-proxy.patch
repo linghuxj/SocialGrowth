@@ -1,0 +1,94 @@
+--- a/artemis/llm/router.py
++++ b/artemis/llm/router.py
+@@ -287,2 +287,3 @@
+             from langchain_openai import ChatOpenAI
++            from artemis.llm.proxy_compat import ProxyChatOpenAI
+ 
+@@ -307,2 +308,6 @@
+                 kwargs["reasoning_effort"] = endpoint.reasoning_effort
++            if base_url:
++                kwargs["max_retries"] = 0  # One retry owner: Artemis' classified gateway.
++                kwargs["timeout"] = min(endpoint.timeout_seconds or 30, 30)
++                return ProxyChatOpenAI(**{k: v for k, v in kwargs.items() if v is not None})
+             return ChatOpenAI(**{k: v for k, v in kwargs.items() if v is not None})
+--- a/artemis/services/llm.py
++++ b/artemis/services/llm.py
+@@ -1122,2 +1122,7 @@
+     raw_model = ModelFactory.get_model(endpoint)
++    # Existing local routing can select OpenAI transport for a nominal Google role.
++    # Retry/tool handling must describe the actual client, not the nominal role.
++    from langchain_openai import ChatOpenAI
++    if isinstance(raw_model, ChatOpenAI):
++        endpoint = endpoint.model_copy(update={"provider": "openai", "model_name": raw_model.model_name})
+ 
+--- /dev/null
++++ b/artemis/llm/proxy_compat.py
+@@ -0,0 +1,30 @@
++"""Bounded OpenAI-compatible proxy transport; never logs request contents."""
++from typing import Any
++import os
++
++import httpx
++from langchain_openai import ChatOpenAI
++
++
++class RequestBudgetExceeded(ValueError):
++    status_code = 413
++
++
++class ProxyChatOpenAI(ChatOpenAI):
++    def _get_request_payload(self, input_: Any, *, stop: list[str] | None = None, **kwargs: Any) -> dict:
++        payload = super()._get_request_payload(input_, stop=stop, **kwargs)
++        limit = int(os.environ.get("ARTEMIS_PROXY_MAX_BODY_BYTES", "786432"))
++        if limit <= 0:
++            raise RequestBudgetExceeded("Invalid proxy request budget")
++        # HTTPX JSON serialization, including tools/schema and all message content.
++        size = len(httpx.Request("POST", "https://budget.invalid", json=payload).content)
++        if size > limit:
++            raise RequestBudgetExceeded(f"Proxy request budget exceeded: {size} > {limit} bytes")
++        return payload
++
++    def with_structured_output(self, schema: Any = None, *, method: str = "function_calling", **kwargs: Any) -> Any:
++        # The configured intermediary rejects OpenAI response_format JSON Schema.
++        # Tool calling still uses LangChain's Pydantic validation on the response.
++        if method == "json_schema":
++            method = "function_calling"
++        return super().with_structured_output(schema, method=method, **kwargs)
+--- /dev/null
++++ b/tests/unit/agents/test_proxy_compat.py
+@@ -0,0 +1,35 @@
++import pytest
++from pydantic import BaseModel
++from artemis.llm.proxy_compat import ProxyChatOpenAI, RequestBudgetExceeded
++from artemis.llm.reliability import classify_failure, FailureCategory
++
++
++class Nested(BaseModel):
++    value: str
++
++
++class Result(BaseModel):
++    result: Nested
++
++
++def test_tool_schema_and_budget(monkeypatch):
++    model = ProxyChatOpenAI(model="test", api_key="unused", max_retries=0)
++    bound = model.with_structured_output(Result, method="json_schema")
++    first = bound.steps[0]
++    assert "tools" in first.kwargs
++    assert "response_format" not in first.kwargs
++    payload = model._get_request_payload("small")
++    assert payload["messages"]
++    monkeypatch.setenv("ARTEMIS_PROXY_MAX_BODY_BYTES", "512")
++    with pytest.raises(RequestBudgetExceeded) as caught:
++        model._get_request_payload("x" * 1000)
++    failure = classify_failure(caught.value)
++    assert failure.category == FailureCategory.BAD_REQUEST
++    assert not failure.retryable and not failure.should_fallback
++
++
++def test_budget_covers_tool_schema(monkeypatch):
++    monkeypatch.setenv("ARTEMIS_PROXY_MAX_BODY_BYTES", "1024")
++    model = ProxyChatOpenAI(model="test", api_key="unused")
++    with pytest.raises(RequestBudgetExceeded):
++        model._get_request_payload("small", tools=[{"description": "x" * 2000}])

@@ -17,6 +17,206 @@ import {
 } from "../../../apps/web-console/lib/first-loop/engine.ts";
 import type { ExecutionReceipt } from "../../../apps/artemis-controller/src/types.ts";
 import { executeDeviceTask } from "./device-executor.ts";
+import { inspectPreparation } from "./preparation.ts";
+import { runWorker } from "./worker-cli.ts";
+
+test("preparation waits preserve approval; same-scope human repair resumes exactly once", () => {
+  const f = setup();
+  try {
+    const task = f.runtime.enqueue(f.settings, "tester");
+    f.advance("2026-09-20T02:00:00.000Z");
+    assert.equal(f.runtime.pull("phone"), null);
+    const lease = f.runtime.pullPreparation("phone")!;
+    assert.ok(lease);
+    assert.equal(f.runtime.pullPreparation("phone"), null);
+    assert.throws(() => f.runtime.holdDevice("phone", true, "tester"), /DEVICE_PREPARATION_ACTIVE/);
+    f.runtime.reportPreparation("phone", task.directive.taskId, lease.lease, {
+      status: "waiting",
+      reason: "LOGIN_REQUIRED",
+      observedAt: f.runtime.now(),
+    });
+    assert.equal(f.store.snapshot().state.publicationAttempts.length, 0);
+    assert.equal(f.store.snapshot().state.executionApprovals[0].status, "active");
+    assert.equal(f.runtime.pullPreparation("phone"), null);
+    f.runtime.holdDevice("phone", true, "tester");
+    f.advance("2026-09-20T02:01:00.000Z");
+    assert.equal(f.runtime.pullPreparation("phone"), null);
+    f.runtime.holdDevice("phone", false, "tester");
+    assert.ok(prepareAndStart(f.runtime));
+    assert.equal(f.store.snapshot().state.publicationAttempts.length, 1);
+    assert.equal(f.runtime.pullPreparation("phone"), null);
+    assert.throws(() => f.runtime.holdDevice("phone", true, "tester"), /DEVICE_EXECUTION_ACTIVE/);
+  } finally {
+    f.store.close();
+  }
+});
+
+test("expired preparation lease is repeatable; late report and stale ready proof cannot launch", () => {
+  const f = setup();
+  try {
+    f.runtime.enqueue(f.settings, "tester");
+    f.advance("2026-09-20T02:00:00.000Z");
+    const first = f.runtime.pullPreparation("phone")!;
+    f.advance("2026-09-20T02:11:00.000Z");
+    const second = f.runtime.pullPreparation("phone")!;
+    assert.notEqual(first.lease, second.lease);
+    const report = {
+      status: "ready",
+      reason: "IDENTITY_VISIBLE",
+      observedAt: f.runtime.now(),
+      observationSha256: "a".repeat(64),
+    };
+    assert.throws(
+      () => f.runtime.reportPreparation("phone", first.task.directive.taskId, first.lease, report),
+      /PREPARATION_LEASE_INVALID/,
+    );
+    f.runtime.reportPreparation("phone", second.task.directive.taskId, second.lease, report);
+    f.advance("2026-09-20T02:12:00.000Z");
+    assert.throws(
+      () => f.runtime.pull("phone", { taskId: second.task.directive.taskId, lease: second.lease }),
+      /PREPARATION_REQUIRED/,
+    );
+    assert.equal(f.store.snapshot().state.publicationAttempts.length, 0);
+  } finally {
+    f.store.close();
+  }
+});
+
+for (const change of ["caption", "binding", "approval", "expired"] as const)
+  test(`preparation never resumes after ${change} changes`, () => {
+    const f = setup();
+    try {
+      const task = f.runtime.enqueue(f.settings, "tester");
+      f.advance("2026-09-20T02:00:00.000Z");
+      const lease = f.runtime.pullPreparation("phone")!;
+      f.runtime.reportPreparation("phone", task.directive.taskId, lease.lease, {
+        status: "waiting",
+        reason: "LOGIN_REQUIRED",
+        observedAt: f.runtime.now(),
+      });
+      if (change === "caption") {
+        task.settings.captionText = "changed";
+        f.store.db
+          .prepare("UPDATE tasks SET body=? WHERE id=?")
+          .run(JSON.stringify(task), task.directive.taskId);
+      } else if (change === "binding") {
+        f.store.db
+          .prepare("UPDATE bindings SET body=? WHERE id=?")
+          .run(
+            JSON.stringify({ ...task.binding, platformIdentity: "https://www.facebook.com/other" }),
+            task.binding.id,
+          );
+      } else if (change === "approval") {
+        const { state } = f.store.snapshot();
+        state.executionApprovals[0].status = "invalidated";
+        f.store.save(state);
+      }
+      f.advance(change === "expired" ? "2026-09-20T03:01:00.000Z" : "2026-09-20T02:01:00.000Z");
+      assert.equal(f.runtime.pullPreparation("phone"), null);
+      assert.equal(f.runtime.tasks()[0].status, "blocked");
+      assert.equal(f.store.snapshot().state.publicationAttempts.length, 0);
+    } finally {
+      f.store.close();
+    }
+  });
+
+test("passive preparation requires target foreground and exact identity; error beats matching URL", async () => {
+  const f = setup();
+  try {
+    const task = f.runtime.enqueue(f.settings, "tester");
+    let observed = task.binding.platformIdentity;
+    let foreground = task.directive.targetAppPackage;
+    const ports = {
+      ensureApp: async () => {},
+      foreground: async () => foreground,
+      observe: async () => observed,
+    };
+    assert.equal((await inspectPreparation(task, ports)).status, "ready");
+    observed += "-wrong";
+    assert.equal((await inspectPreparation(task, ports)).reason, "IDENTITY_NOT_VISIBLE");
+    observed = `登入您的帳戶時發生問題 ${task.binding.platformIdentity}`;
+    assert.equal((await inspectPreparation(task, ports)).reason, "LOGIN_REQUIRED");
+    observed = "Error: device unavailable";
+    assert.equal((await inspectPreparation(task, ports)).reason, "OBSERVER_UNAVAILABLE");
+    foreground = "com.android.settings";
+    assert.equal((await inspectPreparation(task, ports)).reason, "TARGET_APP_NOT_VISIBLE");
+  } finally {
+    f.store.close();
+  }
+});
+
+test("bounded worker retries checks sequentially and exits normally", async () => {
+  let calls = 0;
+  await runWorker({
+    signal: new AbortController().signal,
+    intervalMs: 1,
+    cycles: 3,
+    once: async () => {
+      calls++;
+    },
+  });
+  assert.equal(calls, 3);
+});
+
+test("waiting preparation and manual hold survive database restart without creating attempts", () => {
+  const dir = mkdtempSync(join(tmpdir(), "sg-preparation-restart-"));
+  const path = join(dir, "runtime.sqlite");
+  const f = setup(new RuntimeStore(path));
+  try {
+    f.runtime.enqueue(f.settings, "tester");
+    f.advance("2026-09-20T02:00:00.000Z");
+    const lease = f.runtime.pullPreparation("phone")!;
+    f.runtime.reportPreparation("phone", lease.task.directive.taskId, lease.lease, {
+      status: "waiting",
+      reason: "LOGIN_REQUIRED",
+      observedAt: f.runtime.now(),
+    });
+    f.runtime.holdDevice("phone", true, "tester");
+    f.store.close();
+    const store = new RuntimeStore(path);
+    try {
+      const runtime = new ExecutionRuntime(store, {
+        mediaBaseUrl: "http://127.0.0.1",
+        signingKey: "k".repeat(32),
+        hasAsset: () => true,
+        now: () => "2026-09-20T02:01:00.000Z",
+      });
+      assert.equal(runtime.pullPreparation("phone"), null);
+      assert.equal(runtime.preparations()[0].report.reason, "LOGIN_REQUIRED");
+      assert.equal(store.snapshot().state.publicationAttempts.length, 0);
+      runtime.holdDevice("phone", false, "tester");
+      assert.ok(prepareAndStart(runtime));
+      assert.equal(store.snapshot().state.publicationAttempts.length, 1);
+    } finally {
+      store.close();
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("live ledger owner prevents a second process from replaying its in-flight outbox", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "sg-agent-owner-"));
+  const path = join(dir, "agent.sqlite");
+  const db = new DatabaseSync(path);
+  db.exec("CREATE TABLE agent_owner (id INTEGER PRIMARY KEY, pid INTEGER, token TEXT)");
+  db.prepare("INSERT INTO agent_owner VALUES (1,?,?)").run(process.pid, "other-owner");
+  db.close();
+  try {
+    await assert.rejects(
+      runAgentOnce({
+        runtimeUrl: "http://127.0.0.1:1",
+        token: "unused",
+        deviceId: "phone",
+        artemisRoot: "/missing",
+        ledgerPath: path,
+      }),
+      /AGENT_ALREADY_RUNNING/,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 function setup(store = new RuntimeStore(":memory:"), digest = "a".repeat(64)) {
   let clock = "2026-09-20T01:00:00.000Z";
@@ -188,8 +388,19 @@ function receipt(
 function claim(f: ReturnType<typeof setup>) {
   const task = f.runtime.enqueue(f.settings, "tester");
   f.advance("2026-09-20T02:00:00Z");
-  assert.ok(f.runtime.pull("phone"));
+  assert.ok(prepareAndStart(f.runtime));
   return task;
+}
+function prepareAndStart(runtime: ExecutionRuntime) {
+  const lease = runtime.pullPreparation("phone");
+  assert.ok(lease);
+  runtime.reportPreparation("phone", lease.task.directive.taskId, lease.lease, {
+    status: "ready",
+    reason: "IDENTITY_VISIBLE",
+    observedAt: runtime.now(),
+    observationSha256: "a".repeat(64),
+  });
+  return runtime.pull("phone", { taskId: lease.task.directive.taskId, lease: lease.lease });
 }
 
 test("durable queue: future schedule, exact device, duplicate enqueue, claim once and restart recovery", () => {
@@ -209,7 +420,7 @@ test("durable queue: future schedule, exact device, duplicate enqueue, claim onc
     assert.equal(f.runtime.pull("phone"), null);
     f.advance("2026-09-20T02:00:00Z");
     assert.equal(f.runtime.pull("other"), null);
-    assert.ok(f.runtime.pull("phone"));
+    assert.ok(prepareAndStart(f.runtime));
     assert.equal(f.runtime.pull("phone"), null);
     f.store.close();
     const reopened = new RuntimeStore(path);
@@ -311,10 +522,21 @@ test("unknown cannot be cleared by not_submitted; manual review requires evidenc
       "phone",
     );
     assert.equal(f.runtime.tasks()[0].receipt?.publishStatus, "unknown");
-    assert.throws(() => f.runtime.review({
-      taskId: task.taskId, publishStatus: "not_submitted", evidenceRefs: [evidence],
-      reason: "cannot erase uncertainty", relatedScopeReviewed: true, authorizationRechecked: true,
-    }, "reviewer"), /NON_SUBMISSION_NOT_ESTABLISHED/);
+    assert.throws(
+      () =>
+        f.runtime.review(
+          {
+            taskId: task.taskId,
+            publishStatus: "not_submitted",
+            evidenceRefs: [evidence],
+            reason: "cannot erase uncertainty",
+            relatedScopeReviewed: true,
+            authorizationRechecked: true,
+          },
+          "reviewer",
+        ),
+      /NON_SUBMISSION_NOT_ESTABLISHED/,
+    );
     f.runtime.review(
       {
         taskId: task.taskId,
@@ -468,10 +690,28 @@ test("HTTP and authenticated WebSocket exercise real transport, evidence upload 
     );
     assert.equal(
       (await rpc("PullTask", { deviceId: "phone", resourceStatus: "idle" })).type,
-      "PublishTaskDirective",
+      "Rejected",
     );
+    const prep = await rpc("PullPreparation", { deviceId: "phone", resourceStatus: "idle" });
+    assert.equal(prep.type, "PreparationLease");
+    const lease = { taskId: task.directive.taskId, lease: prep.payload.lease };
     assert.equal(
-      (await rpc("PullTask", { deviceId: "phone", resourceStatus: "idle" })).type,
+      (
+        await rpc("PreparationReport", {
+          ...lease,
+          report: {
+            status: "ready",
+            reason: "IDENTITY_VISIBLE",
+            observedAt: new Date().toISOString(),
+            observationSha256: "a".repeat(64),
+          },
+        })
+      ).type,
+      "Accepted",
+    );
+    assert.equal((await rpc("BeginExecution", lease)).type, "PublishTaskDirective");
+    assert.equal(
+      (await rpc("PullPreparation", { deviceId: "phone", resourceStatus: "idle" })).type,
       "NoTask",
     );
     const ev = await fetch(`${base}/api/runtime/evidence`, {
@@ -564,7 +804,12 @@ test("device workflow checks hashes and identity before publishing; no model com
           return {
             status: "completed",
             device_serial: "RFC_TEST",
-            result: { observedIdentity: "wrong-account", identityKind: "facebook_page", status: "verified", mutationsPerformed: 0 },
+            result: {
+              observedIdentity: "wrong-account",
+              identityKind: "facebook_page",
+              status: "verified",
+              mutationsPerformed: 0,
+            },
           };
         },
       },
@@ -585,18 +830,47 @@ test("account readiness blocks persist clear work instructions and require fresh
   try {
     claim(f);
     const taskId = f.runtime.tasks()[0].taskId;
-    const evidence = f.runtime.archiveEvidence(taskId, "phone", "text/plain", Buffer.from("read-only identity mismatch"));
-    f.runtime.receive(receipt(f, {
-      executionStatus: "blocked", publishStatus: "not_submitted", failureCode: "IDENTITY_CHALLENGE", evidenceRefs: [evidence],
-      actionRequired: { kind: "account", reason: "ACCOUNT_IDENTITY_MISMATCH", expectedIdentity: "page-a", observedIdentity: "page-b", nextAction: "Assign the expected page without automatic account switching." },
-    }), "phone");
+    const evidence = f.runtime.archiveEvidence(
+      taskId,
+      "phone",
+      "text/plain",
+      Buffer.from("read-only identity mismatch"),
+    );
+    f.runtime.receive(
+      receipt(f, {
+        executionStatus: "blocked",
+        publishStatus: "not_submitted",
+        failureCode: "IDENTITY_CHALLENGE",
+        evidenceRefs: [evidence],
+        actionRequired: {
+          kind: "account",
+          reason: "ACCOUNT_IDENTITY_MISMATCH",
+          expectedIdentity: "page-a",
+          observedIdentity: "page-b",
+          nextAction: "Assign the expected page without automatic account switching.",
+        },
+      }),
+      "phone",
+    );
     assert.equal(f.runtime.tasks()[0].status, "blocked");
     assert.equal(f.store.db.prepare("SELECT * FROM pauses").all().length, 4);
-    f.runtime.review({ taskId, publishStatus: "not_submitted", evidenceRefs: [evidence], reason: "operator configured expected page; next attempt rechecks", relatedScopeReviewed: true, authorizationRechecked: true }, "operator");
+    f.runtime.review(
+      {
+        taskId,
+        publishStatus: "not_submitted",
+        evidenceRefs: [evidence],
+        reason: "operator configured expected page; next attempt rechecks",
+        relatedScopeReviewed: true,
+        authorizationRechecked: true,
+      },
+      "operator",
+    );
     assert.equal(f.store.db.prepare("SELECT * FROM pauses").all().length, 0);
     assert.equal(f.store.snapshot().state.executionApprovals[0].status, "invalidated");
     assert.equal(f.runtime.pull("phone"), null);
-  } finally { f.store.close(); }
+  } finally {
+    f.store.close();
+  }
 });
 
 for (const [status, identityKind, expectedReason] of [
@@ -604,27 +878,49 @@ for (const [status, identityKind, expectedReason] of [
   ["login_required", "unknown", "ACCOUNT_LOGIN_REQUIRED"],
   ["challenge", "unknown", "ACCOUNT_CHALLENGE"],
   ["unverifiable", "unknown", "ACCOUNT_UNVERIFIABLE"],
-] as const) test(`${expectedReason} never starts publishing workflow`, async () => {
-  const bytes = Buffer.from("test-media");
-  const f = setup(undefined, createHash("sha256").update(bytes).digest("hex"));
-  try {
-    const task = f.runtime.enqueue(f.settings, "tester");
-    let starts = 0;
-    const result = await executeDeviceTask(task, {
-      device: { prepare: async () => "/sdcard/test.mp4", screenshot: async () => Buffer.from("png") },
-      download: async () => bytes, archive: async () => `evidence:${randomUUID()}`, trace: () => {},
-      now: () => Date.parse("2026-09-20T02:00:00Z"),
-      artemis: { close: async () => {}, call: async (name) => {
-        if (name === "mobile_run_task") { starts++; return { trace_id: "identity" }; }
-        return { status: "completed", result: { observedIdentity: task.binding.platformIdentity, identityKind, status, mutationsPerformed: 0 } };
-      } },
-    });
-    assert.equal(starts, 1);
-    assert.equal(result.executionStatus, "blocked");
-    assert.equal(result.publishStatus, "not_submitted");
-    assert.equal(result.actionRequired?.reason, expectedReason);
-  } finally { f.store.close(); }
-});
+] as const)
+  test(`${expectedReason} never starts publishing workflow`, async () => {
+    const bytes = Buffer.from("test-media");
+    const f = setup(undefined, createHash("sha256").update(bytes).digest("hex"));
+    try {
+      const task = f.runtime.enqueue(f.settings, "tester");
+      let starts = 0;
+      const result = await executeDeviceTask(task, {
+        device: {
+          prepare: async () => "/sdcard/test.mp4",
+          screenshot: async () => Buffer.from("png"),
+        },
+        download: async () => bytes,
+        archive: async () => `evidence:${randomUUID()}`,
+        trace: () => {},
+        now: () => Date.parse("2026-09-20T02:00:00Z"),
+        artemis: {
+          close: async () => {},
+          call: async (name) => {
+            if (name === "mobile_run_task") {
+              starts++;
+              return { trace_id: "identity" };
+            }
+            return {
+              status: "completed",
+              result: {
+                observedIdentity: task.binding.platformIdentity,
+                identityKind,
+                status,
+                mutationsPerformed: 0,
+              },
+            };
+          },
+        },
+      });
+      assert.equal(starts, 1);
+      assert.equal(result.executionStatus, "blocked");
+      assert.equal(result.publishStatus, "not_submitted");
+      assert.equal(result.actionRequired?.reason, expectedReason);
+    } finally {
+      f.store.close();
+    }
+  });
 
 test("legacy import preserves history but cannot activate old approvals or overwrite a workspace", () => {
   const source = setup();
@@ -724,7 +1020,12 @@ test("Artemis preflight returns non-submission; claimed public success without U
                 device_serial: "RFC_TEST",
                 result:
                   starts === 1
-                    ? { observedIdentity: task.binding.platformIdentity, identityKind: "facebook_page", status: "verified", mutationsPerformed: 0 }
+                    ? {
+                        observedIdentity: task.binding.platformIdentity,
+                        identityKind: "facebook_page",
+                        status: "verified",
+                        mutationsPerformed: 0,
+                      }
                     : {
                         observedIdentity: task.binding.platformIdentity,
                         finalSubmitClicked: publish,

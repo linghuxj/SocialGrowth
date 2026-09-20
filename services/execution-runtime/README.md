@@ -4,7 +4,7 @@
 
 ## 运行方式
 
-Node.js 22.13+。在仓库根目录安装依赖。复用已配置的 Google Artemis 工作树和 Python 虚拟环境，不修改上游源码，不复制其模型密钥。
+Node.js 22.13+。复用已配置的 Google Artemis 工作树与虚拟环境，不复制模型密钥。本机代理兼容补丁保存在 `patches/`，不是上游已合并功能；应用前核对基线和本地改动。
 
 ```sh
 npm install
@@ -45,7 +45,15 @@ npm run runtime:web
 npm run runtime:agent
 ```
 
-没有到期任务就返回 `no_task`。这是单次 Agent，不自动创建守护进程或循环调度。常驻编排、远程设备和多进程运维不在本轮本机验收范围。
+没有到期任务返回 `no_task`。持续复查由操作员手动运行 `npm run runtime:worker`（前台进程，Ctrl-C 停止，不安装守护服务）。默认每 15 秒轮询；每任务失败退避 15/30/60/120/240/300 秒，过期不补发。同一设备必须使用同一 ledger；进程互斥防止并发回放未确认回执。
+
+### 可重复准备与人工接管
+
+WS 顺序为 `PullPreparation → PreparationReport → BeginExecution → ExecutionReceipt`。旧 `PullTask` 拒绝为 `AGENT_UPGRADE_REQUIRED`。task/attempt ID 在入队时预留，只有 BeginExecution 创建业务发布尝试、将排期改为 started。准备失败不消费批准。
+
+准备仅做确定性 App 检查/可信补装、前台包检查、Artemis 被动层级读取。目标 App 前台出现绑定的完整身份 URL 且无已识别登录错误，才进入原有主动身份复核。姓名一致不通过，URL 不可读不能视为已登录。首次打开 App／展示身份页面仍需人工，未达到任意界面的全自动身份发现。
+
+控制台提供人工接管/交还按钮：`POST /device-control {deviceId,held}`。正在检查/执行时不能抢占。接管成功后人工登录，交还后重新检查；交还不是批准，也不解除 unknown 暂停。检查租约最长 10 分钟、ready 有效 30 秒；迟到报告拒绝。任务、素材、批准、排期、授权或绑定变化停止旧任务并重新批准。`GET /status` 的 preparations/deviceHolds 提供原因、阶段、次数、下次检查时间和接管状态。
 
 只验证 Google Artemis MCP 连接及目标设备层级读取：
 
@@ -68,7 +76,7 @@ npm run runtime:check-artemis
 7. Artemis 先核对当前唯一平台身份及类型，再进入原生 App 流程。FB 必须是 Page，个人 Profile 不通过；YT 必须是频道。登录缺失、验证挑战、唯一身份无法确认或不匹配时阻断，不自动切换账号。回执 `actionRequired` 显示预期/实际身份、负责角色与处理方式。已完成且明确无内容/账号修改的只读检查失败记 `blocked/not_submitted`；丢失响应、超时或进入发布工作后的失败仍保守记 `unknown`。截图、结构化结果和 trace ID 先归档，随后回传回执。模型报告“完成”不直接等于发布成功；公开结果还须有平台 URL/ID、证据且 UI 层级包含所报 URL。无法满足时保持 `unknown`，交人工核验。
 8. 未知状态暂停设备、账号、服务和内容范围。人工上传核对证据并确认关联范围/权限后恢复；原批准和排期失效，需重新批准安排。技术重连不恢复业务。
 
-明确的账号/App 执行前阻断有独立的配置处理提示。负责人处理后从执行记录归档证据并复核；`not_submitted` 只能保留已有确定的未提交事实，不能抹掉 `unknown`。下一次合法任务会自动重新检查应用和账号。**当前未实现独立常驻账号健康轮询、自动识别人工配置完成并解除暂停；不得将此批实现称为该恢复链路全自动验收。** 无论如何，绑定变更均不沿用旧批准/排期。
+准备期 waiting 同范围修复后由 worker 自动检查继续；已进入执行的 blocked/unknown 仍需证据复核，不自动重跑。`not_submitted` 不能抹掉 unknown。自主身份检查仍含提示词约束，尚无已验收的动作级隔离，因此不能把自主检查失败放入可重复准备。真实验收及剩余边界见[本轮交接](../../docs/handoff/2026-09-20-preparation-recovery.md)。
 
 `preflight` 的最终提交停止约束通过任务模式和 Artemis 指令实施，不是对任意 LLM 动作的形式化保证；正式启用前仍需对真实账号和 App 版本做场景验收。此轮未执行新发布场景。
 

@@ -16,6 +16,7 @@
     "runtime:start": "node --env-file=.env.runtime --import tsx services/execution-runtime/src/server.ts",
     "runtime:web": "node --env-file=.env.runtime --run dev",
     "runtime:agent": "node --env-file=.env.agent --import tsx services/execution-runtime/src/agent-cli.ts",
+    "runtime:worker": "node --env-file=.env.agent --import tsx services/execution-runtime/src/worker-cli.ts",
     "runtime:check-artemis": "node --env-file=.env.agent --import tsx services/execution-runtime/src/check-artemis.ts",
     "runtime:check-apps": "node --env-file=.env.agent --import tsx services/execution-runtime/src/check-apps.ts"
   }

@@ -11,6 +11,7 @@ import type {
 } from "../../../apps/artemis-controller/src/types.ts";
 import { RuntimeStore } from "./store.ts";
 import { z } from "zod";
+import { preparationReportSchema, type PreparationLease } from "./preparation.ts";
 import {
   bindingSchema,
   commandSchema,
@@ -104,6 +105,211 @@ export class ExecutionRuntime {
         task: JSON.parse(r.body as string) as RuntimeTask,
         receipt: r.receipt ? (JSON.parse(r.receipt as string) as ExecutionReceipt) : null,
       }));
+  }
+  preparations() {
+    return this.store.db
+      .prepare("SELECT * FROM preparations")
+      .all()
+      .map((r) => ({
+        taskId: r.task,
+        phase: r.phase,
+        expiresAt: r.expires,
+        nextCheckAt: r.next_check,
+        checks: r.checks,
+        report: r.report ? JSON.parse(r.report as string) : null,
+      }));
+  }
+  private preparationFingerprint(task: RuntimeTask) {
+    const state = this.store.snapshot().state;
+    return createHash("sha256")
+      .update(
+        JSON.stringify({
+          task,
+          approval: state.executionApprovals.find((a) => a.id === task.directive.approvalId),
+          asset: state.sliceAssets.find((a) => a.id === task.directive.sliceId),
+          destination: state.destinationVersions.find(
+            (d) => d.id === task.directive.destinationVersionId,
+          ),
+          schedule: state.publicationSchedules.find((s) => s.id === task.settings.scheduleId),
+          relations: state.accountServiceRelations.filter(
+            (r) =>
+              r.accountId === task.binding.accountId && r.projectId === task.directive.projectId,
+          ),
+        }),
+      )
+      .digest("hex");
+  }
+  private rejectPreparation(task: RuntimeTask, reason: string) {
+    const { state } = this.store.snapshot();
+    this.store.db
+      .prepare("UPDATE tasks SET status='blocked' WHERE id=?")
+      .run(task.directive.taskId);
+    const approval = state.executionApprovals.find((a) => a.id === task.directive.approvalId);
+    if (approval?.status === "active") {
+      approval.status = "invalidated";
+      approval.invalidationReason = reason;
+    }
+    const schedule = state.publicationSchedules.find((s) => s.id === task.settings.scheduleId);
+    if (schedule) schedule.status = "cancelled";
+    this.audit(
+      state,
+      "controller",
+      "preparation.reapproval_required",
+      task.directive.taskId,
+      { reason },
+      [],
+    );
+    this.store.save(state);
+  }
+  holdDevice(device: string, held: boolean, actor: string) {
+    return this.store.transaction(() => {
+      this.expireClaims();
+      requireFact(
+        !this.tasks().some((t) => t.task.binding.deviceId === device && t.status === "running"),
+        "DEVICE_EXECUTION_ACTIVE",
+      );
+      requireFact(
+        !this.store.db
+          .prepare(
+            "SELECT 1 FROM preparations p JOIN tasks t ON t.id=p.task WHERE t.device=? AND p.phase='checking' AND p.expires>?",
+          )
+          .get(device, this.now()),
+        "DEVICE_PREPARATION_ACTIVE",
+      );
+      if (held)
+        this.store.db
+          .prepare("INSERT OR REPLACE INTO device_holds VALUES (?,?,?)")
+          .run(device, actor, this.now());
+      else {
+        this.store.db.prepare("DELETE FROM device_holds WHERE device=?").run(device);
+        this.store.db
+          .prepare(
+            "UPDATE preparations SET phase='waiting',lease=NULL,next_check=? WHERE task IN (SELECT id FROM tasks WHERE device=? AND status='queued')",
+          )
+          .run(this.now(), device);
+      }
+      const { state } = this.store.snapshot();
+      this.audit(
+        state,
+        actor,
+        held ? "device.human_control_acquired" : "device.human_control_released",
+        device,
+        {},
+        [],
+      );
+      this.store.save(state);
+      return { device, held };
+    });
+  }
+  pullPreparation(device: string): PreparationLease | null {
+    return this.store.transaction(() => {
+      this.expireClaims();
+      if (this.store.db.prepare("SELECT 1 FROM device_holds WHERE device=?").get(device))
+        return null;
+      if (this.tasks().some((t) => t.task.binding.deviceId === device && t.status === "running"))
+        return null;
+      if (
+        this.store.db
+          .prepare(
+            "SELECT 1 FROM preparations p JOIN tasks t ON t.id=p.task WHERE t.device=? AND t.status='queued' AND p.phase IN ('checking','ready') AND p.expires>?",
+          )
+          .get(device, this.now())
+      )
+        return null;
+      for (const record of this.tasks().reverse()) {
+        const task = record.task;
+        if (
+          record.status !== "queued" ||
+          task.binding.deviceId !== device ||
+          Date.parse(task.directive.scheduledAt) > Date.parse(this.now())
+        )
+          continue;
+        const { state } = this.store.snapshot();
+        try {
+          this.qualify(state, task.settings, task.binding, record.taskId);
+        } catch (error) {
+          this.rejectPreparation(
+            task,
+            error instanceof RuntimeError ? error.code : "QUALIFICATION_INVALID",
+          );
+          continue;
+        }
+        if (
+          this.store.db
+            .prepare("SELECT 1 FROM pauses WHERE scope IN (?,?,?,?)")
+            .get(
+              `device:${device}`,
+              `account:${task.binding.accountId}`,
+              `project:${task.directive.projectId}`,
+              `content:${task.directive.contentIdentityId}`,
+            )
+        )
+          continue;
+        const previous = this.store.db
+          .prepare("SELECT * FROM preparations WHERE task=?")
+          .get(record.taskId);
+        const fingerprint = this.preparationFingerprint(task);
+        if (previous && previous.fingerprint !== fingerprint) {
+          this.rejectPreparation(task, "TASK_SCOPE_CHANGED");
+          continue;
+        }
+        if (previous && Date.parse(previous.next_check as string) > Date.parse(this.now()))
+          continue;
+        const lease = randomUUID();
+        const expiresAt = new Date(
+          Math.min(Date.parse(this.now()) + 600000, Date.parse(task.directive.expiresAt)),
+        ).toISOString();
+        this.store.db
+          .prepare(
+            "INSERT INTO preparations(task,phase,lease,expires,next_check,fingerprint) VALUES (?,'checking',?,?,?,?) ON CONFLICT(task) DO UPDATE SET phase='checking',lease=excluded.lease,expires=excluded.expires",
+          )
+          .run(record.taskId, lease, expiresAt, this.now(), fingerprint);
+        return { task, lease, expiresAt };
+      }
+      return null;
+    });
+  }
+  reportPreparation(device: string, taskId: string, lease: string, raw: unknown) {
+    const report = preparationReportSchema.parse(raw);
+    return this.store.transaction(() => {
+      const task = this.tasks().find(
+        (t) => t.taskId === taskId && t.status === "queued" && t.task.binding.deviceId === device,
+      )?.task;
+      const row = this.store.db.prepare("SELECT * FROM preparations WHERE task=?").get(taskId);
+      requireFact(
+        task &&
+          row?.phase === "checking" &&
+          row.lease === lease &&
+          Date.parse(row.expires as string) > Date.parse(this.now()),
+        "PREPARATION_LEASE_INVALID",
+      );
+      requireFact(
+        !this.store.db.prepare("SELECT 1 FROM device_holds WHERE device=?").get(device),
+        "DEVICE_HELD",
+      );
+      requireFact(row.fingerprint === this.preparationFingerprint(task), "TASK_SCOPE_CHANGED");
+      requireFact(
+        Math.abs(Date.parse(this.now()) - Date.parse(report.observedAt)) <= 30000,
+        "PREPARATION_STALE",
+      );
+      requireFact(
+        report.status !== "ready" ||
+          (report.reason === "IDENTITY_VISIBLE" && report.observationSha256),
+        "PREPARATION_EVIDENCE_REQUIRED",
+      );
+      this.qualify(this.store.snapshot().state, task.settings, task.binding, taskId);
+      const checks = Number(row.checks) + 1;
+      const next = new Date(
+        Date.parse(this.now()) + Math.min(300000, 15000 * 2 ** Math.min(checks - 1, 5)),
+      ).toISOString();
+      const expires = new Date(Date.parse(this.now()) + 30000).toISOString();
+      this.store.db
+        .prepare(
+          "UPDATE preparations SET phase=?,checks=?,next_check=?,expires=?,report=? WHERE task=?",
+        )
+        .run(report.status, checks, next, expires, JSON.stringify(report), taskId);
+      return { status: report.status, nextCheckAt: next };
+    });
   }
   command(raw: unknown, actor: string) {
     const input = commandSchema.parse(raw);
@@ -393,11 +599,13 @@ export class ExecutionRuntime {
       return task;
     });
   }
-  pull(deviceId: string): RuntimeTask | null {
+  pull(deviceId: string, preparation?: { taskId: string; lease: string }): RuntimeTask | null {
     return this.store.transaction(() => {
       this.expireClaims();
       const { state } = this.store.snapshot();
       const records = this.tasks().reverse();
+      if (this.store.db.prepare("SELECT 1 FROM device_holds WHERE device=?").get(deviceId))
+        return null;
       if (this.store.db.prepare("SELECT 1 FROM pauses WHERE scope=?").get(`device:${deviceId}`))
         return null;
       if (records.some((t) => t.task.binding.deviceId === deviceId && t.status === "running"))
@@ -431,6 +639,23 @@ export class ExecutionRuntime {
             )
         )
           continue;
+        const prepared = this.store.db
+          .prepare("SELECT * FROM preparations WHERE task=?")
+          .get(record.taskId);
+        if (!preparation || preparation.taskId !== record.taskId) continue;
+        requireFact(
+          prepared?.phase === "ready" &&
+            prepared.lease === preparation.lease &&
+            Date.parse(prepared.expires as string) > Date.parse(this.now()),
+          "PREPARATION_REQUIRED",
+        );
+        requireFact(
+          prepared.fingerprint === this.preparationFingerprint(task),
+          "TASK_SCOPE_CHANGED",
+        );
+        this.store.db
+          .prepare("UPDATE preparations SET phase='execution_started',lease=NULL WHERE task=?")
+          .run(record.taskId);
         this.store.db
           .prepare("UPDATE tasks SET status='running',claimed_at=? WHERE id=? AND status='queued'")
           .run(this.now(), record.taskId);
@@ -539,7 +764,9 @@ export class ExecutionRuntime {
       };
     const status = ["unknown", "in_progress"].includes(retained.publishStatus)
       ? "unknown"
-      : retained.executionStatus === "blocked" ? "blocked" : "completed";
+      : retained.executionStatus === "blocked"
+        ? "blocked"
+        : "completed";
     this.store.db
       .prepare("UPDATE tasks SET status=?,receipt=? WHERE id=?")
       .run(status, JSON.stringify(retained), incoming.taskId);
@@ -606,7 +833,9 @@ export class ExecutionRuntime {
       );
       requireFact(
         input.publishStatus !== "not_submitted" ||
-          (record.status === "blocked" && record.receipt?.publishStatus === "not_submitted" && !!record.receipt.actionRequired),
+          (record.status === "blocked" &&
+            record.receipt?.publishStatus === "not_submitted" &&
+            !!record.receipt.actionRequired),
         "NON_SUBMISSION_NOT_ESTABLISHED",
       );
       requireFact(
@@ -639,7 +868,9 @@ export class ExecutionRuntime {
       );
       this.applyReceipt(record.task, receipt);
       const outstanding = this.tasks().filter(
-        (t) => t.status === "unknown" || t.status === "running" ||
+        (t) =>
+          t.status === "unknown" ||
+          t.status === "running" ||
           (t.status === "blocked" && t.receipt?.failureCode === "IDENTITY_CHALLENGE"),
       );
       for (const [kind, value] of [

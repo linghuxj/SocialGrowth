@@ -47,12 +47,22 @@ type RuntimeStatus = {
   bindings: Binding[];
   tasks: TaskRecord[];
   pauses: { scope: string; reason: string }[];
+  preparations: {
+    taskId: string;
+    phase: string;
+    nextCheckAt: string;
+    checks: number;
+    report: null | { reason: string; detailCode?: string };
+  }[];
+  deviceHolds: { device: string }[];
 };
 function useRuntimeStatus() {
   const [status, setStatus] = useState<RuntimeStatus>({
     bindings: [],
     tasks: [],
     pauses: [],
+    preparations: [],
+    deviceHolds: [],
   });
   const [error, setError] = useState('');
   const reload = async () => {
@@ -263,9 +273,44 @@ export function ExecutionQueue({ scheduleId }: { scheduleId: string }) {
 export function RuntimeReceipts() {
   const { state, refresh } = useOperations();
   const { status, error, reload } = useRuntimeStatus();
+  const [controlError, setControlError] = useState('');
   return (
     <Panel title="设备队列与归档证据">
       {error && <Notice>{error}</Notice>}
+      {controlError && <Notice>{controlError}</Notice>}
+      {Array.from(new Set(status.bindings.map((b) => b.deviceId))).map(
+        (deviceId) => {
+          const held =
+            status.deviceHolds?.some((h) => h.device === deviceId) ?? false;
+          return (
+            <button
+              key={deviceId}
+              type="button"
+              onClick={async () => {
+                try {
+                  await runtimeRequest('/device-control', {
+                    deviceId,
+                    held: !held,
+                  });
+                  setControlError('');
+                  await reload();
+                } catch {
+                  setControlError(
+                    '接管未完成：检查设备是否正在执行或检查中。接管成功后再进行人工登录。',
+                  );
+                }
+              }}
+            >
+              {deviceId}：{held ? '交还自动复查' : '申请人工接管'}
+            </button>
+          );
+        },
+      )}
+      <Notice>
+        人工登录前先接管设备，完成后交还；自动复查仅在原身份、任务、授权和有效期均未改变时继续。App
+        中需显示绑定
+        Page／频道的完整身份链接，姓名相同不能放行。不确定是否发布的任务不会自动重跑。
+      </Notice>
       <List
         query=""
         columns={['内容 / 账号', '模式 / 任务状态', '发布事实', '原始证据']}
@@ -277,10 +322,25 @@ export function RuntimeReceipts() {
             `${t.task.settings.mode} / ${t.status}`,
             t.receipt ? label(t.receipt.publishStatus) : '尚未收到回执',
             <div key="e">
+              {status.preparations
+                ?.filter((p) => p.taskId === t.taskId)
+                .map((p) => (
+                  <p key={p.taskId}>
+                    准备阶段：{p.phase}；复查 {p.checks} 次；{p.report?.reason}{' '}
+                    {p.report?.detailCode}。
+                    {p.phase === 'waiting' &&
+                      `下次可检查：${date(p.nextCheckAt)}。请账号负责人核对绑定 Page／频道、处理登录或验证码，并在目标 App 显示完整身份链接；不会自动切换账号。`}
+                  </p>
+                ))}
               {t.receipt?.actionRequired && (
                 <p>
-                  待{t.receipt.actionRequired.kind === 'account' ? '账号' : '设备'}负责人处理：{t.receipt.actionRequired.reason}。
-                  {t.receipt.actionRequired.expectedIdentity && `预期身份：${t.receipt.actionRequired.expectedIdentity}；实际身份：${t.receipt.actionRequired.observedIdentity || '未能读取'}。`}
+                  待
+                  {t.receipt.actionRequired.kind === 'account'
+                    ? '账号'
+                    : '设备'}
+                  负责人处理：{t.receipt.actionRequired.reason}。
+                  {t.receipt.actionRequired.expectedIdentity &&
+                    `预期身份：${t.receipt.actionRequired.expectedIdentity}；实际身份：${t.receipt.actionRequired.observedIdentity || '未能读取'}。`}
                   {t.receipt.actionRequired.nextAction}
                 </p>
               )}
@@ -316,7 +376,11 @@ export function RuntimeReceipts() {
         </Notice>
       )}
       {status.tasks
-        .filter((t) => t.status === 'unknown' || (t.status === 'blocked' && t.receipt?.actionRequired))
+        .filter(
+          (t) =>
+            t.status === 'unknown' ||
+            (t.status === 'blocked' && t.receipt?.actionRequired),
+        )
         .map((t) => (
           <Form
             key={t.taskId}
@@ -327,15 +391,22 @@ export function RuntimeReceipts() {
               {
                 key: 'status',
                 label: '核对结论',
-                options: t.status === 'blocked' && t.receipt?.publishStatus === 'not_submitted' ? [
-                  { id: 'not_submitted', name: '未提交；已处理配置问题，下一次执行仍须自动复核身份并重新批准' },
-                ] : [
-                  { id: 'published', name: '已公开' },
-                  {
-                    id: 'confirmed_not_published',
-                    name: '平台明确拒绝且排除在途 / 已发布',
-                  },
-                ],
+                options:
+                  t.status === 'blocked' &&
+                  t.receipt?.publishStatus === 'not_submitted'
+                    ? [
+                        {
+                          id: 'not_submitted',
+                          name: '未提交；已处理配置问题，下一次执行仍须自动复核身份并重新批准',
+                        },
+                      ]
+                    : [
+                        { id: 'published', name: '已公开' },
+                        {
+                          id: 'confirmed_not_published',
+                          name: '平台明确拒绝且排除在途 / 已发布',
+                        },
+                      ],
               },
               { key: 'evidence', label: '核对证据截图 PNG', type: 'file' },
               {

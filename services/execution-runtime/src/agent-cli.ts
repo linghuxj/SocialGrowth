@@ -8,6 +8,7 @@ import { ArtemisMcp } from "./artemis.ts";
 import { AdbDevice, executeDeviceTask } from "./device-executor.ts";
 import type { RuntimeTask } from "./runtime.ts";
 import { requireFact } from "./contracts.ts";
+import { inspectPreparation, preparationPorts, type PreparationLease } from "./preparation.ts";
 
 export async function runAgentOnce(options: {
   runtimeUrl: string;
@@ -28,6 +29,30 @@ export async function runAgentOnce(options: {
   ledger.exec(
     "PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; CREATE TABLE IF NOT EXISTS attempts (id TEXT PRIMARY KEY, trace TEXT, receipt TEXT, task TEXT, acknowledged INTEGER NOT NULL DEFAULT 0)",
   );
+  // A second process must not replay another process's in-flight outbox as unknown.
+  ledger.exec(
+    "CREATE TABLE IF NOT EXISTS agent_owner (id INTEGER PRIMARY KEY CHECK(id=1), pid INTEGER NOT NULL, token TEXT NOT NULL)",
+  );
+  const owner = randomUUID();
+  ledger.exec("BEGIN IMMEDIATE");
+  try {
+    const existing = ledger.prepare("SELECT pid FROM agent_owner WHERE id=1").get();
+    if (existing) {
+      let alive = true;
+      try {
+        process.kill(Number(existing.pid), 0);
+      } catch (error) {
+        alive = (error as NodeJS.ErrnoException).code !== "ESRCH";
+      }
+      requireFact(!alive, "AGENT_ALREADY_RUNNING");
+    }
+    ledger.prepare("INSERT OR REPLACE INTO agent_owner VALUES (1,?,?)").run(process.pid, owner);
+    ledger.exec("COMMIT");
+  } catch (error) {
+    ledger.exec("ROLLBACK");
+    ledger.close();
+    throw error;
+  }
   const address = new URL("/agent", base);
   address.protocol = base.protocol === "https:" ? "wss:" : "ws:";
   const socket = new WebSocket(address, {
@@ -116,7 +141,32 @@ export async function runAgentOnce(options: {
       await rpc("ExecutionReceipt", pending);
       ledger.prepare("UPDATE attempts SET acknowledged=1 WHERE id=?").run(row.id);
     }
-    const message = await rpc("PullTask", { deviceId: options.deviceId, resourceStatus: "idle" });
+    const preparation = await rpc("PullPreparation", {
+      deviceId: options.deviceId,
+      resourceStatus: "idle",
+    });
+    if (preparation.type === "NoTask") return { status: "no_task" };
+    const lease = preparation.payload as PreparationLease;
+    requireFact(lease.task.binding.deviceId === options.deviceId, "DEVICE_SESSION_MISMATCH");
+    // A preparation never owns a publication attempt. Failed observers cannot invalidate approval.
+    const report = await inspectPreparation(lease.task, {
+      ...preparationPorts(lease.task, artemis),
+      observe: async () => {
+        await artemis.connect();
+        return preparationPorts(lease.task, artemis).observe();
+      },
+    });
+    await rpc("PreparationReport", {
+      taskId: lease.task.directive.taskId,
+      lease: lease.lease,
+      report,
+    });
+    if (report.status !== "ready")
+      return { status: "waiting", reason: report.reason, taskId: lease.task.directive.taskId };
+    const message = await rpc("BeginExecution", {
+      taskId: lease.task.directive.taskId,
+      lease: lease.lease,
+    });
     if (message.type === "NoTask") return { status: "no_task" };
     const task = message.payload as RuntimeTask;
     requireFact(task.binding.deviceId === options.deviceId, "DEVICE_SESSION_MISMATCH");
@@ -146,7 +196,6 @@ export async function runAgentOnce(options: {
       .run(task.directive.attemptId, JSON.stringify(task));
     let receipt;
     try {
-      await artemis.connect();
       receipt = await executeDeviceTask(task, {
         artemis,
         device: new AdbDevice(),
@@ -214,6 +263,7 @@ export async function runAgentOnce(options: {
   } finally {
     socket.terminate();
     await artemis.close().catch(() => {});
+    ledger.prepare("DELETE FROM agent_owner WHERE token=?").run(owner);
     ledger.close();
   }
 }

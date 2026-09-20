@@ -22,6 +22,8 @@ export class RuntimeStore {
       CREATE TABLE IF NOT EXISTS pauses (scope TEXT PRIMARY KEY, reason TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, payload TEXT NOT NULL, response TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS assets (sha256 TEXT PRIMARY KEY, mime TEXT NOT NULL, size INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS preparations (task TEXT PRIMARY KEY, phase TEXT NOT NULL, lease TEXT, expires TEXT, next_check TEXT NOT NULL, checks INTEGER NOT NULL DEFAULT 0, fingerprint TEXT NOT NULL, report TEXT);
+      CREATE TABLE IF NOT EXISTS device_holds (device TEXT PRIMARY KEY, actor TEXT NOT NULL, since TEXT NOT NULL);
     `);
     this.db
       .prepare("INSERT OR IGNORE INTO state VALUES (1,0,?)")

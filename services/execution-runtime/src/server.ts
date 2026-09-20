@@ -110,12 +110,20 @@ export function createRuntimeServer(options: ServerOptions) {
           result = {
             bindings: runtime.bindings(),
             tasks: runtime.tasks(),
+            preparations: runtime.preparations(),
+            deviceHolds: store.db.prepare("SELECT * FROM device_holds").all(),
             pauses: store.db.prepare("SELECT * FROM pauses").all(),
             observations: store.db
               .prepare("SELECT body FROM observations ORDER BY rowid DESC")
               .all()
               .map((r) => JSON.parse(r.body as string)),
           };
+        } else if (path === "/device-control" && req.method === "POST") {
+          const input = z
+            .object({ deviceId: id, held: z.boolean() })
+            .strict()
+            .parse(JSON.parse((await body(req)).toString()));
+          result = runtime.holdDevice(input.deviceId, input.held, "local-operator");
         } else if (path === "/commands" && req.method === "POST")
           result = runtime.command(JSON.parse((await body(req)).toString()), "local-operator");
         else if (path === "/import" && req.method === "POST")
@@ -222,7 +230,13 @@ export function createRuntimeServer(options: ServerOptions) {
               messageId: id,
               contractVersion: z.literal("design-v1"),
               sentAt: z.string().datetime({ offset: true }),
-              type: z.enum(["PullTask", "ExecutionReceipt"]),
+              type: z.enum([
+                "PullTask",
+                "PullPreparation",
+                "PreparationReport",
+                "BeginExecution",
+                "ExecutionReceipt",
+              ]),
               payload: z.unknown(),
             })
             .strict()
@@ -237,25 +251,34 @@ export function createRuntimeServer(options: ServerOptions) {
               return previous.response as string;
             }
             let payload: unknown;
-            if (message.type === "PullTask") {
+            let responseType = "Accepted";
+            if (message.type === "PullTask" || message.type === "PullPreparation") {
               const input = z
                 .object({ deviceId: id, resourceStatus: z.literal("idle") })
                 .strict()
                 .parse(message.payload);
               requireFact(input.deviceId === device, "DEVICE_SESSION_MISMATCH");
-              payload = runtime.pull(device);
+              // Legacy clients may flush receipts, but may never bypass preparation.
+              requireFact(message.type !== "PullTask", "AGENT_UPGRADE_REQUIRED");
+              payload = runtime.pullPreparation(device);
+              responseType = payload ? "PreparationLease" : "NoTask";
+            } else if (message.type === "PreparationReport") {
+              const input = z
+                .object({ taskId: id, lease: id, report: z.unknown() })
+                .strict()
+                .parse(message.payload);
+              payload = runtime.reportPreparation(device, input.taskId, input.lease, input.report);
+            } else if (message.type === "BeginExecution") {
+              const input = z.object({ taskId: id, lease: id }).strict().parse(message.payload);
+              payload = runtime.pull(device, input);
+              responseType = payload ? "PublishTaskDirective" : "NoTask";
             } else payload = runtime.receive(message.payload, device);
             const encoded = JSON.stringify({
               messageId: randomUUID(),
               contractVersion: "design-v1",
               sentAt: new Date().toISOString(),
               inReplyTo: messageId,
-              type:
-                message.type === "PullTask"
-                  ? payload
-                    ? "PublishTaskDirective"
-                    : "NoTask"
-                  : "Accepted",
+              type: responseType,
               payload,
             });
             store.db.prepare("INSERT INTO messages VALUES (?,?,?)").run(key, serialized, encoded);

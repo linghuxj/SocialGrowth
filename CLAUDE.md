@@ -87,6 +87,7 @@ SocialGrowth/
 
 - **开发规格及 Issue 跟踪**：[`docs/specs/README.md`](docs/specs/README.md)。个人公开仓库 `linghuxj/SocialGrowth` 使用 GitHub Issues；规格标签 `ready-for-agent`，同编号优先更新已有 Issue。任务范围与依赖以首批总规格及 FL 清单为准，标签不替代真实接入或生产动作授权。
 - 7 大交付模块完整规格：[`docs/delivery-specification.md`](docs/delivery-specification.md)
+- **Artemis 真机集成与运营处置指南**：[`docs/engineering/artemis-integration-guide.md`](docs/engineering/artemis-integration-guide.md)
 - 最新业务细节对齐规格书：[`docs/handoff/2026-09-19-aligned-business-spec.md`](docs/handoff/2026-09-19-aligned-business-spec.md)
 - 研发交接任务书与整改看板：[`docs/handoff/README.md`](docs/handoff/README.md)
 - 本轮业务审计处理结果：[`docs/handoff/2026-09-19-business-audit-closure.md`](docs/handoff/2026-09-19-business-audit-closure.md)
