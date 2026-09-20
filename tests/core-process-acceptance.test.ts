@@ -25,7 +25,12 @@ function createTestHarness(mediaBytes: Buffer = Buffer.from("test-video-asset-mp
   });
 
   const { state } = store.snapshot();
-  state.clients.push({ id: "client-1", name: "测试客户", status: "active", createdAt: "2026-09-20T00:00:00Z" });
+  state.clients.push({
+    id: "client-1",
+    name: "测试客户",
+    status: "active",
+    createdAt: "2026-09-20T00:00:00Z",
+  });
   state.projects.push({
     id: "proj-1",
     clientId: "client-1",
@@ -157,7 +162,10 @@ function prepareAndStart(runtime: ExecutionRuntime, deviceId = "phone-1") {
     observedAt: runtime.now(),
     observationSha256: "a".repeat(64),
   });
-  const runningTask = runtime.pull(deviceId, { taskId: lease.task.directive.taskId, lease: lease.lease });
+  const runningTask = runtime.pull(deviceId, {
+    taskId: lease.task.directive.taskId,
+    lease: lease.lease,
+  });
   assert.ok(runningTask, "必须成功领取并转入 running 状态");
   return runningTask;
 }
@@ -188,7 +196,8 @@ test("验收断言 1: 正常情况自动完成（双端素材核验 -> 只读身
         },
         screenshot: async () => Buffer.from("screenshot-png"),
       },
-      archive: async (mime, bytes) => h.runtime.archiveEvidence(task.directive.taskId, h.binding.deviceId, mime, bytes),
+      archive: async (mime, bytes) =>
+        h.runtime.archiveEvidence(task.directive.taskId, h.binding.deviceId, mime, bytes),
       trace: () => {},
       artemis: {
         close: async () => {},
@@ -198,26 +207,16 @@ test("验收断言 1: 正常情况自动完成（双端素材核验 -> 只读身
             return { trace_id: `trace-${runTaskCallCount}`, device_serial: h.binding.serial };
           }
           if (name === "mobile_manage_task") {
-            if (runTaskCallCount === 1) {
-              // 阶段 1：只读身份核查结果
-              return {
-                status: "completed",
-                device_serial: h.binding.serial,
-                result: {
-                  observedIdentity: h.binding.platformIdentity,
-                  identityKind: "facebook_page",
-                  status: "verified",
-                  mutationsPerformed: 0,
-                },
-              };
-            }
-            // 阶段 2：发布执行结果
+            // One autonomous task verifies identity first, then prepares/submits.
             return {
               status: "completed",
               device_serial: h.binding.serial,
               result: {
                 observedIdentity: h.binding.platformIdentity,
                 finalSubmitClicked: true,
+                identityKind: "facebook_page",
+                status: "verified",
+                mutationsPerformed: 1,
                 publishStatus: "published",
                 publishedUrl,
                 publishedPostId: "post-998877665544",
@@ -236,7 +235,7 @@ test("验收断言 1: 正常情况自动完成（双端素材核验 -> 只读身
     });
 
     // 断言结果结构
-    assert.equal(runTaskCallCount, 2, "正常情况必须执行两阶段（1次只读身份 + 1次受控发布）");
+    assert.equal(runTaskCallCount, 1, "身份核验和发布必须在同一自主任务内完成");
     assert.equal(outcome.executionStatus, "completed");
     assert.equal(outcome.publishStatus, "published");
     assert.equal(outcome.publishedUrl, publishedUrl);
@@ -249,7 +248,11 @@ test("验收断言 1: 正常情况自动完成（双端素材核验 -> 只读身
     // 校验状态机与发布尝试
     const snap = h.store.snapshot();
     assert.equal(snap.state.publicationAttempts[0].publishStatus, "published");
-    assert.equal(h.store.db.prepare("SELECT * FROM pauses").all().length, 0, "成功完成后不应存在任何暂停锁");
+    assert.equal(
+      h.store.db.prepare("SELECT * FROM pauses").all().length,
+      0,
+      "成功完成后不应存在任何暂停锁",
+    );
   } finally {
     h.cleanup();
   }
@@ -273,7 +276,8 @@ test("验收断言 2: 登录异常处理后自动继续（遇到 2FA/挑战 -> �
         prepare: async () => "/sdcard/media.mp4",
         screenshot: async () => Buffer.from("challenge-screen"),
       },
-      archive: async (mime, bytes) => h.runtime.archiveEvidence(task.directive.taskId, h.binding.deviceId, mime, bytes),
+      archive: async (mime, bytes) =>
+        h.runtime.archiveEvidence(task.directive.taskId, h.binding.deviceId, mime, bytes),
       trace: () => {},
       artemis: {
         close: async () => {},
@@ -291,6 +295,7 @@ test("验收断言 2: 登录异常处理后自动继续（遇到 2FA/挑战 -> �
                 identityKind: "facebook_page",
                 status: "challenge", // 遭遇验证挑战
                 mutationsPerformed: 0,
+                finalSubmitClicked: false,
               },
             };
           }
@@ -367,27 +372,20 @@ test("验收断言 2: 登录异常处理后自动继续（遇到 2FA/挑战 -> �
         prepare: async () => "/sdcard/media.mp4",
         screenshot: async () => Buffer.from("screenshot"),
       },
-      archive: async (mime, bytes) => h.runtime.archiveEvidence(nextTask.directive.taskId, h.binding.deviceId, mime, bytes),
+      archive: async (mime, bytes) =>
+        h.runtime.archiveEvidence(nextTask.directive.taskId, h.binding.deviceId, mime, bytes),
       trace: () => {},
       artemis: {
         close: async () => {},
         call: async (name) => {
           if (name === "mobile_run_task") {
             secondRunCallCount++;
-            return { trace_id: `trace-next-${secondRunCallCount}`, device_serial: h.binding.serial };
+            return {
+              trace_id: `trace-next-${secondRunCallCount}`,
+              device_serial: h.binding.serial,
+            };
           }
           if (name === "mobile_manage_task") {
-            if (secondRunCallCount === 1) {
-              return {
-                status: "completed",
-                result: {
-                  observedIdentity: h.binding.platformIdentity,
-                  identityKind: "facebook_page",
-                  status: "verified", // 恢复正常
-                  mutationsPerformed: 0,
-                },
-              };
-            }
             return {
               status: "completed",
               result: {
@@ -395,6 +393,9 @@ test("验收断言 2: 登录异常处理后自动继续（遇到 2FA/挑战 -> �
                 finalSubmitClicked: true,
                 publishStatus: "published",
                 publishedUrl: "https://www.facebook.com/reel/11223344",
+                identityKind: "facebook_page",
+                status: "verified",
+                mutationsPerformed: 1,
                 audience: "public",
                 aiLabel: true,
               },
@@ -408,7 +409,7 @@ test("验收断言 2: 登录异常处理后自动继续（遇到 2FA/挑战 -> �
       },
     });
 
-    assert.equal(secondRunCallCount, 2);
+    assert.equal(secondRunCallCount, 1);
     assert.equal(resumedOutcome.publishStatus, "published", "登录处理完成后流程自动闭环成功");
   } finally {
     h.cleanup();
@@ -449,6 +450,7 @@ test("验收断言 3: 账号变化不误发（检测到个人 Profile 或身份�
                 identityKind: "facebook_profile", // 错误身份类型
                 status: "verified",
                 mutationsPerformed: 0,
+                finalSubmitClicked: false,
               },
             };
           }
@@ -488,6 +490,7 @@ test("验收断言 3: 账号变化不误发（检测到个人 Profile 或身份�
                 identityKind: "facebook_page",
                 status: "verified",
                 mutationsPerformed: 0,
+                finalSubmitClicked: false,
               },
             };
           }
@@ -500,7 +503,10 @@ test("验收断言 3: 账号变化不误发（检测到个人 Profile 或身份�
     assert.equal(mismatchOutcome.executionStatus, "blocked");
     assert.equal(mismatchOutcome.publishStatus, "not_submitted");
     assert.equal(mismatchOutcome.actionRequired?.reason, "ACCOUNT_IDENTITY_MISMATCH");
-    assert.equal(mismatchOutcome.actionRequired?.observedIdentity, "https://www.facebook.com/wrong.competing.page");
+    assert.equal(
+      mismatchOutcome.actionRequired?.observedIdentity,
+      "https://www.facebook.com/wrong.competing.page",
+    );
   } finally {
     h.cleanup();
   }
@@ -516,7 +522,6 @@ test("验收断言 4: 提交结果未知不重发（提交后异常 -> 强制记
     const task = prepareAndStart(h.runtime, h.binding.deviceId);
 
     // 模拟执行：阶段 1 成功，阶段 2 进入发布并点击了提交，但随后面临网络断连或 413 网关错误导致异常
-    let stage2Started = false;
     let stopTaskCalled = false;
 
     const unknownOutcome = await executeDeviceTask(task, {
@@ -526,33 +531,19 @@ test("验收断言 4: 提交结果未知不重发（提交后异常 -> 强制记
         prepare: async () => "/sdcard/media.mp4",
         screenshot: async () => Buffer.from("final-screen-during-failure"),
       },
-      archive: async (mime, bytes) => h.runtime.archiveEvidence(task.directive.taskId, h.binding.deviceId, mime, bytes),
+      archive: async (mime, bytes) =>
+        h.runtime.archiveEvidence(task.directive.taskId, h.binding.deviceId, mime, bytes),
       trace: () => {},
       artemis: {
         close: async () => {},
         call: async (name, args) => {
           if (name === "mobile_run_task") {
-            if (!stage2Started) {
-              return { trace_id: "trace-id-1" };
-            }
-            return { trace_id: "trace-publish-2" };
+            return { trace_id: "trace-publish-single" };
           }
           if (name === "mobile_manage_task") {
             if (args.action === "stop") {
               stopTaskCalled = true;
               return { status: "stopped" };
-            }
-            if (!stage2Started) {
-              stage2Started = true;
-              return {
-                status: "completed",
-                result: {
-                  observedIdentity: h.binding.platformIdentity,
-                  identityKind: "facebook_page",
-                  status: "verified",
-                  mutationsPerformed: 0,
-                },
-              };
             }
             // 阶段 2 轮询期间触发异常中断
             throw new Error("ARTEMIS_TASK_FAILED");
@@ -564,7 +555,11 @@ test("验收断言 4: 提交结果未知不重发（提交后异常 -> 强制记
 
     assert.ok(stopTaskCalled, "异常发生时必须主动调用 mobile_manage_task(stop) 停机");
     assert.equal(unknownOutcome.executionStatus, "failed");
-    assert.equal(unknownOutcome.publishStatus, "unknown", "发布流程已开始后的异常必须保守记为 unknown");
+    assert.equal(
+      unknownOutcome.publishStatus,
+      "unknown",
+      "发布流程已开始后的异常必须保守记为 unknown",
+    );
     assert.equal(unknownOutcome.failureCode, "TECHNICAL_FAILURE");
 
     // 服务端录入该 unknown 回执
@@ -588,7 +583,11 @@ test("验收断言 4: 提交结果未知不重发（提交后异常 -> 强制记
 
     // 查看最终持久化结果：依然保持 unknown，且记录 RECEIPT_CONFLICT
     const storedTask = h.runtime.tasks().find((t) => t.taskId === task.directive.taskId);
-    assert.equal(storedTask?.status, "unknown", "单调性保护生效：not_submitted 绝不能覆盖已有 unknown 事实");
+    assert.equal(
+      storedTask?.status,
+      "unknown",
+      "单调性保护生效：not_submitted 绝不能覆盖已有 unknown 事实",
+    );
     assert.equal(storedTask?.receipt?.publishStatus, "unknown");
     assert.equal(storedTask?.receipt?.failureCode, "RECEIPT_CONFLICT");
   } finally {

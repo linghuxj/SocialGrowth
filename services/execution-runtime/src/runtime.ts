@@ -294,7 +294,8 @@ export class ExecutionRuntime {
       );
       requireFact(
         report.status !== "ready" ||
-          (report.reason === "IDENTITY_VISIBLE" && report.observationSha256),
+          (["IDENTITY_VISIBLE", "AGENT_VERIFICATION_REQUIRED"].includes(report.reason) &&
+            report.observationSha256),
         "PREPARATION_EVIDENCE_REQUIRED",
       );
       this.qualify(this.store.snapshot().state, task.settings, task.binding, taskId);

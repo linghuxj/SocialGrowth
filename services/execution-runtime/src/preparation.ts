@@ -12,6 +12,7 @@ export const preparationReportSchema = z
     status: z.enum(["ready", "waiting"]),
     reason: z.enum([
       "IDENTITY_VISIBLE",
+      "AGENT_VERIFICATION_REQUIRED",
       "LOGIN_REQUIRED",
       "IDENTITY_NOT_VISIBLE",
       "TARGET_APP_NOT_VISIBLE",
@@ -36,8 +37,8 @@ export interface PreparationLease {
   expiresAt: string;
 }
 
-/** Passive inspection only: never call mobile_run_task or trust a model's mutation count.
- * A visible identity is a prerequisite, NOT a replacement for execution's identity gate. */
+/** This check never performs UI actions. Autonomous mode proves observer/app readiness,
+ * not login or identity: those gates stay inside the one assisted Artemis workflow. */
 export async function inspectPreparation(
   task: RuntimeTask,
   ports: {
@@ -45,13 +46,16 @@ export async function inspectPreparation(
     foreground: () => Promise<string>;
     observe: () => Promise<unknown>;
     now?: () => string;
+    autonomous?: boolean;
   },
 ): Promise<PreparationReport> {
   const report = (
     reason: PreparationReport["reason"],
     observation?: string,
   ): PreparationReport => ({
-    status: reason === "IDENTITY_VISIBLE" ? "ready" : "waiting",
+    status: ["IDENTITY_VISIBLE", "AGENT_VERIFICATION_REQUIRED"].includes(reason)
+      ? "ready"
+      : "waiting",
     reason,
     observedAt: ports.now?.() ?? new Date().toISOString(),
     ...(observation
@@ -60,7 +64,7 @@ export async function inspectPreparation(
   });
   try {
     await ports.ensureApp();
-    if ((await ports.foreground()) !== task.directive.targetAppPackage)
+    if ((await ports.foreground()) !== task.directive.targetAppPackage && !ports.autonomous)
       return report("TARGET_APP_NOT_VISIBLE");
   } catch (error) {
     return {
@@ -72,6 +76,9 @@ export async function inspectPreparation(
     const value = await ports.observe();
     if (typeof value !== "string" || !value.trim() || /^Error:/i.test(value))
       return report("OBSERVER_UNAVAILABLE");
+    // With the assisted operator, readiness means device/app/observer readiness only.
+    // Identity remains a mandatory first gate INSIDE the single autonomous workflow.
+    if (ports.autonomous) return report("AGENT_VERIFICATION_REQUIRED", value);
     // Localized login/challenge indicators take precedence over any matching text.
     if (
       /登入您的帳戶時發生問題|登录.*(?:失败|问题)|sign in to your account|problem signing|verify (?:your|it's you)|驗證您的身分|验证您的身份|忘記密碼|forgot password/i.test(

@@ -60,7 +60,8 @@ export async function runAgentOnce(options: {
     maxPayload: 1024 * 1024,
     handshakeTimeout: 15000,
   });
-  const artemis = new ArtemisMcp(options.artemisRoot);
+  let artemis = new ArtemisMcp(options.artemisRoot);
+  let assistanceToken: string | undefined;
   const headers = { Authorization: `Bearer ${options.token}` };
   const rpc = async (
     type: string,
@@ -150,6 +151,7 @@ export async function runAgentOnce(options: {
     requireFact(lease.task.binding.deviceId === options.deviceId, "DEVICE_SESSION_MISMATCH");
     // A preparation never owns a publication attempt. Failed observers cannot invalidate approval.
     const report = await inspectPreparation(lease.task, {
+      autonomous: true,
       ...preparationPorts(lease.task, artemis),
       observe: async () => {
         await artemis.connect();
@@ -196,6 +198,31 @@ export async function runAgentOnce(options: {
       .run(task.directive.attemptId, JSON.stringify(task));
     let receipt;
     try {
+      const sessionResponse = await fetch(new URL("/api/runtime/assistance/sessions", base), {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          taskId: task.directive.taskId,
+          deviceId: options.deviceId,
+          serial: task.binding.serial,
+          packageName: task.directive.targetAppPackage,
+          expectedIdentity: task.binding.platformIdentity,
+          mode: "execution",
+          expiresAt: new Date(
+            Math.min(
+              Date.now() + task.directive.taskTimeoutMs,
+              Date.parse(task.directive.expiresAt),
+            ),
+          ).toISOString(),
+        }),
+        signal: AbortSignal.timeout(15000),
+        redirect: "error",
+      });
+      requireFact(sessionResponse.ok, "ASSISTANCE_SESSION_FAILED");
+      assistanceToken = ((await sessionResponse.json()) as { token: string }).token;
+      await artemis.close();
+      artemis = new ArtemisMcp(options.artemisRoot, { url: base.origin, token: assistanceToken });
+      await artemis.connect();
       receipt = await executeDeviceTask(task, {
         artemis,
         device: new AdbDevice(),
@@ -254,6 +281,40 @@ export async function runAgentOnce(options: {
         resourceStatus: "available",
       };
     }
+    if (assistanceToken) {
+      // The Web receives actual workflow outcome separately from secret delivery.
+      // A reporting outage must not replace a completed device receipt or re-run it.
+      try {
+        const resultCode =
+          receipt.actionRequired?.reason === "ACCOUNT_LOGIN_REJECTED"
+            ? "LOGIN_REJECTED"
+            : receipt.actionRequired?.kind === "account"
+              ? "LOGIN_BLOCKED"
+              : receipt.executionStatus === "completed"
+                ? task.settings.mode === "preflight"
+                  ? "PREFLIGHT_READY"
+                  : "COMPLETED"
+                : "UNCONFIRMED";
+        const response = await fetch(new URL("/api/runtime/assistance/agent/report", base), {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${assistanceToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            resultCode,
+            screenshot: (await new AdbDevice().screenshot(task.binding.serial)).toString("base64"),
+          }),
+          signal: AbortSignal.timeout(15000),
+          redirect: "error",
+        });
+        requireFact(response.ok, "ASSISTANCE_RESULT_NOT_RECORDED");
+      } catch {
+        console.warn(
+          "Assistance workflow result unavailable; inspect the durable execution receipt.",
+        );
+      }
+    }
     ledger
       .prepare("UPDATE attempts SET receipt=? WHERE id=?")
       .run(JSON.stringify(receipt), task.directive.attemptId);
@@ -263,6 +324,13 @@ export async function runAgentOnce(options: {
   } finally {
     socket.terminate();
     await artemis.close().catch(() => {});
+    if (assistanceToken)
+      await fetch(new URL("/api/runtime/assistance/agent/close", base), {
+        method: "POST",
+        headers: { Authorization: `Bearer ${assistanceToken}` },
+        signal: AbortSignal.timeout(10000),
+        redirect: "error",
+      }).catch(() => {});
     ledger.prepare("DELETE FROM agent_owner WHERE token=?").run(owner);
     ledger.close();
   }

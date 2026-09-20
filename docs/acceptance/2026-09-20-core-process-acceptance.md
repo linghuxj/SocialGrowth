@@ -1,5 +1,7 @@
 # 2026-09-20 核心业务流程与功能模块端到端验收报告
 
+> **证据边界：这是内存替身与临时数据库上的自动化状态机验收，不是真实账号、真实授权、真实素材权利或真实平台发布验收。** “正常自动完成”等结论只证明受控测试输入下的代码分支和断言通过；不能据此声称真机业务闭环、账号异常人工处理后真实发布、生产运行或平台公开结果通过。
+
 **测试版本**：v1.0  
 **验收时间**：2026-09-20 16:50 (Asia/Shanghai)  
 **验收范围**：`services/execution-runtime`、`apps/artemis-controller`、`apps/web-console/lib/first-loop`、`tests/core-process-acceptance.test.ts`。  

@@ -23,3 +23,7 @@ yarn-error.log*
 .runtime/
 .env.runtime
 .env.agent
+
+# Local Artemis extension/test cache and private login acceptance screenshots
+integrations/artemis/__pycache__/
+artifacts/acceptance/human-login/

@@ -1,5 +1,8 @@
 # 首批开发规格与任务管理
 
+- [Agent 主导的统一 Web 执行闭环](2026-09-20-agent-supervision.md)：本批通用协作、停止边界与验收标准；运行细节和未完成范围见[维护指南](../engineering/agent-supervision-guide.md)。
+- [Agent 协作开发与真机验收报告](../acceptance/2026-09-20-agent-supervision.md)：102 项受控回归、9 项 Python 检查，真实 Web 协作与取消结果；全场景未完成项单列，不作为生产全量验收。
+
 用户已确认对 PG-01～PG-10 进行规格化和首批受控开发，并授权在个人公开仓库 `linghuxj/SocialGrowth` 管理。FL-01～06 的受控实现和自动化验收已完成；生产迁移、真实外部接入、部署与运营许可仍分别判断。
 
 - [首批总规格](2026-09-19-first-loop.md)：完整范围、完成标准、用户故事、实施与测试决定。
@@ -9,7 +12,9 @@
 - [FL-04 执行与异常核对](first-loop/FL-04-execution.md)
 - [FL-05 观察与基础复盘](first-loop/FL-05-observation-review.md)
 - [FL-06 首批集成与变更退出验收](first-loop/FL-06-integration.md)
-- [2026-09-20 核心业务流程与功能模块端到端验收报告](../acceptance/2026-09-20-core-process-acceptance.md)：验证正常自动完成、登录异常恢复、账号变化不误发、提交未知不重发。
+- [2026-09-20 核心业务流程与功能模块端到端验收报告](../acceptance/2026-09-20-core-process-acceptance.md)：在替身与临时数据库中验证正常自动完成、登录异常恢复、账号变化不误发、提交未知不重发；不等于真机真实运营验收。
+- [2026-09-20 真实运营链路复验](../acceptance/2026-09-20-real-operations-revalidation.md)：复核最新提交、Chrome 控制台、运行时、Artemis 与物理真机，记录真实阻断及前序报告更正。
+- [2026-09-20 从 Web 发起的真实密码验收](../acceptance/2026-09-20-web-full-login-acceptance.md)：真实 Web 发起、表单协助及原任务收尾；登录被拒绝，记录 Agent 停止约束失效和结构化结果缺失，完整发布前链路未通过。
 
 ## 任务跟踪约定
 

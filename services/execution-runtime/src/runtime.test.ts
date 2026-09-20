@@ -809,6 +809,7 @@ test("device workflow checks hashes and identity before publishing; no model com
               identityKind: "facebook_page",
               status: "verified",
               mutationsPerformed: 0,
+              finalSubmitClicked: false,
             },
           };
         },
@@ -876,6 +877,7 @@ test("account readiness blocks persist clear work instructions and require fresh
 for (const [status, identityKind, expectedReason] of [
   ["verified", "facebook_profile", "ACCOUNT_TYPE_MISMATCH"],
   ["login_required", "unknown", "ACCOUNT_LOGIN_REQUIRED"],
+  ["login_rejected", "unknown", "ACCOUNT_LOGIN_REJECTED"],
   ["challenge", "unknown", "ACCOUNT_CHALLENGE"],
   ["unverifiable", "unknown", "ACCOUNT_UNVERIFIABLE"],
 ] as const)
@@ -908,6 +910,7 @@ for (const [status, identityKind, expectedReason] of [
                 identityKind,
                 status,
                 mutationsPerformed: 0,
+                finalSubmitClicked: false,
               },
             };
           },
@@ -1018,22 +1021,19 @@ test("Artemis preflight returns non-submission; claimed public success without U
               return {
                 status: "completed",
                 device_serial: "RFC_TEST",
-                result:
-                  starts === 1
-                    ? {
-                        observedIdentity: task.binding.platformIdentity,
-                        identityKind: "facebook_page",
-                        status: "verified",
-                        mutationsPerformed: 0,
-                      }
-                    : {
-                        observedIdentity: task.binding.platformIdentity,
-                        finalSubmitClicked: publish,
-                        publishStatus: publish ? "published" : "not_submitted",
-                        publishedUrl: publish ? "https://www.facebook.com/reel/123456" : undefined,
-                        audience: "public",
-                        aiLabel: true,
-                      },
+                result: {
+                  result: {
+                    observedIdentity: task.binding.platformIdentity,
+                    identityKind: "facebook_page",
+                    status: "verified",
+                    mutationsPerformed: 1,
+                    finalSubmitClicked: publish,
+                    publishStatus: publish ? "published" : "not_submitted",
+                    publishedUrl: publish ? "https://www.facebook.com/reel/123456" : undefined,
+                    audience: "public",
+                    aiLabel: true,
+                  },
+                },
               };
             },
           },
@@ -1044,7 +1044,7 @@ test("Artemis preflight returns non-submission; claimed public success without U
     assert.equal((await run(false)).result.publishStatus, "not_submitted");
     const unproven = await run(true);
     assert.equal(unproven.result.publishStatus, "unknown");
-    assert.equal(unproven.starts, 2);
+    assert.equal(unproven.starts, 1);
   } finally {
     f.store.close();
   }

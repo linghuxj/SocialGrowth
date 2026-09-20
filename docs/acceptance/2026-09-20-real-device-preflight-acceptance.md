@@ -1,10 +1,12 @@
 # 真实项目 Web 平台与物理真机流程验证验收报告
 
+> **2026-09-20 复验更正：本报告不能作为“真实运营完整验收通过”证据。** 脚本写入的账号授权、素材权利、音乐权利、维护权限和自动化范围均为代码内构造的引用，1 秒/2367 字节素材为验收 fixture；没有外部授权或权利凭证。设备事实也写错，实际为 Samsung SM-S9110、Android 16/API 36。可保留的结论仅为：HTTP/WS、Chrome 状态展示、真机连接和准备期安全阻断真实发生；没有创建 publicationAttempt、没有收到执行回执、没有进行发布。当前权威结论见[真实运营链路复验](2026-09-20-real-operations-revalidation.md)。
+
 - **验收日期**: 2026-09-20
 - **环境信息**:
   - Web Console: `http://127.0.0.1:3000` (Vinext Dev Server)
   - Execution Runtime: `http://127.0.0.1:4318` (Node.js SQLite + HTTP + WS)
-  - 物理真机: `RFCW40MYYCV` (Samsung SM-G9980, Android 14)
+  - 物理真机: `RFCW40MYYCV`（原记录误写为 Samsung SM-G9980 / Android 14；复验为 Samsung SM-S9110 / Android 16 / API 36）
   - 自动化执行引擎: Google Artemis (MCP `mobile_get_device_state`)
   - 目标测试应用: Facebook (`com.facebook.katana`)
 

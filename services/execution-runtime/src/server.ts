@@ -8,6 +8,13 @@ import { z } from "zod";
 import { RuntimeStore } from "./store.ts";
 import { ExecutionRuntime } from "./runtime.ts";
 import { RuntimeError, requireFact, id, sha256 } from "./contracts.ts";
+import { HumanAssistance, assistanceScopeSchema } from "./human-assistance.ts";
+import { AppProvisioner } from "./app-readiness.ts";
+import {
+  WebVerification,
+  verificationConfigSchema,
+  type VerificationConfig,
+} from "./web-verification.ts";
 
 export interface ServerOptions {
   dataDir: string;
@@ -17,6 +24,7 @@ export interface ServerOptions {
   port?: number;
   mediaBaseUrl?: string;
   allowedOrigins?: string[];
+  verification?: VerificationConfig;
 }
 const safeEqual = (a: string, b: string) =>
   a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
@@ -51,6 +59,12 @@ export function createRuntimeServer(options: ServerOptions) {
   const assetsDir = join(options.dataDir, "assets");
   mkdirSync(assetsDir, { recursive: true, mode: 0o700 });
   const store = new RuntimeStore(join(options.dataDir, "runtime.sqlite"));
+  const assistance = new HumanAssistance(store);
+  const apps = new AppProvisioner({
+    catalogPath: process.env.SG_APP_CATALOG,
+    buildTools: process.env.SG_ANDROID_BUILD_TOOLS,
+  });
+  const verification = new WebVerification(store, assistance, options.verification);
   const runtime = new ExecutionRuntime(store, {
     signingKey: options.signingKey,
     mediaBaseUrl: options.mediaBaseUrl ?? `http://127.0.0.1:${options.port ?? 4318}`,
@@ -85,9 +99,114 @@ export function createRuntimeServer(options: ServerOptions) {
       const device = Object.entries(options.deviceTokens).find(([, token]) =>
         safeEqual(bearer, token),
       )?.[0];
+      // Scoped capability routes: no device/operator token, no WS persistence of secrets.
+      if (path.startsWith("/assistance/agent/")) {
+        const session = assistance.session(bearer);
+        let value: unknown;
+        if (path === "/assistance/agent/session" && req.method === "GET")
+          value = {
+            sessionId: session.id,
+            ...session.scope,
+            control: assistance.supervision.get(session.id),
+          };
+        else if (path === "/assistance/agent/gate" && req.method === "POST")
+          value = assistance.supervision.gate(
+            session.id,
+            JSON.parse((await body(req, 2048)).toString()),
+          );
+        else if (path === "/assistance/agent/finish-observation" && req.method === "POST")
+          value = assistance.supervision.finishObservation(session.id);
+        else if (path === "/assistance/agent/ensure-app" && req.method === "POST")
+          value = await assistance.supervision.ensureApp(session.id, () =>
+            apps.ensure(session.scope.serial, session.scope.packageName),
+          );
+        else if (path === "/assistance/agent/stop" && req.method === "POST") {
+          const input = z
+            .object({ reason: z.string().regex(/^[A-Z_]{1,80}$/) })
+            .strict()
+            .parse(JSON.parse((await body(req, 2048)).toString()));
+          value = assistance.supervision.stop(session.id, input.reason);
+        } else if (path === "/assistance/agent/credential-begin" && req.method === "POST") {
+          const input = z
+            .object({ kind: z.enum(["password", "otp"]) })
+            .strict()
+            .parse(JSON.parse((await body(req, 2048)).toString()));
+          value = assistance.beginCredential(bearer, input.kind);
+        } else if (path === "/assistance/agent/request" && req.method === "POST")
+          value = assistance.supervision.create(
+            session.id,
+            JSON.parse((await body(req, 9 * 1024 * 1024)).toString()),
+          );
+        else if (path === "/assistance/agent/claim-response" && req.method === "POST")
+          value = assistance.supervision.claim(
+            session.id,
+            id.parse(JSON.parse((await body(req, 2048)).toString()).id),
+          );
+        else if (path === "/assistance/agent/revalidate" && req.method === "POST")
+          value = assistance.supervision.revalidate(
+            session.id,
+            JSON.parse((await body(req, 9 * 1024 * 1024)).toString()),
+          );
+        else if (path === "/assistance/agent/challenge" && req.method === "POST")
+          value = assistance.create(
+            bearer,
+            JSON.parse((await body(req, 9 * 1024 * 1024)).toString()),
+          );
+        else if (path === "/assistance/agent/report" && req.method === "POST")
+          value = assistance.report(
+            bearer,
+            JSON.parse((await body(req, 9 * 1024 * 1024)).toString()),
+          );
+        else if (path === "/assistance/agent/claim" && req.method === "POST")
+          value = assistance.claim(
+            bearer,
+            id.parse(JSON.parse((await body(req, 2048)).toString()).id),
+          );
+        else if (path === "/assistance/agent/finish" && req.method === "POST") {
+          const input = JSON.parse((await body(req, 2048)).toString());
+          value = assistance.finish(bearer, id.parse(input.id), { resultCode: input.resultCode });
+        } else if (path === "/assistance/agent/close" && req.method === "POST") {
+          assistance.closeSession(bearer);
+          value = { ok: true };
+        } else throw new RuntimeError("NOT_FOUND", 404);
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify(value));
+        return;
+      }
       requireFact(operator || device, "AUTHENTICATION_REQUIRED");
       let result: unknown;
-      if (path === "/evidence" && req.method === "POST" && (device || operator)) {
+      if (path === "/assistance/sessions" && req.method === "POST") {
+        const input = assistanceScopeSchema.parse(JSON.parse((await body(req, 4096)).toString()));
+        requireFact(input.mode !== "diagnostic" || operator, "OPERATOR_REQUIRED");
+        requireFact(operator || device === input.deviceId, "DEVICE_SESSION_MISMATCH");
+        requireFact(Object.hasOwn(options.deviceTokens, input.deviceId), "DEVICE_UNKNOWN");
+        if (input.mode === "execution") {
+          const t = runtime
+            .tasks()
+            .find((t) => t.taskId === input.taskId && t.status === "running")?.task;
+          requireFact(
+            t &&
+              t.binding.deviceId === input.deviceId &&
+              t.binding.serial === input.serial &&
+              t.binding.platformIdentity === input.expectedIdentity &&
+              t.directive.targetAppPackage === input.packageName &&
+              Date.parse(input.expiresAt) <= Date.parse(t.directive.expiresAt),
+            "ASSISTANCE_TASK_SCOPE_INVALID",
+          );
+        } else {
+          requireFact(
+            store.db.prepare("SELECT 1 FROM device_holds WHERE device=?").get(input.deviceId),
+            "DIAGNOSTIC_DEVICE_HOLD_REQUIRED",
+          );
+          requireFact(
+            !runtime
+              .tasks()
+              .some((t) => t.status === "running" && t.task.binding.deviceId === input.deviceId),
+            "DEVICE_BUSY",
+          );
+        }
+        result = assistance.open(input);
+      } else if (path === "/evidence" && req.method === "POST" && (device || operator)) {
         const taskId = id.parse(req.headers["x-task-id"]);
         const taskDevice =
           device ?? runtime.tasks().find((t) => t.taskId === taskId)?.task.binding.deviceId;
@@ -102,7 +221,41 @@ export function createRuntimeServer(options: ServerOptions) {
         };
       } else {
         requireFact(operator, "OPERATOR_REQUIRED");
-        if (path === "/state" && req.method === "GET") {
+        if (path === "/verifications" && req.method === "POST")
+          result = verification.start(JSON.parse((await body(req, 4096)).toString()));
+        else if (path === "/verifications/stop" && req.method === "POST")
+          result = verification.stop(id.parse(JSON.parse((await body(req, 2048)).toString()).id));
+        else if (path === "/supervision/respond" && req.method === "POST") {
+          const { id: requestId, ...input } = JSON.parse((await body(req, 8192)).toString());
+          result = assistance.supervision.respond(id.parse(requestId), input);
+        } else if (path === "/supervision/screenshot" && req.method === "GET") {
+          res.setHeader("Content-Type", "image/png");
+          res.end(
+            Buffer.from(assistance.supervision.screenshot(id.parse(url.searchParams.get("id")))),
+          );
+          return;
+        } else if (path === "/verifications/screenshot" && req.method === "GET") {
+          res.setHeader("Content-Type", "image/png");
+          res.end(Buffer.from(verification.screenshot(id.parse(url.searchParams.get("id")))));
+          return;
+        } else if (path === "/assistance" && req.method === "GET") result = assistance.list();
+        else if (path === "/assistance/screenshot" && req.method === "GET") {
+          res.setHeader("Content-Type", "image/png");
+          res.end(
+            Buffer.from(
+              assistance.screenshot(
+                id.parse(url.searchParams.get("id")),
+                url.searchParams.get("result") === "1",
+              ),
+            ),
+          );
+          return;
+        } else if (path === "/assistance/submit" && req.method === "POST") {
+          const { id: challengeId, ...input } = JSON.parse((await body(req, 4096)).toString());
+          result = assistance.submit(id.parse(challengeId), input);
+        } else if (path === "/assistance/cancel" && req.method === "POST")
+          result = assistance.cancel(id.parse(JSON.parse((await body(req, 2048)).toString()).id));
+        else if (path === "/state" && req.method === "GET") {
           runtime.reconcile();
           result = store.snapshot();
         } else if (path === "/status" && req.method === "GET") {
@@ -112,6 +265,14 @@ export function createRuntimeServer(options: ServerOptions) {
             tasks: runtime.tasks(),
             preparations: runtime.preparations(),
             deviceHolds: store.db.prepare("SELECT * FROM device_holds").all(),
+            assistance: assistance.list(),
+            supervision: {
+              controls: assistance.supervision.controls(),
+              requests: assistance.supervision.requests(),
+              events: assistance.supervision.events(),
+            },
+            verificationOptions: verification.options(),
+            verifications: verification.list(),
             pauses: store.db.prepare("SELECT * FROM pauses").all(),
             observations: store.db
               .prepare("SELECT body FROM observations ORDER BY rowid DESC")
@@ -123,6 +284,7 @@ export function createRuntimeServer(options: ServerOptions) {
             .object({ deviceId: id, held: z.boolean() })
             .strict()
             .parse(JSON.parse((await body(req)).toString()));
+          requireFact(!assistance.deviceBusy(input.deviceId), "ASSISTANCE_DEVICE_BUSY");
           result = runtime.holdDevice(input.deviceId, input.held, "local-operator");
         } else if (path === "/commands" && req.method === "POST")
           result = runtime.command(JSON.parse((await body(req)).toString()), "local-operator");
@@ -304,13 +466,16 @@ export function createRuntimeServer(options: ServerOptions) {
     http,
     runtime,
     store,
+    assistance,
     async close() {
+      await verification.close();
       for (const client of ws.clients) client.terminate();
       await new Promise<void>((resolve) => ws.close(() => resolve()));
       if (http.listening)
         await new Promise<void>((resolve, reject) =>
           http.close((e) => (e ? reject(e) : resolve())),
         );
+      assistance.close();
       store.close();
     },
   };
@@ -318,14 +483,31 @@ export function createRuntimeServer(options: ServerOptions) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const port = Number(process.env.SG_RUNTIME_PORT ?? 4318);
+  const dataDir = resolve(process.env.SG_RUNTIME_DATA ?? "../../.runtime");
+  const verificationConfigPath = join(dataDir, "web-verification.json");
   const server = createRuntimeServer({
-    dataDir: resolve(process.env.SG_RUNTIME_DATA ?? "../../.runtime"),
+    dataDir,
     port,
     token: process.env.SG_RUNTIME_TOKEN ?? "",
     signingKey: process.env.SG_MEDIA_SIGNING_KEY ?? "",
     deviceTokens: JSON.parse(process.env.SG_DEVICE_TOKENS ?? "{}"),
     mediaBaseUrl: process.env.SG_MEDIA_BASE_URL,
     allowedOrigins: process.env.SG_ALLOWED_ORIGINS?.split(","),
+    verification: process.env.SG_WEB_VERIFICATION_MEDIA
+      ? {
+          artemisRoot: process.env.SG_ARTEMIS_ROOT ?? "",
+          deviceId: process.env.SG_DEVICE_ID ?? "",
+          serial: process.env.SG_DEVICE_SERIAL ?? "",
+          mediaPath: resolve(process.env.SG_WEB_VERIFICATION_MEDIA),
+          mediaSha256: process.env.SG_WEB_VERIFICATION_SHA256 ?? "",
+          runtimeUrl: `http://127.0.0.1:${port}`,
+        }
+      : existsSync(verificationConfigPath)
+        ? verificationConfigSchema.parse({
+            ...JSON.parse(readFileSync(verificationConfigPath, "utf8")),
+            runtimeUrl: `http://127.0.0.1:${port}`,
+          })
+        : undefined,
   });
   server.http.listen(port, "127.0.0.1", () =>
     console.info(`SocialGrowth runtime listening on 127.0.0.1:${port}`),

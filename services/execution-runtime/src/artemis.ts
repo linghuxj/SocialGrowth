@@ -4,6 +4,7 @@ import {
   getDefaultEnvironment,
 } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
 import { requireFact } from "./contracts.ts";
 
 export interface ArtemisPort {
@@ -13,8 +14,23 @@ export interface ArtemisPort {
 export class ArtemisMcp implements ArtemisPort {
   private readonly client = new Client({ name: "socialgrowth-device-agent", version: "0.1.0" });
   private transport?: StdioClientTransport;
-  constructor(private readonly root: string) {}
+  constructor(
+    private readonly root: string,
+    private readonly assistance?: { url: string; token: string },
+  ) {}
   async connect() {
+    if (this.assistance)
+      requireFact(
+        existsSync(resolve(this.root, "artemis/tools/socialgrowth_human_input.py")) &&
+          existsSync(resolve(this.root, "artemis/tools/socialgrowth_supervision.py")) &&
+          readFileSync(resolve(this.root, "artemis/mcp/action_session.py"), "utf8").includes(
+            "await guard_action(self._socialgrowth_ctx, name, args)",
+          ) &&
+          readFileSync(resolve(this.root, "artemis/agents/operator/operator.py"), "utf8").includes(
+            "filter_tools(all_tools, set(available_actions))",
+          ),
+        "ARTEMIS_HUMAN_INPUT_EXTENSION_REQUIRED",
+      );
     // Use the operator's existing, pinned environment, including its own dotenv/config loading.
     this.transport = new StdioClientTransport({
       command: resolve(this.root, ".venv/bin/python"),
@@ -25,7 +41,16 @@ export class ArtemisMcp implements ArtemisPort {
       // cannot accept the task with a daemon-only launch/result shape and leave
       // this process without a conclusive structured result. Artemis' shared
       // device lock still prevents concurrent access to the same serial.
-      env: { ...getDefaultEnvironment(), ARTEMIS_STANDALONE: "1" },
+      env: {
+        ...getDefaultEnvironment(),
+        ARTEMIS_STANDALONE: "1",
+        ...(this.assistance
+          ? {
+              SG_ASSISTANCE_URL: this.assistance.url,
+              SG_ASSISTANCE_TOKEN: this.assistance.token,
+            }
+          : {}),
+      },
       stderr: "pipe",
     });
     await this.client.connect(this.transport);

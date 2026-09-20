@@ -9,6 +9,9 @@ import {
   loadFirstLoopState,
 } from '@/lib/first-loop/storage';
 import { assetUrl, storeAsset } from '@/lib/local-assets';
+import { HumanAssistance, type HumanChallenge } from './human-assistance';
+import { WebVerification, type VerificationJob } from './web-verification';
+import { AgentSupervision, type SupervisionStatus } from './agent-supervision';
 type Binding = {
   id: string;
   deviceId: string;
@@ -44,6 +47,14 @@ type TaskRecord = {
   };
 };
 type RuntimeStatus = {
+  supervision?: SupervisionStatus;
+  verificationOptions?: {
+    available: boolean;
+    deviceId?: string;
+    mediaSha256?: string;
+  };
+  verifications?: VerificationJob[];
+  assistance?: HumanChallenge[];
   bindings: Binding[];
   tasks: TaskRecord[];
   pauses: { scope: string; reason: string }[];
@@ -276,6 +287,13 @@ export function RuntimeReceipts() {
   const [controlError, setControlError] = useState('');
   return (
     <Panel title="设备队列与归档证据">
+      <WebVerification
+        options={status.verificationOptions}
+        jobs={status.verifications ?? []}
+        reload={reload}
+      />
+      <HumanAssistance challenges={status.assistance ?? []} reload={reload} />
+      <AgentSupervision value={status.supervision} reload={reload} />
       {error && <Notice>{error}</Notice>}
       {controlError && <Notice>{controlError}</Notice>}
       {Array.from(new Set(status.bindings.map((b) => b.deviceId))).map(
@@ -307,9 +325,11 @@ export function RuntimeReceipts() {
         },
       )}
       <Notice>
-        人工登录前先接管设备，完成后交还；自动复查仅在原身份、任务、授权和有效期均未改变时继续。App
-        中需显示绑定
-        Page／频道的完整身份链接，姓名相同不能放行。不确定是否发布的任务不会自动重跑。
+        原任务请求密码时，使用上方人工登录协助表单，Artemis
+        在同一任务内等待并继续判断。
+        只有独立手工操作手机时才申请设备接管；登录不等于身份核验通过，必须核对绑定
+        Page／频道的完整身份。
+        账号不符请取消并由负责人重新分发；结果未知的发布任务不会自动重跑。
       </Notice>
       <List
         query=""

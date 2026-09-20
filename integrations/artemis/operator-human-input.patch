@@ -1,0 +1,72 @@
+diff --git a/artemis/agents/operator/operator.py b/artemis/agents/operator/operator.py
+index dd1a32d..d9f3304 100644
+--- a/artemis/agents/operator/operator.py
++++ b/artemis/agents/operator/operator.py
+@@ -58,6 +58,13 @@ from artemis.utils.visualization import format_minimal_list_with_elements
+ logger = get_logger(__name__)
+ 
+ DEFERRING_TOOLS = {
++    "human_password_input",
++    "human_otp_input",
++    "request_human_assistance",
++    "revalidate_human_assistance",
++    "report_task_blocked",
++    "finish_observation_task",
++    "ensure_trusted_app",
+     "ask_diagnoser",
+     "video_analyzer",
+     "read_note",
+@@ -919,6 +926,15 @@ class OperatorNode:
+             operator_shell_tool(name) for name in OPERATOR_SHELL_ORDER if name in available_actions
+         ] + self.tools
+ 
++        # SocialGrowth: mount only in the operator, never in parallel helper agents.
++        from artemis.tools.socialgrowth_human_input import get_human_input_tool
++        human_input = get_human_input_tool(self.ctx)
++        if human_input is not None:
++            all_tools.append(human_input)
++            all_tools.append(get_human_input_tool(self.ctx, "otp"))
++        from artemis.tools.socialgrowth_supervision import get_supervision_tools, filter_tools
++        all_tools.extend(get_supervision_tools(self.ctx))
++
+         # 5. Mount the task-output analyzer and collect background ADB task state.
+         # The analyzer is always available: the "output truncated, use
+         # analyze_task_output" hint arrives mid-turn, and tools are bound once per
+@@ -926,6 +942,7 @@ class OperatorNode:
+         if not any(t.name == "analyze_task_output" for t in all_tools):
+             all_tools.append(analyze_task_output_wrapper.tool_fn_getter(self.ctx))
+ 
++        all_tools = filter_tools(all_tools, set(available_actions))
+         traced_tools = [trace_langchain_tool(t, self.ctx) for t in all_tools]
+ 
+         adb_registry = get_adb_task_registry(self.ctx)
+diff --git a/artemis/mcp/action_session.py b/artemis/mcp/action_session.py
+index 4666d43..4c74119 100644
+--- a/artemis/mcp/action_session.py
++++ b/artemis/mcp/action_session.py
+@@ -68,6 +68,7 @@ class ActionSession:
+ 
+     def __init__(self, server: Any):
+         self._server = server
++        self._socialgrowth_ctx: Any = None
+         self._session: Any = None
+         self._ready = asyncio.Event()
+         self._owner: asyncio.Task | None = None
+@@ -99,6 +100,9 @@ class ActionSession:
+             if fut.cancelled():
+                 continue  # caller gave up before we started; nothing was sent
+             try:
++                # SocialGrowth gate runs in the serialized owner immediately before dispatch.
++                from artemis.tools.socialgrowth_supervision import guard_action
++                await guard_action(self._socialgrowth_ctx, name, args)
+                 result = await session.call_tool(name, args)
+             except BaseException as e:
+                 if not fut.cancelled():
+@@ -236,6 +240,7 @@ async def get_action_session(ctx: Any, actuator: Any = None) -> ActionSession:
+     actuator = actuator or getattr(ctx, "actuator", None) or AdbActuator(ctx)
+     server = build_action_server(actuator)
+     session = ActionSession(server)
++    session._socialgrowth_ctx = ctx
+     await session.start()
+     try:
+         ctx.action_session = session
