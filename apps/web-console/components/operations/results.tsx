@@ -5,6 +5,7 @@ import {
   RuntimeDiagnostics,
   LegacyWorkspace,
 } from './runtime';
+import { DeviceFarmMonitor } from './device-farm';
 import React from 'react';
 import { useOperations } from '@/lib/operations-context';
 import {
@@ -75,6 +76,10 @@ export function Home({ query }: Props) {
           sourceInfo="A/B 与小样本业务复盘"
           description="待单人审计核验的复盘记录"
         />
+      </div>
+
+      <div className="my-6">
+        <DeviceFarmMonitor />
       </div>
 
       {!state.clients.length && (

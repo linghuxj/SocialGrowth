@@ -800,10 +800,10 @@ export function Content({ object, query }: { object: string; query: string }) {
         <Detail page="content" title={content.title}>
           <div className="my-3">
             <ExclusiveLockPill
-              isLocked={content.allocationStatus === 'allocated' || Boolean(content.allocatedAccountId)}
-              targetAccountId={content.allocatedAccountId}
-              targetAccountName={content.allocatedAccountId ? lookup(state, content.allocatedAccountId) : undefined}
-              lockedAt={content.allocatedAt}
+              isLocked={content.allocationStatus === 'assigned_locked' || Boolean(content.assignedAccountId)}
+              targetAccountId={content.assignedAccountId}
+              targetAccountName={content.assignedAccountId ? lookup(state, content.assignedAccountId) : undefined}
+              lockedAt={content.updatedAt}
             />
           </div>
           <Facts

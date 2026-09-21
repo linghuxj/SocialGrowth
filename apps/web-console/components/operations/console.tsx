@@ -25,6 +25,7 @@ import {
   Receipts,
   Reviews,
 } from './results';
+import { DeviceFarmMonitor } from './device-farm';
 const subscribe = (listener: () => void) => {
   window.addEventListener('hashchange', listener);
   return () => window.removeEventListener('hashchange', listener);
@@ -55,6 +56,8 @@ export function OperationsConsole() {
     switch (page) {
       case 'home':
         return <Home {...route} />;
+      case 'device-farm':
+        return <DeviceFarmMonitor />;
       case 'clients':
         return <Clients {...route} />;
       case 'accounts':

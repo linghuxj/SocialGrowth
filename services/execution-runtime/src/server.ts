@@ -16,6 +16,9 @@ import {
   verificationConfigSchema,
   type VerificationConfig,
 } from "./web-verification.ts";
+import { ScreenshotStore } from "./storage/screenshot-store.ts";
+import { globalStepEventBus, stepEventSchema } from "./events/step-event-bus.ts";
+import type { WebSocket } from "ws";
 
 export interface ServerOptions {
   dataDir: string;
@@ -74,6 +77,17 @@ export function createRuntimeServer(options: ServerOptions) {
     canExecuteAsset: (sha) =>
       store.db.prepare("SELECT mime FROM assets WHERE sha256=?").get(sha)?.mime === "video/mp4",
   });
+  const screenshotStore = new ScreenshotStore();
+  const webClients = new Set<WebSocket>();
+  const broadcastToWebClients = (msg: unknown) => {
+    const str = JSON.stringify(msg);
+    for (const client of webClients) {
+      if (client.readyState === 1) {
+        client.send(str);
+      }
+    }
+  };
+
   const http = createServer(async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -88,6 +102,38 @@ export function createRuntimeServer(options: ServerOptions) {
           ),
           "ORIGIN_REJECTED",
         );
+
+      const screenshotMatch = path.match(/^\/screenshots\/(.+)$/);
+      if (screenshotMatch && req.method === "GET") {
+        const rawKey = screenshotMatch[1];
+        const key = rawKey.startsWith("screenshots/") ? rawKey : `screenshots/${rawKey}`;
+        const screenshot = await screenshotStore.getScreenshot(key);
+        requireFact(screenshot, "SCREENSHOT_NOT_FOUND");
+        res.setHeader("Content-Type", screenshot.contentType);
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        res.end(screenshot.buffer);
+        return;
+      }
+
+      if (path === "/events/stream" && req.method === "GET") {
+        res.setHeader("Content-Type", "text/event-stream");
+        res.setHeader("Cache-Control", "no-cache");
+        res.setHeader("Connection", "keep-alive");
+        if (typeof (res as any).flushHeaders === "function") (res as any).flushHeaders();
+
+        const initial = globalStepEventBus.getAllLatest();
+        res.write(`event: init\ndata: ${JSON.stringify(initial)}\n\n`);
+
+        const unsubscribe = globalStepEventBus.onStep((event) => {
+          res.write(`event: step\ndata: ${JSON.stringify(event)}\n\n`);
+        });
+
+        req.on("close", () => {
+          unsubscribe();
+        });
+        return;
+      }
+
       const media = path.match(/^\/media\/([a-f0-9]{64})$/);
       if (media && req.method === "GET") {
         runtime.verifyMedia(media[1], url.searchParams);
@@ -381,6 +427,46 @@ export function createRuntimeServer(options: ServerOptions) {
           res.setHeader("Content-Type", row.mime as string);
           res.end(Buffer.from(row.body as Uint8Array));
           return;
+        } else if (path === "/events/step" && req.method === "POST") {
+          const payload = JSON.parse((await body(req, 1024 * 1024)).toString());
+          const published = globalStepEventBus.publish(payload);
+          broadcastToWebClients({ type: "step", event: published });
+          result = { ok: true, event: published };
+        } else if (path === "/devices/screenshot-step" && req.method === "POST") {
+          const workerId = (req.headers["x-worker-id"] as string) || "worker01";
+          const deviceId = (req.headers["x-device-id"] as string) || device || "unknown";
+          const sessionId = (req.headers["x-session-id"] as string) || `sess_${Date.now()}`;
+          const step = parseInt((req.headers["x-step"] as string) || "1", 10);
+          const type = ((req.headers["x-type"] as string) || "post") as any;
+          const status = ((req.headers["x-status"] as string) || "running") as any;
+          const action = (req.headers["x-action"] as string) || "step";
+          const rawDesc = (req.headers["x-action-desc"] as string) || "";
+          let actionDesc = rawDesc;
+          try { actionDesc = decodeURIComponent(rawDesc); } catch {}
+
+          const imageBytes = await body(req, 30 * 1024 * 1024);
+          const uploadResult = await screenshotStore.uploadScreenshot(imageBytes, {
+            workerId,
+            deviceId,
+            sessionId,
+            step,
+          });
+
+          const published = globalStepEventBus.publish({
+            workerId,
+            deviceId,
+            sessionId,
+            step,
+            type,
+            status,
+            action,
+            actionDesc,
+            imageKey: uploadResult.imageKey,
+          });
+          broadcastToWebClients({ type: "step", event: published });
+          result = { ok: true, imageKey: uploadResult.imageKey, event: published };
+        } else if (path === "/devices/states" && req.method === "GET") {
+          result = { ok: true, devices: globalStepEventBus.getAllLatest() };
         } else throw new RuntimeError("NOT_FOUND", 404);
       }
       res.setHeader("Content-Type", "application/json");
@@ -393,6 +479,15 @@ export function createRuntimeServer(options: ServerOptions) {
   });
   const ws = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });
   http.on("upgrade", (req, socket, head) => {
+    if (req.url === "/events" || req.url === "/api/runtime/ws/events") {
+      ws.handleUpgrade(req, socket, head, (client) => {
+        webClients.add(client);
+        client.on("close", () => webClients.delete(client));
+        client.on("error", () => webClients.delete(client));
+        client.send(JSON.stringify({ type: "init", devices: globalStepEventBus.getAllLatest() }));
+      });
+      return;
+    }
     const bearer = req.headers.authorization?.replace(/^Bearer /, "") ?? "";
     const device = Object.entries(options.deviceTokens).find(([, token]) =>
       safeEqual(bearer, token),
