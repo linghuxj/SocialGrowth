@@ -1,4 +1,12 @@
 /** Business choices shared by the Web and authoritative command engine. */
+// Preparation templates do not generate content drafts, schedules or publication approval.
+export const deviceInitializationTemplate = {
+  id: 'device_initialize',
+  name: '手机初始化',
+  action: 'initialize',
+  scope: '当前手机的指定平台：可信应用、指定登录账号、Page / 频道及管理权限',
+} as const;
+
 export const strategyTemplates = [
   {
     id: 'daily_clip',

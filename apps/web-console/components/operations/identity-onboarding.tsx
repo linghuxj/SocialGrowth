@@ -5,6 +5,7 @@ import { Form, Link, Notice, date } from './shared';
 import { useRuntimeStatus } from './runtime';
 import type { IdentityJob } from '../../../../services/execution-runtime/src/identity-onboarding';
 import { validRelation } from '@/lib/operations';
+import { deviceInitializationTemplate } from '@/lib/first-loop/catalog';
 
 export function OnboardingJobs({
   jobs,
@@ -33,7 +34,7 @@ export function OnboardingJobs({
       {jobs.map((j) => (
         <article className="op-record" key={j.id}>
           <h3>
-            {j.action === 'create' ? '创建' : '核验'}{' '}
+            {j.action === 'initialize' ? '手机初始化 ·' : j.action === 'create' ? '创建' : '核验'}{' '}
             {j.platform === 'facebook' ? 'Facebook Page' : 'YouTube 频道'}：
             {j.name}
           </h3>
@@ -60,6 +61,14 @@ export function OnboardingJobs({
               </a>
             </p>
           )}
+          {j.action === 'initialize' && j.initializationEvidence && (
+            <Notice>
+              本平台初始化核验通过：应用可用、指定登录身份和管理权限已核验；
+              {j.initializationEvidence.identityCreated ? '已创建授权身份。' : '沿用已有身份。'}
+              请确认截图并保存绑定。此结果不代表另一平台已初始化，也不替代后续发布授权及即时检查。
+            </Notice>
+          )}
+
           <div className="op-row">
             <Link page="receipts" id={j.id} project={j.projectId}>
               任务与人工待办
@@ -105,7 +114,7 @@ export function OnboardingJobs({
           </div>
           {['unknown', 'interrupted'].includes(j.status) && (
             <Notice>
-              {j.action === 'create'
+              {j.action === 'create' || (j.action === 'initialize' && j.initializationMode === 'create_if_missing')
                 ? '创建结果未确认，不允许自动再次创建。请核对原设备与平台记录；已发现的身份请发起“核验已有”任务。'
                 : '身份核验未完成，未修改发布绑定。请查看阻断原因或现场截图，处理后重新核验。'}
             </Notice>
@@ -134,13 +143,14 @@ export function IdentityOnboardingPanel({ accountId }: { accountId: string }) {
       <Notice>
         账号档案尚不代表真实 Page／频道。先保存项目授权，再由 Artemis 在原生 App
         核验或创建。任务会等待人工密码／验证码；不公开发布、不切换其他登录账号。
+        新手机请选择“手机初始化”：检查并安装可信应用、登录指定账号、核验或按明确授权创建缺少的 Page／频道，在同一任务内完成人工协助。
       </Notice>
       {status.verificationOptions?.available && (
         <Form
           id={`identity-onboard-${accountId}`}
           title="接入 Page / 频道"
           submit="发起一次 Artemis 账号接入任务"
-          description="创建会改变真实平台账号资产，请确认名称和权限。已有绑定仅允许核验；需先在任务中心申请设备人工接管，暂停普通发布队列。"
+          description="手机初始化在确认后先暂停该设备发布队列，再启动一次 Agent 任务；完成或阻断后仍保持暂停，核对绑定后到任务中心恢复。已有绑定不允许创建另一身份；其他接入方式需先申请设备接管。"
           fields={(v) => [
             {
               key: 'project',
@@ -151,33 +161,47 @@ export function IdentityOnboardingPanel({ accountId }: { accountId: string }) {
             {
               key: 'action',
               label: '接入方式',
-              initial: 'verify',
+              initial: deviceInitializationTemplate.action,
               options: [
+                { id: deviceInitializationTemplate.action, name: `${deviceInitializationTemplate.name}（当前平台）` },
                 { id: 'verify', name: '核验已有 Page / 频道' },
                 ...(!bound
                   ? [{ id: 'create', name: '授权创建一个新 Page / 频道' }]
                   : []),
               ],
             },
+            ...(v.action === 'initialize' ? [{
+              key: 'initializationMode',
+              label: '初始化身份处理',
+              initial: 'existing_only',
+              options: [
+                { id: 'existing_only', name: '只接入已有 Page / 频道，不允许创建' },
+                ...(!bound ? [{ id: 'create_if_missing', name: '确认缺少时，授权创建一个 Page / 频道' }] : []),
+              ],
+            }] : []),
             {
               key: 'name',
               label: '平台 Page / 频道准确名称',
               initial: account.name,
             },
-            ...(v.action !== 'create'
+            ...(v.action === 'verify' || (v.action === 'initialize' && v.initializationMode !== 'create_if_missing')
               ? [
                   {
                     key: 'expectedId',
                     label: '完整 Page ID / 频道 ID',
-                    hint: 'Facebook 数字 ID；YouTube 以 UC 开头的 24 位频道 ID。不能只填昵称。',
+                    optional: v.action === 'initialize' && !bound,
+                    hint: '已有绑定必须填写原完整 ID；未绑定的初始化可留空，由 Agent 核验父账号、准确名称和管理权限后读取，身份有歧义时交人工。',
                   },
                 ]
-              : [
+              : []),
+            ...(v.action === 'create' || v.action === 'initialize' ? [
                   {
                     key: 'loginIdentity',
-                    label: '创建所属登录账号的唯一标识',
+                    label: '所属登录账号的唯一标识',
                     hint: 'Facebook 个人账号完整 ID 或 Google 登录账号标识；不是新 Page 名称，禁止填写密码。必须先核验一致才允许创建。',
                   },
+                ] : []),
+            ...(v.action === 'create' || (v.action === 'initialize' && v.initializationMode === 'create_if_missing') ? [
                   {
                     key: 'category',
                     label: 'Page 类别',
@@ -190,11 +214,11 @@ export function IdentityOnboardingPanel({ accountId }: { accountId: string }) {
                     type: 'textarea' as const,
                     optional: true,
                   },
-                ]),
+                ] : []),
             {
               key: 'authorization',
               label: '本次账号操作授权依据',
-              hint: '仅此项真实核验或创建，不包括公开发布和账号轮换。',
+              hint: '初始化包括检查、可信安装、指定账号登录和所选身份处理；不包括创建个人/Google 登录账号、公开发布或账号轮换。密码和验证码只在任务专用待办中输入。',
             },
             {
               key: 'confirmed',
@@ -208,13 +232,14 @@ export function IdentityOnboardingPanel({ accountId }: { accountId: string }) {
             const payload = {
               accountId,
               loginIdentity:
-                v.action === 'create' ? v.loginIdentity : undefined,
+                v.action === 'create' || v.action === 'initialize' ? v.loginIdentity : undefined,
+              initializationMode: v.action === 'initialize' ? v.initializationMode : undefined,
               projectId: v.project,
               action: v.action,
-              expectedId: v.action === 'verify' ? v.expectedId : undefined,
+              expectedId: v.action === 'verify' || (v.action === 'initialize' && v.initializationMode !== 'create_if_missing') ? v.expectedId || undefined : undefined,
               name: v.name,
-              category: v.action === 'create' ? v.category || '' : '',
-              description: v.action === 'create' ? v.description || '' : '',
+              category: v.action === 'create' || (v.action === 'initialize' && v.initializationMode === 'create_if_missing') ? v.category || '' : '',
+              description: v.action === 'create' || (v.action === 'initialize' && v.initializationMode === 'create_if_missing') ? v.description || '' : '',
               authorizationRef: v.authorization,
               confirmed: v.confirmed === 'yes',
             };
@@ -222,6 +247,13 @@ export function IdentityOnboardingPanel({ accountId }: { accountId: string }) {
             if (request.current?.signature !== signature)
               request.current = { signature, id: crypto.randomUUID() };
             try {
+              if (v.action === 'initialize') {
+                const deviceId = status.verificationOptions?.deviceId;
+                if (!deviceId || (account.deviceRef !== deviceId && bound?.deviceId !== deviceId))
+                  throw new Error('ACCOUNT_DEVICE_NOT_REGISTERED');
+                if (!status.deviceHolds.some((h) => h.device === deviceId))
+                  await runtimeRequest('/device-control', { deviceId, held: true });
+              }
               await runtimeRequest('/onboarding', {
                 ...payload,
                 requestId: request.current.id,

@@ -157,6 +157,7 @@ export function Strategies({ object, query }: Props) {
       <Notice>
         选择模板和独占内容，自动引用账号授权与当前规则。普通发布无需导流地址；预检是可选模式，不是正式发布的前置任务。模板组装不是
         AI 生成，Artemis 仍负责真机识别与执行决策。
+        新手机请先到 <Link page="accounts">账号管理</Link>，在账号详情的“接入 Page / 频道”中选择“手机初始化”业务模板；初始化不需要素材，也不会生成发布计划。
       </Notice>
       <Form
         id="strategy-new"
