@@ -4,11 +4,11 @@
 
 ## 运行方式
 
-Node.js 22.13+。复用已配置的 Google Artemis 工作树与虚拟环境，不复制模型密钥。本机代理兼容补丁保存在 `patches/`，不是上游已合并功能；应用前核对基线和本地改动。
+Node.js 22.13+、pnpm 8.14.0，以下命令均在仓库根目录执行。复用已配置的 Google Artemis 工作树与虚拟环境，不复制模型密钥。本机代理兼容补丁保存在 `patches/`，不是上游已合并功能；应用前核对基线和本地改动。
 
 ```sh
-npm install
-npm run runtime:setup -- /absolute/path/to/artemis PHYSICAL_ADB_SERIAL
+pnpm install --frozen-lockfile
+pnpm runtime:setup /absolute/path/to/artemis PHYSICAL_ADB_SERIAL
 ```
 
 初始化只生成权限为 0600、被 Git 忽略的 `.env.runtime` 和 `.env.agent`；已有文件时拒绝覆盖。配置不包含业务账号绑定、素材权利或公开发布批准。这些信息由运营在控制台登记。
@@ -22,30 +22,31 @@ SG_APP_CATALOG=/absolute/path/to/android-packages/catalog.json
 SG_ANDROID_BUILD_TOOLS=/absolute/path/to/Android/sdk/build-tools/36.0.0
 ```
 
-只检查已安装状态：`npm run runtime:check-apps`。
-补装缺失应用并复查：`npm run runtime:check-apps -- --install-missing`。
+只检查已安装状态：`pnpm runtime:check-apps`。
+补装缺失应用并复查：`pnpm runtime:check-apps --install-missing`。
 正常 Agent 在导入素材前也自动执行同一检查/补装逻辑，不要求人工进入商店安装。缺包但清单/工具未配置则阻断，不下载未知来源包。
 
 候选 APK 按 SHA-256、包名、版本、签名证书、Android 最低版本、ABI、分包名称与必需类型逐项核验。多包必须版本/签名一致并采用一次 `adb install-multiple`；没有 `-r/-d`、卸载或重试安装。已安装应用仅接受候选相同版本或清单明确保留版本；本轮保留 FB 549 登录环境，不因为下载了 579 就替换它。现有应用保留基线不等于新版本业务验收。
 
 Artemis SDK 的 `app_path` 当前只有单 APK 接口。运行时通过 ADB 做确定性单包/分包安装；业务 UI 和账号核对仍只使用 Google Artemis。目录中的清单是受信任本机管理员配置，不允许由任务载荷或网页替换签名/哈希。
 
-由开发者在各终端**手动启动**：
+前台统一启动（已有配置时跳过初始化）：
 
 ```sh
-npm run runtime:start
-npm run runtime:web
+pnpm dev
 ```
+
+`pnpm start` 等价；Ctrl+C 或任一服务退出时停止整组服务。独立启动使用 `pnpm dev:runtime` 与 `pnpm dev:web`。统一入口不启动设备 worker。
 
 控制台默认通过本机开发代理访问 `/api/runtime`，操作令牌不进入浏览器 bundle。运行时只监听 `127.0.0.1:4318`，控制台开发服务也只监听本机。静态产物或 Cloudflare 部署不会自动代理到操作者的本机；生产部署须独立实现服务托管、TLS、身份与权限，不可直接公开本机代理。
 
 执行一条到期且已明确入队的任务，随后正常退出：
 
 ```sh
-npm run runtime:agent
+pnpm runtime:agent
 ```
 
-没有到期任务返回 `no_task`。持续复查由操作员手动运行 `npm run runtime:worker`（前台进程，Ctrl-C 停止，不安装守护服务）。默认每 15 秒轮询；每任务失败退避 15/30/60/120/240/300 秒，过期不补发。同一设备必须使用同一 ledger；进程互斥防止并发回放未确认回执。
+没有到期任务返回 `no_task`。持续复查由操作员手动运行 `pnpm runtime:worker`（前台进程，Ctrl-C 停止，不安装守护服务）。默认每 15 秒轮询；每任务失败退避 15/30/60/120/240/300 秒，过期不补发。同一设备必须使用同一 ledger；进程互斥防止并发回放未确认回执。
 
 ### 可重复准备与人工接管
 
@@ -58,7 +59,7 @@ WS 顺序为 `PullPreparation → PreparationReport → BeginExecution → Execu
 只验证 Google Artemis MCP 连接及目标设备层级读取：
 
 ```sh
-npm run runtime:check-artemis
+pnpm runtime:check-artemis
 ```
 
 该命令不调用 `mobile_run_task`，不操作页面、不保存草稿、不发布。输出设备序列号、字节数和摘要，不输出页面内容或凭据。
@@ -101,10 +102,10 @@ SQLite 及 WAL/SHM、素材目录、Agent ledger 和密钥需要作为一个部�
 ## 验证
 
 ```sh
-npm run test:runtime
-npm run build --workspace services/execution-runtime
-npm run lint --workspace services/execution-runtime
-npm run test:first-loop
+pnpm test:runtime
+pnpm --filter @socialgrowth/execution-runtime build
+pnpm --filter @socialgrowth/execution-runtime lint
+pnpm test:first-loop
 ```
 
 测试使用受控业务记录和临时数据库，HTTP/WS 测试使用临时端口并正常关闭。运行时测试不产生真实公开帖子。最新真实验证范围见 `docs/handoff/2026-09-20-execution-runtime-remediation.md`。

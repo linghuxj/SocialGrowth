@@ -129,38 +129,48 @@ SocialGrowth/
 ## 四、 快速使用指引
 
 > [!NOTE]
-> 根据项目最高开发准则 [`CLAUDE.md`](CLAUDE.md)，本地开发环境所有服务均由开发者手动按需启动，严禁自动化脚本自行后台驻留。
+> 使用 Node.js 22.13+ 与 pnpm 8.14.0。所有命令默认在仓库根目录执行。服务保持前台运行；用户已明确授权时，Agent 可以启动与重启服务。
 
-### 1. Web 运营控制台 (`apps/web-console`)
+### 1. 安装与统一启动
+
 ```bash
-cd apps/web-console
-npm install
-npm run dev        # 手动启动 Web 控制台开发服务器
-npm run build      # 编译构建生产版本
+pnpm install --frozen-lockfile
+# 首次配置才执行；已有 .env.runtime / .env.agent 时跳过
+pnpm runtime:setup /absolute/path/to/artemis PHYSICAL_ADB_SERIAL
+pnpm dev           # 同时启动运行时 4318 + Web 3000；pnpm start 等价
 ```
 
-### 2. Artemis 设备群控服务 (`apps/artemis-controller`)
+访问 `http://127.0.0.1:3000`。运行日志带 `runtime` / `web` 前缀，Ctrl+C 或任一服务退出会停止整组进程。统一入口不启动设备 worker，不自动执行队列中的任务。已有单独服务时先停止对应实例，再使用统一入口。
+
+`.env.runtime` 由实际运行时和 Web 进程直接加载，代理令牌保留在服务端。已有配置、运行数据库与素材目录均保留；`runtime:setup` 拒绝覆盖已有密钥配置。
+
+### 2. 独立运行与检查
+
 ```bash
-cd apps/artemis-controller
-npm install
-npm run dev        # 手动启动调度控制服务
+pnpm dev:web             # 只启动 Web（需已有运行时）
+pnpm dev:runtime         # 只启动运行时
+pnpm runtime:agent       # 执行一次设备任务拉取
+pnpm runtime:worker      # 前台持续复查设备任务，单独按需启动
+pnpm test:playwright     # 对已启动的真实 Web 做只读浏览器验证
+pnpm test                # 补充业务 / 运行时回归
+pnpm build               # Web 构建
+pnpm build:runtime       # 运行时类型检查
+pnpm lint                # Web 静态检查
 ```
 
-### 3. AI 策略引擎 (`services/ai-engine`)
+Playwright 检查通过不代表真实发布完成；设备、账号、内容与发布证据仍按业务验收规则核验。可通过 `SOCIALGROWTH_WEB_URL` 和 `SOCIALGROWTH_VERIFICATION_OUTPUT` 指定验证地址与本地证据目录。
+
+### 3. 其他工作区命令
+
 ```bash
-cd services/ai-engine
-npm install
-npm run build      # 编译 TypeScript 模块
+pnpm --filter @socialgrowth/artemis-controller dev
+pnpm --filter @socialgrowth/ai-engine build
+pnpm --filter @socialgrowth/shortlink-service build
 ```
 
-### 4. 导流短链服务 (`services/shortlink-service`)
-```bash
-cd services/shortlink-service
-npm install
-npm run build      # 编译 TypeScript 模块
-```
+依赖统一在根目录安装，`pnpm-workspace.yaml` 管理 `apps/*` 和 `services/*`，只提交一份 `pnpm-lock.yaml`。新增依赖使用 `pnpm --filter <包名> add <依赖>`，根工具使用 `pnpm add -Dw <依赖>`；不再维护 npm 锁文件。
 
-### 5. 工具脚本运行
+### 4. 工具脚本运行
 ```bash
 # 重新计算前 3 个月发布容量并生成数据
 python3 scripts/analytics/calc_launch_capacity.py

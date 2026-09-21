@@ -33,7 +33,7 @@ flowchart TD
 
 - **执行底座铁律**：必须 100% 绑定物理真机（严禁 Android 模拟器，`ro.kernel.qemu !== "1"` 且序列号非 `emulator-*`）。
 - **账号隔离铁律**：1:1 设备账号强绑定。单台真机同一时期仅登录并绑定 1 个专属平台账号（单机上限 1 个 FB Page + 1 个 YT 频道），严禁在 App 内多账号切换。
-- **本地服务纪律**：依工程规范，本地开发环境禁止任何工具/Agent 擅自启动常驻后台守护进程。运行时与 Web 控制台由开发者**手动启动**（`npm run runtime:start` 与 `npm run runtime:web`）。
+- **本地服务纪律**：依工程规范，本地开发环境禁止任何工具/Agent 擅自启动常驻后台守护进程。运行时与 Web 控制台由开发者**手动启动**（`pnpm runtime:start` 与 `pnpm runtime:web`）。
 
 ### 2. Artemis 进程调用与环境隔离规范
 
@@ -193,7 +193,7 @@ sequenceDiagram
 
 | 阻断类别 (`actionRequired.kind`) | 触发原因 (`reason`) | 现象与错误码 | 负责角色 | 规定处理动作 |
 |---|---|---|---|---|
-| **`app` (应用环境)** | `APP_NOT_ALLOWED`<br>`APP_CATALOG_ENTRY_MISSING`<br>`APK_SIGNATURE_MISMATCH`<br>`APK_ABI_INCOMPATIBLE`<br>`APP_VERSION_UNSUPPORTED` | 手机未安装目标应用，或已有安装版本不匹配，或本地离线 APK 签名/架构不符合要求。 | **设备运维负责人** | 1. 检查物理手机 ADB 连接；<br>2. 补充受控 `app-catalog.json` 清单并放置已签名的可信 APK 文件；<br>3. 运行 `npm run runtime:check-apps -- --install-missing` 单次核验；<br>4. 严禁去公开商店人工点击更新。 |
+| **`app` (应用环境)** | `APP_NOT_ALLOWED`<br>`APP_CATALOG_ENTRY_MISSING`<br>`APK_SIGNATURE_MISMATCH`<br>`APK_ABI_INCOMPATIBLE`<br>`APP_VERSION_UNSUPPORTED` | 手机未安装目标应用，或已有安装版本不匹配，或本地离线 APK 签名/架构不符合要求。 | **设备运维负责人** | 1. 检查物理手机 ADB 连接；<br>2. 补充受控 `app-catalog.json` 清单并放置已签名的可信 APK 文件；<br>3. 运行 `pnpm runtime:check-apps --install-missing` 单次核验；<br>4. 严禁去公开商店人工点击更新。 |
 | **`account` (账号与登录)** | `ACCOUNT_LOGIN_REQUIRED`<br>`ACCOUNT_CHALLENGE`<br>`ACCOUNT_TYPE_MISMATCH`<br>`ACCOUNT_IDENTITY_MISMATCH` | App 未登录、遇到 2FA/风控验证码、当前登录的是个人 Profile 而非 Page、或登录的频道与绑定不一致。 | **账号运营负责人** | 1. 在该指定编号的物理真机上**手动**打开 App；<br>2. 完成必要的人工 2FA / 验证挑战并切换至唯一指定的 Page 或频道；<br>3. 严禁由 Agent 自动尝试切号；<br>4. 处理完成后在 Web 控制台登记证据，重新发起排期核验。 |
 | **`unknown` (技术不确定)** | `TECHNICAL_FAILURE`<br>`EXECUTION_TIMEOUT`<br>`413 Request Entity Too Large` | 网络中转超时、上游模型请求体过大截断、App 闪退、或在点击提交后失去响应。 | **系统研发 / 技术值班** | 1. 检查截图与链路日志；<br>2. 前往物理机查看当前 App 真实页面状态（已发/未发/审核中）；<br>3. 在 Web 控制台“执行待办”中录入核对事实。 |
 

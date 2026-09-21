@@ -67,4 +67,4 @@ apps/artemis-controller/
    ```bash
    adb shell pm clear <targetAppPackage>
    ```
-5. **开发启动纪律**：遵循全局 [`CLAUDE.md`](../../CLAUDE.md)，本地环境不自动后台启动调度常驻进程，必须由开发者手动运行 `npm run dev` 配合调试。
+5. **开发启动纪律**：遵循全局 [`CLAUDE.md`](../../CLAUDE.md)，本地环境不自动后台启动调度常驻进程，必须由开发者手动运行 `pnpm dev` 配合调试。

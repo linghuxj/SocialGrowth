@@ -21,7 +21,7 @@ SocialGrowth 启动 MCP 时传入运行时地址与一次性会话 capability；
 
 ## 验证
 
-- `npm run test:all`：包括新 HTTP 角色隔离、一次消费、取消、超时、重启和旧业务安全回归。
+- `pnpm test:all`：包括新 HTTP 角色隔离、一次消费、取消、超时、重启和旧业务安全回归。
 - 用 Artemis `.venv/bin/python integrations/artemis/test_human_input.py` 验证字段安全限制（从 SocialGrowth 根目录执行）。
 - 完整 Web 发起验收使用执行记录页“从 Web 启动完整验收”，需要服务端固定设备／素材配置和设备接管；密码只在后续人工待办中输入。此入口是诊断，不替代业务 Page 授权。
 - `scripts/verify-human-login.mts` 是**显式人工授权才可运行**的单次真机随机密码验收：真实 Web 表单、真实运行时、一个 Artemis 任务、一次登录，绝不点击内容发布。运行前需启动 runtime/Web、保持设备接管，并提供 `SG_PLAYWRIGHT_MODULE`、输出目录和已有 `.env.runtime/.env.agent`。它不是成功登录验收，也不要重复运行尝试密码。

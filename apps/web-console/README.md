@@ -36,11 +36,15 @@ SocialGrowth 运营工作区。导航依据见[整体重构台账](../../docs/ha
 ## 本地开发
 
 ```bash
-npm install
-npm run runtime:start # 仓库根目录，开发者手动启动
-npm run runtime:web   # 仓库根目录，另一终端手动启动
-npm test
-npm run build
+# 以下命令在仓库根目录执行
+pnpm install --frozen-lockfile
+pnpm dev             # 前台同时启动运行时与 Web，Ctrl+C 统一停止
+pnpm dev:web         # 只启动 Web（已有运行时的时候使用）
+pnpm test:playwright # 对已启动页面做真实浏览器验证
+pnpm test
+pnpm build
 ```
 
-`npm run lint` 当前仍会报告未被工作台引用的上游通用 UI 组件规则问题；本次改动文件需单独保持无新增告警。
+Web 的 `dev:runtime` 脚本在子项目目录中直接加载根 `.env.runtime`，服务端代理凭据不会进入浏览器。统一启动方式和首次初始化见根 README。
+
+`pnpm lint` 当前仍会报告未被工作台引用的上游通用 UI 组件规则问题；本次改动文件需单独保持无新增告警。

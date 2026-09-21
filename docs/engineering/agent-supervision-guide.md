@@ -44,7 +44,7 @@ Agent 通用工具：`request_human_assistance`、`revalidate_human_assistance`�
 - 任务 capability：`/assistance/agent/request`、`claim-response`、`revalidate`、`gate`、`stop`、`credential-begin`、`finish-observation`。能力绑定任务、设备与预期身份，不能用普通设备令牌代替。
 - 当前本地操作者认证尚不是多租户细粒度 RBAC；公开部署前必须补齐操作者角色与资源权限。能力 token 只在进程环境／内存传递，不写事件。
 - 安装两个 `integrations/artemis/socialgrowth_*.py` 并应用维护补丁；升级 Artemis 后核对 Operator 过滤与 ActionSession 出队检查。启动器会拒绝缺少纳管入口的 checkout。
-- 运行 `npm run test:all`，再使用实际 Artemis 虚拟环境执行 `python -m unittest discover -s integrations/artemis -p 'test_*.py'`。其中 Python 测试检查已安装 ActionSession 出口，不启动设备或网络。
+- 运行 `pnpm test:all`，再使用实际 Artemis 虚拟环境执行 `python -m unittest discover -s integrations/artemis -p 'test_*.py'`。其中 Python 测试检查已安装 ActionSession 出口，不启动设备或网络。
 
 ## 不得混称已完成的后续能力
 

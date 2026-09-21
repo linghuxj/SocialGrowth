@@ -16,6 +16,9 @@ out/
 # 缓存与调试
 .cache/
 npm-debug.log*
+pnpm-debug.log*
+package-lock.json
+yarn.lock
 yarn-debug.log*
 yarn-error.log*
 
