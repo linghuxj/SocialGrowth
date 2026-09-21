@@ -17,46 +17,96 @@ import {
   options,
 } from './shared';
 import type { DestinationHealth, StrategyRule } from '@/lib/first-loop/types';
+import {
+  strategyTemplates,
+  ruleTemplates,
+  type StrategyTemplateId,
+} from '@/lib/first-loop/catalog';
 const browserTimezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 type Props = { object: string; query: string };
 
 export function Rules({ object, query }: Props) {
-  const { state, run } = useOperations();
+  const { state, run, projectId } = useOperations();
   const rule = state.strategyRules.find((r) => r.id === object);
   return (
     <>
       <Notice>
-        规则按服务范围和类别版本化。修改同一类别会替代旧版；已生成策略保留原规则快照，重新制定策略才会使用新版。
+        优先使用内置规则。每条规则独立版本化，同类别可以并存；修订只替换该规则，已生成策略保留原版本快照。
       </Notice>
       <Form
         id="rule-new"
         title="新增或修订规则"
         submit="保存规则版本"
-        fields={[
+        fields={(v) => [
           {
             key: 'project',
-            label: '服务范围',
+            label: '运营项目',
             options: state.projects.filter((p) => p.status === 'active'),
+            initial: projectId,
           },
           {
-            key: 'category',
-            label: '依据类别',
-            options: options(
-              ['external_constraint', 'internal_rule', 'unverified_hypothesis'],
-              names,
-            ),
+            key: 'template',
+            label: '规则模板',
+            options: [
+              ...ruleTemplates,
+              { id: 'custom', name: '高级：自定义规则 / 假设' },
+            ],
+            initial: 'identity',
           },
-          { key: 'statement', label: '规则陈述', type: 'textarea' },
-          { key: 'source', label: '来源 / 证据' },
+          ...(v.template === 'custom'
+            ? [
+                {
+                  key: 'revises',
+                  label: '修订已有规则',
+                  optional: true,
+                  options: state.strategyRules
+                    .filter(
+                      (r) =>
+                        r.projectId === v.project &&
+                        r.status === 'active' &&
+                        !r.ruleKey?.startsWith('builtin:'),
+                    )
+                    .map((r) => ({ id: r.ruleKey ?? r.id, name: r.statement })),
+                },
+                {
+                  key: 'category',
+                  label: '依据类别',
+                  options: options(
+                    [
+                      'external_constraint',
+                      'internal_rule',
+                      'unverified_hypothesis',
+                    ],
+                    names,
+                  ),
+                },
+                {
+                  key: 'statement',
+                  label: '规则陈述',
+                  type: 'textarea' as const,
+                },
+                { key: 'source', label: '来源 / 证据' },
+              ]
+            : []),
         ]}
         onSubmit={(v) =>
           run((e, c) =>
             e.addStrategyRule(
               {
                 projectId: v.project,
-                category: v.category as StrategyRule['category'],
-                statement: v.statement,
-                sourceRef: v.source,
+                ruleKey:
+                  v.template === 'custom'
+                    ? v.revises || undefined
+                    : `builtin:${v.template}`,
+                category:
+                  ruleTemplates.find((t) => t.id === v.template)?.category ??
+                  (v.category as StrategyRule['category']),
+                statement:
+                  ruleTemplates.find((t) => t.id === v.template)?.statement ??
+                  v.statement,
+                sourceRef:
+                  ruleTemplates.find((t) => t.id === v.template)?.sourceRef ??
+                  v.source,
               },
               c,
             ),
@@ -65,26 +115,28 @@ export function Rules({ object, query }: Props) {
       />
       <List
         query={query}
-        columns={['规则', '服务范围', '类别', '版本 / 状态']}
-        rows={state.strategyRules.map((r) => ({
-          id: r.id,
-          search: `${r.statement} ${lookup(state, r.projectId)} ${label(r.category)}`,
-          cells: [
-            <Link key="n" page="rules" id={r.id}>
-              {r.statement}
-            </Link>,
-            lookup(state, r.projectId),
-            label(r.category),
-            `v${r.version} · ${r.status === 'active' ? '当前' : '历史'}`,
-          ],
-        }))}
+        columns={['规则', '运营项目', '类别', '版本 / 状态']}
+        rows={state.strategyRules
+          .filter((r) => !projectId || r.projectId === projectId)
+          .map((r) => ({
+            id: r.id,
+            search: `${r.statement} ${lookup(state, r.projectId)} ${label(r.category)}`,
+            cells: [
+              <Link key="n" page="rules" id={r.id}>
+                {r.statement}
+              </Link>,
+              lookup(state, r.projectId),
+              label(r.category),
+              `v${r.version} · ${r.status === 'active' ? '当前' : '历史'}`,
+            ],
+          }))}
         empty="暂无规则。请记录有来源的外部约束、内部规则或待验证假设。"
       />
       {rule && (
         <Detail page="rules" title="规则依据">
           <Facts
             items={[
-              ['服务范围', lookup(state, rule.projectId)],
+              ['运营项目', lookup(state, rule.projectId)],
               ['规则', rule.statement],
               ['来源', rule.sourceRef],
               ['类别', label(rule.category)],
@@ -98,13 +150,13 @@ export function Rules({ object, query }: Props) {
   );
 }
 export function Strategies({ object, query }: Props) {
-  const { state, run, now } = useOperations();
+  const { state, run, now, projectId } = useOperations();
   const draft = state.strategyDrafts.find((d) => d.id === object);
   return (
     <>
       <Notice>
-        选择服务和内容后，自动带入归属账号与当前规则。当前为本地规则辅助组装，需要人工审阅；外部
-        AI 未接入。
+        选择模板和独占内容，自动引用账号授权与当前规则。普通发布无需导流地址；预检是可选模式，不是正式发布的前置任务。模板组装不是
+        AI 生成，Artemis 仍负责真机识别与执行决策。
       </Notice>
       <Form
         id="strategy-new"
@@ -120,8 +172,15 @@ export function Strategies({ object, query }: Props) {
           return [
             {
               key: 'project',
-              label: '服务范围',
+              label: '运营项目',
               options: state.projects.filter((p) => p.status === 'active'),
+              initial: projectId,
+            },
+            {
+              key: 'template',
+              label: '策略模板',
+              options: [...strategyTemplates],
+              initial: 'daily_clip',
             },
             {
               key: 'content',
@@ -147,7 +206,9 @@ export function Strategies({ object, query }: Props) {
             },
             {
               key: 'entry',
-              label: '导流入口',
+              label: '导流目的地',
+              optional: v.template !== 'traffic',
+              hint: '日常发布可留空；身份主页不是必须填写的导流地址。',
               options: state.destinationEntries
                 .filter(
                   (d) =>
@@ -166,7 +227,12 @@ export function Strategies({ object, query }: Props) {
                   name: `${label(d.scope)} · ${state.destinationVersions.find((x) => x.id === d.activeVersionId)?.url}`,
                 })),
             },
-            { key: 'rationale', label: '选择依据', type: 'textarea' },
+            {
+              key: 'rationale',
+              label: '补充说明',
+              type: 'textarea',
+              optional: true,
+            },
             {
               key: 'assumptions',
               label: '仍需验证的假设',
@@ -182,8 +248,9 @@ export function Strategies({ object, query }: Props) {
                 projectId: v.project,
                 contentIdentityId: v.content,
                 destinationEntryId: v.entry,
+                templateId: v.template as StrategyTemplateId,
                 outputMode: 'controlled',
-                rationale: v.rationale,
+                rationale: `${strategyTemplates.find((t) => t.id === v.template)?.rationale ?? ''}${v.rationale ? `\n补充：${v.rationale}` : ''}`,
                 assumptions: v.assumptions ? [v.assumptions] : [],
               },
               c,
@@ -201,26 +268,28 @@ export function Strategies({ object, query }: Props) {
       </Form>
       <List
         query={query}
-        columns={['内容 / 策略', '服务范围', '目标账号', '批准情况']}
-        rows={state.strategyDrafts.map((d) => ({
-          id: d.id,
-          search: `${lookup(state, d.contentIdentityId)} ${lookup(state, d.projectId)} ${lookup(state, d.accountId)}`,
-          cells: [
-            <Link key="n" page="strategies" id={d.id}>
-              {lookup(state, d.contentIdentityId)} · v{d.version}
-            </Link>,
-            lookup(state, d.projectId),
-            lookup(state, d.accountId),
-            state.executionApprovals.some(
-              (a) =>
-                a.strategyDraftId === d.id &&
-                a.status === 'active' &&
-                Date.parse(a.validUntil) > now,
-            )
-              ? '已有有效批准'
-              : '待审 / 待重新批准',
-          ],
-        }))}
+        columns={['内容 / 策略', '运营项目', '目标账号', '批准情况']}
+        rows={state.strategyDrafts
+          .filter((d) => !projectId || d.projectId === projectId)
+          .map((d) => ({
+            id: d.id,
+            search: `${lookup(state, d.contentIdentityId)} ${lookup(state, d.projectId)} ${lookup(state, d.accountId)}`,
+            cells: [
+              <Link key="n" page="strategies" id={d.id}>
+                {lookup(state, d.contentIdentityId)} · v{d.version}
+              </Link>,
+              lookup(state, d.projectId),
+              lookup(state, d.accountId),
+              state.executionApprovals.some(
+                (a) =>
+                  a.strategyDraftId === d.id &&
+                  a.status === 'active' &&
+                  Date.parse(a.validUntil) > now,
+              )
+                ? '已有有效批准'
+                : '待审 / 待重新批准',
+            ],
+          }))}
       />
       {draft && (
         <Detail
@@ -229,13 +298,13 @@ export function Strategies({ object, query }: Props) {
         >
           <Facts
             items={[
-              ['服务范围', lookup(state, draft.projectId)],
+              ['运营项目', lookup(state, draft.projectId)],
               ['归属账号', lookup(state, draft.accountId)],
               [
                 '导流版本',
                 state.destinationVersions.find(
                   (d) => d.id === draft.destinationVersionId,
-                )?.url,
+                )?.url ?? '不使用导流目的地',
               ],
               ['选择依据', draft.rationale],
               ['待验证假设', draft.assumptions.join('；') || '未记录'],
@@ -345,7 +414,7 @@ export function Strategies({ object, query }: Props) {
   );
 }
 export function Plans({ object, query }: Props) {
-  const { state, run, now } = useOperations();
+  const { state, run, now, projectId } = useOperations();
   const selectedSchedule = state.publicationSchedules.find(
     (s) => s.id === object,
   );
@@ -361,28 +430,30 @@ export function Plans({ object, query }: Props) {
         <List
           query={query}
           columns={['批准内容', '服务 / 账号', '有效期', '批准状态', '排期']}
-          rows={state.executionApprovals.map((a) => ({
-            id: a.id,
-            search: `${lookup(state, a.contentIdentityId)} ${lookup(state, a.projectId)} ${lookup(state, a.accountId)}`,
-            cells: [
-              <Link key="n" page="plans" id={a.id}>
-                {lookup(state, a.contentIdentityId)} · v{a.strategyVersion}
-              </Link>,
-              `${lookup(state, a.projectId)} / ${lookup(state, a.accountId)}`,
-              `${date(a.validFrom)} — ${date(a.validUntil)}`,
-              a.status === 'active' && Date.parse(a.validUntil) <= now
-                ? '已到期'
-                : label(a.status),
-              state.publicationSchedules.filter(
-                (s) =>
-                  s.approvalId === a.id &&
-                  s.status === 'scheduled' &&
-                  Date.parse(s.expiresAt) > now,
-              ).length
-                ? '有待执行排期'
-                : '无待执行排期',
-            ],
-          }))}
+          rows={state.executionApprovals
+            .filter((a) => !projectId || a.projectId === projectId)
+            .map((a) => ({
+              id: a.id,
+              search: `${lookup(state, a.contentIdentityId)} ${lookup(state, a.projectId)} ${lookup(state, a.accountId)}`,
+              cells: [
+                <Link key="n" page="plans" id={a.id}>
+                  {lookup(state, a.contentIdentityId)} · v{a.strategyVersion}
+                </Link>,
+                `${lookup(state, a.projectId)} / ${lookup(state, a.accountId)}`,
+                `${date(a.validFrom)} — ${date(a.validUntil)}`,
+                a.status === 'active' && Date.parse(a.validUntil) <= now
+                  ? '已到期'
+                  : label(a.status),
+                state.publicationSchedules.filter(
+                  (s) =>
+                    s.approvalId === a.id &&
+                    s.status === 'scheduled' &&
+                    Date.parse(s.expiresAt) > now,
+                ).length
+                  ? '有待执行排期'
+                  : '无待执行排期',
+              ],
+            }))}
           empty="暂无批准。先审阅策略并明确停止和观察条件。"
         />
       </Panel>
@@ -505,7 +576,7 @@ export function Plans({ object, query }: Props) {
   );
 }
 export function Destinations({ object, query }: Props) {
-  const { state, run } = useOperations();
+  const { state, run, projectId } = useOperations();
   const entry = state.destinationEntries.find((d) => d.id === object);
   const version = state.destinationVersions.find(
     (v) => v.id === entry?.activeVersionId,
@@ -513,8 +584,8 @@ export function Destinations({ object, query }: Props) {
   return (
     <>
       <Notice>
-        这里维护导流目的地、权限、退出约定和历史版本。登记 URL
-        不证明目的地可达；当前没有在线短链或真实点击采集接入。
+        仅导流策略需要此处配置。账号身份地址在账号接入中核验，已发布帖子地址在任务回执中查看；不要把这三类地址混作必填项。登记
+        URL 不证明目的地可达；当前没有在线短链或真实点击采集接入。
       </Notice>
       <Form
         id="destination-new"
@@ -523,7 +594,8 @@ export function Destinations({ object, query }: Props) {
         fields={(v) => [
           {
             key: 'project',
-            label: '服务范围',
+            label: '运营项目',
+            initial: projectId,
             options: state.projects.filter((p) => p.status === 'active'),
           },
           {
@@ -589,30 +661,32 @@ export function Destinations({ object, query }: Props) {
           '本地准入状态',
           '退出约定',
         ]}
-        rows={state.destinationEntries.map((d) => {
-          const v = state.destinationVersions.find(
-            (x) => x.id === d.activeVersionId,
-          );
-          return {
-            id: d.id,
-            search: `${v?.url} ${lookup(state, d.projectId)} ${lookup(state, d.accountId)}`,
-            cells: [
-              <Link key="n" page="destinations" id={d.id}>
-                {v?.url}
-              </Link>,
-              `${lookup(state, d.projectId)} / ${lookup(state, d.accountId)}`,
-              label(d.scope),
-              v ? label(v.health) : '无当前版本',
-              label(d.exitPolicy),
-            ],
-          };
-        })}
+        rows={state.destinationEntries
+          .filter((d) => !projectId || d.projectId === projectId)
+          .map((d) => {
+            const v = state.destinationVersions.find(
+              (x) => x.id === d.activeVersionId,
+            );
+            return {
+              id: d.id,
+              search: `${v?.url} ${lookup(state, d.projectId)} ${lookup(state, d.accountId)}`,
+              cells: [
+                <Link key="n" page="destinations" id={d.id}>
+                  {v?.url}
+                </Link>,
+                `${lookup(state, d.projectId)} / ${lookup(state, d.accountId)}`,
+                label(d.scope),
+                v ? label(v.health) : '无当前版本',
+                label(d.exitPolicy),
+              ],
+            };
+          })}
       />
       {entry && version && (
         <Detail page="destinations" title="入口详情与变更历史">
           <Facts
             items={[
-              ['服务范围', lookup(state, entry.projectId)],
+              ['运营项目', lookup(state, entry.projectId)],
               ['账号', lookup(state, entry.accountId)],
               [
                 '当前地址',

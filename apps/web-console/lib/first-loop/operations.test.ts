@@ -37,12 +37,14 @@ void test('account names and same-platform device binding are unique, clients ke
     2,
   );
 });
-void test('routes retain page, object and search across reload/back without global project context', () => {
+void test('routes retain page, object, search and explicit project context across reload/back', () => {
   assert.deepEqual(readRoute(href('accounts', 'abc', '星河')), {
     page: 'accounts',
     object: 'abc',
     query: '星河',
+    project: '',
   });
+  assert.equal(readRoute(href('content', '', '', 'project-a')).project, 'project-a');
   assert.equal(readRoute('#/unregistered').page, 'home');
 });
 void test('work queue spans service scopes and treats expiry as unavailable', () => {

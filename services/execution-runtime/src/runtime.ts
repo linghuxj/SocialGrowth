@@ -489,7 +489,7 @@ export class ExecutionRuntime {
     const destination = state.destinationVersions.find(
       (d) => d.id === approval.destinationVersionId && d.isActive && d.health === "available",
     );
-    requireFact(destination, "DESTINATION_INVALID");
+    requireFact(!approval.destinationVersionId || destination, "DESTINATION_INVALID");
     requireFact(
       settings.mode !== "publish" || settings.publishAuthorizationRef,
       "PUBLISH_AUTHORIZATION_REQUIRED",
@@ -555,8 +555,8 @@ export class ExecutionRuntime {
           expiresAt: schedule.expiresAt,
         },
         captionText: settings.captionText,
-        destinationVersionId: destination.id,
-        shortLinkUrl: destination.url,
+        destinationVersionId: destination?.id,
+        shortLinkUrl: destination?.url,
         scheduledAt: schedule.scheduledFor,
         expiresAt: schedule.expiresAt,
         timeZone: schedule.businessTimezone,

@@ -12,7 +12,7 @@ const page = await context.newPage();
 const results: Array<{ route: string; status: string; detail?: string }> = [];
 try {
   for (const [route, heading] of [
-    ['home', '工作台'], ['accounts', '账号管理'], ['content', '内容资产'], ['receipts', '执行记录'],
+    ['home', '工作台'], ['accounts', '账号管理'], ['content', '内容资产'], ['receipts', '任务中心'], ['clients', '运营项目'],
   ]) {
     try {
       const apiPath = route === 'home' ? '/api/runtime/state' : route === 'receipts' ? '/api/runtime/status' : undefined;
@@ -46,6 +46,16 @@ try {
       break;
     }
   }
+  if (!results.some((result) => result.status === 'blocked')) {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole('heading', { name: '运营项目', exact: true, level: 1 }).waitFor();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
+    if (overflow) throw new Error('MOBILE_HORIZONTAL_OVERFLOW');
+    await page.screenshot({ path: resolve(outputDir, 'clients-mobile.png'), fullPage: true });
+    results.push({ route: 'clients-mobile', status: 'responsive_layout_ready' });
+  }
+} catch (error) {
+  results.push({ route: 'clients-mobile', status: 'blocked', detail: error instanceof Error ? error.message.split('\n')[0] : 'UNKNOWN_BROWSER_ERROR' });
 } finally {
   await context.close();
   await browser.close();

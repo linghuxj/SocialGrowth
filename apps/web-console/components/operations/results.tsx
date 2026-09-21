@@ -1,5 +1,10 @@
 'use client';
-import { DeviceBindings, RuntimeReceipts, LegacyWorkspace } from './runtime';
+import {
+  DeviceBindings,
+  RuntimeReceipts,
+  RuntimeDiagnostics,
+  LegacyWorkspace,
+} from './runtime';
 import React from 'react';
 import { useOperations } from '@/lib/operations-context';
 import {
@@ -8,6 +13,7 @@ import {
   names,
   reviewedCompletion,
   taskList,
+  projectView,
 } from '@/lib/operations';
 import {
   Detail,
@@ -27,7 +33,8 @@ import type { BasicReview, MetricAvailability } from '@/lib/first-loop/types';
 type Props = { object: string; query: string };
 
 export function Home({ query }: Props) {
-  const { state } = useOperations();
+  const { state: fullState, projectId } = useOperations();
+  const state = projectView(fullState, projectId);
   const tasks = taskList(state);
   return (
     <>
@@ -35,10 +42,10 @@ export function Home({ query }: Props) {
       {!state.clients.length && (
         <Panel title="建立运营工作区">
           <p>
-            先登记客户及服务目标，再登记账号与授权。内容准入、导流入口和规则就绪后，才能制定策略、批准和排期。
+            先建立自营或代运营项目，再接入账号与授权。继承素材默认值并核对内容后，选择策略模板、批准和排期；普通发布无需导流目的地。
           </p>
           <div className="op-row">
-            <Link page="clients">登记客户与服务</Link>
+            <Link page="clients">建立运营项目</Link>
             <Link page="accounts">登记账号</Link>
             <Link page="connections">查看接入范围</Link>
           </div>
@@ -85,7 +92,8 @@ export function Receipts({
   query,
   exceptions = false,
 }: Props & { exceptions?: boolean }) {
-  const { state } = useOperations();
+  const { state: fullState, projectId } = useOperations();
+  const state = projectView(fullState, projectId);
   const attempt = state.publicationAttempts.find((a) => a.id === object);
   const records = state.publicationAttempts.filter(
     (a) => !exceptions || ['unknown', 'in_progress'].includes(a.publishStatus),
@@ -97,7 +105,7 @@ export function Receipts({
           ? '结果未知或处理中时禁止盲目重发。先由执行方核对原始证据；确认未公开后才可解除相关限制。'
           : '执行记录来自真机回执与归档证据；任务完成不等于帖子已公开。'}
       </Notice>
-      <RuntimeReceipts />
+      <RuntimeReceipts exceptions={exceptions} query={query} object={object} />
       <List
         query={query}
         columns={['内容', '目标账号', '结果', '证据', '最近更新']}
@@ -149,7 +157,8 @@ export function Receipts({
   );
 }
 export function Metrics({ object, query }: Props) {
-  const { state, run } = useOperations();
+  const { state: fullState, run, projectId } = useOperations();
+  const state = projectView(fullState, projectId);
   const approval = state.executionApprovals.find((a) => a.id === object);
   const plan = approval?.observationPlan;
   return (
@@ -323,7 +332,8 @@ export function Metrics({ object, query }: Props) {
   );
 }
 export function Reviews({ object, query }: Props) {
-  const { state, run } = useOperations();
+  const { state: fullState, run, projectId } = useOperations();
+  const state = projectView(fullState, projectId);
   const review = state.basicReviews.find((r) => r.id === object);
   return (
     <>
@@ -549,6 +559,7 @@ export function Connections() {
         环境执行，账号绑定与实际验收按证据分别记录。
       </Notice>
       <DeviceBindings />
+      <RuntimeDiagnostics />
       <LegacyWorkspace />
       <List
         query=""

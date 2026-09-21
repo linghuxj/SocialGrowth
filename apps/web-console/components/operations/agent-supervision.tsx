@@ -86,7 +86,9 @@ export function AgentSupervision({
             策略 {c.policy.version} ·{' '}
             {c.policy.mode === 'observe'
               ? '只读观察，禁止操作设备'
-              : '发布前诊断，禁止公开发布'}{' '}
+              : c.policy.mode === 'onboarding'
+                ? '账号接入，仅允许本次已确认的核验或创建，不发布内容'
+                : '发布前诊断，禁止公开发布'}{' '}
             · 恢复上限 {c.policy.maxRecovery} · 密码请求 {c.passwordAttempts} ·
             验证码请求 {c.otpAttempts} · 受控登录提交 {c.loginSubmits}
           </p>
@@ -162,16 +164,6 @@ export function AgentSupervision({
           )}
         </article>
       ))}
-      <details>
-        <summary>任务事件时间线</summary>
-        <ol>
-          {(value?.events ?? []).slice(0, 60).map((e) => (
-            <li key={e.id}>
-              {e.at} · {e.taskId} · {e.type} · {e.code}
-            </li>
-          ))}
-        </ol>
-      </details>
     </section>
   );
 }

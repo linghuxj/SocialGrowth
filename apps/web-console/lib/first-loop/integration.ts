@@ -64,7 +64,12 @@ export function buildPublishTaskDirective(
       item.isActive &&
       item.health === 'available',
   );
-  if (!relation || !identity || !asset || !destination) {
+  if (
+    !relation ||
+    !identity ||
+    !asset ||
+    (approval.destinationVersionId && !destination)
+  ) {
     return {
       ok: false,
       error: {
@@ -105,8 +110,8 @@ export function buildPublishTaskDirective(
         expiresAt: input.mediaExpiresAt,
       },
       captionText: input.captionText,
-      destinationVersionId: destination.id,
-      shortLinkUrl: destination.url,
+      destinationVersionId: destination?.id,
+      shortLinkUrl: destination?.url,
       scheduledAt: schedule.scheduledFor,
       expiresAt: schedule.expiresAt,
       timeZone: schedule.businessTimezone,

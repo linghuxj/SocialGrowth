@@ -114,6 +114,7 @@ export const commandSchema = z
       "grantAccountServiceRelation",
       "revokeAccountServiceRelation",
       "admitContent",
+      "admitContentBatch",
       "reviewAssetFit",
       "allocateContent",
       "releaseContent",

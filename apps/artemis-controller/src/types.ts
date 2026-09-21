@@ -39,7 +39,7 @@ export interface PublishTaskDirective {
   sliceId: string;
   media: { url: string; sha256: string; expiresAt: string };
   captionText: string;
-  destinationVersionId: string;
+  destinationVersionId?: string;
   shortLinkUrl?: string;
   scheduledAt: string;
   expiresAt: string;

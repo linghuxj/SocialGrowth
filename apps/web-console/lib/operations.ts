@@ -10,12 +10,12 @@ export const pages = [
   { id: 'strategies', name: '策略草案', group: 'strategy' },
   { id: 'rules', name: '规则库', group: 'strategy' },
   { id: 'plans', name: '发布计划', group: 'execution' },
-  { id: 'receipts', name: '执行记录', group: 'execution' },
+  { id: 'receipts', name: '任务中心', group: 'execution' },
   { id: 'exceptions', name: '异常处理', group: 'execution' },
   { id: 'destinations', name: '导流管理', group: 'destinations' },
   { id: 'metrics', name: '数据表现', group: 'data' },
   { id: 'reviews', name: '复盘记录', group: 'data' },
-  { id: 'clients', name: '客户服务', group: 'clients' },
+  { id: 'clients', name: '运营项目', group: 'clients' },
   { id: 'connections', name: '接入状态', group: 'system' },
   { id: 'audit', name: '操作审计', group: 'system' },
 ] as const;
@@ -24,6 +24,7 @@ export function readRoute(hash: string): {
   page: PageId;
   object: string;
   query: string;
+  project: string;
 } {
   const [path, search = ''] = hash.replace(/^#\/?/, '').split('?');
   const params = new URLSearchParams(search);
@@ -31,12 +32,14 @@ export function readRoute(hash: string): {
     page: pages.find((p) => p.id === path)?.id ?? 'home',
     object: params.get('object') ?? '',
     query: params.get('q') ?? '',
+    project: params.get('project') ?? '',
   };
 }
-export function href(page: PageId, object = '', query = '') {
+export function href(page: PageId, object = '', query = '', project = '') {
   const params = new URLSearchParams();
   if (object) params.set('object', object);
   if (query) params.set('q', query);
+  if (project) params.set('project', project);
   return `#/${page}${params.size ? `?${params}` : ''}`;
 }
 export const names: Record<string, string> = {
@@ -126,6 +129,55 @@ export function lookup(state: FirstLoopState, id?: string): string {
     id
   );
 }
+/** A read model only. Commands always run against the full server-owned state. */
+export function projectView(
+  state: FirstLoopState,
+  projectId: string,
+): FirstLoopState {
+  if (!projectId) return state;
+  const relations = state.accountServiceRelations.filter(
+    (r) => r.projectId === projectId,
+  );
+  const accounts = state.accounts.filter((a) =>
+    relations.some((r) => r.accountId === a.id),
+  );
+  const contents = state.contentIdentities.filter(
+    (i) =>
+      i.projectId === projectId ||
+      relations.some((r) => r.accountId === i.assignedAccountId),
+  );
+  const approvals = state.executionApprovals.filter(
+    (a) => a.projectId === projectId,
+  );
+  return {
+    ...state,
+    projects: state.projects.filter((p) => p.id === projectId),
+    accountServiceRelations: relations,
+    accounts,
+    contentIdentities: contents,
+    sliceAssets: state.sliceAssets.filter((s) =>
+      contents.some((i) => i.id === s.contentIdentityId),
+    ),
+    strategyRules: state.strategyRules.filter((r) => r.projectId === projectId),
+    strategyDrafts: state.strategyDrafts.filter(
+      (d) => d.projectId === projectId,
+    ),
+    executionApprovals: approvals,
+    publicationSchedules: state.publicationSchedules.filter((s) =>
+      approvals.some((a) => a.id === s.approvalId),
+    ),
+    publicationAttempts: state.publicationAttempts.filter((a) =>
+      contents.some((i) => i.id === a.contentIdentityId),
+    ),
+    destinationEntries: state.destinationEntries.filter(
+      (d) => d.projectId === projectId,
+    ),
+    metricObservations: state.metricObservations.filter(
+      (o) => o.projectId === projectId,
+    ),
+    basicReviews: state.basicReviews.filter((r) => r.projectId === projectId),
+  };
+}
 export function taskList(state: FirstLoopState, now = Date.now()) {
   const tasks: {
     id: string;
@@ -163,7 +215,10 @@ export function taskList(state: FirstLoopState, now = Date.now()) {
           object: '',
           urgent: false,
         });
-      if (!state.destinationEntries.some((d) => d.projectId === p.id))
+      if (
+        p.primaryGoal === 'traffic' &&
+        !state.destinationEntries.some((d) => d.projectId === p.id)
+      )
         tasks.push({
           id: `entry-${p.id}`,
           title: `登记入口：${p.name}`,

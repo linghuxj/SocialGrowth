@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { runtimeRequest, useOperations } from '@/lib/operations-context';
 import type { CommandResult } from '@/lib/first-loop/types';
-import { Form, Panel, Notice, List, iso, date } from './shared';
+import { Form, Panel, Notice, List, Link, iso, date } from './shared';
 import { lookup, label } from '@/lib/operations';
 import {
   FIRST_LOOP_STORAGE_KEY,
@@ -12,6 +12,8 @@ import { assetUrl, storeAsset } from '@/lib/local-assets';
 import { HumanAssistance, type HumanChallenge } from './human-assistance';
 import { WebVerification, type VerificationJob } from './web-verification';
 import { AgentSupervision, type SupervisionStatus } from './agent-supervision';
+import { OnboardingJobs } from './identity-onboarding';
+import type { IdentityJob } from '../../../../services/execution-runtime/src/identity-onboarding';
 type Binding = {
   id: string;
   deviceId: string;
@@ -28,6 +30,7 @@ type TaskRecord = {
     settings: { scheduleId: string; mode: string };
     directive: {
       attemptId: string;
+      projectId: string;
       accountId: string;
       contentIdentityId: string;
     };
@@ -47,6 +50,7 @@ type TaskRecord = {
   };
 };
 type RuntimeStatus = {
+  onboarding?: IdentityJob[];
   supervision?: SupervisionStatus;
   verificationOptions?: {
     available: boolean;
@@ -67,7 +71,7 @@ type RuntimeStatus = {
   }[];
   deviceHolds: { device: string }[];
 };
-function useRuntimeStatus() {
+export function useRuntimeStatus() {
   const [status, setStatus] = useState<RuntimeStatus>({
     bindings: [],
     tasks: [],
@@ -223,7 +227,7 @@ export function ExecutionQueue({ scheduleId }: { scheduleId: string }) {
         {
           key: 'mode',
           label: '执行模式',
-          initial: 'preflight',
+          initial: 'publish',
           options: [
             { id: 'preflight', name: '发布前验证（不提交）' },
             { id: 'publish', name: '正式公开发布一次' },
@@ -281,49 +285,193 @@ export function ExecutionQueue({ scheduleId }: { scheduleId: string }) {
     />
   );
 }
-export function RuntimeReceipts() {
-  const { state, refresh } = useOperations();
-  const { status, error, reload } = useRuntimeStatus();
-  const [controlError, setControlError] = useState('');
+export function RuntimeDiagnostics() {
+  const { status, reload } = useRuntimeStatus();
   return (
-    <Panel title="设备队列与归档证据">
-      <WebVerification
-        options={status.verificationOptions}
-        jobs={status.verifications ?? []}
-        reload={reload}
-      />
+    <WebVerification
+      options={status.verificationOptions}
+      jobs={status.verifications ?? []}
+      reload={reload}
+    />
+  );
+}
+export function RuntimeReceipts({
+  exceptions = false,
+  query = '',
+  object = '',
+}: {
+  exceptions?: boolean;
+  query?: string;
+  object?: string;
+}) {
+  const { state, refresh, projectId } = useOperations();
+  const { status: raw, error, reload } = useRuntimeStatus();
+  const [selectedTask, setTaskFilter] = useState(object);
+  // Receipt links may identify a publication attempt; resolve it to its runtime task.
+  const taskFilter =
+    raw.tasks.find((t) => t.task.directive.attemptId === selectedTask)
+      ?.taskId ?? selectedTask;
+  const [controlError, setControlError] = useState('');
+  const pending = new Set([
+    ...(raw.assistance ?? [])
+      .filter((r) => r.status === 'waiting')
+      .map((r) => r.taskId),
+    ...(raw.supervision?.requests ?? [])
+      .filter((r) => r.status === 'waiting')
+      .map((r) => r.taskId),
+  ]);
+  const tasks = raw.tasks.filter(
+    (t) =>
+      (!projectId || t.task.directive.projectId === projectId) &&
+      (!exceptions ||
+        ['blocked', 'failed', 'unknown'].includes(t.status) ||
+        pending.has(t.taskId)) &&
+      `${t.taskId} ${lookup(state, t.task.directive.contentIdentityId)} ${lookup(state, t.task.directive.accountId)} ${t.status}`
+        .toLowerCase()
+        .includes(query.toLowerCase()),
+  );
+  const visibleOnboarding = (raw.onboarding ?? []).filter(
+    (j) =>
+      (!projectId || j.projectId === projectId) &&
+      (!exceptions ||
+        ['blocked', 'unknown', 'interrupted'].includes(j.status) ||
+        pending.has(j.id)) &&
+      `${j.name} ${j.id} ${j.status}`
+        .toLowerCase()
+        .includes(query.toLowerCase()),
+  );
+  const onboarding = visibleOnboarding.filter(
+    (j) => !taskFilter || taskFilter === j.id,
+  );
+  const inScope = (id: string) =>
+    (!taskFilter || taskFilter === id) &&
+    (tasks.some((t) => t.taskId === id) ||
+      onboarding.some((j) => j.id === id) ||
+      (!projectId && (!exceptions || pending.has(id))));
+  const status = {
+    ...raw,
+    tasks: tasks.filter((t) => !taskFilter || t.taskId === taskFilter),
+    assistance: raw.assistance?.filter(
+      (r) => inScope(r.taskId) && (!exceptions || r.status === 'waiting'),
+    ),
+    supervision: raw.supervision && {
+      controls: raw.supervision.controls.filter((r) => inScope(r.taskId)),
+      requests: raw.supervision.requests.filter(
+        (r) => inScope(r.taskId) && (!exceptions || r.status === 'waiting'),
+      ),
+      events: raw.supervision.events.filter((r) => inScope(r.taskId)),
+    },
+  };
+  return (
+    <Panel title={exceptions ? '需处理的任务与人工待办' : '任务进度与归档证据'}>
+      <label className="op-task-filter">
+        查看任务{' '}
+        <select
+          aria-label="查看任务"
+          value={taskFilter}
+          onChange={(e) => setTaskFilter(e.target.value)}
+        >
+          <option value="">全部任务</option>
+          {tasks.map((t) => (
+            <option key={t.taskId} value={t.taskId}>
+              {lookup(state, t.task.directive.contentIdentityId)} · {t.status} ·{' '}
+              {t.taskId.slice(0, 8)}
+            </option>
+          ))}
+          {visibleOnboarding.map((j) => (
+            <option key={j.id} value={j.id}>
+              账号接入：{j.name} · {j.status} · {j.id.slice(0, 8)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div
+        className="op-terminal"
+        role="log"
+        aria-label="真实任务事件流"
+        aria-live="polite"
+        aria-relevant="additions text"
+      >
+        {status.tasks.map((t) => (
+          <div key={t.taskId}>
+            <code>
+              [快照] {t.taskId.slice(0, 8)} {t.status} / {t.task.settings.mode}
+            </code>{' '}
+            {lookup(state, t.task.directive.contentIdentityId)}
+            {status.preparations
+              .filter((p) => p.taskId === t.taskId)
+              .map((p) => (
+                <div key={p.taskId}>
+                  准备：{p.phase} · 检查 {p.checks} 次 ·{' '}
+                  {p.report?.reason ?? '尚无设备核验结果'}
+                </div>
+              ))}
+            <div>
+              回执：
+              {t.receipt
+                ? `${label(t.receipt.publishStatus)} ${t.receipt.failureCode ?? ''}`
+                : '等待回执；不能据此判断成功'}
+            </div>
+          </div>
+        ))}
+        {[...(status.supervision?.events ?? [])]
+          .sort((a, b) => a.at.localeCompare(b.at))
+          .map((e) => (
+            <div key={e.id}>
+              <time>{date(e.at)}</time>{' '}
+              <code>
+                {e.taskId.slice(0, 8)} {e.type} {e.code}
+              </code>
+            </div>
+          ))}
+        {!status.tasks.length && !status.supervision?.events.length && (
+          <p>当前范围暂无执行事件；不会生成模拟进度。</p>
+        )}
+      </div>
+      <OnboardingJobs jobs={onboarding} reload={reload} />
       <HumanAssistance challenges={status.assistance ?? []} reload={reload} />
       <AgentSupervision value={status.supervision} reload={reload} />
       {error && <Notice>{error}</Notice>}
       {controlError && <Notice>{controlError}</Notice>}
-      {Array.from(new Set(status.bindings.map((b) => b.deviceId))).map(
-        (deviceId) => {
-          const held =
-            status.deviceHolds?.some((h) => h.device === deviceId) ?? false;
-          return (
-            <button
-              key={deviceId}
-              type="button"
-              onClick={async () => {
-                try {
-                  await runtimeRequest('/device-control', {
-                    deviceId,
-                    held: !held,
-                  });
-                  setControlError('');
-                  await reload();
-                } catch {
-                  setControlError(
-                    '接管未完成：检查设备是否正在执行或检查中。接管成功后再进行人工登录。',
-                  );
-                }
-              }}
-            >
-              {deviceId}：{held ? '交还自动复查' : '申请人工接管'}
-            </button>
-          );
-        },
-      )}
+      {Array.from(
+        new Set(
+          status.bindings
+            .filter(
+              (b) =>
+                !projectId ||
+                state.accountServiceRelations.some(
+                  (r) =>
+                    r.projectId === projectId && r.accountId === b.accountId,
+                ),
+            )
+            .map((b) => b.deviceId),
+        ),
+      ).map((deviceId) => {
+        const held =
+          status.deviceHolds?.some((h) => h.device === deviceId) ?? false;
+        return (
+          <button
+            key={deviceId}
+            type="button"
+            onClick={async () => {
+              try {
+                await runtimeRequest('/device-control', {
+                  deviceId,
+                  held: !held,
+                });
+                setControlError('');
+                await reload();
+              } catch {
+                setControlError(
+                  '接管未完成：检查设备是否正在执行或检查中。接管成功后再进行人工登录。',
+                );
+              }
+            }}
+          >
+            {deviceId}：{held ? '交还自动复查' : '申请人工接管'}
+          </button>
+        );
+      })}
       <Notice>
         原任务请求密码时，使用上方人工登录协助表单，Artemis
         在同一任务内等待并继续判断。
@@ -338,7 +486,10 @@ export function RuntimeReceipts() {
           id: t.taskId,
           search: '',
           cells: [
-            `${lookup(state, t.task.directive.contentIdentityId)} / ${lookup(state, t.task.directive.accountId)}`,
+            <Link key="task" page="receipts" id={t.taskId}>
+              {lookup(state, t.task.directive.contentIdentityId)} /{' '}
+              {lookup(state, t.task.directive.accountId)}
+            </Link>,
             `${t.task.settings.mode} / ${t.status}`,
             t.receipt ? label(t.receipt.publishStatus) : '尚未收到回执',
             <div key="e">

@@ -14,6 +14,7 @@ export type Field = {
   optional?: boolean;
   initial?: string;
   hint?: string;
+  multiple?: boolean;
 };
 export const options = (values: string[], names: Record<string, string>) =>
   values.map((id) => ({ id, name: names[id] ?? id }));
@@ -55,13 +56,16 @@ export function Link({
   page,
   id,
   children,
+  project,
 }: {
   page: PageId;
   id?: string;
+  project?: string;
   children: React.ReactNode;
 }) {
+  const { projectId } = useOperations();
   return (
-    <a className="op-link" href={href(page, id)}>
+    <a className="op-link" href={href(page, id, '', project ?? projectId)}>
       {children}
     </a>
   );
@@ -310,6 +314,7 @@ export function Form({
                   id={`${uid}-${field.key}`}
                   name={field.key}
                   type="file"
+                  multiple={field.multiple}
                   accept="video/*,image/*"
                   required={!field.optional}
                 />

@@ -16,6 +16,11 @@ import type {
   CommandResult,
   FirstLoopState,
 } from './first-loop/types';
+import { readRoute } from './operations';
+const subscribeRoute = (listener: () => void) => {
+  window.addEventListener('hashchange', listener);
+  return () => window.removeEventListener('hashchange', listener);
+};
 type Command<T> = (
   engine: FirstLoopEngine,
   context: CommandContext,
@@ -142,6 +147,7 @@ function createStore() {
   };
 }
 type Context = {
+  projectId: string;
   state: FirstLoopState;
   now: number;
   run: <T>(command: Command<T>) => Promise<CommandResult<T>>;
@@ -156,6 +162,11 @@ export function OperationsProvider({
   children: React.ReactNode;
 }) {
   const [store] = useState(createStore);
+  const projectId = useSyncExternalStore(
+    subscribeRoute,
+    () => readRoute(window.location.hash).project,
+    () => '',
+  );
   const [now, setNow] = useState(Date.now);
   const state = useSyncExternalStore(store.subscribe, store.get, store.server);
   useEffect(() => {
@@ -169,6 +180,7 @@ export function OperationsProvider({
   return (
     <OperationsContext.Provider
       value={{
+        projectId,
         state,
         now,
         run: store.run,

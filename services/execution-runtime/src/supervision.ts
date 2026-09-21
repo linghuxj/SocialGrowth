@@ -6,11 +6,12 @@ import type { RuntimeStore } from "./store.ts";
 export const executionPolicy = z
   .object({
     version: z.literal("agent-supervision-v1").default("agent-supervision-v1"),
-    mode: z.enum(["observe", "preflight"]).default("preflight"),
+    mode: z.enum(["observe", "preflight", "onboarding"]).default("preflight"),
     maxRecovery: z.number().int().min(0).max(2).default(2),
     // Creating identities/correcting bindings and publication remain separate workflows.
     allowPublication: z.literal(false).default(false),
     allowTrustedInstall: z.boolean().default(false),
+    allowIdentityCreation: z.boolean().default(false),
   })
   .strict();
 type Policy = z.infer<typeof executionPolicy>;
@@ -28,6 +29,7 @@ type Control = {
   loginSubmits: number;
   recoveryAttempts: number;
   installAttempts?: number;
+  identityCreationAttempts?: number;
   credentialReady?: boolean;
   reportedResult?: "OBSERVATION_COMPLETED";
 };
@@ -221,6 +223,12 @@ export class Supervision {
     if (input.category === "read") return { allowed: true, state: c.state };
     requireFact(c.state === "active", "AGENT_ACTIONS_FROZEN");
     requireFact(c.policy.mode !== "observe", "OBSERVE_ONLY");
+    if (input.category === "create_identity") {
+      requireFact(c.policy.mode === "onboarding" && c.policy.allowIdentityCreation && !c.identityCreationAttempts, "IDENTITY_CREATION_NOT_AUTHORIZED");
+      this.save({ ...c, identityCreationAttempts: 1 });
+      this.event(id, "action_permitted", "create_identity");
+      return { allowed: true, state: c.state };
+    }
     requireFact(
       !["install", "publish", "create_identity", "correct_account", "unmanaged"].includes(
         input.category,

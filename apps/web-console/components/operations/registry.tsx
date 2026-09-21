@@ -20,36 +20,50 @@ import {
   options,
 } from './shared';
 import type { SliceAsset } from '@/lib/first-loop/types';
+import { goals, dataScopes } from '@/lib/first-loop/catalog';
+import { BatchContent } from './batch-content';
+import { IdentityOnboardingPanel } from './identity-onboarding';
 
 export function Clients({ object, query }: { object: string; query: string }) {
-  const { state, run } = useOperations();
+  const { state, run, projectId } = useOperations();
   const project = state.projects.find((p) => p.id === object);
   const client = state.clients.find((c) => c.id === object);
   const projectFields: Field[] = [
+    {
+      key: 'operatingMode',
+      label: '运营方式',
+      initial: 'self',
+      options: [
+        { id: 'self', name: '自营项目' },
+        { id: 'client', name: '客户代运营' },
+      ],
+    },
     { key: 'clientId', label: '客户', options: state.clients, optional: true },
-    { key: 'name', label: '服务名称' },
-    { key: 'primaryGoal', label: '主要业务目标', optional: true },
+    { key: 'name', label: '项目名称' },
+    {
+      key: 'primaryGoal',
+      label: '主要业务目标',
+      options: goals,
+      initial: 'views',
+    },
     { key: 'audience', label: '目标受众', optional: true },
-    { key: 'ownerId', label: '服务负责人', optional: true },
+    { key: 'ownerId', label: '项目负责人', optional: true },
   ];
   return (
     <>
       <Notice>
-        客户档案管理合作方；服务范围记录目标、受众和责任人。账号、内容和待办跨服务统一查看。
+        从运营项目开始：确认目标，接入账号，设置素材默认值，再制定策略与发布。自营项目无需另建客户档案。
       </Notice>
       <Form
-        id="client-new"
-        title="新增客户"
-        fields={[{ key: 'name', label: '客户名称' }]}
-        submit="保存客户"
-        onSubmit={(v) => run((e, c) => e.registerClient(v.name, c))}
-      />
-      <Form
         id="project-new"
-        title="新建服务范围"
-        fields={projectFields}
-        submit="保存服务草稿"
-        description="仅填写名称即可暂存草稿；客户、目标、受众和负责人在激活前须补齐。"
+        title="新建运营项目"
+        fields={(v) =>
+          projectFields.filter(
+            (f) => f.key !== 'clientId' || v.operatingMode === 'client',
+          )
+        }
+        submit="保存项目草稿"
+        description="自营项目自动关联自营主体；代运营选择已有客户。受众和负责人在激活前须补齐。"
         onSubmit={(v) =>
           run((e, c) =>
             e.saveProjectDraft(
@@ -59,46 +73,63 @@ export function Clients({ object, query }: { object: string; query: string }) {
                 primaryGoal: v.primaryGoal,
                 audience: v.audience,
                 ownerId: v.ownerId,
+                operatingMode: v.operatingMode as 'self' | 'client',
               },
               c,
             ),
           )
         }
       />
-      <Panel title="客户档案">
-        <List
-          query={query}
-          columns={['客户', '服务范围', '进行中的服务']}
-          rows={state.clients.map((c) => ({
-            id: c.id,
-            search: c.name,
-            cells: [
-              <Link key="n" page="clients" id={c.id}>
-                {c.name}
-              </Link>,
-              state.projects.filter((p) => p.clientId === c.id).length,
-              state.projects.filter(
-                (p) => p.clientId === c.id && p.status === 'active',
-              ).length,
-            ],
-          }))}
-          empty="尚无客户。新增客户后登记服务范围。"
+      <details className="op-form-panel">
+        <summary>客户档案（代运营使用）</summary>
+        <Form
+          id="client-new"
+          title="新增客户"
+          fields={[{ key: 'name', label: '客户名称' }]}
+          submit="保存客户"
+          onSubmit={(v) => run((e, c) => e.registerClient(v.name, c))}
         />
-      </Panel>
-      <Panel title={client ? `${client.name}的服务范围` : '所有服务范围'}>
+        <Panel title="客户档案">
+          <List
+            query={query}
+            columns={['客户', '运营项目', '进行中的项目']}
+            rows={state.clients.map((c) => ({
+              id: c.id,
+              search: c.name,
+              cells: [
+                <Link key="n" page="clients" id={c.id}>
+                  {c.name}
+                </Link>,
+                state.projects.filter((p) => p.clientId === c.id).length,
+                state.projects.filter(
+                  (p) => p.clientId === c.id && p.status === 'active',
+                ).length,
+              ],
+            }))}
+            empty="自营无需客户档案；代运营在此新增客户。"
+          />
+        </Panel>
+      </details>
+      <Panel title={client ? `${client.name}的运营项目` : '运营项目'}>
         <List
           query={query}
-          columns={['服务 / 客户', '目标', '负责人', '状态']}
+          columns={['项目 / 主体', '目标', '负责人', '状态']}
           rows={state.projects
-            .filter((p) => !client || p.clientId === client.id)
+            .filter(
+              (p) =>
+                (!client || p.clientId === client.id) &&
+                (!projectId || p.id === projectId),
+            )
             .map((p) => ({
               id: p.id,
               search: `${p.name} ${lookup(state, p.clientId)} ${p.ownerId}`,
               cells: [
-                <Link key="n" page="clients" id={p.id}>
+                <Link key="n" page="clients" id={p.id} project={p.id}>
                   {p.name} · {lookup(state, p.clientId)}
                 </Link>,
-                p.primaryGoal ?? '待补齐',
+                goals.find((g) => g.id === p.primaryGoal)?.name ??
+                  p.primaryGoal ??
+                  '待补齐',
                 p.ownerId,
                 <Status key="s">{label(p.status)}</Status>,
               ],
@@ -123,7 +154,11 @@ export function Clients({ object, query }: { object: string; query: string }) {
           <Facts
             items={[
               ['客户', lookup(state, project.clientId)],
-              ['目标', project.primaryGoal],
+              [
+                '目标',
+                goals.find((g) => g.id === project.primaryGoal)?.name ??
+                  project.primaryGoal,
+              ],
               ['受众', project.audience],
               ['负责人', project.ownerId],
               ['状态', label(project.status)],
@@ -133,20 +168,34 @@ export function Clients({ object, query }: { object: string; query: string }) {
             <>
               <Form
                 id={`project-${project.id}`}
-                title="编辑服务资料"
+                title="编辑项目资料"
                 fields={projectFields.map((f) => ({
                   ...f,
-                  initial: String(project[f.key as keyof typeof project] ?? ''),
+                  initial:
+                    typeof project[f.key as keyof typeof project] === 'string'
+                      ? (project[f.key as keyof typeof project] as string)
+                      : f.key === 'operatingMode'
+                        ? 'client'
+                        : '',
                 }))}
                 submit="保存修改"
                 description="修改业务目标会使已有批准及待执行排期失效。"
                 onSubmit={(v) =>
-                  run((e, c) => e.saveProjectDraft({ ...project, ...v }, c))
+                  run((e, c) =>
+                    e.saveProjectDraft(
+                      {
+                        ...project,
+                        ...v,
+                        operatingMode: v.operatingMode as 'self' | 'client',
+                      },
+                      c,
+                    ),
+                  )
                 }
               />
               {project.status === 'draft' && (
                 <Action
-                  name="资料已核对，激活服务"
+                  name="资料已核对，激活项目"
                   act={() => run((e, c) => e.activateProject(project.id, c))}
                 />
               )}
@@ -168,9 +217,91 @@ export function Clients({ object, query }: { object: string; query: string }) {
             </>
           )}
           <div className="op-row">
-            <Link page="accounts">查看账号与授权</Link>
-            <Link page="strategies">查看策略草案</Link>
+            <Link page="accounts" project={project.id}>
+              账号接入与授权
+            </Link>
+            <Link page="content" project={project.id}>
+              导入本项目素材
+            </Link>
+            <Link page="strategies" project={project.id}>
+              选择策略模板
+            </Link>
+            <Link page="receipts" project={project.id}>
+              任务与人工待办
+            </Link>
           </div>
+          <Facts
+            items={[
+              [
+                '有效账号授权',
+                state.accountServiceRelations.filter(
+                  (r) => r.projectId === project.id && validRelation(r),
+                ).length,
+              ],
+              [
+                '项目素材',
+                state.contentIdentities.filter(
+                  (i) =>
+                    i.projectId === project.id ||
+                    state.accountServiceRelations.some(
+                      (r) =>
+                        r.projectId === project.id &&
+                        r.accountId === i.assignedAccountId,
+                    ),
+                ).length,
+              ],
+              [
+                '策略草案',
+                state.strategyDrafts.filter((d) => d.projectId === project.id)
+                  .length,
+              ],
+            ]}
+          />
+          {project.status !== 'exited' && (
+            <Form
+              id={`content-defaults-${project.id}`}
+              title="素材默认配置（批量导入继承）"
+              submit="保存项目默认值"
+              fields={[
+                {
+                  key: 'sourceRef',
+                  label: '原始素材来源',
+                  initial: project.contentDefaults?.sourceRef ?? '',
+                },
+                {
+                  key: 'rightsRef',
+                  label: '内容权利依据',
+                  initial: project.contentDefaults?.rightsRef ?? '',
+                  hint: '文件路径或授权凭据；不代表账号登录授权',
+                },
+                {
+                  key: 'language',
+                  label: '默认语言',
+                  initial: project.contentDefaults?.language ?? 'zh-CN',
+                  options: [
+                    { id: 'zh-CN', name: '简体中文' },
+                    { id: 'en', name: '英语' },
+                    { id: 'es', name: '西班牙语' },
+                  ],
+                },
+              ]}
+              onSubmit={(v) =>
+                run((e, c) =>
+                  e.saveProjectDraft(
+                    {
+                      ...project,
+                      contentDefaults: {
+                        sourceRef: v.sourceRef,
+                        rightsRef: v.rightsRef,
+                        language: v.language,
+                      },
+                    },
+                    c,
+                  ),
+                )
+              }
+            />
+          )}
         </Detail>
       )}
     </>
@@ -178,7 +309,7 @@ export function Clients({ object, query }: { object: string; query: string }) {
 }
 
 export function Accounts({ object, query }: { object: string; query: string }) {
-  const { state, run } = useOperations();
+  const { state, run, projectId } = useOperations();
   const account = state.accounts.find((a) => a.id === object);
   return (
     <>
@@ -230,21 +361,31 @@ export function Accounts({ object, query }: { object: string; query: string }) {
           '设备登记',
         ]}
         empty="暂无账号，请先登记名称、平台和归属方。"
-        rows={state.accounts.map((a) => ({
-          id: a.id,
-          search: `${a.name} ${a.owner} ${a.platform} ${a.positioning}`,
-          cells: [
-            <Link key="n" page="accounts" id={a.id}>
-              {a.name}
-            </Link>,
-            `${label(a.platform)} · ${a.owner}`,
-            a.positioning,
-            state.accountServiceRelations.filter(
-              (r) => r.accountId === a.id && validRelation(r),
-            ).length,
-            a.deviceRef ?? '未登记',
-          ],
-        }))}
+        rows={state.accounts
+          .filter(
+            (a) =>
+              !projectId ||
+              a.id === object ||
+              state.accountServiceRelations.some(
+                (r) => r.projectId === projectId && r.accountId === a.id,
+              ) ||
+              !state.accountServiceRelations.some((r) => r.accountId === a.id),
+          )
+          .map((a) => ({
+            id: a.id,
+            search: `${a.name} ${a.owner} ${a.platform} ${a.positioning}`,
+            cells: [
+              <Link key="n" page="accounts" id={a.id}>
+                {a.name}
+              </Link>,
+              `${label(a.platform)} · ${a.owner}`,
+              a.positioning,
+              state.accountServiceRelations.filter(
+                (r) => r.accountId === a.id && validRelation(r),
+              ).length,
+              a.deviceRef ?? '未登记',
+            ],
+          }))}
       />
       {account && (
         <Detail page="accounts" title={account.name}>
@@ -281,38 +422,71 @@ export function Accounts({ object, query }: { object: string; query: string }) {
           />
           <Form
             id={`grant-${account.id}`}
-            title="新增服务授权"
+            title="新增项目授权"
             submit="保存授权"
-            fields={[
-              {
-                key: 'projectId',
-                label: '服务范围',
-                options: state.projects.filter((p) => p.status !== 'exited'),
-              },
-              { key: 'authorizer', label: '授权方' },
-              {
-                key: 'reference',
-                label: '授权依据',
-                hint: '合同、授权文件或可核查凭据的位置',
-              },
-              {
-                key: 'until',
-                label: '有效至（本机时区）',
-                type: 'datetime-local',
-              },
-              {
-                key: 'data',
-                label: '授权数据范围',
-                hint: '按授权原文填写，例如公开播放数据；不代表已接入。',
-              },
-              {
-                key: 'shared',
-                label: '跨服务共享批准依据',
-                optional: true,
-                hint: '账号已服务其他客户/项目时必填。',
-              },
-            ]}
-            description="此授权允许内容发布，自保存时生效。账号归属方自动取自档案；客户自动取自所选服务。"
+            fields={(v) => {
+              const p = state.projects.find((p) => p.id === v.projectId);
+              return [
+                {
+                  key: 'projectId',
+                  label: '运营项目',
+                  initial: projectId,
+                  options: state.projects.filter((p) => p.status !== 'exited'),
+                },
+                ...(p?.operatingMode === 'self'
+                  ? [
+                      {
+                        key: 'selfConfirmation',
+                        label: '自有账号运营授权',
+                        options: [
+                          {
+                            id: 'confirmed',
+                            name: '确认有权代表账号所有方授权本项目发布',
+                          },
+                        ],
+                      },
+                    ]
+                  : [
+                      {
+                        key: 'authorizer',
+                        label: '授权方',
+                        options: [
+                          {
+                            id: account.owner,
+                            name: `${account.owner}（账号所有方）`,
+                          },
+                          ...state.clients
+                            .filter((x) => x.name !== account.owner)
+                            .map((x) => ({ id: x.name, name: x.name })),
+                        ],
+                      },
+                      {
+                        key: 'reference',
+                        label: '授权依据',
+                        hint: '合同、授权文件或可核查凭据的位置',
+                      },
+                    ]),
+                {
+                  key: 'until',
+                  label: '有效至（本机时区）',
+                  type: 'datetime-local',
+                },
+                {
+                  key: 'data',
+                  label: '授权数据范围',
+                  initial: 'none',
+                  options: dataScopes,
+                  hint: '记录允许访问的范围，不代表已获得平台权限或已采集。',
+                },
+                {
+                  key: 'shared',
+                  label: '跨服务共享批准依据',
+                  optional: true,
+                  hint: '账号已服务其他客户/项目时必填。',
+                },
+              ];
+            }}
+            description="一次授权由后续切片复用；不保存密码，不等同平台登录或管理员权限。"
             onSubmit={(v) => {
               const p = state.projects.find((x) => x.id === v.projectId);
               if (!p?.clientId) return fail('所选服务缺少客户资料');
@@ -323,10 +497,15 @@ export function Accounts({ object, query }: { object: string; query: string }) {
                     projectId: p.id,
                     clientId: p.clientId!,
                     ownerPartyId: account.owner,
-                    authorizerPartyId: v.authorizer,
-                    authorizationRef: v.reference,
+                    authorizerPartyId:
+                      p.operatingMode === 'self' ? account.owner : v.authorizer,
+                    authorizationRef:
+                      p.operatingMode === 'self' &&
+                      v.selfConfirmation === 'confirmed'
+                        ? `自有账号运营确认：${account.id} / ${p.id}`
+                        : v.reference || '',
                     allowedActions: ['publish'],
-                    allowedData: [v.data],
+                    allowedData: v.data === 'none' ? [] : [v.data],
                     validFrom: new Date().toISOString(),
                     validUntil: iso(v.until),
                     sharedApprovalRef: v.shared || undefined,
@@ -376,6 +555,7 @@ export function Accounts({ object, query }: { object: string; query: string }) {
                 )}
               </section>
             ))}
+          <IdentityOnboardingPanel accountId={account.id} />
         </Detail>
       )}
     </>
@@ -427,13 +607,14 @@ function AssetPreview({ asset }: { asset: SliceAsset }) {
   );
 }
 export function Content({ object, query }: { object: string; query: string }) {
-  const { state, run } = useOperations();
+  const { state, run, projectId } = useOperations();
   const content = state.contentIdentities.find((x) => x.id === object);
   return (
     <>
       <Notice>
         按内容身份管理所有语言版本。同一内容只选一个版本发布一次；已发布或结果待核对时不能释放重发。
       </Notice>
+      <BatchContent />
       <Form
         id="content-new"
         title="登记内容与素材"
@@ -452,7 +633,12 @@ export function Content({ object, query }: { object: string; query: string }) {
           ...(!v.identityId
             ? [
                 { key: 'title', label: '内容标题' },
-                { key: 'source', label: '原始内容来源' },
+                {
+                  key: 'source',
+                  label: '原始内容来源',
+                  initial: state.projects.find((p) => p.id === projectId)
+                    ?.contentDefaults?.sourceRef,
+                },
                 {
                   key: 'summary',
                   label: '故事范围说明',
@@ -464,6 +650,8 @@ export function Content({ object, query }: { object: string; query: string }) {
           {
             key: 'language',
             label: '语言',
+            initial: state.projects.find((p) => p.id === projectId)
+              ?.contentDefaults?.language,
             options: [
               { id: 'zh-CN', name: '简体中文' },
               { id: 'en', name: '英语' },
@@ -481,7 +669,12 @@ export function Content({ object, query }: { object: string; query: string }) {
               { id: 'cover', name: '封面版本' },
             ],
           },
-          { key: 'rights', label: '权利依据' },
+          {
+            key: 'rights',
+            label: '权利依据',
+            initial: state.projects.find((p) => p.id === projectId)
+              ?.contentDefaults?.rightsRef,
+          },
           {
             key: 'rightsUntil',
             label: '权利有效至（本机时区）',
@@ -512,6 +705,7 @@ export function Content({ object, query }: { object: string; query: string }) {
             e.admitContent(
               {
                 identity: prior ? { id: prior.id } : undefined,
+                projectId: prior?.projectId ?? (projectId || undefined),
                 title: prior?.title ?? v.title,
                 sourceRef: prior?.sourceRef ?? v.source,
                 storySummary: prior?.storySummary ?? v.summary,
@@ -534,24 +728,37 @@ export function Content({ object, query }: { object: string; query: string }) {
       <List
         query={query}
         columns={['内容', '来源', '归属账号', '版本', '状态']}
-        rows={state.contentIdentities.map((x) => ({
-          id: x.id,
-          search: `${x.title} ${x.sourceRef} ${lookup(state, x.assignedAccountId)} ${label(x.allocationStatus)}`,
-          cells: [
-            <Link key="n" page="content" id={x.id}>
-              {x.title}
-            </Link>,
-            x.sourceRef,
-            x.assignedAccountId ? lookup(state, x.assignedAccountId) : '待分配',
-            state.sliceAssets.filter((s) => s.contentIdentityId === x.id)
-              .length,
-            <Status key="s">
-              {x.firstPublishedAt
-                ? '已发布 · 禁止重发'
-                : label(x.allocationStatus)}
-            </Status>,
-          ],
-        }))}
+        rows={state.contentIdentities
+          .filter(
+            (x) =>
+              !projectId ||
+              x.projectId === projectId ||
+              state.accountServiceRelations.some(
+                (r) =>
+                  r.projectId === projectId &&
+                  r.accountId === x.assignedAccountId,
+              ),
+          )
+          .map((x) => ({
+            id: x.id,
+            search: `${x.title} ${x.sourceRef} ${lookup(state, x.assignedAccountId)} ${label(x.allocationStatus)}`,
+            cells: [
+              <Link key="n" page="content" id={x.id}>
+                {x.title}
+              </Link>,
+              x.sourceRef,
+              x.assignedAccountId
+                ? lookup(state, x.assignedAccountId)
+                : '待分配',
+              state.sliceAssets.filter((s) => s.contentIdentityId === x.id)
+                .length,
+              <Status key="s">
+                {x.firstPublishedAt
+                  ? '已发布 · 禁止重发'
+                  : label(x.allocationStatus)}
+              </Status>,
+            ],
+          }))}
         empty="暂无内容。登记素材后在详情中核对适配并分配账号。"
       />
       {content && (
@@ -574,7 +781,11 @@ export function Content({ object, query }: { object: string; query: string }) {
                     label: '具备有效发布授权的账号',
                     options: state.accounts.filter((a) =>
                       state.accountServiceRelations.some(
-                        (r) => r.accountId === a.id && validRelation(r),
+                        (r) =>
+                          r.accountId === a.id &&
+                          (!content.projectId ||
+                            r.projectId === content.projectId) &&
+                          validRelation(r),
                       ),
                     ),
                   },

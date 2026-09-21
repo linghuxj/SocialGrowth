@@ -20,6 +20,24 @@ import { executeDeviceTask } from "./device-executor.ts";
 import { inspectPreparation } from "./preparation.ts";
 import { runWorker } from "./worker-cli.ts";
 
+test("daily strategy without traffic destination can enter the runtime queue", () => {
+  const f = setup();
+  try {
+    const { state } = f.store.snapshot();
+    for (const draft of state.strategyDrafts) {
+      draft.templateId = "daily_clip";
+      delete draft.destinationVersionId;
+    }
+    for (const approval of state.executionApprovals) delete approval.destinationVersionId;
+    state.destinationVersions = [];
+    f.store.save(state);
+    const task = f.runtime.enqueue(f.settings, "tester");
+    assert.equal(task.directive.destinationVersionId, undefined);
+  } finally {
+    f.store.close();
+  }
+});
+
 test("preparation waits preserve approval; same-scope human repair resumes exactly once", () => {
   const f = setup();
   try {

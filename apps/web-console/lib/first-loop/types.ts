@@ -11,6 +11,8 @@ export interface Project {
   id: string;
   name: string;
   clientId?: string;
+  operatingMode?: 'self' | 'client';
+  contentDefaults?: { sourceRef: string; rightsRef: string; language: string };
   primaryGoal?: string;
   audience?: string;
   startsAt?: string;
@@ -75,6 +77,8 @@ export interface ContentIdentity {
   title: string;
   sourceRef: string;
   storySummary: string;
+  projectId?: string;
+  batchName?: string;
   allocationStatus: AllocationStatus;
   assignedAccountId?: string;
   allocationVersion: number;
@@ -93,6 +97,13 @@ export interface SliceAsset {
   rightsRef: string;
   rightsValidUntil?: string;
   destinationFit: 'eligible' | 'ineligible' | 'pending_review';
+  mediaMetadata?: {
+    fileName: string;
+    bytes: number;
+    duration: number;
+    width: number;
+    height: number;
+  };
   overlapReview?: {
     relatedContentIdentityId: string;
     rangeDescription: string;
@@ -159,6 +170,7 @@ export interface DestinationEvent {
 
 export interface StrategyRule {
   id: string;
+  ruleKey?: string;
   projectId: string;
   version: number;
   category: 'external_constraint' | 'internal_rule' | 'unverified_hypothesis';
@@ -175,7 +187,8 @@ export interface StrategyDraft {
   ruleIds: string[];
   contentIdentityId: string;
   accountId: string;
-  destinationVersionId: string;
+  destinationVersionId?: string;
+  templateId?: import('./catalog.ts').StrategyTemplateId;
   rationale: string;
   assumptions: string[];
   evidenceRefs: string[];
@@ -190,7 +203,7 @@ export interface ExecutionApproval {
   strategyVersion: number;
   contentIdentityId: string;
   accountId: string;
-  destinationVersionId: string;
+  destinationVersionId?: string;
   quantity: number;
   observationPlan?: ObservationPlan;
   costLimit?: number;

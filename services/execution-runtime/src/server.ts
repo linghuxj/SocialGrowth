@@ -10,6 +10,7 @@ import { ExecutionRuntime } from "./runtime.ts";
 import { RuntimeError, requireFact, id, sha256 } from "./contracts.ts";
 import { HumanAssistance, assistanceScopeSchema } from "./human-assistance.ts";
 import { AppProvisioner } from "./app-readiness.ts";
+import { IdentityOnboarding } from './identity-onboarding.ts';
 import {
   WebVerification,
   verificationConfigSchema,
@@ -65,6 +66,7 @@ export function createRuntimeServer(options: ServerOptions) {
     buildTools: process.env.SG_ANDROID_BUILD_TOOLS,
   });
   const verification = new WebVerification(store, assistance, options.verification);
+  const onboarding = new IdentityOnboarding(store, assistance, options.verification);
   const runtime = new ExecutionRuntime(store, {
     signingKey: options.signingKey,
     mediaBaseUrl: options.mediaBaseUrl ?? `http://127.0.0.1:${options.port ?? 4318}`,
@@ -177,6 +179,7 @@ export function createRuntimeServer(options: ServerOptions) {
       let result: unknown;
       if (path === "/assistance/sessions" && req.method === "POST") {
         const input = assistanceScopeSchema.parse(JSON.parse((await body(req, 4096)).toString()));
+        requireFact(input.policy?.mode !== 'onboarding' && !input.policy?.allowIdentityCreation, 'USE_SCOPED_ONBOARDING_WORKFLOW');
         requireFact(input.mode !== "diagnostic" || operator, "OPERATOR_REQUIRED");
         requireFact(operator || device === input.deviceId, "DEVICE_SESSION_MISMATCH");
         requireFact(Object.hasOwn(options.deviceTokens, input.deviceId), "DEVICE_UNKNOWN");
@@ -221,7 +224,25 @@ export function createRuntimeServer(options: ServerOptions) {
         };
       } else {
         requireFact(operator, "OPERATOR_REQUIRED");
-        if (path === "/verifications" && req.method === "POST")
+        if (path === '/onboarding' && req.method === 'POST')
+          result = onboarding.start(JSON.parse((await body(req, 4096)).toString()));
+        else if (path === '/onboarding/stop' && req.method === 'POST')
+          result = onboarding.stop(id.parse(JSON.parse((await body(req, 2048)).toString()).id));
+        else if (path === '/onboarding/screenshot' && req.method === 'GET') {
+          res.setHeader('Content-Type', 'image/png');
+          res.end(Buffer.from(onboarding.screenshot(id.parse(url.searchParams.get('id'))))); return;
+        } else if (path === '/onboarding/bind' && req.method === 'POST') {
+          const jobId = id.parse(JSON.parse((await body(req, 2048)).toString()).id);
+          const job = onboarding.list().find((j) => j.id === jobId);
+          requireFact(job?.status === 'verified' && job.identityUrl && job.finishedAt, 'IDENTITY_NOT_VERIFIED');
+          requireFact(Date.now() - Date.parse(job.finishedAt) < 86400000, 'IDENTITY_VERIFICATION_EXPIRED');
+          const state = store.snapshot().state;
+          const relation = state.accountServiceRelations.find((r) => r.projectId === job.projectId && r.accountId === job.accountId && !r.revokedAt && r.allowedActions.includes('publish') && Date.parse(r.validFrom) <= Date.now() && (!r.validUntil || Date.parse(r.validUntil) > Date.now()));
+          requireFact(relation && state.projects.some((p) => p.id === job.projectId && p.status === 'active'), 'ACCOUNT_AUTHORIZATION_REQUIRED');
+          const existing = runtime.bindings().find((b) => b.accountId === job.accountId);
+          requireFact(!existing || existing.platformIdentity === job.identityUrl, 'BINDING_CORRECTION_REQUIRES_REVIEW');
+          result = runtime.bind({ id: existing?.id ?? `identity-${job.id}`, deviceId: job.deviceId, serial: job.serial, platform: job.platform, accountId: job.accountId, platformIdentity: job.identityUrl, authorizationRef: relation.authorizationRef, automationScopeRef: job.authorizationRef, verifiedAt: job.finishedAt, validUntil: relation.validUntil ?? new Date(Date.now() + 86400000 * 30).toISOString() }, 'operator');
+        } else if (path === "/verifications" && req.method === "POST")
           result = verification.start(JSON.parse((await body(req, 4096)).toString()));
         else if (path === "/verifications/stop" && req.method === "POST")
           result = verification.stop(id.parse(JSON.parse((await body(req, 2048)).toString()).id));
@@ -273,6 +294,7 @@ export function createRuntimeServer(options: ServerOptions) {
             },
             verificationOptions: verification.options(),
             verifications: verification.list(),
+            onboarding: onboarding.list(),
             pauses: store.db.prepare("SELECT * FROM pauses").all(),
             observations: store.db
               .prepare("SELECT body FROM observations ORDER BY rowid DESC")
@@ -469,6 +491,7 @@ export function createRuntimeServer(options: ServerOptions) {
     assistance,
     async close() {
       await verification.close();
+      await onboarding.close();
       for (const client of ws.clients) client.terminate();
       await new Promise<void>((resolve) => ws.close(() => resolve()));
       if (http.listening)

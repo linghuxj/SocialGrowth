@@ -31,13 +31,13 @@ const subscribe = (listener: () => void) => {
 };
 const groups = [
   { id: 'home', name: '工作台', icon: LayoutDashboard },
+  { id: 'clients', name: '运营项目', icon: Handshake },
   { id: 'accounts', name: '账号管理', icon: Users },
   { id: 'content', name: '内容资产', icon: Library },
   { id: 'strategy', name: '策略管理', icon: ClipboardList },
   { id: 'execution', name: '发布执行', icon: CalendarClock },
   { id: 'destinations', name: '导流管理', icon: ExternalLink },
   { id: 'data', name: '数据与复盘', icon: ChartNoAxesCombined },
-  { id: 'clients', name: '客户服务', icon: Handshake },
   { id: 'system', name: '系统管理', icon: Settings },
 ];
 export function OperationsConsole() {
@@ -48,7 +48,7 @@ export function OperationsConsole() {
   );
   const route = readRoute(hash);
   const { page, query } = route;
-  const { ready, storageError } = useOperations();
+  const { ready, storageError, state, projectId } = useOperations();
   const [menu, setMenu] = useState(false);
   const current = pages.find((p) => p.id === page)!;
   const view = () => {
@@ -110,7 +110,7 @@ export function OperationsConsole() {
               return children.length === 1 ? (
                 <a
                   key={group.id}
-                  href={href(children[0].id)}
+                  href={href(children[0].id, '', '', projectId)}
                   onClick={() => setMenu(false)}
                   aria-current={page === children[0].id ? 'page' : undefined}
                 >
@@ -131,7 +131,7 @@ export function OperationsConsole() {
                     {children.map((p) => (
                       <a
                         key={p.id}
-                        href={href(p.id)}
+                        href={href(p.id, '', '', projectId)}
                         onClick={() => setMenu(false)}
                         aria-current={page === p.id ? 'page' : undefined}
                       >
@@ -146,10 +146,36 @@ export function OperationsConsole() {
           <p className="op-nav-foot">
             按业务对象统一管理
             <br />
-            服务范围在业务详情中关联
+            项目上下文贯穿业务流程
           </p>
         </aside>
         <main className="op-main">
+          {!['connections', 'audit'].includes(page) && (
+            <div className="op-project-scope">
+              <label htmlFor="operating-project">当前运营项目</label>
+              <select
+                id="operating-project"
+                value={projectId}
+                onChange={(e) =>
+                  window.location.assign(href(page, '', '', e.target.value))
+                }
+              >
+                <option value="">全部项目（跨项目总览）</option>
+                {state.projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                    {p.status === 'exited' ? ' · 已退出' : ''}
+                  </option>
+                ))}
+              </select>
+              <a
+                className="op-link"
+                href={href('clients', projectId, '', projectId)}
+              >
+                项目资料与配置
+              </a>
+            </div>
+          )}
           <div className="op-title">
             <h1>{current.name}</h1>
             {page !== 'connections' && (
@@ -160,7 +186,12 @@ export function OperationsConsole() {
                   e.preventDefault();
                   const q = new FormData(e.currentTarget).get('q');
                   window.location.assign(
-                    href(page, route.object, typeof q === 'string' ? q : ''),
+                    href(
+                      page,
+                      route.object,
+                      typeof q === 'string' ? q : '',
+                      projectId,
+                    ),
                   );
                 }}
               >
@@ -175,14 +206,16 @@ export function OperationsConsole() {
                   defaultValue={query}
                 />
                 <button type="submit">搜索</button>
-                {query && <a href={href(page, route.object)}>清除</a>}
+                {query && (
+                  <a href={href(page, route.object, '', projectId)}>清除</a>
+                )}
               </form>
             )}
           </div>
           {!ready ? (
             <output>{storageError || '正在连接执行服务…'}</output>
           ) : (
-            <div key={`${page}:${route.object}`}>{view()}</div>
+            <div key={`${page}:${route.object}:${projectId}`}>{view()}</div>
           )}
         </main>
       </div>

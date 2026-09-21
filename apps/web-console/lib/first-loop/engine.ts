@@ -1,3 +1,8 @@
+import {
+  strategyTemplates,
+  ruleTemplates,
+  type StrategyTemplateId,
+} from './catalog.ts';
 import type {
   AccountServiceRelation,
   AccountRecord,
@@ -387,6 +392,14 @@ export class FirstLoopEngine {
         context,
       );
     }
+    if (input.operatingMode === 'self') {
+      let owner = this.state.clients.find((c) => c.id === 'self-operated');
+      if (!owner) {
+        owner = { id: 'self-operated', name: '自营', createdAt: this.now() };
+        this.state.clients.push(owner);
+      }
+      input = { ...input, clientId: owner.id };
+    }
     const timestamp = this.now();
     const existing = input.id
       ? this.state.projects.find((item) => item.id === input.id)
@@ -409,6 +422,8 @@ export class FirstLoopEngine {
       id: existing?.id ?? this.nextId('project'),
       name,
       clientId: input.clientId?.trim() || undefined,
+      operatingMode: input.operatingMode ?? existing?.operatingMode ?? 'client',
+      contentDefaults: input.contentDefaults ?? existing?.contentDefaults,
       primaryGoal: input.primaryGoal?.trim() || undefined,
       audience: input.audience?.trim() || undefined,
       startsAt: input.startsAt,
@@ -611,9 +626,100 @@ export class FirstLoopEngine {
     return { ok: true, value: structuredClone(relation) };
   }
 
+  admitContentBatch(
+    input: {
+      projectId: string;
+      batchName: string;
+      distinctStoriesConfirmed: boolean;
+      items: {
+        title: string;
+        storySummary: string;
+        asset: Omit<SliceAsset, 'id' | 'contentIdentityId' | 'createdAt'>;
+      }[];
+    },
+    context: CommandContext,
+  ): CommandResult<{ count: number }> {
+    const project = this.state.projects.find(
+      (p) => p.id === input.projectId && p.status !== 'exited',
+    );
+    const defaults = project?.contentDefaults;
+    if (
+      !defaults?.sourceRef.trim() ||
+      !defaults.rightsRef.trim() ||
+      !defaults.language.trim() ||
+      !input.batchName.trim() ||
+      !input.distinctStoriesConfirmed ||
+      !input.items.length ||
+      input.items.length > 30
+    )
+      return this.reject(
+        'CONTENT_BATCH_INVALID',
+        '请选择已设置素材默认值的项目，填写批次并确认各文件为不同内容；每批最多 30 个文件',
+        'content_batch',
+        'new',
+        context,
+      );
+    const hashes = input.items.map((i) => i.asset.sha256);
+    if (
+      new Set(hashes).size !== hashes.length ||
+      hashes.some((h) => this.state.sliceAssets.some((a) => a.sha256 === h))
+    )
+      return this.reject(
+        'CONTENT_BATCH_DUPLICATE',
+        '文件指纹重复；未保存本批内容。已有内容的语言版本请使用单文件登记',
+        'content_batch',
+        'new',
+        context,
+      );
+    // Stage the entire batch before committing. A rejected item must not leave partial identities.
+    const staged = new FirstLoopEngine(this.state, {
+      now: this.now,
+      nextId: this.nextId,
+    });
+    for (const item of input.items) {
+      if (!item.storySummary.trim())
+        return this.reject(
+          'CONTENT_STORY_REQUIRED',
+          '每条内容需要故事范围说明',
+          'content_batch',
+          'new',
+          context,
+        );
+      const result = staged.admitContent(
+        {
+          ...item,
+          sourceRef: defaults.sourceRef,
+          asset: {
+            ...item.asset,
+            rightsRef: defaults.rightsRef,
+            language: defaults.language,
+            destinationFit: 'pending_review',
+          },
+        },
+        context,
+      );
+      if (!result.ok) return { ok: false, error: result.error };
+      const identity = staged.state.contentIdentities.find(
+        (i) => i.id === result.value!.identity.id,
+      )!;
+      identity.projectId = project!.id;
+      identity.batchName = input.batchName.trim();
+    }
+    this.state = staged.snapshot();
+    this.accept(
+      'content.batch_admitted',
+      'content_batch',
+      input.batchName.trim(),
+      context,
+      { projectId: project!.id, count: input.items.length },
+    );
+    return { ok: true, value: { count: input.items.length } };
+  }
+
   admitContent(
     input: {
       identity?: Pick<ContentIdentity, 'id'>;
+      projectId?: string;
       title: string;
       sourceRef: string;
       storySummary: string;
@@ -621,6 +727,19 @@ export class FirstLoopEngine {
     },
     context: CommandContext,
   ): CommandResult<{ identity: ContentIdentity; asset: SliceAsset }> {
+    if (
+      input.projectId &&
+      !this.state.projects.some(
+        (p) => p.id === input.projectId && p.status !== 'exited',
+      )
+    )
+      return this.reject(
+        'CONTENT_PROJECT_INVALID',
+        '素材所属项目不存在或已退出',
+        'content_identity',
+        'new',
+        context,
+      );
     if (
       !input.title.trim() ||
       !input.sourceRef.trim() ||
@@ -673,6 +792,7 @@ export class FirstLoopEngine {
         title: input.title.trim(),
         sourceRef: input.sourceRef.trim(),
         storySummary: input.storySummary.trim(),
+        projectId: input.projectId,
         allocationStatus: 'unallocated',
         allocationVersion: 0,
         createdAt: timestamp,
@@ -825,6 +945,7 @@ export class FirstLoopEngine {
     const activeAuthorization = this.state.accountServiceRelations.find(
       (relation) =>
         relation.accountId === accountId &&
+        (!identity.projectId || relation.projectId === identity.projectId) &&
         !relation.revokedAt &&
         relation.validFrom <= now &&
         (!relation.validUntil || relation.validUntil > now) &&
@@ -1336,6 +1457,25 @@ export class FirstLoopEngine {
     input: Omit<StrategyRule, 'id' | 'version' | 'status' | 'createdAt'>,
     context: CommandContext,
   ): CommandResult<StrategyRule> {
+    if (input.ruleKey?.startsWith('builtin:')) {
+      const builtin = ruleTemplates.find(
+        (r) => `builtin:${r.id}` === input.ruleKey,
+      );
+      if (!builtin)
+        return this.reject(
+          'RULE_TEMPLATE_INVALID',
+          '未知的内置规则模板',
+          'strategy_rule',
+          'new',
+          context,
+        );
+      input = {
+        ...input,
+        category: builtin.category,
+        statement: builtin.statement,
+        sourceRef: builtin.sourceRef,
+      };
+    }
     if (!this.state.projects.some((item) => item.id === input.projectId)) {
       return this.reject(
         'PROJECT_NOT_FOUND',
@@ -1354,13 +1494,16 @@ export class FirstLoopEngine {
         context,
       );
     }
+    const ruleKey = input.ruleKey?.trim() || this.nextId('rule-key');
     const existing = this.state.strategyRules.filter(
       (item) =>
-        item.projectId === input.projectId && item.category === input.category,
+        item.projectId === input.projectId &&
+        (item.ruleKey ?? item.id) === ruleKey,
     );
     for (const item of existing) item.status = 'superseded';
     const rule: StrategyRule = {
       ...input,
+      ruleKey,
       id: this.nextId('rule'),
       version: Math.max(0, ...existing.map((item) => item.version)) + 1,
       statement: input.statement.trim(),
@@ -1392,6 +1535,7 @@ export class FirstLoopEngine {
       outputMode: StrategyDraft['outputMode'];
       rationale: string;
       assumptions: string[];
+      templateId?: StrategyTemplateId;
     },
     context: CommandContext,
   ): CommandResult<StrategyDraft> {
@@ -1406,6 +1550,37 @@ export class FirstLoopEngine {
         'new',
         context,
       );
+    }
+    const template =
+      input.templateId &&
+      strategyTemplates.find((t) => t.id === input.templateId);
+    if (input.templateId && !template)
+      return this.reject(
+        'STRATEGY_TEMPLATE_INVALID',
+        '请选择已有策略模板',
+        'strategy_draft',
+        'new',
+        context,
+      );
+    if (template) {
+      for (const rule of ruleTemplates) {
+        if (
+          !this.state.strategyRules.some(
+            (r) =>
+              r.projectId === input.projectId &&
+              r.ruleKey === `builtin:${rule.id}` &&
+              r.status === 'active',
+          )
+        )
+          this.addStrategyRule(
+            {
+              ...rule,
+              projectId: input.projectId,
+              ruleKey: `builtin:${rule.id}`,
+            },
+            context,
+          );
+      }
     }
     const rules = this.state.strategyRules.filter(
       (item) => item.projectId === input.projectId && item.status === 'active',
@@ -1430,6 +1605,7 @@ export class FirstLoopEngine {
     const identity = this.state.contentIdentities.find(
       (item) =>
         (!input.contentIdentityId || item.id === input.contentIdentityId) &&
+        (!item.projectId || item.projectId === input.projectId) &&
         !item.firstPublishedAt &&
         item.allocationStatus === 'assigned_locked' &&
         relations.some(
@@ -1454,7 +1630,9 @@ export class FirstLoopEngine {
     const destination = this.state.destinationEntries.find(
       (item) =>
         item.projectId === input.projectId &&
-        (!input.destinationEntryId || item.id === input.destinationEntryId) &&
+        (input.destinationEntryId
+          ? item.id === input.destinationEntryId
+          : !template) &&
         (item.scope === 'channel' || item.scopeId === identity.id) &&
         item.accountId === identity.assignedAccountId,
     );
@@ -1466,7 +1644,12 @@ export class FirstLoopEngine {
             item.health === 'available',
         )
       : undefined;
-    if (!destinationVersion)
+    if (
+      !destinationVersion &&
+      (!template ||
+        template.destinationRequired ||
+        Boolean(input.destinationEntryId))
+    )
       return this.reject(
         'STRATEGY_DESTINATION_MISSING',
         '没有可用的当前入口版本',
@@ -1495,7 +1678,8 @@ export class FirstLoopEngine {
       ruleIds: rules.map((item) => item.id),
       contentIdentityId: identity.id,
       accountId: identity.assignedAccountId,
-      destinationVersionId: destinationVersion.id,
+      destinationVersionId: destinationVersion?.id,
+      templateId: input.templateId,
       rationale: input.rationale.trim(),
       assumptions: normalizeStrings(input.assumptions),
       evidenceRefs: rules.map((item) => item.sourceRef),
@@ -1619,7 +1803,7 @@ export class FirstLoopEngine {
       identity.assignedAccountId !== draft.accountId ||
       identity.firstPublishedAt ||
       !relation ||
-      !destination
+      (Boolean(draft.destinationVersionId) && !destination)
     ) {
       return this.reject(
         'APPROVAL_QUALIFICATION_CHANGED',
