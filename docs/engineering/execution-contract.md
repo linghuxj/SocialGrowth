@@ -2,6 +2,8 @@
 
 版本：design-v1，2026-09-19。状态：待实现的工程契约，不是当前线上协议。修复 B-03；当前源码 v0.1 类型与目标契约分列，禁止在同一字段表中混用。业务依据见[已确认规则](../handoff/2026-09-19-business-flow-proposal.md)，存储语义见[数据模型](data-model.md)。
 
+2026-09-20 实现接续：本机 HTTP/WS 与 Google Artemis MCP 已在[执行运行时](../../services/execution-runtime/README.md)实现，详细的 MCP 交互契约、App 准备决策树、双阶段身份核验及 Web 控制台处置 SOP 见[Artemis 集成与运营处置指南](artemis-integration-guide.md)，当前测试/真机边界见[修复记录](../handoff/2026-09-20-execution-runtime-remediation.md)。下文“当前源码”保留为设计时历史背景。实际 `PublishTaskDirective` 使用 `schemaVersion`、`media.url`；WS 外层使用 `contractVersion`，任务载荷是 `{directive, settings, binding}`。人工挑战用 `executionStatus=blocked` 配合独立发布事实及暂停；不声称实现了旧草案中的 `waiting_human` 枚举。
+
 ## 当前可复用材料
 
 [Controller types.ts](../../apps/artemis-controller/src/types.ts)为当前源码类型：指令使用 `mediaAssetPath`、`AutomationStep[]`、`deadline`，回执仅有 `completed/failed`。README 原先另列 `mediaDownloadUrl/mediaSha256/ActionStep/waiting_human_takeover`，与源码不一致，已改成明确的当前/目标分层。

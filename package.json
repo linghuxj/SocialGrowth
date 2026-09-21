@@ -2,14 +2,35 @@
   "name": "socialgrowth-monorepo",
   "version": "1.0.0",
   "private": true,
-  "workspaces": [
-    "apps/*",
-    "services/*"
-  ],
+  "packageManager": "pnpm@8.14.0",
+  "engines": { "node": ">=22.13.0", "pnpm": "8.14.0" },
   "scripts": {
-    "dev": "npm run --prefix apps/web-console dev",
-    "build": "npm run --prefix apps/web-console build",
-    "lint": "npm run --prefix apps/web-console lint",
-    "test:first-loop": "tsx --test tests/first-loop-integration.test.ts"
+    "start": "pnpm run dev",
+    "dev": "pnpm run env:check && concurrently --kill-others --success first --names runtime,web \"pnpm run runtime:start\" \"pnpm run runtime:web\"",
+    "env:check": "node scripts/check-node.mjs",
+    "dev:web": "pnpm run runtime:web",
+    "dev:runtime": "pnpm run runtime:start",
+    "build": "pnpm --filter @socialgrowth/web-console run build",
+    "build:runtime": "pnpm --filter @socialgrowth/execution-runtime run build",
+    "lint": "pnpm --filter @socialgrowth/web-console run lint",
+    "test": "pnpm run test:all",
+    "test:first-loop": "tsx --test tests/first-loop-integration.test.ts",
+    "test:acceptance": "tsx --test tests/core-process-acceptance.test.ts",
+    "test:all": "tsx --test tests/core-process-acceptance.test.ts services/execution-runtime/src/*.test.ts apps/artemis-controller/src/*.test.ts apps/web-console/lib/first-loop/*.test.ts tests/first-loop-integration.test.ts",
+    "test:runtime": "pnpm --filter @socialgrowth/execution-runtime test",
+    "runtime:setup": "tsx services/execution-runtime/src/setup-local.ts",
+    "runtime:start": "pnpm run env:check && node --env-file=.env.runtime --import tsx services/execution-runtime/src/server.ts",
+    "runtime:web": "pnpm --filter @socialgrowth/web-console run dev:runtime",
+    "runtime:agent": "node --env-file=.env.agent --import tsx services/execution-runtime/src/agent-cli.ts",
+    "runtime:worker": "node --env-file=.env.agent --import tsx services/execution-runtime/src/worker-cli.ts",
+    "runtime:check-artemis": "node --env-file=.env.agent --import tsx services/execution-runtime/src/check-artemis.ts",
+    "runtime:check-apps": "node --env-file=.env.agent --import tsx services/execution-runtime/src/check-apps.ts",
+    "test:playwright": "tsx scripts/verify-web-publication-readiness.mts"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.4",
+    "playwright": "^1.63.0",
+    "concurrently": "9.2.1",
+    "tsx": "4.23.13"
   }
 }

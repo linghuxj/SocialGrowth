@@ -10,6 +10,8 @@
 - [业务审计处理结果](docs/handoff/2026-09-19-business-audit-closure.md)：12 组业务问题、原 45 项发现的逐项处理。
 - [月度商业交付](docs/monthly-delivery.md)与[预算](docs/budget-summary.md)：商业目标和投入；[年度访谈](docs/annual-plan.md)保留历史追溯。
 - [Handoff 台账](docs/handoff/README.md)：既有研发任务及其状态；文档更新不代表实现完成。
+- [最新真机链路修复](docs/handoff/2026-09-20-execution-runtime-remediation.md)及[本机运行时](services/execution-runtime/README.md)：Web API、SQLite、WebSocket Pull、Google Artemis MCP 与证据回传；真实发布和生产部署验收单列。
+- [Web 整体重构与当前验收台账](docs/handoff/2026-09-20-operations-refactor.md)：最新菜单职责、数据边界、测试证据与未完成验收；优先于早期演示和项目切换设计。
 - [首批开发规格与任务入口](docs/specs/README.md)：PG-01～PG-10 总规格及 FL-01～FL-06 开发任务，采用 GitHub Issues 跟踪。 总规格见 [Issue #1](https://github.com/linghuxj/SocialGrowth/issues/1)。
 
 ---
@@ -127,38 +129,51 @@ SocialGrowth/
 ## 四、 快速使用指引
 
 > [!NOTE]
-> 根据项目最高开发准则 [`CLAUDE.md`](CLAUDE.md)，本地开发环境所有服务均由开发者手动按需启动，严禁自动化脚本自行后台驻留。
+> 使用 pnpm 8.14.0；项目 `.npmrc` 自动下载并选择 Node.js 24.16.0，不改全局 Node。所有命令默认在仓库根目录执行。服务保持前台运行；用户已明确授权时，Agent 可以启动与重启服务。
 
-### 1. Web 运营控制台 (`apps/web-console`)
+### 1. 安装与统一启动
+
 ```bash
-cd apps/web-console
-npm install
-npm run dev        # 手动启动 Web 控制台开发服务器
-npm run build      # 编译构建生产版本
+pnpm install --frozen-lockfile
+pnpm env:check     # 显示实际 Node 路径，并检查 node:sqlite
+# 首次配置才执行；已有 .env.runtime / .env.agent 时跳过
+pnpm runtime:setup /absolute/path/to/artemis PHYSICAL_ADB_SERIAL
+pnpm dev           # 同时启动运行时 4318 + Web 3000；pnpm start 等价
 ```
 
-### 2. Artemis 设备群控服务 (`apps/artemis-controller`)
+访问 `http://127.0.0.1:3000`。运行日志带 `runtime` / `web` 前缀，Ctrl+C 或任一服务退出会停止整组进程。统一入口不启动设备 worker，不自动执行队列中的任务。已有单独服务时先停止对应实例，再使用统一入口。
+
+`.env.runtime` 由实际运行时和 Web 进程直接加载，代理令牌保留在服务端。已有配置、运行数据库与素材目录均保留；`runtime:setup` 拒绝覆盖已有密钥配置。
+
+首次安装需要能访问 Node.js 官方下载源；后续使用 pnpm 的本机缓存。下载失败时先解决网络问题，不要删除 `.npmrc` 或跳过检查。全局 `node -v` 仍可能显示 22.12.0，以 `pnpm env:check` 的版本与路径为准。不要用全局 `node` 直接运行服务：22.12.0 默认无法加载 `node:sqlite`。`engines` 保留 API 最低要求 22.13.0，日常启动和验收统一固定到 24.16.0，不声称覆盖所有更高版本。
+
+### 2. 独立运行与检查
+
 ```bash
-cd apps/artemis-controller
-npm install
-npm run dev        # 手动启动调度控制服务
+pnpm dev:web             # 只启动 Web（需已有运行时）
+pnpm dev:runtime         # 只启动运行时
+pnpm runtime:agent       # 执行一次设备任务拉取
+pnpm runtime:worker      # 前台持续复查设备任务，单独按需启动
+pnpm test:playwright     # 对已启动的真实 Web 做只读浏览器验证
+pnpm test                # 补充业务 / 运行时回归
+pnpm build               # Web 构建
+pnpm build:runtime       # 运行时类型检查
+pnpm lint                # Web 静态检查
 ```
 
-### 3. AI 策略引擎 (`services/ai-engine`)
+Playwright 检查通过不代表真实发布完成；设备、账号、内容与发布证据仍按业务验收规则核验。可通过 `SOCIALGROWTH_WEB_URL` 和 `SOCIALGROWTH_VERIFICATION_OUTPUT` 指定验证地址与本地证据目录。
+
+### 3. 其他工作区命令
+
 ```bash
-cd services/ai-engine
-npm install
-npm run build      # 编译 TypeScript 模块
+pnpm --filter @socialgrowth/artemis-controller dev
+pnpm --filter @socialgrowth/ai-engine build
+pnpm --filter @socialgrowth/shortlink-service build
 ```
 
-### 4. 导流短链服务 (`services/shortlink-service`)
-```bash
-cd services/shortlink-service
-npm install
-npm run build      # 编译 TypeScript 模块
-```
+依赖统一在根目录安装，`pnpm-workspace.yaml` 管理 `apps/*` 和 `services/*`，只提交一份 `pnpm-lock.yaml`。新增依赖使用 `pnpm --filter <包名> add <依赖>`，根工具使用 `pnpm add -Dw <依赖>`；不再维护 npm 锁文件。
 
-### 5. 工具脚本运行
+### 4. 工具脚本运行
 ```bash
 # 重新计算前 3 个月发布容量并生成数据
 python3 scripts/analytics/calc_launch_capacity.py

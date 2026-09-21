@@ -1,0 +1,30 @@
+
+> @socialgrowth/web-console@0.1.0 lint
+> oxlint
+
+components/ui/button-group.tsx:32:7: error jsx-a11y(prefer-tag-over-role): Prefer `address, details, fieldset, hgroup, optgroup` over `role` attribute `group`. help: Replace HTML elements with `role` attribute `group` to corresponding semantic HTML tag `address, details, fieldset, hgroup, optgroup`.
+components/ui/input-group.tsx:15:7: error jsx-a11y(prefer-tag-over-role): Prefer `address, details, fieldset, hgroup, optgroup` over `role` attribute `group`. help: Replace HTML elements with `role` attribute `group` to corresponding semantic HTML tag `address, details, fieldset, hgroup, optgroup`.
+components/ui/input-group.tsx:52:5: error jsx-a11y(click-events-have-key-events): Enforce a clickable non-interactive element has at least one keyboard event listener. help: Visible, non-interactive elements with click handlers must have one of `keyup`, `keydown`, or `keypress` listener.
+components/ui/input-group.tsx:52:6: error jsx-a11y(no-noninteractive-element-interactions): Non-interactive elements should not be assigned mouse or keyboard event listeners. help: Move the handler to an interactive element, or use an appropriate interactive role.
+components/ui/input-group.tsx:53:7: error jsx-a11y(prefer-tag-over-role): Prefer `address, details, fieldset, hgroup, optgroup` over `role` attribute `group`. help: Replace HTML elements with `role` attribute `group` to corresponding semantic HTML tag `address, details, fieldset, hgroup, optgroup`.
+components/ui/pagination.tsx:58:9: error jsx-a11y(anchor-has-content): Missing accessible content when using `a` elements. help: Provide screen reader accessible content when using `a` elements.
+components/ui/input-otp.tsx:78:7: error jsx-a11y(prefer-tag-over-role): Prefer `hr` over `role` attribute `separator`. help: Replace HTML elements with `role` attribute `separator` to corresponding semantic HTML tag `hr`.
+components/ui/spinner.tsx:8:7: error jsx-a11y(prefer-tag-over-role): Prefer `output` over `role` attribute `status`. help: Replace HTML elements with `role` attribute `status` to corresponding semantic HTML tag `output`.
+components/ui/breadcrumb.tsx:66:7: error jsx-a11y(prefer-tag-over-role): Prefer `a, area` over `role` attribute `link`. help: Replace HTML elements with `role` attribute `link` to corresponding semantic HTML tag `a, area`.
+hooks/use-mobile.ts:16:5: error react(react-compiler): EffectSetState: Calling setState synchronously within an effect can trigger cascading renders help: Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following: * Update external systems with the latest state from React. * Subscribe for updates from some external system, calling setState in a callback function when external state changes. Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect)
+components/ui/carousel.tsx:98:5: error react(react-compiler): EffectSetState: Calling setState synchronously within an effect can trigger cascading renders help: Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following: * Update external systems with the latest state from React. * Subscribe for updates from some external system, calling setState in a callback function when external state changes. Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect)
+components/ui/carousel.tsx:124:9: error jsx-a11y(prefer-tag-over-role): Prefer `section` over `role` attribute `region`. help: Replace HTML elements with `role` attribute `region` to corresponding semantic HTML tag `section`.
+components/ui/carousel.tsx:161:7: error jsx-a11y(prefer-tag-over-role): Prefer `address, details, fieldset, hgroup, optgroup` over `role` attribute `group`. help: Replace HTML elements with `role` attribute `group` to corresponding semantic HTML tag `address, details, fieldset, hgroup, optgroup`.
+components/ui/label.tsx:9:5: error jsx-a11y(label-has-associated-control): A form label must be associated with a control. help: Either give the label a `htmlFor` attribute with the id of the associated control, or wrap the label around the control.
+components/ui/item.tsx:12:7: error jsx-a11y(prefer-tag-over-role): Prefer `menu, ol, ul` over `role` attribute `list`. help: Replace HTML elements with `role` attribute `list` to corresponding semantic HTML tag `menu, ol, ul`.
+components/ui/field.tsx:79:7: error jsx-a11y(prefer-tag-over-role): Prefer `address, details, fieldset, hgroup, optgroup` over `role` attribute `group`. help: Replace HTML elements with `role` attribute `group` to corresponding semantic HTML tag `address, details, fieldset, hgroup, optgroup`.
+components/ui/chart.tsx:155:20: error typescript(restrict-template-expressions): Invalid type used in template literal expression.
+components/ui/chart.tsx:203:28: error typescript(restrict-template-expressions): Invalid type used in template literal expression.
+components/ui/chart.tsx:302:26: error typescript(restrict-template-expressions): Invalid type used in template literal expression.
+npm error Lifecycle script `lint` failed with error:
+npm error code 1
+npm error path /Users/linghuxj/Documents/myproject/project/SocialGrowth/apps/web-console
+npm error workspace @socialgrowth/web-console@0.1.0
+npm error location /Users/linghuxj/Documents/myproject/project/SocialGrowth/apps/web-console
+npm error command failed
+npm error command sh -c oxlint

@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "apps": [
+    {
+      "packageName": "com.facebook.katana",
+      "versionName": "579.0.0.52.74",
+      "versionCode": "474818488",
+      "source": "https://facebook.en.aptoide.com/app",
+      "retainedInstalledVersions": ["549.0.0.61.62"],
+      "signerSha256": ["911d604446084ca7f4760b775bfc160fa8702441240a7258645d7a72c4312d27", "e3f9e1e0cf99d0e56a055ba65e241b3399f7cea524326b0cdd6ec1327ed0fdc1"],
+      "files": [
+        {"path": "facebook-579.0.0.52.74-base.apk", "sha256": "02170d702b2b182a70f3acfb567ce91a7cc441e56edb6f239e3b07aa572ac52e"},
+        {"path": "facebook-579.0.0.52.74-config.xxhdpi.apk", "sha256": "6d89f492cb86e5c2169372d5016850f1e72a8d22b818568e6ab1d6f75193aa40", "split": "config.xxhdpi"}
+      ]
+    },
+    {
+      "packageName": "com.google.android.youtube",
+      "versionName": "21.37.42",
+      "versionCode": "1561296049",
+      "source": "https://www.free-codecs.com/youtube-for-android_download.htm",
+      "retainedInstalledVersions": [],
+      "signerSha256": ["5aad2bee6db95d17e05a08d7d1e64c10a1511879154483916b6ae6c7fd9cb0c6", "3d7a1223019aa39d9ea0e3436ab7c0896bfb4fb679f4de5fe7c23f326c8f994a"],
+      "files": [
+        {"path": "youtube-21.37.42.apk", "sha256": "87ec9734319f7437d8da24b10d7ec35b0d3f65ae404d9d845917bc2705cfee42"}
+      ]
+    }
+  ]
+}

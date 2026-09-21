@@ -1,5 +1,13 @@
+import {
+  strategyTemplates,
+  ruleTemplates,
+  type StrategyTemplateId,
+} from './catalog.ts';
 import type {
   AccountServiceRelation,
+  AccountRecord,
+  ClientRecord,
+  ObservationPlan,
   AuditLogEntry,
   BasicReview,
   CommandContext,
@@ -29,6 +37,8 @@ export interface EngineDependencies {
 }
 
 const EMPTY_STATE: FirstLoopState = {
+  clients: [],
+  accounts: [],
   projects: [],
   accountServiceRelations: [],
   contentIdentities: [],
@@ -94,6 +104,239 @@ export class FirstLoopEngine {
     this.state = cloneState(nextState);
   }
 
+  registerClient(
+    name: string,
+    context: CommandContext,
+  ): CommandResult<ClientRecord> {
+    if (
+      !name.trim() ||
+      this.state.clients.some((item) => item.name === name.trim())
+    )
+      return this.reject(
+        'CLIENT_NAME_INVALID',
+        '客户名称不能为空或与已有客户重复',
+        'client',
+        'new',
+        context,
+      );
+    const record = {
+      id: this.nextId('client'),
+      name: name.trim(),
+      createdAt: this.now(),
+    };
+    this.state.clients.push(record);
+    this.accept('client.created', 'client', record.id, context, {
+      name: record.name,
+    });
+    return { ok: true, value: structuredClone(record) };
+  }
+
+  registerAccount(
+    input: Omit<AccountRecord, 'id' | 'createdAt'>,
+    context: CommandContext,
+  ): CommandResult<AccountRecord> {
+    if (
+      !input.name.trim() ||
+      !input.owner.trim() ||
+      !['facebook', 'youtube'].includes(input.platform)
+    )
+      return this.reject(
+        'ACCOUNT_DETAILS_REQUIRED',
+        '请填写账号名称、平台和所有方',
+        'account',
+        'new',
+        context,
+      );
+    if (
+      this.state.accounts.some(
+        (item) =>
+          item.platform === input.platform &&
+          (item.name === input.name.trim() ||
+            (input.deviceRef && item.deviceRef === input.deviceRef)),
+      )
+    )
+      return this.reject(
+        'ACCOUNT_BINDING_CONFLICT',
+        '同平台账号名称重复，或设备已绑定其他同平台账号',
+        'account',
+        'new',
+        context,
+      );
+    const record = {
+      ...input,
+      name: input.name.trim(),
+      owner: input.owner.trim(),
+      id: this.nextId('account'),
+      createdAt: this.now(),
+    };
+    this.state.accounts.push(record);
+    this.accept('account.created', 'account', record.id, context, {
+      name: record.name,
+      platform: record.platform,
+      deviceRef: record.deviceRef ?? null,
+    });
+    return { ok: true, value: structuredClone(record) };
+  }
+
+  updateClient(
+    id: string,
+    name: string,
+    context: CommandContext,
+  ): CommandResult<ClientRecord> {
+    const record = this.state.clients.find((c) => c.id === id);
+    if (
+      !record ||
+      !name.trim() ||
+      this.state.clients.some((c) => c.id !== id && c.name === name.trim())
+    )
+      return this.reject(
+        'CLIENT_NAME_INVALID',
+        '客户不存在或名称为空、重复',
+        'client',
+        id,
+        context,
+      );
+    const before = record.name;
+    record.name = name.trim();
+    this.accept('client.updated', 'client', id, context, {
+      before,
+      name: record.name,
+    });
+    return { ok: true, value: structuredClone(record) };
+  }
+
+  updateAccountProfile(
+    id: string,
+    input: { name: string; positioning: string },
+    context: CommandContext,
+  ): CommandResult<AccountRecord> {
+    const record = this.state.accounts.find((a) => a.id === id);
+    if (
+      !record ||
+      !input.name.trim() ||
+      !input.positioning.trim() ||
+      this.state.accounts.some(
+        (a) =>
+          a.id !== id &&
+          a.platform === record.platform &&
+          a.name === input.name.trim(),
+      )
+    )
+      return this.reject(
+        'ACCOUNT_DETAILS_INVALID',
+        '账号不存在或名称、定位为空，或同平台名称重复',
+        'account',
+        id,
+        context,
+      );
+    const before = record.name;
+    record.name = input.name.trim();
+    record.positioning = input.positioning.trim();
+    this.accept('account.profile_updated', 'account', id, context, {
+      before,
+      name: record.name,
+      positioning: record.positioning,
+    });
+    return { ok: true, value: structuredClone(record) };
+  }
+
+  cancelApproval(
+    id: string,
+    reason: string,
+    context: CommandContext,
+  ): CommandResult<ExecutionApproval> {
+    const approval = this.state.executionApprovals.find((a) => a.id === id);
+    if (!approval || approval.status !== 'active' || !reason.trim())
+      return this.reject(
+        'CANCELLATION_INVALID',
+        '仅可撤销有效批准，且须记录原因',
+        'execution_approval',
+        id,
+        context,
+      );
+    if (
+      this.state.publicationAttempts.some(
+        (a) =>
+          a.contentIdentityId === approval.contentIdentityId &&
+          !['not_submitted', 'confirmed_not_published'].includes(
+            a.publishStatus,
+          ),
+      )
+    )
+      return this.reject(
+        'PUBLICATION_UNRESOLVED',
+        '内容存在进行中、未知或已公开记录，须先核对',
+        'execution_approval',
+        id,
+        context,
+      );
+    approval.status = 'invalidated';
+    approval.invalidationReason = reason.trim();
+    this.cancelSchedulesForApprovals(new Set([id]));
+    this.accept(
+      'strategy.approval_cancelled',
+      'execution_approval',
+      id,
+      context,
+      { reason },
+    );
+    return { ok: true, value: structuredClone(approval) };
+  }
+
+  cancelSchedule(
+    scheduleId: string,
+    reason: string,
+    context: CommandContext,
+  ): CommandResult<PublicationSchedule> {
+    const schedule = this.state.publicationSchedules.find(
+      (item) => item.id === scheduleId,
+    );
+    const approval = this.state.executionApprovals.find(
+      (item) => item.id === schedule?.approvalId,
+    );
+    if (
+      !schedule ||
+      !approval ||
+      schedule.status !== 'scheduled' ||
+      !reason.trim()
+    )
+      return this.reject(
+        'CANCELLATION_INVALID',
+        '仅可取消尚未开始的安排，且必须记录原因',
+        'publication_schedule',
+        scheduleId,
+        context,
+      );
+    if (
+      this.state.publicationAttempts.some(
+        (item) =>
+          item.contentIdentityId === approval.contentIdentityId &&
+          !['not_submitted', 'confirmed_not_published'].includes(
+            item.publishStatus,
+          ),
+      )
+    )
+      return this.reject(
+        'PUBLICATION_UNRESOLVED',
+        '内容存在进行中、未知或已发布记录，须先核对',
+        'publication_schedule',
+        scheduleId,
+        context,
+      );
+    schedule.status = 'cancelled';
+    approval.status = 'invalidated';
+    approval.invalidationReason = reason.trim();
+    this.cancelSchedulesForApprovals(new Set([approval.id]));
+    this.accept(
+      'schedule.cancelled',
+      'publication_schedule',
+      schedule.id,
+      context,
+      { reason, approvalId: approval.id },
+    );
+    return { ok: true, value: structuredClone(schedule) };
+  }
+
   listProjectGaps(projectId: string): ProjectGap[] {
     const project = this.state.projects.find((item) => item.id === projectId);
     if (!project) return [];
@@ -149,14 +392,38 @@ export class FirstLoopEngine {
         context,
       );
     }
+    if (input.operatingMode === 'self') {
+      let owner = this.state.clients.find((c) => c.id === 'self-operated');
+      if (!owner) {
+        owner = { id: 'self-operated', name: '自营', createdAt: this.now() };
+        this.state.clients.push(owner);
+      }
+      input = { ...input, clientId: owner.id };
+    }
     const timestamp = this.now();
     const existing = input.id
       ? this.state.projects.find((item) => item.id === input.id)
       : undefined;
+    if (
+      existing &&
+      existing.clientId !== input.clientId &&
+      this.state.accountServiceRelations.some(
+        (r) => r.projectId === existing.id,
+      )
+    )
+      return this.reject(
+        'PROJECT_CUSTOMER_LOCKED',
+        '该服务已有账号授权记录，客户归属不能直接改写；请为新客户创建服务范围',
+        'project',
+        existing.id,
+        context,
+      );
     const project: Project = {
       id: existing?.id ?? this.nextId('project'),
       name,
       clientId: input.clientId?.trim() || undefined,
+      operatingMode: input.operatingMode ?? existing?.operatingMode ?? 'client',
+      contentDefaults: input.contentDefaults ?? existing?.contentDefaults,
       primaryGoal: input.primaryGoal?.trim() || undefined,
       audience: input.audience?.trim() || undefined,
       startsAt: input.startsAt,
@@ -178,6 +445,10 @@ export class FirstLoopEngine {
       );
     }
     const gaps = this.listProjectGaps(project.id);
+    if (project.status === 'active' && gaps.length) {
+      project.status = 'draft';
+      this.invalidateProjectAuthority(project.id, 'PROJECT_DETAILS_INCOMPLETE');
+    }
     this.accept('project.saved', 'project', project.id, context, {
       gapCount: gaps.length,
       status: project.status,
@@ -202,7 +473,7 @@ export class FirstLoopEngine {
     if (gaps.length > 0) {
       return this.reject(
         'PROJECT_INCOMPLETE',
-        `项目仍有 ${gaps.length} 个必需信息缺口`,
+        `请先补齐：${gaps.map((g) => g.message).join('、')}`,
         'project',
         projectId,
         context,
@@ -238,6 +509,14 @@ export class FirstLoopEngine {
       input.authorizerPartyId,
       input.authorizationRef,
     ];
+    if (project.status === 'exited' || project.clientId !== input.clientId)
+      return this.reject(
+        'AUTHORIZATION_PROJECT_MISMATCH',
+        '服务客户与项目不一致，或服务范围已退出',
+        'account_service_relation',
+        'new',
+        context,
+      );
     if (
       required.some((value) => !value.trim()) ||
       input.allowedActions.length === 0
@@ -250,7 +529,12 @@ export class FirstLoopEngine {
         context,
       );
     }
-    if (input.validUntil && input.validFrom >= input.validUntil) {
+    if (
+      !Number.isFinite(Date.parse(input.validFrom)) ||
+      (input.validUntil &&
+        (!Number.isFinite(Date.parse(input.validUntil)) ||
+          Date.parse(input.validFrom) >= Date.parse(input.validUntil)))
+    ) {
       return this.reject(
         'AUTHORIZATION_PERIOD_INVALID',
         '授权结束时间必须晚于开始时间',
@@ -342,9 +626,100 @@ export class FirstLoopEngine {
     return { ok: true, value: structuredClone(relation) };
   }
 
+  admitContentBatch(
+    input: {
+      projectId: string;
+      batchName: string;
+      distinctStoriesConfirmed: boolean;
+      items: {
+        title: string;
+        storySummary: string;
+        asset: Omit<SliceAsset, 'id' | 'contentIdentityId' | 'createdAt'>;
+      }[];
+    },
+    context: CommandContext,
+  ): CommandResult<{ count: number }> {
+    const project = this.state.projects.find(
+      (p) => p.id === input.projectId && p.status !== 'exited',
+    );
+    const defaults = project?.contentDefaults;
+    if (
+      !defaults?.sourceRef.trim() ||
+      !defaults.rightsRef.trim() ||
+      !defaults.language.trim() ||
+      !input.batchName.trim() ||
+      !input.distinctStoriesConfirmed ||
+      !input.items.length ||
+      input.items.length > 30
+    )
+      return this.reject(
+        'CONTENT_BATCH_INVALID',
+        '请选择已设置素材默认值的项目，填写批次并确认各文件为不同内容；每批最多 30 个文件',
+        'content_batch',
+        'new',
+        context,
+      );
+    const hashes = input.items.map((i) => i.asset.sha256);
+    if (
+      new Set(hashes).size !== hashes.length ||
+      hashes.some((h) => this.state.sliceAssets.some((a) => a.sha256 === h))
+    )
+      return this.reject(
+        'CONTENT_BATCH_DUPLICATE',
+        '文件指纹重复；未保存本批内容。已有内容的语言版本请使用单文件登记',
+        'content_batch',
+        'new',
+        context,
+      );
+    // Stage the entire batch before committing. A rejected item must not leave partial identities.
+    const staged = new FirstLoopEngine(this.state, {
+      now: this.now,
+      nextId: this.nextId,
+    });
+    for (const item of input.items) {
+      if (!item.storySummary.trim())
+        return this.reject(
+          'CONTENT_STORY_REQUIRED',
+          '每条内容需要故事范围说明',
+          'content_batch',
+          'new',
+          context,
+        );
+      const result = staged.admitContent(
+        {
+          ...item,
+          sourceRef: defaults.sourceRef,
+          asset: {
+            ...item.asset,
+            rightsRef: defaults.rightsRef,
+            language: defaults.language,
+            destinationFit: 'pending_review',
+          },
+        },
+        context,
+      );
+      if (!result.ok) return { ok: false, error: result.error };
+      const identity = staged.state.contentIdentities.find(
+        (i) => i.id === result.value!.identity.id,
+      )!;
+      identity.projectId = project!.id;
+      identity.batchName = input.batchName.trim();
+    }
+    this.state = staged.snapshot();
+    this.accept(
+      'content.batch_admitted',
+      'content_batch',
+      input.batchName.trim(),
+      context,
+      { projectId: project!.id, count: input.items.length },
+    );
+    return { ok: true, value: { count: input.items.length } };
+  }
+
   admitContent(
     input: {
       identity?: Pick<ContentIdentity, 'id'>;
+      projectId?: string;
       title: string;
       sourceRef: string;
       storySummary: string;
@@ -352,6 +727,19 @@ export class FirstLoopEngine {
     },
     context: CommandContext,
   ): CommandResult<{ identity: ContentIdentity; asset: SliceAsset }> {
+    if (
+      input.projectId &&
+      !this.state.projects.some(
+        (p) => p.id === input.projectId && p.status !== 'exited',
+      )
+    )
+      return this.reject(
+        'CONTENT_PROJECT_INVALID',
+        '素材所属项目不存在或已退出',
+        'content_identity',
+        'new',
+        context,
+      );
     if (
       !input.title.trim() ||
       !input.sourceRef.trim() ||
@@ -404,6 +792,7 @@ export class FirstLoopEngine {
         title: input.title.trim(),
         sourceRef: input.sourceRef.trim(),
         storySummary: input.storySummary.trim(),
+        projectId: input.projectId,
         allocationStatus: 'unallocated',
         allocationVersion: 0,
         createdAt: timestamp,
@@ -444,6 +833,51 @@ export class FirstLoopEngine {
         asset: structuredClone(asset),
       },
     };
+  }
+
+  reviewAssetFit(
+    assetId: string,
+    fit: SliceAsset['destinationFit'],
+    reason: string,
+    context: CommandContext,
+  ): CommandResult<SliceAsset> {
+    const asset = this.state.sliceAssets.find((item) => item.id === assetId);
+    if (
+      !asset ||
+      !reason.trim() ||
+      !['eligible', 'ineligible', 'pending_review'].includes(fit)
+    )
+      return this.reject(
+        'ASSET_REVIEW_INVALID',
+        '素材、适配结论与核对依据必须完整',
+        'slice_asset',
+        assetId,
+        context,
+      );
+    asset.destinationFit = fit;
+    if (fit !== 'eligible') {
+      for (const approval of this.state.executionApprovals.filter(
+        (a) =>
+          a.contentIdentityId === asset.contentIdentityId &&
+          a.status === 'active',
+      )) {
+        approval.status = 'invalidated';
+        approval.invalidationReason = 'ASSET_FIT_CHANGED';
+        for (const schedule of this.state.publicationSchedules.filter(
+          (s) => s.approvalId === approval.id && s.status === 'scheduled',
+        ))
+          schedule.status = 'cancelled';
+      }
+    }
+    this.accept(
+      'content.fit_reviewed',
+      'slice_asset',
+      asset.id,
+      context,
+      { fit },
+      [reason],
+    );
+    return { ok: true, value: structuredClone(asset) };
   }
 
   allocateContent(
@@ -511,6 +945,7 @@ export class FirstLoopEngine {
     const activeAuthorization = this.state.accountServiceRelations.find(
       (relation) =>
         relation.accountId === accountId &&
+        (!identity.projectId || relation.projectId === identity.projectId) &&
         !relation.revokedAt &&
         relation.validFrom <= now &&
         (!relation.validUntil || relation.validUntil > now) &&
@@ -656,7 +1091,27 @@ export class FirstLoopEngine {
         context,
       );
     }
-    if (!input.approvalsInvalidated || !input.schedulesInvalidated) {
+    const activeApprovals = this.state.executionApprovals.filter(
+      (a) =>
+        a.contentIdentityId === contentIdentityId &&
+        a.status === 'active' &&
+        Date.parse(a.validUntil) > Date.parse(this.now()),
+    );
+    const activeSchedules = this.state.publicationSchedules.filter(
+      (s) =>
+        ['scheduled', 'started'].includes(s.status) &&
+        Date.parse(s.expiresAt) > Date.parse(this.now()) &&
+        this.state.executionApprovals.some(
+          (a) =>
+            a.id === s.approvalId && a.contentIdentityId === contentIdentityId,
+        ),
+    );
+    if (
+      !input.approvalsInvalidated ||
+      !input.schedulesInvalidated ||
+      activeApprovals.length ||
+      activeSchedules.length
+    ) {
       return this.reject(
         'CONTENT_OLD_AUTHORITY_ACTIVE',
         '旧批准和执行安排必须全部失效后才能释放',
@@ -1002,6 +1457,25 @@ export class FirstLoopEngine {
     input: Omit<StrategyRule, 'id' | 'version' | 'status' | 'createdAt'>,
     context: CommandContext,
   ): CommandResult<StrategyRule> {
+    if (input.ruleKey?.startsWith('builtin:')) {
+      const builtin = ruleTemplates.find(
+        (r) => `builtin:${r.id}` === input.ruleKey,
+      );
+      if (!builtin)
+        return this.reject(
+          'RULE_TEMPLATE_INVALID',
+          '未知的内置规则模板',
+          'strategy_rule',
+          'new',
+          context,
+        );
+      input = {
+        ...input,
+        category: builtin.category,
+        statement: builtin.statement,
+        sourceRef: builtin.sourceRef,
+      };
+    }
     if (!this.state.projects.some((item) => item.id === input.projectId)) {
       return this.reject(
         'PROJECT_NOT_FOUND',
@@ -1020,13 +1494,16 @@ export class FirstLoopEngine {
         context,
       );
     }
+    const ruleKey = input.ruleKey?.trim() || this.nextId('rule-key');
     const existing = this.state.strategyRules.filter(
       (item) =>
-        item.projectId === input.projectId && item.category === input.category,
+        item.projectId === input.projectId &&
+        (item.ruleKey ?? item.id) === ruleKey,
     );
     for (const item of existing) item.status = 'superseded';
     const rule: StrategyRule = {
       ...input,
+      ruleKey,
       id: this.nextId('rule'),
       version: Math.max(0, ...existing.map((item) => item.version)) + 1,
       statement: input.statement.trim(),
@@ -1053,9 +1530,12 @@ export class FirstLoopEngine {
   generateStrategyDraft(
     input: {
       projectId: string;
+      contentIdentityId?: string;
+      destinationEntryId?: string;
       outputMode: StrategyDraft['outputMode'];
       rationale: string;
       assumptions: string[];
+      templateId?: StrategyTemplateId;
     },
     context: CommandContext,
   ): CommandResult<StrategyDraft> {
@@ -1071,6 +1551,37 @@ export class FirstLoopEngine {
         context,
       );
     }
+    const template =
+      input.templateId &&
+      strategyTemplates.find((t) => t.id === input.templateId);
+    if (input.templateId && !template)
+      return this.reject(
+        'STRATEGY_TEMPLATE_INVALID',
+        '请选择已有策略模板',
+        'strategy_draft',
+        'new',
+        context,
+      );
+    if (template) {
+      for (const rule of ruleTemplates) {
+        if (
+          !this.state.strategyRules.some(
+            (r) =>
+              r.projectId === input.projectId &&
+              r.ruleKey === `builtin:${rule.id}` &&
+              r.status === 'active',
+          )
+        )
+          this.addStrategyRule(
+            {
+              ...rule,
+              projectId: input.projectId,
+              ruleKey: `builtin:${rule.id}`,
+            },
+            context,
+          );
+      }
+    }
     const rules = this.state.strategyRules.filter(
       (item) => item.projectId === input.projectId && item.status === 'active',
     );
@@ -1083,10 +1594,19 @@ export class FirstLoopEngine {
         context,
       );
     const relations = this.state.accountServiceRelations.filter(
-      (item) => item.projectId === input.projectId && !item.revokedAt,
+      (item) =>
+        item.projectId === input.projectId &&
+        !item.revokedAt &&
+        item.allowedActions.includes('publish') &&
+        Date.parse(item.validFrom) <= Date.parse(this.now()) &&
+        (!item.validUntil ||
+          Date.parse(item.validUntil) > Date.parse(this.now())),
     );
     const identity = this.state.contentIdentities.find(
       (item) =>
+        (!input.contentIdentityId || item.id === input.contentIdentityId) &&
+        (!item.projectId || item.projectId === input.projectId) &&
+        !item.firstPublishedAt &&
         item.allocationStatus === 'assigned_locked' &&
         relations.some(
           (relation) => relation.accountId === item.assignedAccountId,
@@ -1094,7 +1614,9 @@ export class FirstLoopEngine {
         this.state.sliceAssets.some(
           (asset) =>
             asset.contentIdentityId === item.id &&
-            asset.destinationFit === 'eligible',
+            asset.destinationFit === 'eligible' &&
+            (!asset.rightsValidUntil ||
+              Date.parse(asset.rightsValidUntil) > Date.parse(this.now())),
         ),
     );
     if (!identity?.assignedAccountId)
@@ -1108,6 +1630,10 @@ export class FirstLoopEngine {
     const destination = this.state.destinationEntries.find(
       (item) =>
         item.projectId === input.projectId &&
+        (input.destinationEntryId
+          ? item.id === input.destinationEntryId
+          : !template) &&
+        (item.scope === 'channel' || item.scopeId === identity.id) &&
         item.accountId === identity.assignedAccountId,
     );
     const destinationVersion = destination
@@ -1118,7 +1644,12 @@ export class FirstLoopEngine {
             item.health === 'available',
         )
       : undefined;
-    if (!destinationVersion)
+    if (
+      !destinationVersion &&
+      (!template ||
+        template.destinationRequired ||
+        Boolean(input.destinationEntryId))
+    )
       return this.reject(
         'STRATEGY_DESTINATION_MISSING',
         '没有可用的当前入口版本',
@@ -1147,7 +1678,8 @@ export class FirstLoopEngine {
       ruleIds: rules.map((item) => item.id),
       contentIdentityId: identity.id,
       accountId: identity.assignedAccountId,
-      destinationVersionId: destinationVersion.id,
+      destinationVersionId: destinationVersion?.id,
+      templateId: input.templateId,
       rationale: input.rationale.trim(),
       assumptions: normalizeStrings(input.assumptions),
       evidenceRefs: rules.map((item) => item.sourceRef),
@@ -1175,6 +1707,7 @@ export class FirstLoopEngine {
       strategyDraftId: string;
       expectedStrategyVersion: number;
       quantity: number;
+      observationPlan?: ObservationPlan;
       costLimit?: number;
       validFrom: string;
       validUntil: string;
@@ -1204,14 +1737,28 @@ export class FirstLoopEngine {
       );
     if (
       !Number.isInteger(input.quantity) ||
-      input.quantity <= 0 ||
-      input.validFrom >= input.validUntil ||
-      input.stopConditions.length === 0 ||
-      input.observationConditions.length === 0
+      input.quantity !== 1 ||
+      !Number.isFinite(Date.parse(input.validFrom)) ||
+      !Number.isFinite(Date.parse(input.validUntil)) ||
+      Date.parse(input.validFrom) >= Date.parse(input.validUntil) ||
+      Date.parse(input.validUntil) <= Date.parse(this.now()) ||
+      normalizeStrings(input.stopConditions).length === 0 ||
+      normalizeStrings(input.observationConditions).length === 0 ||
+      (input.costLimit !== undefined &&
+        (!Number.isFinite(input.costLimit) || input.costLimit < 0)) ||
+      (input.observationPlan &&
+        (!input.observationPlan.metricKey.trim() ||
+          !input.observationPlan.source.trim() ||
+          !input.observationPlan.unit.trim() ||
+          !input.observationPlan.scope.trim() ||
+          !Number.isFinite(Date.parse(input.observationPlan.windowStart)) ||
+          !Number.isFinite(Date.parse(input.observationPlan.windowEnd)) ||
+          Date.parse(input.observationPlan.windowStart) >=
+            Date.parse(input.observationPlan.windowEnd)))
     ) {
       return this.reject(
         'APPROVAL_SCOPE_INCOMPLETE',
-        '批准必须明确数量、有效期、停止和观察条件',
+        '单内容批准数量须为 1；有效期、停止条件和观察计划须完整有效',
         'execution_approval',
         'new',
         context,
@@ -1220,11 +1767,30 @@ export class FirstLoopEngine {
     const identity = this.state.contentIdentities.find(
       (item) => item.id === draft.contentIdentityId,
     );
+    if (
+      this.state.executionApprovals.some(
+        (a) =>
+          a.contentIdentityId === draft.contentIdentityId &&
+          a.status === 'active' &&
+          Date.parse(a.validUntil) > Date.parse(this.now()),
+      )
+    )
+      return this.reject(
+        'APPROVAL_ALREADY_ACTIVE',
+        '该内容已有有效批准，请先取消旧安排再重新批准',
+        'execution_approval',
+        'new',
+        context,
+      );
     const relation = this.state.accountServiceRelations.find(
       (item) =>
         item.projectId === draft.projectId &&
         item.accountId === draft.accountId &&
-        !item.revokedAt,
+        !item.revokedAt &&
+        item.allowedActions.includes('publish') &&
+        Date.parse(item.validFrom) <= Date.parse(this.now()) &&
+        (!item.validUntil ||
+          Date.parse(item.validUntil) > Date.parse(this.now())),
     );
     const destination = this.state.destinationVersions.find(
       (item) =>
@@ -1237,7 +1803,7 @@ export class FirstLoopEngine {
       identity.assignedAccountId !== draft.accountId ||
       identity.firstPublishedAt ||
       !relation ||
-      !destination
+      (Boolean(draft.destinationVersionId) && !destination)
     ) {
       return this.reject(
         'APPROVAL_QUALIFICATION_CHANGED',
@@ -1256,6 +1822,7 @@ export class FirstLoopEngine {
       accountId: draft.accountId,
       destinationVersionId: draft.destinationVersionId,
       quantity: input.quantity,
+      observationPlan: input.observationPlan,
       costLimit: input.costLimit,
       validFrom: input.validFrom,
       validUntil: input.validUntil,
@@ -1303,9 +1870,37 @@ export class FirstLoopEngine {
         context,
       );
     if (
+      this.state.publicationSchedules.some(
+        (s) =>
+          s.approvalId === approval.id &&
+          ['scheduled', 'started'].includes(s.status) &&
+          Date.parse(s.expiresAt) > Date.parse(this.now()),
+      )
+    )
+      return this.reject(
+        'SCHEDULE_ALREADY_ACTIVE',
+        '该批准已有未结束排期，不能重复安排',
+        'publication_schedule',
+        'new',
+        context,
+      );
+    let validTimezone = true;
+    try {
+      new Intl.DateTimeFormat('en', {
+        timeZone: input.businessTimezone,
+      }).format();
+    } catch {
+      validTimezone = false;
+    }
+    if (
       !input.businessTimezone.trim() ||
-      input.scheduledFor >= input.expiresAt ||
-      input.expiresAt > approval.validUntil
+      !validTimezone ||
+      !Number.isFinite(Date.parse(input.scheduledFor)) ||
+      !Number.isFinite(Date.parse(input.expiresAt)) ||
+      Date.parse(input.scheduledFor) < Date.parse(approval.validFrom) ||
+      Date.parse(input.scheduledFor) < Date.parse(this.now()) ||
+      Date.parse(input.scheduledFor) >= Date.parse(input.expiresAt) ||
+      Date.parse(input.expiresAt) > Date.parse(approval.validUntil)
     ) {
       return this.reject(
         'SCHEDULE_WINDOW_INVALID',
@@ -1379,7 +1974,9 @@ export class FirstLoopEngine {
       !input.source.trim() ||
       !input.unit.trim() ||
       !input.scope.trim() ||
-      input.windowStart >= input.windowEnd
+      !Number.isFinite(Date.parse(input.windowStart)) ||
+      !Number.isFinite(Date.parse(input.windowEnd)) ||
+      Date.parse(input.windowStart) >= Date.parse(input.windowEnd)
     ) {
       return this.reject(
         'OBSERVATION_METADATA_INCOMPLETE',
@@ -1478,12 +2075,14 @@ export class FirstLoopEngine {
         item.approvalId === input.approvalId &&
         item.metricKey === input.primaryMetricKey,
     );
-    const baseline = observations.find(
-      (item) => item.comparisonRole === 'baseline',
-    );
-    const current = observations.find(
-      (item) => item.comparisonRole === 'current',
-    );
+    const baseline = observations
+      .slice()
+      .reverse()
+      .find((item) => item.comparisonRole === 'baseline');
+    const current = observations
+      .slice()
+      .reverse()
+      .find((item) => item.comparisonRole === 'current');
     const sources = new Set(observations.map((item) => item.source));
     const sourceChanged = sources.size > 1;
     const limitations: string[] = [];
@@ -1499,12 +2098,30 @@ export class FirstLoopEngine {
     ) {
       outcome = 'evidence_insufficient';
       limitations.push('基线或当前主指标缺失、延迟或无权限');
+    } else if (
+      baseline.unit !== current.unit ||
+      baseline.scope !== current.scope
+    ) {
+      outcome = 'evidence_insufficient';
+      limitations.push('单位或统计范围不同，不能直接比较');
     } else if (sourceChanged && !input.sourceComparisonAccepted) {
       outcome = 'evidence_insufficient';
       limitations.push('数据来源已变化且可比性尚未确认');
-    } else if ((current.value ?? 0) > (baseline.value ?? 0)) {
+    } else if (
+      approval.observationPlan &&
+      !approval.observationPlan.direction
+    ) {
+      outcome = 'evidence_insufficient';
+      limitations.push('批准未指定指标改善方向，保留未知');
+    } else if (
+      approval.observationPlan?.direction === 'decrease'
+        ? (current.value ?? 0) < (baseline.value ?? 0)
+        : (current.value ?? 0) > (baseline.value ?? 0)
+    ) {
       outcome = 'limited_improvement';
-      limitations.push('改善仅适用于当前批准范围与观察窗');
+      limitations.push(
+        '仅表明批准范围内数值按预定方向变化，不证明业务目标或复合判据已达成',
+      );
     } else {
       outcome = 'no_improvement';
       limitations.push('完整观察未显示主指标改善，不自动推广');
@@ -1834,7 +2451,7 @@ export function createEmptyFirstLoopState(): FirstLoopState {
 }
 
 export function createCommandContext(
-  actorId = 'operator-demo',
+  actorId = 'local-operator',
   correlationId = crypto.randomUUID(),
 ): CommandContext {
   return { actorId, correlationId };

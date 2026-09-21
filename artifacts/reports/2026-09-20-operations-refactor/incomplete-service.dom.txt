@@ -1,0 +1,120 @@
+- banner:
+  - link "SG SocialGrowth 运营管理":
+    - /url: "#/home"
+    - generic: SG
+    - text: SocialGrowth
+    - strong: 运营管理
+  - link "本地工作区 · 外部服务未接入":
+    - /url: "#/connections"
+- complementary:
+  - navigation "运营业务导航":
+    - link "工作台":
+      - /url: "#/home"
+      - text: 工作台
+    - link "账号管理":
+      - /url: "#/accounts"
+      - text: 账号管理
+    - link "内容资产":
+      - /url: "#/content"
+      - text: 内容资产
+    - generic "策略管理 ›":
+      - text: 策略管理 ›
+    - generic "发布执行 ›":
+      - text: 发布执行 ›
+    - link "导流管理":
+      - /url: "#/destinations"
+      - text: 导流管理
+    - generic "数据与复盘 ›":
+      - text: 数据与复盘 ›
+    - link "客户服务":
+      - /url: "#/clients"
+      - text: 客户服务
+    - generic "系统管理 ›":
+      - text: 系统管理 ›
+  - paragraph:
+    - text: 按业务对象统一管理
+    - text: 服务范围在业务详情中关联
+- main:
+  - heading "客户服务" [level=1]
+  - generic: 搜索当前页面
+  - searchbox "搜索当前页面"
+  - button "搜索"
+  - paragraph: 客户档案管理合作方；服务范围记录目标、受众和责任人。账号、内容和待办跨服务统一查看。
+  - generic "新增客户"
+  - generic "新建服务范围"
+  - option "请选择" [selected]
+  - option "验收用星河内容"
+  - option "验收用远山内容"
+  - heading "客户档案" [level=2]
+  - paragraph: 全部 2 条
+  - table:
+    - rowgroup:
+      - row "客户 服务范围 进行中的服务":
+        - columnheader "客户"
+        - columnheader "服务范围"
+        - columnheader "进行中的服务"
+    - rowgroup:
+      - row "验收用星河内容 1 1":
+        - cell "验收用星河内容":
+          - link "验收用星河内容":
+            - /url: "#/clients?object=client-3783b5d7-32e5-4a5a-b408-83c381bc17a9"
+        - cell "1"
+        - cell "1"
+      - row "验收用远山内容 0 0":
+        - cell "验收用远山内容":
+          - link "验收用远山内容":
+            - /url: "#/clients?object=client-82b1c432-7898-4790-a7b2-3af92a0c7d4a"
+        - cell "0"
+        - cell "0"
+  - heading "所有服务范围" [level=2]
+  - paragraph: 全部 2 条
+  - table:
+    - rowgroup:
+      - row "服务 / 客户 目标 负责人 状态":
+        - columnheader "服务 / 客户"
+        - columnheader "目标"
+        - columnheader "负责人"
+        - columnheader "状态"
+    - rowgroup:
+      - row "英语短剧首轮观察 · 验收用星河内容 验证英语受众对原创短剧情节的兴趣 验收运营员 有效":
+        - cell "英语短剧首轮观察 · 验收用星河内容":
+          - link "英语短剧首轮观察 · 验收用星河内容":
+            - /url: "#/clients?object=project-97d2a4fe-cbb1-410e-97e4-1b208d999474"
+        - cell "验证英语受众对原创短剧情节的兴趣"
+        - cell "验收运营员"
+        - cell "有效":
+          - generic: 有效
+      - row "验收用远山待完善服务 · 未填写 待补齐 草稿":
+        - cell "验收用远山待完善服务 · 未填写":
+          - link "验收用远山待完善服务 · 未填写":
+            - /url: "#/clients?object=project-57b707be-b483-4187-b74e-4564d4b1f221"
+        - cell "待补齐"
+        - cell
+        - cell "草稿":
+          - generic: 草稿
+  - region "验收用远山待完善服务":
+    - heading "验收用远山待完善服务" [level=2]
+    - link "关闭详情":
+      - /url: "#/clients"
+    - term: 客户
+    - definition: 未填写
+    - term: 目标
+    - definition
+    - term: 受众
+    - definition
+    - term: 负责人
+    - definition
+    - term: 状态
+    - definition: 草稿
+    - generic "编辑服务资料"
+    - option "请选择" [selected]
+    - option "验收用星河内容"
+    - option "验收用远山内容"
+    - button "资料已核对，激活服务" [active]
+    - status: 请先补齐：缺少服务客户、缺少当前主目标、缺少目标受众、缺少责任人
+    - generic "结束服务合作"
+    - link "查看账号与授权":
+      - /url: "#/accounts"
+    - link "查看策略草案":
+      - /url: "#/strategies"
+- contentinfo: 本地操作者 · 业务操作留痕 · 数据未同步至外部服务

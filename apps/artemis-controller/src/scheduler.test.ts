@@ -222,3 +222,58 @@ void test("C-09/T-09: challenge pauses the binding and resume requires all busin
     true,
   );
 });
+
+void test("future schedules and already queued related work stay blocked before any adapter call", async () => {
+  const adapter = new FakeAdapter((value) =>
+    receipt(value, { publishStatus: "unknown", publishedPostId: undefined }),
+  );
+  const controller = scheduler(adapter);
+  controller.enqueueTask(directive({ scheduledAt: "2026-09-19T02:00:00Z" }));
+  assert.equal(await controller.dispatchNext(), null);
+  assert.equal(adapter.calls, 0);
+  const paused = scheduler(adapter);
+  paused.enqueueTask(directive());
+  paused.enqueueTask(directive({ taskId: "task-2", attemptId: "attempt-2" }));
+  await paused.dispatchNext();
+  assert.equal(await paused.dispatchNext(), null);
+  assert.equal(adapter.calls, 1);
+});
+
+void test("an in-flight duplicate cannot submit twice and a hung adapter is bounded", async () => {
+  const adapter = new FakeAdapter(() => new Promise<ExecutionReceipt>(() => {}));
+  const controller = scheduler(adapter);
+  const task = directive({ taskTimeoutMs: 10 });
+  controller.enqueueTask(task);
+  const dispatched = controller.dispatchNext();
+  assert.equal(controller.enqueueTask(task), false);
+  assert.equal((await dispatched)?.publishStatus, "unknown");
+  assert.equal(adapter.calls, 1);
+});
+
+void test("late receipt scope and public identifier are mandatory; platform-account pairs do not cross", async () => {
+  const controller = scheduler(new FakeAdapter((value) => receipt(value)));
+  const task = directive();
+  controller.enqueueTask(task);
+  await controller.dispatchNext();
+  assert.throws(
+    () => controller.recordLateReceipt(task, receipt(task, { accountId: "other" })),
+    /RECEIPT_SCOPE/,
+  );
+  assert.throws(
+    () => controller.recordLateReceipt(task, receipt(task, { publishedPostId: undefined })),
+    /EVIDENCE/,
+  );
+  const pool = new DevicePool();
+  pool.registerDevice(
+    device({
+      platformBound: ["facebook", "youtube"],
+      boundAccounts: ["fb", "yt"],
+      accountBindings: [
+        { platform: "facebook", accountId: "fb" },
+        { platform: "youtube", accountId: "yt" },
+      ],
+    }),
+  );
+  assert.equal(pool.getAvailableBoundDevice("facebook", "yt", "device-a"), undefined);
+  assert.ok(pool.getAvailableBoundDevice("youtube", "yt", "device-a"));
+});

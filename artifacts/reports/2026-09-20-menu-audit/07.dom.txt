@@ -1,0 +1,131 @@
+- banner:
+  - generic: SG
+  - heading "SocialGrowth 运营工作台" [level=1]
+  - paragraph: 首批业务闭环 · 本地受控数据
+  - generic: 外部发布连接未配置
+  - generic: 有效批准 1
+  - generic: 待核回执 0
+  - button "导出审计快照":
+    - generic: 导出审计快照
+- complementary:
+  - text: 当前项目
+  - combobox "当前项目":
+    - option "全部项目 / 尚未选择"
+    - option "Chrome验收项目 · active"
+    - option "【演练】星河短剧｜英语受众首发 · active" [selected]
+  - navigation "运营工作台导航":
+    - button "运营总览":
+      - text: 运营总览
+    - button "项目与授权":
+      - text: 项目与授权
+    - button "内容库存":
+      - text: 内容库存
+    - button "入口与策略":
+      - text: 入口与策略
+    - button "批准与排期":
+      - text: 批准与排期
+    - button "观察与复盘":
+      - text: 观察与复盘
+    - button "审计日志" [active]:
+      - text: 审计日志
+  - text: 演示模块已下线
+  - paragraph: 页面只展示当前闭环状态；设备在线、平台发布和真实成效需由外部回执证明。
+- main:
+  - heading "审计日志" [level=2]
+  - paragraph: 当前范围：【演练】星河短剧｜英语受众首发
+  - generic: 受控工作区 · 非生产回执
+  - status: SCHEDULE_WINDOW_INVALID：排期必须包含业务时区且位于批准有效期内
+  - text: 最近记录优先；拒绝操作也会保留原因码。
+  - time: 2026/9/20 10:30:38
+  - strong: publication_schedule.rejected
+  - paragraph: publication_schedule · new · SCHEDULE_WINDOW_INVALID
+  - generic: rejected
+  - time: 2026/9/20 01:27:01
+  - strong: execution_approval.rejected
+  - paragraph: execution_approval · new · APPROVAL_SCOPE_INCOMPLETE
+  - generic: rejected
+  - time: 2026/9/20 00:39:50
+  - strong: execution_approval.rejected
+  - paragraph: execution_approval · new · APPROVAL_SCOPE_INCOMPLETE
+  - generic: rejected
+  - time: 2026/9/20 00:39:31
+  - strong: project.activated
+  - paragraph: project · project-6f9caf73-3c75-4c78-9dee-7d538a5e4dcf · OK
+  - generic: accepted
+  - time: 2026/9/20 00:39:22
+  - strong: project.saved
+  - paragraph: project · project-6f9caf73-3c75-4c78-9dee-7d538a5e4dcf · OK
+  - generic: accepted
+  - time: 2026/9/20 00:32:28
+  - strong: content.allocated
+  - paragraph: content_identity · content-3aacd5d0-9625-4b4d-a599-8266c7aa2c29 · OK
+  - generic: accepted
+  - time: 2026/9/20 00:32:28
+  - strong: content.admitted
+  - paragraph: content_identity · content-3aacd5d0-9625-4b4d-a599-8266c7aa2c29 · OK
+  - generic: accepted
+  - time: 2026/9/20 00:26:01
+  - strong: content.allocated
+  - paragraph: content_identity · content-c05db6bb-5727-4554-b2d4-e84ad486eb19 · OK
+  - generic: accepted
+  - time: 2026/9/20 00:25:48
+  - strong: content.admitted
+  - paragraph: content_identity · content-c05db6bb-5727-4554-b2d4-e84ad486eb19 · OK
+  - generic: accepted
+  - time: 2026/9/20 00:18:49
+  - strong: review.confirmed
+  - paragraph: basic_review · review-d1796444-4376-4e01-9223-283d8b002181 · OK
+  - generic: accepted
+  - time: 2026/9/20 00:18:44
+  - strong: review.created
+  - paragraph: basic_review · review-d1796444-4376-4e01-9223-283d8b002181 · OK
+  - generic: accepted
+  - time: 2026/9/20 00:18:39
+  - strong: observation.recorded
+  - paragraph: metric_observation · observation-a408bfd1-554f-4d0f-abe0-863285e6cbc0 · OK
+  - generic: accepted
+  - time: 2026/9/20 00:18:32
+  - strong: observation.recorded
+  - paragraph: metric_observation · observation-55708fa4-868d-4463-b367-3897389e9310 · OK
+  - generic: accepted
+  - time: 2026/9/20 00:18:19
+  - strong: strategy.approved
+  - paragraph: execution_approval · approval-0374085e-44b5-4fa1-b0b6-79bb1fc544c9 · OK
+  - generic: accepted
+  - time: 2026/9/20 00:18:10
+  - strong: strategy.draft_generated
+  - paragraph: strategy_draft · strategy-6ee8d214-f802-43f7-b47c-a9aa892dc389 · OK
+  - generic: accepted
+  - time: 2026/9/20 00:18:10
+  - strong: strategy.rule_versioned
+  - paragraph: strategy_rule · rule-5657fbc4-a3a6-4099-81a2-5efb4c0b214a · OK
+  - generic: accepted
+  - time: 2026/9/20 00:18:02
+  - strong: destination.created
+  - paragraph: destination_entry · destination-96e969d6-93c2-48b5-8ecf-f866ff9d9383 · OK
+  - generic: accepted
+  - time: 2026/9/20 00:17:54
+  - strong: account.authorization_granted
+  - paragraph: account_service_relation · relation-7f1a7231-3da8-476e-92a1-4ddaf55db293 · OK
+  - generic: accepted
+  - time: 2026/9/20 00:17:42
+  - strong: content.allocated
+  - paragraph: content_identity · content-5fd981f9-91ba-41db-b08c-1086964a008e · OK
+  - generic: accepted
+  - time: 2026/9/20 00:17:32
+  - strong: content.admitted
+  - paragraph: content_identity · content-5fd981f9-91ba-41db-b08c-1086964a008e · OK
+  - generic: accepted
+  - time: 2026/9/20 00:17:25
+  - strong: account.authorization_granted
+  - paragraph: account_service_relation · relation-4fa96e08-a1bd-4d44-a07b-7ca78f2bebf6 · OK
+  - generic: accepted
+  - time: 2026/9/20 00:17:17
+  - strong: project.activated
+  - paragraph: project · project-ebeab289-fa79-4fe6-b2c5-72180f878f0c · OK
+  - generic: accepted
+  - time: 2026/9/20 00:17:12
+  - strong: project.saved
+  - paragraph: project · project-ebeab289-fa79-4fe6-b2c5-72180f878f0c · OK
+  - generic: accepted
+  - paragraph: "project: 【演练】星河短剧｜英语受众首发"

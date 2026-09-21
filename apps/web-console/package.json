@@ -6,7 +6,8 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "vinext dev -H 0.0.0.0",
+    "dev": "vinext dev -H 127.0.0.1",
+    "dev:runtime": "node --env-file=../../.env.runtime node_modules/vinext/dist/cli.js dev -H 127.0.0.1",
     "build": "vinext build",
     "test": "node --experimental-strip-types --test lib/first-loop/*.test.ts",
     "start": "wrangler dev --config dist/server/wrangler.json",

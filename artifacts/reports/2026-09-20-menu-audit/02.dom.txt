@@ -1,0 +1,77 @@
+- banner:
+  - generic: SG
+  - heading "SocialGrowth 运营工作台" [level=1]
+  - paragraph: 首批业务闭环 · 本地受控数据
+  - generic: 外部发布连接未配置
+  - generic: 有效批准 1
+  - generic: 待核回执 0
+  - button "导出审计快照":
+    - generic: 导出审计快照
+- complementary:
+  - text: 当前项目
+  - combobox "当前项目":
+    - option "全部项目 / 尚未选择"
+    - option "Chrome验收项目 · active"
+    - option "【演练】星河短剧｜英语受众首发 · active" [selected]
+  - navigation "运营工作台导航":
+    - button "运营总览":
+      - text: 运营总览
+    - button "项目与授权" [active]:
+      - text: 项目与授权
+    - button "内容库存":
+      - text: 内容库存
+    - button "入口与策略":
+      - text: 入口与策略
+    - button "批准与排期":
+      - text: 批准与排期
+    - button "观察与复盘":
+      - text: 观察与复盘
+    - button "审计日志":
+      - text: 审计日志
+  - text: 演示模块已下线
+  - paragraph: 页面只展示当前闭环状态；设备在线、平台发布和真实成效需由外部回执证明。
+- main:
+  - heading "项目与授权" [level=2]
+  - paragraph: 当前范围：【演练】星河短剧｜英语受众首发
+  - generic: 受控工作区 · 非生产回执
+  - status: SCHEDULE_WINDOW_INVALID：排期必须包含业务时区且位于批准有效期内
+  - generic: 创建项目草稿
+  - text: 项目名称
+  - textbox "项目名称"
+  - text: 服务客户 ID
+  - textbox "服务客户 ID"
+  - text: 当前主目标
+  - textbox "当前主目标"
+  - text: 目标受众
+  - textbox "目标受众"
+  - text: 责任人 ID
+  - textbox "责任人 ID"
+  - button "保存项目草稿"
+  - generic: 记录账号服务授权
+  - text: 账号 ID
+  - textbox "账号 ID"
+  - text: 服务客户 ID
+  - textbox "服务客户 ID"
+  - text: 账号所有方 ID
+  - textbox "账号所有方 ID"
+  - text: 授权方 ID
+  - textbox "授权方 ID"
+  - text: 授权依据引用
+  - textbox "授权依据引用"
+  - text: 共享批准引用
+  - textbox "共享批准引用 仅在存在共享批准时填写"
+  - generic: 仅在存在共享批准时填写
+  - text: 授权有效期
+  - textbox "授权有效期 留空表示未记录截止日期"
+  - generic: 留空表示未记录截止日期
+  - button "记录授权"
+  - generic: 项目清单
+  - strong: Chrome验收项目
+  - generic: active
+  - paragraph: 资料完整
+  - paragraph: project-ebeab289-fa79-4fe6-b2c5-72180f878f0c
+  - strong: 【演练】星河短剧｜英语受众首发
+  - generic: active
+  - paragraph: 资料完整
+  - paragraph: project-6f9caf73-3c75-4c78-9dee-7d538a5e4dcf
+  - paragraph: "project: 【演练】星河短剧｜英语受众首发"

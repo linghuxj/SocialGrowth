@@ -24,7 +24,14 @@ export class DevicePool {
   ): DeviceInfo | undefined {
     const device = this.devices.get(requiredDeviceId);
     if (!device || device.status !== "idle" || device.deviceType !== "physical") return undefined;
-    if (!device.platformBound.includes(platform) || !device.boundAccounts.includes(accountId))
+    const bindings =
+      device.accountBindings ??
+      (device.platformBound.length === 1 && device.boundAccounts.length === 1
+        ? [{ platform: device.platformBound[0], accountId: device.boundAccounts[0] }]
+        : []);
+    if (
+      !bindings.some((binding) => binding.platform === platform && binding.accountId === accountId)
+    )
       return undefined;
     return structuredClone(device);
   }

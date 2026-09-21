@@ -18,6 +18,7 @@ export class TaskScheduler {
   private queue: PublishTaskDirective[] = [];
   private readonly queuedAttempts = new Set<string>();
   private readonly queuedPayloads = new Map<string, string>();
+  private readonly activeAttempts = new Set<string>();
   private readonly pausedBindings = new Map<string, string>();
   private readonly pausedDevices = new Map<string, string>();
   private readonly auditEntries: ControllerAuditEntry[] = [];
@@ -36,7 +37,11 @@ export class TaskScheduler {
 
   public enqueueTask(task: PublishTaskDirective): boolean {
     const attemptKey = this.attemptKey(task.taskId, task.attemptId);
-    if (this.receiptStore.get(task.taskId, task.attemptId) || this.queuedAttempts.has(attemptKey)) {
+    if (
+      this.receiptStore.get(task.taskId, task.attemptId) ||
+      this.queuedAttempts.has(attemptKey) ||
+      this.activeAttempts.has(attemptKey)
+    ) {
       const payloadConflict =
         this.queuedPayloads.has(attemptKey) &&
         this.queuedPayloads.get(attemptKey) !== JSON.stringify(task);
@@ -76,7 +81,10 @@ export class TaskScheduler {
   public async dispatchNext(): Promise<ExecutionReceipt | null> {
     const task = this.queue[0];
     if (!task) return null;
-    if (task.expiresAt <= this.now()) {
+    if (
+      !Number.isFinite(Date.parse(task.expiresAt)) ||
+      Date.parse(task.expiresAt) <= Date.parse(this.now())
+    ) {
       this.removeHead(task);
       const receipt = this.createReceipt(
         task,
@@ -90,6 +98,13 @@ export class TaskScheduler {
       this.audit(task, "task.dispatch", "rejected", "DEADLINE_EXPIRED", {});
       return receipt;
     }
+    if (
+      !Number.isFinite(Date.parse(task.scheduledAt)) ||
+      Date.parse(task.scheduledAt) > Date.parse(this.now())
+    )
+      return null;
+    if (this.pausedBindings.has(task.bindingId) || this.pausedDevices.has(task.deviceId))
+      return null;
     const qualification = this.dependencies.validateTask?.(structuredClone(task));
     if (qualification && !qualification.ok) {
       this.removeHead(task);
@@ -123,10 +138,23 @@ export class TaskScheduler {
       return null;
     }
     this.removeHead(task);
+    this.activeAttempts.add(this.attemptKey(task.taskId, task.attemptId));
     this.devicePool.updateStatus(device.deviceId, "busy");
     let receipt: ExecutionReceipt;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
-      receipt = await this.executor.execute(structuredClone(task), device);
+      receipt = await Promise.race([
+        this.executor.execute(structuredClone(task), device),
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(
+            () => reject(new Error("EXECUTION_TIMEOUT")),
+            Math.max(
+              1,
+              Math.min(task.taskTimeoutMs, Date.parse(task.expiresAt) - Date.parse(this.now())),
+            ),
+          );
+        }),
+      ]);
     } catch {
       receipt = this.createReceipt(
         task,
@@ -136,13 +164,16 @@ export class TaskScheduler {
         "error",
         "TECHNICAL_FAILURE",
       );
+    } finally {
+      if (timeout) clearTimeout(timeout);
     }
     if (
       receipt.taskId !== task.taskId ||
       receipt.attemptId !== task.attemptId ||
       receipt.deviceId !== device.deviceId ||
       receipt.accountId !== task.accountId ||
-      (receipt.publishStatus === "published" && receipt.evidenceRefs.length === 0)
+      (receipt.publishStatus === "published" &&
+        (receipt.evidenceRefs.length === 0 || (!receipt.publishedPostId && !receipt.publishedUrl)))
     ) {
       receipt = this.createReceipt(
         task,
@@ -154,9 +185,13 @@ export class TaskScheduler {
       );
     }
     this.receiptStore.save(receipt);
-    if (receipt.failureCode === "IDENTITY_CHALLENGE") {
-      this.pausedBindings.set(task.bindingId, "IDENTITY_CHALLENGE");
-      this.pausedDevices.set(task.deviceId, "IDENTITY_CHALLENGE_RELATED_SCOPE");
+    this.activeAttempts.delete(this.attemptKey(task.taskId, task.attemptId));
+    if (
+      receipt.failureCode === "IDENTITY_CHALLENGE" ||
+      ["unknown", "in_progress"].includes(receipt.publishStatus)
+    ) {
+      this.pausedBindings.set(task.bindingId, receipt.failureCode ?? "RESULT_UNRESOLVED");
+      this.pausedDevices.set(task.deviceId, receipt.failureCode ?? "RESULT_UNRESOLVED");
     }
     this.devicePool.updateStatus(
       device.deviceId,
@@ -173,6 +208,17 @@ export class TaskScheduler {
     task: PublishTaskDirective,
     incoming: ExecutionReceipt,
   ): ExecutionReceipt {
+    if (
+      incoming.taskId !== task.taskId ||
+      incoming.attemptId !== task.attemptId ||
+      incoming.deviceId !== task.deviceId ||
+      incoming.accountId !== task.accountId ||
+      (incoming.publishStatus === "published" &&
+        (!incoming.evidenceRefs.length || (!incoming.publishedPostId && !incoming.publishedUrl)))
+    ) {
+      this.audit(task, "task.late_receipt", "rejected", "RECEIPT_SCOPE_OR_EVIDENCE_INVALID", {});
+      throw new Error("RECEIPT_SCOPE_OR_EVIDENCE_INVALID");
+    }
     const existing = this.receiptStore.get(task.taskId, task.attemptId);
     let retained = incoming;
     if (existing?.publishStatus === "published") retained = existing;
@@ -260,7 +306,7 @@ export class TaskScheduler {
     this.queuedPayloads.delete(attemptKey);
   }
   private attemptKey(taskId: string, attemptId: string): string {
-    return `${taskId}:${attemptId}`;
+    return JSON.stringify([taskId, attemptId]);
   }
   private audit(
     task: PublishTaskDirective,

@@ -1,0 +1,544 @@
+import { createServer, type IncomingMessage } from "node:http";
+import { createHash, timingSafeEqual, randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "node:fs";
+import { resolve, join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { WebSocketServer } from "ws";
+import { z } from "zod";
+import { RuntimeStore } from "./store.ts";
+import { ExecutionRuntime } from "./runtime.ts";
+import { RuntimeError, requireFact, id, sha256 } from "./contracts.ts";
+import { HumanAssistance, assistanceScopeSchema } from "./human-assistance.ts";
+import { AppProvisioner } from "./app-readiness.ts";
+import { IdentityOnboarding } from './identity-onboarding.ts';
+import {
+  WebVerification,
+  verificationConfigSchema,
+  type VerificationConfig,
+} from "./web-verification.ts";
+
+export interface ServerOptions {
+  dataDir: string;
+  token: string;
+  signingKey: string;
+  deviceTokens: Record<string, string>;
+  port?: number;
+  mediaBaseUrl?: string;
+  allowedOrigins?: string[];
+  verification?: VerificationConfig;
+}
+const safeEqual = (a: string, b: string) =>
+  a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
+async function body(req: IncomingMessage, max = 1024 * 1024): Promise<Buffer> {
+  const parts: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req) {
+    const bytes = Buffer.from(chunk);
+    size += bytes.length;
+    if (size > max) throw new RuntimeError("BODY_TOO_LARGE", 413);
+    parts.push(bytes);
+  }
+  return Buffer.concat(parts);
+}
+const errorBody = (error: unknown) => ({
+  ok: false,
+  error: {
+    code: error instanceof RuntimeError ? error.code : "INVALID_REQUEST",
+    message: error instanceof RuntimeError ? error.code : "请求参数无效或当前状态不允许此操作",
+  },
+});
+
+export function createRuntimeServer(options: ServerOptions) {
+  requireFact(
+    options.token.length >= 32 && options.signingKey.length >= 32,
+    "RUNTIME_KEYS_REQUIRED",
+  );
+  requireFact(
+    Object.values(options.deviceTokens).every((t) => t.length >= 32 && t !== options.token),
+    "DEVICE_KEYS_INVALID",
+  );
+  const assetsDir = join(options.dataDir, "assets");
+  mkdirSync(assetsDir, { recursive: true, mode: 0o700 });
+  const store = new RuntimeStore(join(options.dataDir, "runtime.sqlite"));
+  const assistance = new HumanAssistance(store);
+  const apps = new AppProvisioner({
+    catalogPath: process.env.SG_APP_CATALOG,
+    buildTools: process.env.SG_ANDROID_BUILD_TOOLS,
+  });
+  const verification = new WebVerification(store, assistance, options.verification);
+  const onboarding = new IdentityOnboarding(store, assistance, options.verification);
+  const runtime = new ExecutionRuntime(store, {
+    signingKey: options.signingKey,
+    mediaBaseUrl: options.mediaBaseUrl ?? `http://127.0.0.1:${options.port ?? 4318}`,
+    hasAsset: (sha) => existsSync(join(assetsDir, sha)),
+    canExecuteAsset: (sha) =>
+      store.db.prepare("SELECT mime FROM assets WHERE sha256=?").get(sha)?.mime === "video/mp4",
+  });
+  const http = createServer(async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    try {
+      const url = new URL(req.url ?? "/", "http://127.0.0.1");
+      const path = url.pathname.replace(/^\/api\/runtime/, "");
+      requireFact(url.pathname.startsWith("/api/runtime/"), "NOT_FOUND");
+      if (req.headers.origin)
+        requireFact(
+          (options.allowedOrigins ?? ["http://localhost:3000", "http://127.0.0.1:3000"]).includes(
+            req.headers.origin,
+          ),
+          "ORIGIN_REJECTED",
+        );
+      const media = path.match(/^\/media\/([a-f0-9]{64})$/);
+      if (media && req.method === "GET") {
+        runtime.verifyMedia(media[1], url.searchParams);
+        requireFact(existsSync(join(assetsDir, media[1])), "ASSET_NOT_FOUND");
+        res.setHeader("Content-Type", "video/mp4");
+        res.end(readFileSync(join(assetsDir, media[1])));
+        return;
+      }
+      const bearer = req.headers.authorization?.replace(/^Bearer /, "") ?? "";
+      const operator = safeEqual(bearer, options.token);
+      const device = Object.entries(options.deviceTokens).find(([, token]) =>
+        safeEqual(bearer, token),
+      )?.[0];
+      // Scoped capability routes: no device/operator token, no WS persistence of secrets.
+      if (path.startsWith("/assistance/agent/")) {
+        const session = assistance.session(bearer);
+        let value: unknown;
+        if (path === "/assistance/agent/session" && req.method === "GET")
+          value = {
+            sessionId: session.id,
+            ...session.scope,
+            control: assistance.supervision.get(session.id),
+          };
+        else if (path === "/assistance/agent/gate" && req.method === "POST")
+          value = assistance.supervision.gate(
+            session.id,
+            JSON.parse((await body(req, 2048)).toString()),
+          );
+        else if (path === "/assistance/agent/finish-observation" && req.method === "POST")
+          value = assistance.supervision.finishObservation(session.id);
+        else if (path === "/assistance/agent/ensure-app" && req.method === "POST")
+          value = await assistance.supervision.ensureApp(session.id, () =>
+            apps.ensure(session.scope.serial, session.scope.packageName),
+          );
+        else if (path === "/assistance/agent/stop" && req.method === "POST") {
+          const input = z
+            .object({ reason: z.string().regex(/^[A-Z_]{1,80}$/) })
+            .strict()
+            .parse(JSON.parse((await body(req, 2048)).toString()));
+          value = assistance.supervision.stop(session.id, input.reason);
+        } else if (path === "/assistance/agent/credential-begin" && req.method === "POST") {
+          const input = z
+            .object({ kind: z.enum(["password", "otp"]) })
+            .strict()
+            .parse(JSON.parse((await body(req, 2048)).toString()));
+          value = assistance.beginCredential(bearer, input.kind);
+        } else if (path === "/assistance/agent/request" && req.method === "POST")
+          value = assistance.supervision.create(
+            session.id,
+            JSON.parse((await body(req, 9 * 1024 * 1024)).toString()),
+          );
+        else if (path === "/assistance/agent/claim-response" && req.method === "POST")
+          value = assistance.supervision.claim(
+            session.id,
+            id.parse(JSON.parse((await body(req, 2048)).toString()).id),
+          );
+        else if (path === "/assistance/agent/revalidate" && req.method === "POST")
+          value = assistance.supervision.revalidate(
+            session.id,
+            JSON.parse((await body(req, 9 * 1024 * 1024)).toString()),
+          );
+        else if (path === "/assistance/agent/challenge" && req.method === "POST")
+          value = assistance.create(
+            bearer,
+            JSON.parse((await body(req, 9 * 1024 * 1024)).toString()),
+          );
+        else if (path === "/assistance/agent/report" && req.method === "POST")
+          value = assistance.report(
+            bearer,
+            JSON.parse((await body(req, 9 * 1024 * 1024)).toString()),
+          );
+        else if (path === "/assistance/agent/claim" && req.method === "POST")
+          value = assistance.claim(
+            bearer,
+            id.parse(JSON.parse((await body(req, 2048)).toString()).id),
+          );
+        else if (path === "/assistance/agent/finish" && req.method === "POST") {
+          const input = JSON.parse((await body(req, 2048)).toString());
+          value = assistance.finish(bearer, id.parse(input.id), { resultCode: input.resultCode });
+        } else if (path === "/assistance/agent/close" && req.method === "POST") {
+          assistance.closeSession(bearer);
+          value = { ok: true };
+        } else throw new RuntimeError("NOT_FOUND", 404);
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify(value));
+        return;
+      }
+      requireFact(operator || device, "AUTHENTICATION_REQUIRED");
+      let result: unknown;
+      if (path === "/assistance/sessions" && req.method === "POST") {
+        const input = assistanceScopeSchema.parse(JSON.parse((await body(req, 4096)).toString()));
+        requireFact(input.policy?.mode !== 'onboarding' && !input.policy?.allowIdentityCreation, 'USE_SCOPED_ONBOARDING_WORKFLOW');
+        requireFact(input.mode !== "diagnostic" || operator, "OPERATOR_REQUIRED");
+        requireFact(operator || device === input.deviceId, "DEVICE_SESSION_MISMATCH");
+        requireFact(Object.hasOwn(options.deviceTokens, input.deviceId), "DEVICE_UNKNOWN");
+        if (input.mode === "execution") {
+          const t = runtime
+            .tasks()
+            .find((t) => t.taskId === input.taskId && t.status === "running")?.task;
+          requireFact(
+            t &&
+              t.binding.deviceId === input.deviceId &&
+              t.binding.serial === input.serial &&
+              t.binding.platformIdentity === input.expectedIdentity &&
+              t.directive.targetAppPackage === input.packageName &&
+              Date.parse(input.expiresAt) <= Date.parse(t.directive.expiresAt),
+            "ASSISTANCE_TASK_SCOPE_INVALID",
+          );
+        } else {
+          requireFact(
+            store.db.prepare("SELECT 1 FROM device_holds WHERE device=?").get(input.deviceId),
+            "DIAGNOSTIC_DEVICE_HOLD_REQUIRED",
+          );
+          requireFact(
+            !runtime
+              .tasks()
+              .some((t) => t.status === "running" && t.task.binding.deviceId === input.deviceId),
+            "DEVICE_BUSY",
+          );
+        }
+        result = assistance.open(input);
+      } else if (path === "/evidence" && req.method === "POST" && (device || operator)) {
+        const taskId = id.parse(req.headers["x-task-id"]);
+        const taskDevice =
+          device ?? runtime.tasks().find((t) => t.taskId === taskId)?.task.binding.deviceId;
+        requireFact(taskDevice, "TASK_NOT_FOUND");
+        result = {
+          id: runtime.archiveEvidence(
+            taskId,
+            taskDevice,
+            String(req.headers["content-type"]),
+            await body(req, 8 * 1024 * 1024),
+          ),
+        };
+      } else {
+        requireFact(operator, "OPERATOR_REQUIRED");
+        if (path === '/onboarding' && req.method === 'POST')
+          result = onboarding.start(JSON.parse((await body(req, 4096)).toString()));
+        else if (path === '/onboarding/stop' && req.method === 'POST')
+          result = onboarding.stop(id.parse(JSON.parse((await body(req, 2048)).toString()).id));
+        else if (path === '/onboarding/screenshot' && req.method === 'GET') {
+          res.setHeader('Content-Type', 'image/png');
+          res.end(Buffer.from(onboarding.screenshot(id.parse(url.searchParams.get('id'))))); return;
+        } else if (path === '/onboarding/bind' && req.method === 'POST') {
+          const jobId = id.parse(JSON.parse((await body(req, 2048)).toString()).id);
+          const job = onboarding.list().find((j) => j.id === jobId);
+          requireFact(job?.status === 'verified' && job.identityUrl && job.finishedAt, 'IDENTITY_NOT_VERIFIED');
+          requireFact(Date.now() - Date.parse(job.finishedAt) < 86400000, 'IDENTITY_VERIFICATION_EXPIRED');
+          const state = store.snapshot().state;
+          const relation = state.accountServiceRelations.find((r) => r.projectId === job.projectId && r.accountId === job.accountId && !r.revokedAt && r.allowedActions.includes('publish') && Date.parse(r.validFrom) <= Date.now() && (!r.validUntil || Date.parse(r.validUntil) > Date.now()));
+          requireFact(relation && state.projects.some((p) => p.id === job.projectId && p.status === 'active'), 'ACCOUNT_AUTHORIZATION_REQUIRED');
+          const existing = runtime.bindings().find((b) => b.accountId === job.accountId);
+          requireFact(!existing || existing.platformIdentity === job.identityUrl, 'BINDING_CORRECTION_REQUIRES_REVIEW');
+          result = runtime.bind({ id: existing?.id ?? `identity-${job.id}`, deviceId: job.deviceId, serial: job.serial, platform: job.platform, accountId: job.accountId, platformIdentity: job.identityUrl, authorizationRef: relation.authorizationRef, automationScopeRef: job.authorizationRef, verifiedAt: job.finishedAt, validUntil: relation.validUntil ?? new Date(Date.now() + 86400000 * 30).toISOString() }, 'operator');
+        } else if (path === "/verifications" && req.method === "POST")
+          result = verification.start(JSON.parse((await body(req, 4096)).toString()));
+        else if (path === "/verifications/stop" && req.method === "POST")
+          result = verification.stop(id.parse(JSON.parse((await body(req, 2048)).toString()).id));
+        else if (path === "/supervision/respond" && req.method === "POST") {
+          const { id: requestId, ...input } = JSON.parse((await body(req, 8192)).toString());
+          result = assistance.supervision.respond(id.parse(requestId), input);
+        } else if (path === "/supervision/screenshot" && req.method === "GET") {
+          res.setHeader("Content-Type", "image/png");
+          res.end(
+            Buffer.from(assistance.supervision.screenshot(id.parse(url.searchParams.get("id")))),
+          );
+          return;
+        } else if (path === "/verifications/screenshot" && req.method === "GET") {
+          res.setHeader("Content-Type", "image/png");
+          res.end(Buffer.from(verification.screenshot(id.parse(url.searchParams.get("id")))));
+          return;
+        } else if (path === "/assistance" && req.method === "GET") result = assistance.list();
+        else if (path === "/assistance/screenshot" && req.method === "GET") {
+          res.setHeader("Content-Type", "image/png");
+          res.end(
+            Buffer.from(
+              assistance.screenshot(
+                id.parse(url.searchParams.get("id")),
+                url.searchParams.get("result") === "1",
+              ),
+            ),
+          );
+          return;
+        } else if (path === "/assistance/submit" && req.method === "POST") {
+          const { id: challengeId, ...input } = JSON.parse((await body(req, 4096)).toString());
+          result = assistance.submit(id.parse(challengeId), input);
+        } else if (path === "/assistance/cancel" && req.method === "POST")
+          result = assistance.cancel(id.parse(JSON.parse((await body(req, 2048)).toString()).id));
+        else if (path === "/state" && req.method === "GET") {
+          runtime.reconcile();
+          result = store.snapshot();
+        } else if (path === "/status" && req.method === "GET") {
+          runtime.reconcile();
+          result = {
+            bindings: runtime.bindings(),
+            tasks: runtime.tasks(),
+            preparations: runtime.preparations(),
+            deviceHolds: store.db.prepare("SELECT * FROM device_holds").all(),
+            assistance: assistance.list(),
+            supervision: {
+              controls: assistance.supervision.controls(),
+              requests: assistance.supervision.requests(),
+              events: assistance.supervision.events(),
+            },
+            verificationOptions: verification.options(),
+            verifications: verification.list(),
+            onboarding: onboarding.list(),
+            pauses: store.db.prepare("SELECT * FROM pauses").all(),
+            observations: store.db
+              .prepare("SELECT body FROM observations ORDER BY rowid DESC")
+              .all()
+              .map((r) => JSON.parse(r.body as string)),
+          };
+        } else if (path === "/device-control" && req.method === "POST") {
+          const input = z
+            .object({ deviceId: id, held: z.boolean() })
+            .strict()
+            .parse(JSON.parse((await body(req)).toString()));
+          requireFact(!assistance.deviceBusy(input.deviceId), "ASSISTANCE_DEVICE_BUSY");
+          result = runtime.holdDevice(input.deviceId, input.held, "local-operator");
+        } else if (path === "/commands" && req.method === "POST")
+          result = runtime.command(JSON.parse((await body(req)).toString()), "local-operator");
+        else if (path === "/import" && req.method === "POST")
+          result = {
+            ok: true,
+            value: runtime.importLegacy(
+              JSON.parse((await body(req, 8 * 1024 * 1024)).toString()),
+              "local-operator",
+            ),
+          };
+        else if (path === "/bindings" && req.method === "POST")
+          result = {
+            ok: true,
+            value: runtime.bind(JSON.parse((await body(req)).toString()), "local-operator"),
+          };
+        else if (path === "/tasks" && req.method === "POST")
+          result = {
+            ok: true,
+            value: runtime.enqueue(JSON.parse((await body(req)).toString()), "local-operator"),
+          };
+        else if (path === "/reviews" && req.method === "POST")
+          result = {
+            ok: true,
+            value: runtime.review(JSON.parse((await body(req)).toString()), "local-operator"),
+          };
+        else if (path === "/observations" && req.method === "POST")
+          result = {
+            ok: true,
+            value: runtime.observe(JSON.parse((await body(req)).toString()), "local-operator"),
+          };
+        else if (path === "/assets" && req.method === "POST") {
+          const bytes = await body(req, 512 * 1024 * 1024);
+          const mime =
+            bytes.length > 12 && bytes.subarray(4, 8).toString() === "ftyp"
+              ? "video/mp4"
+              : bytes.subarray(0, 8).toString("hex") === "89504e470d0a1a0a"
+                ? "image/png"
+                : bytes.subarray(0, 3).toString("hex") === "ffd8ff"
+                  ? "image/jpeg"
+                  : bytes.subarray(0, 4).toString() === "RIFF" &&
+                      bytes.subarray(8, 12).toString() === "WEBP"
+                    ? "image/webp"
+                    : undefined;
+          requireFact(mime, "UNSUPPORTED_ASSET_FORMAT");
+          const digest = createHash("sha256").update(bytes).digest("hex");
+          requireFact(
+            sha256.parse(req.headers["x-content-sha256"]) === digest,
+            "MEDIA_HASH_MISMATCH",
+          );
+          const temp = join(assetsDir, `${digest}.${randomUUID()}.tmp`);
+          writeFileSync(temp, bytes, { mode: 0o600, flag: "wx" });
+          renameSync(temp, join(assetsDir, digest));
+          store.db
+            .prepare("INSERT OR REPLACE INTO assets VALUES (?,?,?)")
+            .run(digest, mime, bytes.length);
+          result = { sha256: digest, fileRef: `runtime-asset:${digest}` };
+        } else if (/^\/assets\/[a-f0-9]{64}$/.test(path) && req.method === "GET") {
+          const digest = path.split("/").at(-1)!;
+          res.setHeader(
+            "Content-Type",
+            (store.db.prepare("SELECT mime FROM assets WHERE sha256=?").get(digest)
+              ?.mime as string) ?? "application/octet-stream",
+          );
+          res.end(readFileSync(join(assetsDir, digest)));
+          return;
+        } else if (path === "/evidence" && req.method === "GET") {
+          const row = store.db
+            .prepare("SELECT mime,body FROM evidence WHERE id=?")
+            .get(url.searchParams.get("id") ?? "");
+          requireFact(row, "EVIDENCE_NOT_FOUND");
+          res.setHeader("Content-Type", row.mime as string);
+          res.end(Buffer.from(row.body as Uint8Array));
+          return;
+        } else throw new RuntimeError("NOT_FOUND", 404);
+      }
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify(result));
+    } catch (error) {
+      res.statusCode = error instanceof RuntimeError ? error.status : 400;
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify(errorBody(error)));
+    }
+  });
+  const ws = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });
+  http.on("upgrade", (req, socket, head) => {
+    const bearer = req.headers.authorization?.replace(/^Bearer /, "") ?? "";
+    const device = Object.entries(options.deviceTokens).find(([, token]) =>
+      safeEqual(bearer, token),
+    )?.[0];
+    if (!device || req.url !== "/agent" || req.headers.origin) {
+      socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+      socket.destroy();
+      return;
+    }
+    ws.handleUpgrade(req, socket, head, (client) => {
+      client.on("error", () => {
+        /* disconnected agent is reconciled by its durable claim deadline */
+      });
+      client.on("message", (bytes) => {
+        let messageId: string | undefined;
+        try {
+          const message = z
+            .object({
+              messageId: id,
+              contractVersion: z.literal("design-v1"),
+              sentAt: z.string().datetime({ offset: true }),
+              type: z.enum([
+                "PullTask",
+                "PullPreparation",
+                "PreparationReport",
+                "BeginExecution",
+                "ExecutionReceipt",
+              ]),
+              payload: z.unknown(),
+            })
+            .strict()
+            .parse(JSON.parse(bytes.toString()));
+          messageId = message.messageId;
+          const response = store.transaction(() => {
+            const key = JSON.stringify([device, message.messageId]);
+            const serialized = JSON.stringify(message);
+            const previous = store.db.prepare("SELECT * FROM messages WHERE id=?").get(key);
+            if (previous) {
+              requireFact(previous.payload === serialized, "ID_CONFLICT");
+              return previous.response as string;
+            }
+            let payload: unknown;
+            let responseType = "Accepted";
+            if (message.type === "PullTask" || message.type === "PullPreparation") {
+              const input = z
+                .object({ deviceId: id, resourceStatus: z.literal("idle") })
+                .strict()
+                .parse(message.payload);
+              requireFact(input.deviceId === device, "DEVICE_SESSION_MISMATCH");
+              // Legacy clients may flush receipts, but may never bypass preparation.
+              requireFact(message.type !== "PullTask", "AGENT_UPGRADE_REQUIRED");
+              payload = runtime.pullPreparation(device);
+              responseType = payload ? "PreparationLease" : "NoTask";
+            } else if (message.type === "PreparationReport") {
+              const input = z
+                .object({ taskId: id, lease: id, report: z.unknown() })
+                .strict()
+                .parse(message.payload);
+              payload = runtime.reportPreparation(device, input.taskId, input.lease, input.report);
+            } else if (message.type === "BeginExecution") {
+              const input = z.object({ taskId: id, lease: id }).strict().parse(message.payload);
+              payload = runtime.pull(device, input);
+              responseType = payload ? "PublishTaskDirective" : "NoTask";
+            } else payload = runtime.receive(message.payload, device);
+            const encoded = JSON.stringify({
+              messageId: randomUUID(),
+              contractVersion: "design-v1",
+              sentAt: new Date().toISOString(),
+              inReplyTo: messageId,
+              type: responseType,
+              payload,
+            });
+            store.db.prepare("INSERT INTO messages VALUES (?,?,?)").run(key, serialized, encoded);
+            return encoded;
+          });
+          client.send(response);
+        } catch (error) {
+          client.send(
+            JSON.stringify({
+              messageId: randomUUID(),
+              contractVersion: "design-v1",
+              sentAt: new Date().toISOString(),
+              inReplyTo: messageId,
+              type: "Rejected",
+              ...errorBody(error),
+            }),
+          );
+        }
+      });
+    });
+  });
+  return {
+    http,
+    runtime,
+    store,
+    assistance,
+    async close() {
+      await verification.close();
+      await onboarding.close();
+      for (const client of ws.clients) client.terminate();
+      await new Promise<void>((resolve) => ws.close(() => resolve()));
+      if (http.listening)
+        await new Promise<void>((resolve, reject) =>
+          http.close((e) => (e ? reject(e) : resolve())),
+        );
+      assistance.close();
+      store.close();
+    },
+  };
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  const port = Number(process.env.SG_RUNTIME_PORT ?? 4318);
+  const dataDir = resolve(process.env.SG_RUNTIME_DATA ?? "../../.runtime");
+  const verificationConfigPath = join(dataDir, "web-verification.json");
+  const server = createRuntimeServer({
+    dataDir,
+    port,
+    token: process.env.SG_RUNTIME_TOKEN ?? "",
+    signingKey: process.env.SG_MEDIA_SIGNING_KEY ?? "",
+    deviceTokens: JSON.parse(process.env.SG_DEVICE_TOKENS ?? "{}"),
+    mediaBaseUrl: process.env.SG_MEDIA_BASE_URL,
+    allowedOrigins: process.env.SG_ALLOWED_ORIGINS?.split(","),
+    verification: process.env.SG_WEB_VERIFICATION_MEDIA
+      ? {
+          artemisRoot: process.env.SG_ARTEMIS_ROOT ?? "",
+          deviceId: process.env.SG_DEVICE_ID ?? "",
+          serial: process.env.SG_DEVICE_SERIAL ?? "",
+          mediaPath: resolve(process.env.SG_WEB_VERIFICATION_MEDIA),
+          mediaSha256: process.env.SG_WEB_VERIFICATION_SHA256 ?? "",
+          runtimeUrl: `http://127.0.0.1:${port}`,
+        }
+      : existsSync(verificationConfigPath)
+        ? verificationConfigSchema.parse({
+            ...JSON.parse(readFileSync(verificationConfigPath, "utf8")),
+            runtimeUrl: `http://127.0.0.1:${port}`,
+          })
+        : undefined,
+  });
+  server.http.listen(port, "127.0.0.1", () =>
+    console.info(`SocialGrowth runtime listening on 127.0.0.1:${port}`),
+  );
+  const shutdown = () =>
+    void server.close().catch(() => {
+      process.exitCode = 1;
+    });
+  process.once("SIGINT", shutdown);
+  process.once("SIGTERM", shutdown);
+}

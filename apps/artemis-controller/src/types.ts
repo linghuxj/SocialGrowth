@@ -7,6 +7,7 @@ export interface DeviceInfo {
   model: string;
   platformBound: PlatformType[];
   boundAccounts: string[];
+  accountBindings?: { platform: PlatformType; accountId: string }[];
   status: DeviceStatus;
   batteryLevel?: number;
   lastHeartbeat: string;
@@ -38,7 +39,7 @@ export interface PublishTaskDirective {
   sliceId: string;
   media: { url: string; sha256: string; expiresAt: string };
   captionText: string;
-  destinationVersionId: string;
+  destinationVersionId?: string;
   shortLinkUrl?: string;
   scheduledAt: string;
   expiresAt: string;
@@ -76,6 +77,13 @@ export interface ExecutionReceipt {
     | "DEADLINE_EXPIRED"
     | "RECEIPT_CONFLICT";
   challengeType?: string;
+  actionRequired?: {
+    kind: "account" | "app";
+    reason: string;
+    expectedIdentity?: string;
+    observedIdentity?: string;
+    nextAction: string;
+  };
   resourceStatus: "available" | "busy" | "offline" | "error";
 }
 

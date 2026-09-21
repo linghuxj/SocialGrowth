@@ -16,5 +16,17 @@ out/
 # 缓存与调试
 .cache/
 npm-debug.log*
+pnpm-debug.log*
+package-lock.json
+yarn.lock
 yarn-debug.log*
 yarn-error.log*
+
+# Local runtime state and credentials
+.runtime/
+.env.runtime
+.env.agent
+
+# Local Artemis extension/test cache and private login acceptance screenshots
+integrations/artemis/__pycache__/
+artifacts/acceptance/

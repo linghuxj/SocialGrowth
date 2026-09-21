@@ -1,0 +1,130 @@
+- banner:
+  - link "SG SocialGrowth 运营管理":
+    - /url: "#/home"
+    - generic: SG
+    - text: SocialGrowth
+    - strong: 运营管理
+  - link "本地工作区 · 外部服务未接入":
+    - /url: "#/connections"
+- complementary:
+  - navigation "运营业务导航":
+    - link "工作台":
+      - /url: "#/home"
+      - text: 工作台
+    - link "账号管理":
+      - /url: "#/accounts"
+      - text: 账号管理
+    - link "内容资产":
+      - /url: "#/content"
+      - text: 内容资产
+    - generic "策略管理 ›":
+      - text: 策略管理 ›
+    - generic "发布执行 ›":
+      - text: 发布执行 ›
+    - link "导流管理":
+      - /url: "#/destinations"
+      - text: 导流管理
+    - generic "数据与复盘 ›":
+      - text: 数据与复盘 ›
+    - link "客户服务":
+      - /url: "#/clients"
+      - text: 客户服务
+    - generic "系统管理 ›":
+      - text: 系统管理 ›
+    - link "接入状态":
+      - /url: "#/connections"
+    - link "操作审计":
+      - /url: "#/audit"
+  - paragraph:
+    - text: 按业务对象统一管理
+    - text: 服务范围在业务详情中关联
+- main:
+  - heading "操作审计" [level=1]
+  - generic: 搜索当前页面
+  - searchbox "搜索当前页面"
+  - button "搜索"
+  - paragraph: 所有本地业务命令的接受、拒绝与证据引用。操作者为本地开发身份。
+  - button "导出完整业务与审计快照"
+  - paragraph: 全部 9 条
+  - table:
+    - rowgroup:
+      - row "时间 操作 / 对象 结果 原因 操作者":
+        - columnheader "时间"
+        - columnheader "操作 / 对象"
+        - columnheader "结果"
+        - columnheader "原因"
+        - columnheader "操作者"
+    - rowgroup:
+      - row "2026/9/20 11:15:19 登记客户 / 验收用远山内容 已记录 — 本地操作者":
+        - cell "2026/9/20 11:15:19":
+          - link "2026/9/20 11:15:19":
+            - /url: "#/audit?object=log-58e8bf8f-0718-4102-af77-7d938a1a8e51"
+        - cell "登记客户 / 验收用远山内容"
+        - cell "已记录"
+        - cell "—"
+        - cell "本地操作者"
+      - row "2026/9/20 11:15:18 业务校验拒绝 / new 已拒绝 客户名称不能为空或与已有客户重复 本地操作者":
+        - cell "2026/9/20 11:15:18":
+          - link "2026/9/20 11:15:18":
+            - /url: "#/audit?object=log-45ba5a14-9844-4526-93c3-cf63fdf77c48"
+        - cell "业务校验拒绝 / new"
+        - cell "已拒绝"
+        - cell "客户名称不能为空或与已有客户重复"
+        - cell "本地操作者"
+      - row "2026/9/20 11:13:32 修订规则 / 仅使用具备权利依据且完成独占分配的素材 已记录 — 本地操作者":
+        - cell "2026/9/20 11:13:32":
+          - link "2026/9/20 11:13:32":
+            - /url: "#/audit?object=log-8e4f2c71-f166-48fd-a4b5-cf5c283cc9fc"
+        - cell "修订规则 / 仅使用具备权利依据且完成独占分配的素材"
+        - cell "已记录"
+        - cell "—"
+        - cell "本地操作者"
+      - row "2026/9/20 11:12:17 登记导流入口 / https://example.com/acceptance-story 已记录 — 本地操作者":
+        - cell "2026/9/20 11:12:17":
+          - link "2026/9/20 11:12:17":
+            - /url: "#/audit?object=log-007d9474-c875-48cb-b930-c5047962bc8c"
+        - cell "登记导流入口 / https://example.com/acceptance-story"
+        - cell "已记录"
+        - cell "—"
+        - cell "本地操作者"
+      - row "2026/9/20 11:12:02 登记服务授权 / 验收用 Story English 已记录 — 本地操作者":
+        - cell "2026/9/20 11:12:02":
+          - link "2026/9/20 11:12:02":
+            - /url: "#/audit?object=log-fb7e0eab-308b-48cd-88cc-dea479117716"
+        - cell "登记服务授权 / 验收用 Story English"
+        - cell "已记录"
+        - cell "—"
+        - cell "本地操作者"
+      - row "2026/9/20 11:07:03 登记账号 / 验收用 Story English 已记录 — 本地操作者":
+        - cell "2026/9/20 11:07:03":
+          - link "2026/9/20 11:07:03":
+            - /url: "#/audit?object=log-2455d005-625f-4fa8-b2c0-c0c646094941"
+        - cell "登记账号 / 验收用 Story English"
+        - cell "已记录"
+        - cell "—"
+        - cell "本地操作者"
+      - row "2026/9/20 11:06:51 激活服务 / 英语短剧首轮观察 已记录 — 本地操作者":
+        - cell "2026/9/20 11:06:51":
+          - link "2026/9/20 11:06:51":
+            - /url: "#/audit?object=log-878f45d1-957d-45a9-9957-1c0bbf6a27de"
+        - cell "激活服务 / 英语短剧首轮观察"
+        - cell "已记录"
+        - cell "—"
+        - cell "本地操作者"
+      - row "2026/9/20 11:05:51 保存服务资料 / 英语短剧首轮观察 已记录 — 本地操作者":
+        - cell "2026/9/20 11:05:51":
+          - link "2026/9/20 11:05:51":
+            - /url: "#/audit?object=log-7fbc54b0-c154-4584-84b0-547acfa34057"
+        - cell "保存服务资料 / 英语短剧首轮观察"
+        - cell "已记录"
+        - cell "—"
+        - cell "本地操作者"
+      - row "2026/9/20 11:05:36 登记客户 / 验收用星河内容 已记录 — 本地操作者":
+        - cell "2026/9/20 11:05:36":
+          - link "2026/9/20 11:05:36":
+            - /url: "#/audit?object=log-c01c95d2-489f-4e08-a9a9-d41a76cadef0"
+        - cell "登记客户 / 验收用星河内容"
+        - cell "已记录"
+        - cell "—"
+        - cell "本地操作者"
+- contentinfo: 本地操作者 · 业务操作留痕 · 数据未同步至外部服务
