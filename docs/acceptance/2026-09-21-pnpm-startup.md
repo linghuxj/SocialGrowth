@@ -30,3 +30,30 @@
 | 数据核对 | 原任务仍为 queued；没有在途 Web 真机任务；已有配置、素材和数据库保留 |
 
 真实 Web 截图及 JSON 检查结果保留在本机输出目录，不提交账号截图或运行配置。发布链路的独立阻断继续以 `2026-09-21-real-web-publication-validation.md` 为准，本次启动迁移不改变其验收结论。
+
+## 用户终端启动失败的复现与修复
+
+此前验收只覆盖 Agent 非交互环境 `/usr/local/bin/node` v24.16.0，没有覆盖用户交互终端 `/Users/linghuxj/.n/bin/node` v22.12.0。不能用上表推断用户终端启动成功。使用后者实际执行 `import('node:sqlite')`，复现 `ERR_UNKNOWN_BUILTIN_MODULE`。22.12.0 默认不提供该模块；[Node.js 22.13.0 发布说明](https://nodejs.org/en/blog/release/v22.13.0)记录解除 SQLite 开关要求。
+
+修复范围：
+
+- 根 `.npmrc` 通过 pnpm 8 的 `use-node-version=24.16.0` 固定项目运行环境，并严格校验 engines。pnpm 下载和缓存项目 Node，不修改用户的全局 Node 或 shell 配置；不加入旧版本兼容分支或 SQLite 实验开关。
+- 新增无依赖 `pnpm env:check`，输出真实 Node 版本、可执行路径及内存 SQLite 探针结果。统一启动与独立 runtime 启动前执行；不满足条件时明确失败，不继续启动服务。
+- 同步 README、AGENTS.md、CLAUDE.md 与运行时说明，说明首次联网下载要求。`node -v` 与 pnpm 实际运行版本可能不同，不再仅凭 engines 声明推断环境一致。
+
+本次复验使用 `zsh -ic` 加载用户的真实交互 shell，初始 `node -v` 仍为 v22.12.0：
+
+| 验证 | 实际结果 |
+| --- | --- |
+| `pnpm install --frozen-lockfile` | 6 个项目完成安装；自动获取 Node 24.16.0；没有 unsupported engine 告警 |
+| `pnpm env:check` | v24.16.0，实际路径 `/Users/linghuxj/Library/pnpm/nodejs/24.16.0/bin/node`，SQLite OK |
+| Web workspace `pnpm exec node` | 同样使用上述 v24.16.0，嵌套命令未退回全局 22.12.0 |
+| 直接用旧 Node 执行 `scripts/check-node.mjs` | 退出码 1；输出旧版本、实际路径与修复命令 |
+| `pnpm dev` | Web 3000 和 runtime 4318 均启动，无 `node:sqlite` 错误 |
+| `pnpm test:playwright` | 首页、账号、内容、执行记录 4/4 页面标题及连接状态通过，页面实际 state/status 响应成功 |
+| `pnpm test` | 补充回归 102/102 通过 |
+| `scripts/check-node.mjs` oxlint、`git diff --check` | 通过 |
+| Ctrl+C | 整组正常退出，两个监听端口均释放；未留下常驻验收实例 |
+| 只读任务复核 | 仍为 1 个 queued 任务；未启动 worker 或执行发布任务 |
+
+Playwright 本机证据：`/Users/linghuxj/Documents/Codex/2026-09-20/new-chat/outputs/pnpm-node-fix-20260921/browser-readiness.json`，检查时间 `2026-09-21T02:36:20.688Z`；同目录保留页面截图。验收仅证明 pnpm 环境管理与真实 Web 启动链路修复，不代表 FB/YT 公开发布验收。

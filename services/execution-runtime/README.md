@@ -4,7 +4,7 @@
 
 ## 运行方式
 
-Node.js 22.13+、pnpm 8.14.0，以下命令均在仓库根目录执行。复用已配置的 Google Artemis 工作树与虚拟环境，不复制模型密钥。本机代理兼容补丁保存在 `patches/`，不是上游已合并功能；应用前核对基线和本地改动。
+使用 pnpm 8.14.0，根 `.npmrc` 自动下载并选择 Node.js 24.16.0（首次需要联网），不修改全局 Node；`pnpm env:check` 核验实际运行环境和 SQLite。以下命令均在仓库根目录执行。复用已配置的 Google Artemis 工作树与虚拟环境，不复制模型密钥。本机代理兼容补丁保存在 `patches/`，不是上游已合并功能；应用前核对基线和本地改动。
 
 ```sh
 pnpm install --frozen-lockfile

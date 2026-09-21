@@ -34,7 +34,7 @@
 
 ### 包管理与统一启动
 
-- 使用 Node.js 22.13+、pnpm 8.14.0，从仓库根目录 `pnpm install --frozen-lockfile`；仅维护 `pnpm-lock.yaml`，工作区范围由 `pnpm-workspace.yaml` 指定。
+- 使用 pnpm 8.14.0，项目 `.npmrc` 自动下载并选择 Node.js 24.16.0（首次需要联网），不修改全局 Node。从仓库根目录 `pnpm install --frozen-lockfile`；仅维护 `pnpm-lock.yaml`，工作区范围由 `pnpm-workspace.yaml` 指定。`pnpm env:check` 输出实际 Node 路径并检查 SQLite；安装时严格校验 engines，统一启动前检查运行环境。全局 `node -v` 不代表项目脚本使用的版本。
 - `pnpm dev` / `pnpm start`：前台统一启动 Web（3000）与 execution-runtime（4318），日志带服务名；Ctrl+C 或任一服务退出时停止整组服务。
 - `pnpm dev:web` / `pnpm dev:runtime`：独立启动；已有实例时勿重复启动统一入口。运行服务进程直接加载已有 `.env.runtime`，避免代理凭据丢失。
 - `pnpm runtime:setup <Artemis路径> <真机序列号>` 仅供首次初始化，已有配置时跳过。设备 Agent / worker 仍由 `pnpm runtime:agent` / `pnpm runtime:worker` 单独运行。

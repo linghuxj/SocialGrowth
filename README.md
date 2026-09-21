@@ -129,12 +129,13 @@ SocialGrowth/
 ## 四、 快速使用指引
 
 > [!NOTE]
-> 使用 Node.js 22.13+ 与 pnpm 8.14.0。所有命令默认在仓库根目录执行。服务保持前台运行；用户已明确授权时，Agent 可以启动与重启服务。
+> 使用 pnpm 8.14.0；项目 `.npmrc` 自动下载并选择 Node.js 24.16.0，不改全局 Node。所有命令默认在仓库根目录执行。服务保持前台运行；用户已明确授权时，Agent 可以启动与重启服务。
 
 ### 1. 安装与统一启动
 
 ```bash
 pnpm install --frozen-lockfile
+pnpm env:check     # 显示实际 Node 路径，并检查 node:sqlite
 # 首次配置才执行；已有 .env.runtime / .env.agent 时跳过
 pnpm runtime:setup /absolute/path/to/artemis PHYSICAL_ADB_SERIAL
 pnpm dev           # 同时启动运行时 4318 + Web 3000；pnpm start 等价
@@ -143,6 +144,8 @@ pnpm dev           # 同时启动运行时 4318 + Web 3000；pnpm start 等价
 访问 `http://127.0.0.1:3000`。运行日志带 `runtime` / `web` 前缀，Ctrl+C 或任一服务退出会停止整组进程。统一入口不启动设备 worker，不自动执行队列中的任务。已有单独服务时先停止对应实例，再使用统一入口。
 
 `.env.runtime` 由实际运行时和 Web 进程直接加载，代理令牌保留在服务端。已有配置、运行数据库与素材目录均保留；`runtime:setup` 拒绝覆盖已有密钥配置。
+
+首次安装需要能访问 Node.js 官方下载源；后续使用 pnpm 的本机缓存。下载失败时先解决网络问题，不要删除 `.npmrc` 或跳过检查。全局 `node -v` 仍可能显示 22.12.0，以 `pnpm env:check` 的版本与路径为准。不要用全局 `node` 直接运行服务：22.12.0 默认无法加载 `node:sqlite`。`engines` 保留 API 最低要求 22.13.0，日常启动和验收统一固定到 24.16.0，不声称覆盖所有更高版本。
 
 ### 2. 独立运行与检查
 

@@ -4,7 +4,7 @@
 
 ## 安装与启动
 
-- 统一使用 pnpm 8.14.0 和 Node.js 22.13+，从根目录执行 `pnpm install --frozen-lockfile`；依赖以 `pnpm-workspace.yaml` 与唯一的 `pnpm-lock.yaml` 管理，不生成 npm / Yarn 锁文件。
+- 统一使用 pnpm 8.14.0，项目 `.npmrc` 自动下载并选择 Node.js 24.16.0（首次需要联网），不修改全局 Node。从根目录执行 `pnpm install --frozen-lockfile`；依赖以 `pnpm-workspace.yaml` 与唯一的 `pnpm-lock.yaml` 管理，不生成 npm / Yarn 锁文件。`pnpm env:check` 输出实际 Node 路径及 SQLite 检查结果，不用裸 `node -v` 代替项目运行环境证据。
 - 根目录 `pnpm dev`（或 `pnpm start`）前台统一启动 Web 与 execution-runtime，Ctrl+C 停止整组服务；任一服务退出时其余服务一并停止。`pnpm dev:web` / `pnpm dev:runtime` 可独立启动。
 - `.env.runtime` 必须已配置，且由实际服务进程加载。已有配置时不重新运行 `runtime:setup`。设备执行使用独立的 `pnpm runtime:agent` / `pnpm runtime:worker`，统一启动入口不消费设备队列。
 - 常驻服务通常由开发者手动启动；用户明确授权 Agent 启动或重启时可执行，并核验现有实例及在途任务。Web 验证入口为 `pnpm test:playwright`。
