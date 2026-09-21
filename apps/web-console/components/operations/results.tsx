@@ -28,6 +28,7 @@ import {
   fail,
   iso,
   options,
+  MetricCard,
 } from './shared';
 import type { BasicReview, MetricAvailability } from '@/lib/first-loop/types';
 type Props = { object: string; query: string };
@@ -39,6 +40,43 @@ export function Home({ query }: Props) {
   return (
     <>
       <p className="op-intro">从需要处理的事项开始，按业务进度进入对应页面。</p>
+
+      {/* 核心 KPI 审计指标卡网格 */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 my-4">
+        <MetricCard
+          title="在管账号矩阵"
+          value={state.accounts.length}
+          unit="个"
+          type="observed"
+          sourceInfo="真机 1:1 物理绑定"
+          description="当前在管的 Facebook / YouTube 平台账号"
+        />
+        <MetricCard
+          title="内容素材资产"
+          value={state.contentIdentities.length}
+          unit="条"
+          type="observed"
+          sourceInfo="切片素材排他独占库"
+          description="包含主版本及各多语言变体素材"
+        />
+        <MetricCard
+          title="有效排期任务"
+          value={state.publicationSchedules.length}
+          unit="项"
+          type="plan"
+          sourceInfo="待执行与进行中排期"
+          description="经策略审批的真机发布指令"
+        />
+        <MetricCard
+          title="待确认复盘"
+          value={state.basicReviews.filter((r) => !r.confirmedAt).length}
+          unit="项"
+          type="hypothetical"
+          sourceInfo="A/B 与小样本业务复盘"
+          description="待单人审计核验的复盘记录"
+        />
+      </div>
+
       {!state.clients.length && (
         <Panel title="建立运营工作区">
           <p>

@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { runtimeRequest, useOperations } from '@/lib/operations-context';
 import type { CommandResult } from '@/lib/first-loop/types';
-import { Form, Panel, Notice, List, Link, iso, date } from './shared';
+import { Form, Panel, Notice, List, Link, iso, date, TerminalStream, type LogLine } from './shared';
 import { lookup, label } from '@/lib/operations';
 import {
   FIRST_LOOP_STORAGE_KEY,
@@ -385,49 +385,45 @@ export function RuntimeReceipts({
           ))}
         </select>
       </label>
-      <div
-        className="op-terminal"
-        role="log"
-        aria-label="真实任务事件流"
-        aria-live="polite"
-        aria-relevant="additions text"
-      >
-        {status.tasks.map((t) => (
-          <div key={t.taskId}>
-            <code>
-              [快照] {t.taskId.slice(0, 8)} {t.status} / {t.task.settings.mode}
-            </code>{' '}
-            {lookup(state, t.task.directive.contentIdentityId)}
-            {status.preparations
-              .filter((p) => p.taskId === t.taskId)
-              .map((p) => (
-                <div key={p.taskId}>
-                  准备：{p.phase} · 检查 {p.checks} 次 ·{' '}
-                  {p.report?.reason ?? '尚无设备核验结果'}
-                </div>
-              ))}
-            <div>
-              回执：
-              {t.receipt
-                ? `${label(t.receipt.publishStatus)} ${t.receipt.failureCode ?? ''}`
-                : '等待回执；不能据此判断成功'}
-            </div>
+      {(() => {
+        const lines: LogLine[] = [];
+        for (const t of status.tasks) {
+          lines.push({
+            level: t.status === 'failed' || t.status === 'blocked' ? 'error' : 'info',
+            message: `[任务快照] ${t.taskId.slice(0, 8)} | ${t.status} | ${t.task.settings.mode} | ${lookup(state, t.task.directive.contentIdentityId)}`,
+          });
+          for (const p of status.preparations.filter((prep) => prep.taskId === t.taskId)) {
+            lines.push({
+              level: 'warn',
+              message: `[准备巡检] 阶段: ${p.phase} (已检查 ${p.checks} 次) | ${p.report?.reason ?? '无核验异常'}`,
+            });
+          }
+          if (t.receipt) {
+            lines.push({
+              level: t.receipt.publishStatus === 'published' ? 'info' : 'error',
+              message: `[执行回执] 状态: ${label(t.receipt.publishStatus)} ${t.receipt.failureCode ? `| 错误: ${t.receipt.failureCode}` : ''}`,
+            });
+          }
+        }
+        for (const e of [...(status.supervision?.events ?? [])].sort((a, b) => a.at.localeCompare(b.at))) {
+          lines.push({
+            timestamp: date(e.at),
+            level: e.type === 'error' ? 'error' : 'info',
+            message: `[协同事件] ${e.taskId.slice(0, 8)} ${e.type} ${e.code}`,
+          });
+        }
+        return (
+          <div className="my-3" role="log" aria-label="真实任务事件流" aria-live="polite">
+            <TerminalStream
+              title="Artemis 纯真机执行与协作事件流"
+              lines={lines}
+              healingLogs={status.tasks
+                .filter((t) => t.receipt?.failureCode)
+                .map((t) => `任务 ${t.taskId.slice(0, 8)} 状态码自愈尝试: ${t.receipt?.failureCode}`)}
+            />
           </div>
-        ))}
-        {[...(status.supervision?.events ?? [])]
-          .sort((a, b) => a.at.localeCompare(b.at))
-          .map((e) => (
-            <div key={e.id}>
-              <time>{date(e.at)}</time>{' '}
-              <code>
-                {e.taskId.slice(0, 8)} {e.type} {e.code}
-              </code>
-            </div>
-          ))}
-        {!status.tasks.length && !status.supervision?.events.length && (
-          <p>当前范围暂无执行事件；不会生成模拟进度。</p>
-        )}
-      </div>
+        );
+      })()}
       <OnboardingJobs jobs={onboarding} reload={reload} />
       <HumanAssistance challenges={status.assistance ?? []} reload={reload} />
       <AgentSupervision value={status.supervision} reload={reload} />

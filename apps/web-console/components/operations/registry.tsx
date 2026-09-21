@@ -18,16 +18,29 @@ import {
   fail,
   iso,
   options,
+  ExclusiveLockPill,
 } from './shared';
 import type { SliceAsset } from '@/lib/first-loop/types';
 import { goals, dataScopes } from '@/lib/first-loop/catalog';
 import { BatchContent } from './batch-content';
 import { IdentityOnboardingPanel } from './identity-onboarding';
+import { Drawer } from './drawer';
+import { InsideDetailContext } from './shared';
+import { Button } from '@/components/ui/button';
+import { Users } from 'lucide-react';
 
 export function Clients({ object, query }: { object: string; query: string }) {
   const { state, run, projectId } = useOperations();
   const project = state.projects.find((p) => p.id === object);
   const client = state.clients.find((c) => c.id === object);
+  const [clientDrawerOpen, setClientDrawerOpen] = useState(false);
+
+  useEffect(() => {
+    if (client || project) {
+      setClientDrawerOpen(false);
+    }
+  }, [client, project]);
+
   const projectFields: Field[] = [
     {
       key: 'operatingMode',
@@ -54,62 +67,84 @@ export function Clients({ object, query }: { object: string; query: string }) {
       <Notice>
         从运营项目开始：确认目标，接入账号，设置素材默认值，再制定策略与发布。自营项目无需另建客户档案。
       </Notice>
-      <Form
-        id="project-new"
-        title="新建运营项目"
-        fields={(v) =>
-          projectFields.filter(
-            (f) => f.key !== 'clientId' || v.operatingMode === 'client',
-          )
-        }
-        submit="保存项目草稿"
-        description="自营项目自动关联自营主体；代运营选择已有客户。受众和负责人在激活前须补齐。"
-        onSubmit={(v) =>
-          run((e, c) =>
-            e.saveProjectDraft(
-              {
-                name: v.name,
-                clientId: v.clientId,
-                primaryGoal: v.primaryGoal,
-                audience: v.audience,
-                ownerId: v.ownerId,
-                operatingMode: v.operatingMode as 'self' | 'client',
-              },
-              c,
-            ),
-          )
-        }
-      />
-      <details className="op-form-panel">
-        <summary>客户档案（代运营使用）</summary>
+      <div className="flex items-center gap-3 my-2 flex-wrap">
         <Form
-          id="client-new"
-          title="新增客户"
-          fields={[{ key: 'name', label: '客户名称' }]}
-          submit="保存客户"
-          onSubmit={(v) => run((e, c) => e.registerClient(v.name, c))}
+          id="project-new"
+          title="新建运营项目"
+          fields={(v) =>
+            projectFields.filter(
+              (f) => f.key !== 'clientId' || v.operatingMode === 'client',
+            )
+          }
+          submit="保存项目草稿"
+          description="自营项目自动关联自营主体；代运营选择已有客户。受众和负责人在激活前须补齐。"
+          onSubmit={(v) =>
+            run((e, c) =>
+              e.saveProjectDraft(
+                {
+                  name: v.name,
+                  clientId: v.clientId,
+                  primaryGoal: v.primaryGoal,
+                  audience: v.audience,
+                  ownerId: v.ownerId,
+                  operatingMode: v.operatingMode as 'self' | 'client',
+                },
+                c,
+              ),
+            )
+          }
         />
-        <Panel title="客户档案">
-          <List
-            query={query}
-            columns={['客户', '运营项目', '进行中的项目']}
-            rows={state.clients.map((c) => ({
-              id: c.id,
-              search: c.name,
-              cells: [
-                <Link key="n" page="clients" id={c.id}>
-                  {c.name}
-                </Link>,
-                state.projects.filter((p) => p.clientId === c.id).length,
-                state.projects.filter(
-                  (p) => p.clientId === c.id && p.status === 'active',
-                ).length,
-              ],
-            }))}
-            empty="自营无需客户档案；代运营在此新增客户。"
-          />
-        </Panel>
-      </details>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setClientDrawerOpen(true)}
+          className="op-trigger-button inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 hover:text-blue-600 hover:border-blue-400 transition-colors shadow-xs"
+        >
+          <Users className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
+          <span>客户档案（代运营使用）</span>
+        </Button>
+      </div>
+
+      <Drawer
+        open={clientDrawerOpen}
+        onClose={() => setClientDrawerOpen(false)}
+        title="客户档案（代运营使用）"
+        description="自营项目无需另建客户档案；代运营在此新增客户并管理关联项目。"
+        width="xl"
+      >
+        <InsideDetailContext.Provider value={true}>
+          <div className="space-y-6">
+            <Form
+              id="client-new"
+              title="新增客户"
+              fields={[{ key: 'name', label: '客户名称' }]}
+              submit="保存客户"
+              open={true}
+              onSubmit={(v) => run((e, c) => e.registerClient(v.name, c))}
+            />
+            <Panel title="客户档案列表">
+              <List
+                query={query}
+                columns={['客户', '运营项目', '进行中的项目']}
+                rows={state.clients.map((c) => ({
+                  id: c.id,
+                  search: c.name,
+                  cells: [
+                    <Link key="n" page="clients" id={c.id}>
+                      {c.name}
+                    </Link>,
+                    state.projects.filter((p) => p.clientId === c.id).length,
+                    state.projects.filter(
+                      (p) => p.clientId === c.id && p.status === 'active',
+                    ).length,
+                  ],
+                }))}
+                empty="自营无需客户档案；代运营在此新增客户。"
+              />
+            </Panel>
+          </div>
+        </InsideDetailContext.Provider>
+      </Drawer>
       <Panel title={client ? `${client.name}的运营项目` : '运营项目'}>
         <List
           query={query}
@@ -763,6 +798,14 @@ export function Content({ object, query }: { object: string; query: string }) {
       />
       {content && (
         <Detail page="content" title={content.title}>
+          <div className="my-3">
+            <ExclusiveLockPill
+              isLocked={content.allocationStatus === 'allocated' || Boolean(content.allocatedAccountId)}
+              targetAccountId={content.allocatedAccountId}
+              targetAccountName={content.allocatedAccountId ? lookup(state, content.allocatedAccountId) : undefined}
+              lockedAt={content.allocatedAt}
+            />
+          </div>
           <Facts
             items={[
               ['故事范围', content.storySummary],

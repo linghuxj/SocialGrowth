@@ -1,7 +1,9 @@
 'use client';
 import React, { useRef, useState } from 'react';
 import { runtimeRequest, useOperations } from '@/lib/operations-context';
+import { Button } from '@/components/ui/button';
 import { Form, Link, Notice, date } from './shared';
+import { StatusBadge } from './status-badge';
 import { useRuntimeStatus } from './runtime';
 import type { IdentityJob } from '../../../../services/execution-runtime/src/identity-onboarding';
 import { validRelation } from '@/lib/operations';
@@ -14,8 +16,9 @@ export function OnboardingJobs({
   jobs: IdentityJob[];
   reload: () => Promise<void>;
 }) {
-  const [busy, setBusy] = useState(false),
-    [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
   const action = async (path: string, id: string) => {
     setBusy(true);
     setError('');
@@ -28,31 +31,51 @@ export function OnboardingJobs({
       setBusy(false);
     }
   };
+
   return (
-    <section aria-label="账号接入任务">
-      {error && <p role="alert">{error}</p>}
+    <section aria-label="账号接入任务" className="space-y-3 mt-4">
+      {error && <p role="alert" className="op-error">{error}</p>}
       {jobs.map((j) => (
         <article className="op-record" key={j.id}>
-          <h3>
-            {j.action === 'initialize' ? '手机初始化 ·' : j.action === 'create' ? '创建' : '核验'}{' '}
-            {j.platform === 'facebook' ? 'Facebook Page' : 'YouTube 频道'}：
-            {j.name}
-          </h3>
-          <p>
-            <code>{j.id}</code> · {j.status} · {j.reason ?? 'Agent 执行中'} ·{' '}
-            {date(j.startedAt)}
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <h3 className="text-sm font-semibold">
+              {j.action === 'initialize' ? '手机初始化 ·' : j.action === 'create' ? '创建' : '核验'}{' '}
+              {j.platform === 'facebook' ? 'Facebook Page' : 'YouTube 频道'}：
+              {j.name}
+            </h3>
+            <StatusBadge
+              status={
+                j.status === 'verified'
+                  ? 'online'
+                  : j.status === 'running'
+                    ? 'online'
+                    : j.reason === 'DEVICE_LOCKED'
+                      ? 'warning'
+                      : ['unknown', 'interrupted'].includes(j.status)
+                        ? 'danger'
+                        : 'neutral'
+              }
+            >
+              {j.status} · {j.reason ?? 'Agent 执行中'}
+            </StatusBadge>
+          </div>
+          
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+            <code className="font-mono text-[11px] bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">{j.id}</code> · {date(j.startedAt)}
           </p>
+
           {j.reason === 'DEVICE_LOCKED' && (
             <Notice>
               手机安全锁屏未解锁。请在指定手机上手动解锁，再重新发起核验；系统不会猜测
               PIN、密码或图案。
             </Notice>
           )}
+
           {j.identityUrl && (
-            <p>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">
               身份地址（不是导流目的地）：
               <a
-                className="op-link"
+                className="op-link ml-1"
                 href={j.identityUrl}
                 target="_blank"
                 rel="noreferrer"
@@ -69,22 +92,24 @@ export function OnboardingJobs({
             </Notice>
           )}
 
-          <div className="op-row">
+          <div className="op-row mt-2">
             <Link page="receipts" id={j.id} project={j.projectId}>
               任务与人工待办
             </Link>
             {j.status === 'running' && (
-              <button
-                className="op-button"
+              <Button
+                className="op-button text-xs"
+                variant="destructive"
+                size="sm"
                 disabled={busy}
                 onClick={() => void action('/onboarding/stop', j.id)}
               >
                 停止本次账号操作
-              </button>
+              </Button>
             )}
             {j.screenshotAvailable && j.status !== 'verified' && (
               <a
-                className="op-link"
+                className="op-link text-xs"
                 href={`/api/runtime/onboarding/screenshot?id=${encodeURIComponent(j.id)}`}
                 target="_blank"
                 rel="noreferrer"
@@ -95,23 +120,25 @@ export function OnboardingJobs({
             {j.status === 'verified' && (
               <>
                 <a
-                  className="op-link"
+                  className="op-link text-xs"
                   href={`/api/runtime/onboarding/screenshot?id=${encodeURIComponent(j.id)}`}
                   target="_blank"
                   rel="noreferrer"
                 >
                   查看身份核验截图
                 </a>
-                <button
-                  className="op-button"
+                <Button
+                  className="op-button text-xs"
+                  size="sm"
                   disabled={busy}
                   onClick={() => void action('/onboarding/bind', j.id)}
                 >
                   确认核验结果并保存发布绑定
-                </button>
+                </Button>
               </>
             )}
           </div>
+
           {['unknown', 'interrupted'].includes(j.status) && (
             <Notice>
               {j.action === 'create' || (j.action === 'initialize' && j.initializationMode === 'create_if_missing')
@@ -124,6 +151,7 @@ export function OnboardingJobs({
     </section>
   );
 }
+
 export function IdentityOnboardingPanel({ accountId }: { accountId: string }) {
   const { state, projectId } = useOperations();
   const { status, reload } = useRuntimeStatus();
