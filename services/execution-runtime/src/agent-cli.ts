@@ -60,7 +60,13 @@ export async function runAgentOnce(options: {
     maxPayload: 1024 * 1024,
     handshakeTimeout: 15000,
   });
-  let artemis = new ArtemisMcp(options.artemisRoot);
+  let artemis = new ArtemisMcp(options.artemisRoot, {
+    url: base.origin,
+    token: options.token,
+    deviceId: options.deviceId,
+    serial: options.deviceId,
+    workerId: "worker01",
+  });
   let assistanceToken: string | undefined;
   const headers = { Authorization: `Bearer ${options.token}` };
   const rpc = async (
@@ -221,7 +227,13 @@ export async function runAgentOnce(options: {
       requireFact(sessionResponse.ok, "ASSISTANCE_SESSION_FAILED");
       assistanceToken = ((await sessionResponse.json()) as { token: string }).token;
       await artemis.close();
-      artemis = new ArtemisMcp(options.artemisRoot, { url: base.origin, token: assistanceToken });
+      artemis = new ArtemisMcp(options.artemisRoot, {
+        url: base.origin,
+        token: assistanceToken,
+        deviceId: task.binding.deviceId,
+        serial: task.binding.serial,
+        workerId: "worker01",
+      });
       await artemis.connect();
       receipt = await executeDeviceTask(task, {
         artemis,

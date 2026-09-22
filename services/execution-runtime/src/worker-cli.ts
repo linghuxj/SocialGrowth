@@ -21,7 +21,9 @@ export async function runWorker(options: {
       );
     }
     if (options.signal.aborted || cycles >= (options.cycles ?? Infinity)) break;
-    await setTimeout(options.intervalMs ?? 15000, undefined, { signal: options.signal }).catch(
+    const interval =
+      Number(process.env.SG_WORKER_INTERVAL_MS) || options.intervalMs || 15000;
+    await setTimeout(interval, undefined, { signal: options.signal }).catch(
       () => {},
     );
   }

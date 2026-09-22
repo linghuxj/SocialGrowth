@@ -16,7 +16,13 @@ export class ArtemisMcp implements ArtemisPort {
   private transport?: StdioClientTransport;
   constructor(
     private readonly root: string,
-    private readonly assistance?: { url: string; token: string },
+    private readonly assistance?: {
+      url: string;
+      token: string;
+      deviceId?: string;
+      serial?: string;
+      workerId?: string;
+    },
   ) {}
   async connect() {
     if (this.assistance)
@@ -48,8 +54,17 @@ export class ArtemisMcp implements ArtemisPort {
           ? {
               SG_ASSISTANCE_URL: this.assistance.url,
               SG_ASSISTANCE_TOKEN: this.assistance.token,
+              SG_RUNTIME_URL: this.assistance.url,
+              SG_DEVICE_ID: this.assistance.deviceId ?? process.env.SG_DEVICE_ID ?? "RFCW40MYYCV",
+              SG_DEVICE_SERIAL: this.assistance.serial ?? process.env.SG_DEVICE_SERIAL ?? "RFCW40MYYCV",
+              SG_WORKER_ID: this.assistance.workerId ?? process.env.SG_WORKER_ID ?? "worker01",
             }
-          : {}),
+          : {
+              SG_RUNTIME_URL: process.env.SG_RUNTIME_URL ?? "http://127.0.0.1:4318",
+              SG_DEVICE_ID: process.env.SG_DEVICE_ID ?? "RFCW40MYYCV",
+              SG_DEVICE_SERIAL: process.env.SG_DEVICE_SERIAL ?? "RFCW40MYYCV",
+              SG_WORKER_ID: process.env.SG_WORKER_ID ?? "worker01",
+            }),
       },
       stderr: "pipe",
     });

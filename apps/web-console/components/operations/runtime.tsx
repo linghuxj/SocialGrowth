@@ -271,6 +271,7 @@ export function ExecutionQueue({ scheduleId }: { scheduleId: string }) {
           audience: 'public',
           aiLabel: v.ai === 'true',
           aiLabelReason: v.aiReason,
+          taskTimeoutMs: 600000,
           madeForKids:
             account?.platform === 'youtube' ? v.kids === 'true' : undefined,
           rightsRef: asset?.rightsRef,

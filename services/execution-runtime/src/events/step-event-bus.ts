@@ -5,6 +5,7 @@ export const stepEventSchema = z.object({
   eventId: z.string().optional(),
   workerId: z.string(),
   deviceId: z.string(),
+  serial: z.string().optional(),
   sessionId: z.string(),
   step: z.number().int().nonnegative(),
   totalSteps: z.number().int().positive().optional(),
@@ -38,6 +39,9 @@ export class StepEventBus {
     });
 
     this.latestEvents.set(parsed.deviceId, parsed);
+    if (parsed.serial) {
+      this.latestEvents.set(parsed.serial, parsed);
+    }
 
     const history = this.deviceHistories.get(parsed.deviceId) ?? [];
     history.push(parsed);

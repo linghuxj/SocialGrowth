@@ -271,6 +271,7 @@ export function Form({
 
   const formElement = (
     <form
+      id={id}
       className="space-y-4"
       onSubmit={async (event) => {
         event.preventDefault();

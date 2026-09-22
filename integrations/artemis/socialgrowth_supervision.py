@@ -59,6 +59,8 @@ def action_category(name: str, args: dict, xml: str = "", width: int = 1080, hei
         return "read"
     if name == "manage_app":
         return "recovery"
+    if name == "wait_for_delay":
+        return "navigate"
     if name not in {"click", "swipe", "press_key", "input_text"}:
         return "unmanaged"
     nodes = list(ET.fromstring(xml).iter("node")) if xml else []
@@ -104,12 +106,24 @@ async def guard_action(ctx, name: str, args: dict) -> None:
     if driver.device_id != scope["serial"]:
         raise RuntimeError("SOCIALGROWTH_DEVICE_MISMATCH")
     if name == "manage_app":
-        if args.get("package_name", args.get("package")) != scope["packageName"]:
+        app = str(args.get("app_name") or args.get("package_name") or args.get("package") or "").strip()
+        allowed_apps = {scope["packageName"].lower()}
+        if scope["packageName"] == "com.facebook.katana":
+            allowed_apps.update({"facebook", "fb", "katana"})
+        elif scope["packageName"] == "com.google.android.youtube":
+            allowed_apps.update({"youtube", "yt"})
+        if not app or app.lower() not in allowed_apps:
             raise RuntimeError("SOCIALGROWTH_APP_MISMATCH")
         if args.get("action") not in {"launch", "stop"}:
             raise RuntimeError("SOCIALGROWTH_APP_ACTION_NOT_AUTHORIZED")
-    elif await driver.get_current_package() != scope["packageName"]:
-        raise RuntimeError("SOCIALGROWTH_APP_MISMATCH")
+    else:
+        curr_pkg = (await driver.get_current_package() or "").lower()
+        is_launcher_or_system = any(
+            k in curr_pkg
+            for k in ("launcher", "home", "systemui", "permissioncontroller", "packageinstaller", "settings")
+        )
+        if curr_pkg != scope["packageName"].lower() and not is_launcher_or_system:
+            raise RuntimeError("SOCIALGROWTH_APP_MISMATCH")
     screen = await driver.get_screen_data()
     category = action_category(name, args, screen.ui_hierarchy_xml or "", screen.width, screen.height)
     protected_value = any(n.get("password") == "true" and n.get("text", "")

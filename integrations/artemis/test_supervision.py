@@ -63,5 +63,31 @@ class SupervisionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(action_category("run_adb_command", {"command": "anything"}), "unmanaged")
 
 
+    async def test_manage_app_and_launcher_navigation(self):
+        from unittest.mock import AsyncMock
+        scope = {"serial": "RFC_TEST", "packageName": "com.facebook.katana", "control": {"state": "active", "policy": {"mode": "preflight"}}}
+        screen = SimpleNamespace(ui_hierarchy_xml='<hierarchy><node text="Facebook" bounds="[0,0][100,100]"/></hierarchy>', width=100, height=100)
+
+        # 1. manage_app with app_name="Facebook" and "com.facebook.katana" allowed
+        driver_katana = SimpleNamespace(device_id="RFC_TEST", get_current_package=AsyncMock(return_value="com.facebook.katana"), get_screen_data=AsyncMock(return_value=screen))
+        with patch.dict(os.environ, {"SG_ASSISTANCE_TOKEN": "test"}), patch("socialgrowth_supervision.request", return_value=scope), patch("socialgrowth_supervision.get_driver", return_value=driver_katana):
+            await guard_action(None, "manage_app", {"action": "launch", "app_name": "Facebook"})
+            await guard_action(None, "manage_app", {"action": "launch", "app_name": "com.facebook.katana"})
+            with self.assertRaisesRegex(RuntimeError, "APP_MISMATCH"):
+                await guard_action(None, "manage_app", {"action": "launch", "app_name": "com.twitter.android"})
+
+        # 2. click on launcher desktop allowed
+        driver_launcher = SimpleNamespace(device_id="RFC_TEST", get_current_package=AsyncMock(return_value="com.sec.android.app.launcher"), get_screen_data=AsyncMock(return_value=screen))
+        with patch.dict(os.environ, {"SG_ASSISTANCE_TOKEN": "test"}), patch("socialgrowth_supervision.request", return_value=scope), patch("socialgrowth_supervision.get_driver", return_value=driver_launcher):
+            await guard_action(None, "click", {"target": [50, 50]})
+
+        # 3. click on foreign 3rd-party app blocked
+        driver_foreign = SimpleNamespace(device_id="RFC_TEST", get_current_package=AsyncMock(return_value="com.twitter.android"), get_screen_data=AsyncMock(return_value=screen))
+        with patch.dict(os.environ, {"SG_ASSISTANCE_TOKEN": "test"}), patch("socialgrowth_supervision.request", return_value=scope), patch("socialgrowth_supervision.get_driver", return_value=driver_foreign):
+            with self.assertRaisesRegex(RuntimeError, "APP_MISMATCH"):
+                await guard_action(None, "click", {"target": [50, 50]})
+
+
 if __name__ == "__main__":
     unittest.main()
+

@@ -86,7 +86,7 @@ async def notify_step(ctx: Any, action_name: str, args: dict[str, Any], result: 
         action_desc = f"输入文本: {text_preview}..."
 
     # Capture screenshot
-    serial = os.environ.get("SG_DEVICE_SERIAL")
+    serial = os.environ.get("SG_DEVICE_SERIAL") or config.get("device_id")
     screenshot_bytes = capture_screenshot(serial)
     if not screenshot_bytes:
         return
@@ -97,6 +97,7 @@ async def notify_step(ctx: Any, action_name: str, args: dict[str, Any], result: 
         "Content-Type": "image/png",
         "x-worker-id": config["worker_id"],
         "x-device-id": config["device_id"],
+        "x-serial": serial or config["device_id"],
         "x-session-id": _current_session_id,
         "x-step": str(_step_count),
         "x-action": action_name,

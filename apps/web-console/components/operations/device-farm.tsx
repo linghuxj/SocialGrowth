@@ -3,18 +3,20 @@
 import React, { useEffect, useState, useTransition } from 'react';
 import {
   Smartphone,
-  CheckCircle2,
   AlertTriangle,
   Radio,
   RefreshCw,
   Camera,
-  Layers,
   ShieldAlert,
   WifiOff,
+  Wifi,
   Cable,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { runtimeRequest } from '@/lib/operations-context';
+import { HumanAssistance } from './human-assistance';
+import { AgentSupervision } from './agent-supervision';
+import { useRuntimeStatus } from './runtime';
 
 export interface DeviceStepInfo {
   deviceId: string;
@@ -42,7 +44,12 @@ export function DeviceFarmMonitor() {
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'running' | 'idle' | 'blocked' | 'offline'>('all');
   const [connected, setConnected] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
   const [, startTransition] = useTransition();
+  const { status: runtimeStatus, reload: reloadRuntime } = useRuntimeStatus();
+  const waitingChallenges = (runtimeStatus.assistance ?? []).filter((c) => c.status === 'waiting');
+  const waitingRequests = (runtimeStatus.supervision?.requests ?? []).filter((r) => r.status === 'waiting');
+  const hasIntervention = waitingChallenges.length > 0 || waitingRequests.length > 0;
 
   const fetchRealDevices = async (capture = false) => {
     try {
@@ -72,7 +79,6 @@ export function DeviceFarmMonitor() {
     void fetchRealDevices(true);
 
     let es: EventSource | null = null;
-    let pollTimer: NodeJS.Timeout | null = null;
 
     try {
       es = new EventSource('/api/runtime/events/stream');
@@ -103,7 +109,7 @@ export function DeviceFarmMonitor() {
             return {
               ...prev,
               [key]: {
-                ...(prev[key] ?? {}),
+                ...prev[key],
                 ...event,
               },
             };
@@ -111,17 +117,24 @@ export function DeviceFarmMonitor() {
         } catch {}
       });
     } catch {
-      // Fallback poll every 4s
-      pollTimer = setInterval(() => void fetchRealDevices(false), 4000);
+      // EventSource fallback handled by timer below
+    }
+
+    // 常驻 3 秒自动刷新机制 (兜底定时轮询真实状态与截屏)
+    let pollTimer: NodeJS.Timeout | null = null;
+    if (autoRefresh) {
+      pollTimer = setInterval(() => {
+        void fetchRealDevices(false);
+      }, 3000);
     }
 
     return () => {
       if (es) es.close();
       if (pollTimer) clearInterval(pollTimer);
     };
-  }, []);
+  }, [autoRefresh]);
 
-  const handleRefreshSingle = async (serial: string) => {
+  const handleRefreshSingle = async (serial: string): Promise<void> => {
     try {
       const res = await runtimeRequest<{ ok: boolean; deviceId: string; imageKey: string; event: DeviceStepInfo }>(
         '/devices/refresh',
@@ -131,7 +144,7 @@ export function DeviceFarmMonitor() {
         setDevices((prev) => ({
           ...prev,
           [serial]: {
-            ...(prev[serial] ?? {}),
+            ...prev[serial],
             ...res.event,
             imageKey: res.imageKey,
           },
@@ -222,6 +235,20 @@ export function DeviceFarmMonitor() {
             <Button
               variant="outline"
               size="sm"
+              onClick={() => setAutoRefresh(!autoRefresh)}
+              className={`text-xs gap-1.5 transition ${
+                autoRefresh
+                  ? 'bg-emerald-950/60 text-emerald-300 border-emerald-700/60 hover:bg-emerald-900/60'
+                  : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${autoRefresh ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
+              {autoRefresh ? '3s 自动刷新中' : '自动刷新已暂停'}
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
               disabled={refreshing}
               onClick={() => void fetchRealDevices(true)}
               className="bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700 text-xs gap-1.5"
@@ -277,19 +304,68 @@ export function DeviceFarmMonitor() {
           </Button>
         </div>
       ) : (
-        /* Real Device Cards Grid */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6">
-          {deviceList.map((device) => (
-            <RealPhoneCard
-              key={device.serial || device.deviceId}
-              device={device}
-              onRefreshScreenshot={() => void handleRefreshSingle(device.serial || device.deviceId)}
-            />
-          ))}
-        </div>
+        <>
+          {hasIntervention && (
+            <div
+              id="intervention-panel"
+              className="mb-8 p-6 rounded-3xl bg-slate-900/90 border-2 border-amber-500/60 shadow-2xl space-y-4"
+            >
+              <div className="flex items-center justify-between border-b border-amber-500/30 pb-3">
+                <div className="flex items-center gap-2 text-amber-300 font-bold text-sm">
+                  <ShieldAlert className="w-5 h-5 text-amber-400 animate-bounce" />
+                  <span>【实时人工协作待办】Artemis 任务已在物理真机上安全暂停，等待 Web 人工介入输入</span>
+                </div>
+                <span className="text-xs text-amber-400/80 font-mono">5 分钟内有效 · 凭据仅临时传递不入库</span>
+              </div>
+              {waitingChallenges.length > 0 && (
+                <HumanAssistance challenges={waitingChallenges} reload={reloadRuntime} />
+              )}
+              {waitingRequests.length > 0 && (
+                <AgentSupervision value={runtimeStatus.supervision} reload={reloadRuntime} />
+              )}
+            </div>
+          )}
+
+          {/* Real Device Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6">
+            {deviceList.map((device) => (
+              <RealPhoneCard
+                key={device.serial || device.deviceId}
+                device={device}
+                onRefreshScreenshot={() => handleRefreshSingle(device.serial || device.deviceId)}
+              />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
+}
+
+function getPlatformBadge(platform?: string) {
+  const p = (platform || '').toLowerCase();
+  if (p.includes('facebook') || p === 'fb') {
+    return {
+      label: 'FB',
+      className: 'bg-blue-950/90 text-blue-300 border-blue-700/60 font-bold',
+    };
+  }
+  if (p.includes('youtube') || p === 'yt') {
+    return {
+      label: 'YT',
+      className: 'bg-red-950/90 text-red-300 border-red-700/60 font-bold',
+    };
+  }
+  if (p.includes('instagram') || p === 'ins') {
+    return {
+      label: 'INS',
+      className: 'bg-pink-950/90 text-pink-300 border-pink-700/60 font-bold',
+    };
+  }
+  return {
+    label: '未绑定',
+    className: 'bg-slate-800 text-slate-400 border-slate-700/50',
+  };
 }
 
 function RealPhoneCard({
@@ -297,7 +373,7 @@ function RealPhoneCard({
   onRefreshScreenshot,
 }: {
   device: DeviceStepInfo;
-  onRefreshScreenshot: () => void;
+  onRefreshScreenshot: () => Promise<void>;
 }) {
   const [capturing, setCapturing] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
@@ -322,6 +398,8 @@ function RealPhoneCard({
       setCapturing(false);
     }
   };
+
+  const platformBadge = getPlatformBadge(device.platform);
 
   return (
     <div
@@ -364,15 +442,9 @@ function RealPhoneCard({
         {/* Platform & Status Badge */}
         <div className="flex items-center gap-1.5">
           <span
-            className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-              device.platform === 'facebook'
-                ? 'bg-blue-950/80 text-blue-300 border border-blue-800/50'
-                : device.platform === 'youtube'
-                ? 'bg-red-950/80 text-red-300 border border-red-800/50'
-                : 'bg-slate-800 text-slate-400'
-            }`}
+            className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${platformBadge.className}`}
           >
-            {device.platform === 'facebook' ? 'FB Page' : device.platform === 'youtube' ? 'YT Channel' : '未绑定'}
+            {platformBadge.label}
           </span>
           <span
             className={`text-[11px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-1 ${
@@ -394,132 +466,129 @@ function RealPhoneCard({
         </div>
       </div>
 
-      {/* Realistic Phone Frame Outer Bezel */}
-      <div className="relative w-[210px] h-[410px] rounded-[38px] p-2.5 bg-gradient-to-b from-slate-700 via-slate-800 to-slate-900 shadow-2xl border border-slate-600/40 flex flex-col items-center">
-        {/* Phone Speaker & Camera Notch */}
-        <div className="absolute top-2 w-full flex justify-center items-center gap-1.5 z-20 pointer-events-none">
-          <div className="w-8 h-1 bg-slate-950 rounded-full" />
-          <div className="w-2.5 h-2.5 rounded-full bg-slate-950 border border-slate-800/80 shadow-inner" />
+      {/* Realistic Phone Frame Outer Bezel - 内部图片保持完整展示 */}
+      <div className="relative w-[220px] h-[450px] rounded-[38px] p-2 bg-gradient-to-b from-slate-700 via-slate-800 to-slate-900 shadow-2xl border border-slate-600/50 flex flex-col items-center">
+        {/* Micro Camera Hole on Bezel */}
+        <div className="absolute top-1.5 w-full flex justify-center items-center gap-1.5 z-20 pointer-events-none">
+          <div className="w-1.5 h-1.5 rounded-full bg-slate-950 border border-slate-800/80 shadow-inner" />
         </div>
 
-        {/* Screen Bezel (Inner OLED Screen) */}
-        <div className="relative w-full h-full rounded-[28px] overflow-hidden bg-slate-950 flex flex-col justify-between border border-slate-900/90 shadow-inner">
-          {/* Top In-screen Status Bar */}
-          <div className="w-full px-3 py-1 flex items-center justify-between text-[10px] text-slate-400 z-10 bg-gradient-to-b from-black/80 to-transparent">
-            <span>物理真机</span>
-            <div className="flex items-center gap-1">
-              <Radio className="w-2.5 h-2.5 text-emerald-400" />
-              <span>ADB 5G</span>
-              <span className="text-[9px]">100%</span>
+        {/* Screen Bezel (Inner OLED Screen) - 纯净屏幕，没有任何遮盖层 */}
+        <div className="relative w-full h-full rounded-[30px] overflow-hidden bg-black flex items-center justify-center border border-slate-900/90 shadow-inner">
+          {imageUrl && !imgError ? (
+            <img
+              src={imageUrl}
+              alt={`Real screenshot from ${device.serial}`}
+              onLoad={() => setImgLoaded(true)}
+              onError={() => setImgError(true)}
+              className={`w-full h-full object-contain select-none transition-opacity duration-300 ${
+                imgLoaded ? 'opacity-100' : 'opacity-20'
+              }`}
+            />
+          ) : isBlocked ? (
+            <div className="flex flex-col items-center justify-center p-4 text-center space-y-3 bg-rose-950/40">
+              <ShieldAlert className="w-10 h-10 text-rose-400 animate-bounce" />
+              <div className="space-y-1">
+                <p className="text-xs text-rose-300 font-bold">人工介入待办</p>
+                <p className="text-[10px] text-rose-200/80 leading-relaxed">
+                  {device.actionDesc || '应用出现登录挑战或安全验证'}
+                </p>
+              </div>
+              <a
+                href="#/receipts"
+                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-[11px] font-semibold transition shadow"
+              >
+                前往处理
+              </a>
             </div>
-          </div>
-
-          {/* Screen Content: Live Screenshot vs Standby vs Blocked */}
-          <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
-            {imageUrl && !imgError ? (
-              <img
-                src={imageUrl}
-                alt={`Real screenshot from ${device.serial}`}
-                onLoad={() => setImgLoaded(true)}
-                onError={() => setImgError(true)}
-                className={`w-full h-full object-cover transition-opacity duration-300 ${
-                  imgLoaded ? 'opacity-100' : 'opacity-20'
-                }`}
-              />
-            ) : isBlocked ? (
-              <div className="flex flex-col items-center justify-center p-4 text-center space-y-3 bg-rose-950/40">
-                <ShieldAlert className="w-10 h-10 text-rose-400 animate-bounce" />
-                <div className="space-y-1">
-                  <p className="text-xs text-rose-300 font-bold">人工介入待办</p>
-                  <p className="text-[10px] text-rose-200/80 leading-relaxed">
-                    {device.actionDesc || '应用出现登录挑战或安全验证'}
-                  </p>
-                </div>
-                <a
-                  href="#/receipts"
-                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-[11px] font-semibold transition shadow"
-                >
-                  前往处理
-                </a>
-              </div>
-            ) : isOffline ? (
-              <div className="flex flex-col items-center justify-center p-4 text-center space-y-2 opacity-50">
-                <WifiOff className="w-10 h-10 text-slate-500" />
-                <p className="text-xs text-slate-400 font-medium">设备未连接</p>
-                <p className="text-[10px] text-slate-600 font-mono">检查 USB 线缆</p>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center p-4 text-center space-y-2">
-                <Smartphone className="w-10 h-10 text-emerald-500/80" />
-                <p className="text-xs text-slate-300 font-medium">真实真机在线</p>
-                <p className="text-[10px] text-slate-500 font-mono">{device.serial}</p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleCapture}
-                  disabled={capturing}
-                  className="h-7 px-2.5 text-[10px] bg-slate-800/80 border-slate-700 hover:bg-slate-700 text-slate-300 gap-1 mt-1"
-                >
-                  <Camera className={`w-3 h-3 ${capturing ? 'animate-spin text-emerald-400' : ''}`} />
-                  {capturing ? '截屏中...' : '点击抓取实时屏幕'}
-                </Button>
-              </div>
-            )}
-          </div>
-
-          {/* Bottom Screen Overlay: Current Step & Action Pill */}
-          <div className="relative z-10 p-2 bg-gradient-to-t from-black/90 via-black/70 to-transparent">
-            <div className="bg-slate-900/90 border border-slate-700/60 rounded-xl p-2 backdrop-blur">
-              <div className="flex items-center justify-between text-[10px] text-slate-300 mb-0.5">
-                <span className="font-semibold text-emerald-400">
-                  {isRunning
-                    ? `Step ${device.step}${device.totalSteps ? ` / ${device.totalSteps}` : ''}`
-                    : isBlocked
-                    ? '挑战待办'
-                    : isIdle
-                    ? '真机就绪'
-                    : '已离线'}
-                </span>
-                <span className="text-[9px] text-slate-400 font-mono">
-                  {new Date(device.timestamp).toLocaleTimeString()}
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-200 line-clamp-2 leading-tight">
-                {device.actionDesc || '物理真机已在线，等待发布指令'}
-              </p>
+          ) : isOffline ? (
+            <div className="flex flex-col items-center justify-center p-4 text-center space-y-2 opacity-50">
+              <WifiOff className="w-10 h-10 text-slate-500" />
+              <p className="text-xs text-slate-400 font-medium">设备未连接</p>
+              <p className="text-[10px] text-slate-600 font-mono">检查 USB 线缆</p>
             </div>
-            {/* Phone Home Bar */}
-            <div className="w-16 h-1 bg-slate-500 rounded-full mx-auto mt-2 opacity-70" />
-          </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center p-4 text-center space-y-2">
+              <Smartphone className="w-10 h-10 text-emerald-500/80" />
+              <p className="text-xs text-slate-300 font-medium">物理真机已在线</p>
+              <p className="text-[10px] text-slate-500 font-mono">{device.serial}</p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleCapture}
+                disabled={capturing}
+                className="h-7 px-2.5 text-[10px] bg-slate-800/80 border-slate-700 hover:bg-slate-700 text-slate-300 gap-1 mt-1"
+              >
+                <Camera className={`w-3 h-3 ${capturing ? 'animate-spin text-emerald-400' : ''}`} />
+                {capturing ? '截屏中...' : '抓取实时屏幕'}
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Card Footer Details & Actions */}
-      <div className="w-full mt-3 px-2 text-xs space-y-1">
-        <div className="flex items-center justify-between text-slate-400">
-          <span>专属绑定:</span>
-          <span className="font-mono text-slate-200 truncate max-w-[135px]" title={device.platformIdentity}>
-            {device.platformIdentity || '暂未绑定'}
+      {/* Device Metadata & Execution Details Below Phone (信号、步骤及额外显示均在下方) */}
+      <div className="w-full mt-3.5 space-y-2.5 text-xs">
+        {/* Signal & Connection Bar */}
+        <div className="flex items-center justify-between px-3 py-1.5 bg-slate-800/70 rounded-xl border border-slate-700/50 text-[11px]">
+          <div className="flex items-center gap-1.5">
+            <span className={`w-2 h-2 rounded-full ${isOffline ? 'bg-slate-500' : 'bg-emerald-400 animate-pulse'}`} />
+            <span className="font-medium text-slate-200">
+              {isOffline ? 'ADB 离线' : '物理真机在线'}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 text-slate-400 font-mono text-[10px]">
+            <div className="flex items-center gap-1">
+              <Wifi className="w-3 h-3 text-emerald-400" />
+              <span>5G</span>
+              <span className="text-slate-500">· 100%</span>
+            </div>
+            <span className="text-slate-600">|</span>
+            <span>{new Date(device.timestamp).toLocaleTimeString()}</span>
+          </div>
+        </div>
+
+        {/* Step & Action Description */}
+        <div className="p-2.5 bg-slate-950/80 border border-slate-800 rounded-xl space-y-1.5">
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="font-semibold text-emerald-400 flex items-center gap-1">
+              {isRunning && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />}
+              {isRunning
+                ? `Step ${device.step}${device.totalSteps ? ` / ${device.totalSteps}` : ''}`
+                : isBlocked
+                ? '需人工介入'
+                : isIdle
+                ? '真机就绪待命'
+                : '已离线'}
+            </span>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800/90 text-slate-300 border border-slate-700/50">
+              {device.action || 'standby'}
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-300 leading-relaxed min-h-[30px] line-clamp-2">
+            {device.actionDesc || '物理真机已在线就绪，等待排期派发'}
+          </p>
+        </div>
+
+        {/* Platform Account Binding */}
+        <div className="flex items-center justify-between px-1 text-[11px] text-slate-400">
+          <span>专属账号:</span>
+          <span className="font-mono text-slate-200 truncate max-w-[140px]" title={device.platformIdentity}>
+            {device.platformIdentity || '未绑定专属账号'}
           </span>
         </div>
-        <div className="flex items-center justify-between text-slate-400">
-          <span>当前动作:</span>
-          <span className="font-mono text-slate-300 truncate max-w-[135px]">
-            {device.action || 'standby'}
-          </span>
-        </div>
-        <div className="pt-2 flex gap-1.5">
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={capturing || isOffline}
-            onClick={handleCapture}
-            className="w-full h-7 text-[11px] bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200 gap-1"
-          >
-            <Camera className={`w-3 h-3 ${capturing ? 'animate-spin text-emerald-400' : 'text-slate-400'}`} />
-            {capturing ? '正在截取真机屏幕...' : '实时刷新真机画面'}
-          </Button>
-        </div>
+
+        {/* Refresh Screenshot Action Button */}
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={capturing || isOffline}
+          onClick={handleCapture}
+          className="w-full h-8 text-xs bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200 gap-1.5 rounded-xl shadow transition"
+        >
+          <Camera className={`w-3.5 h-3.5 ${capturing ? 'animate-spin text-emerald-400' : 'text-slate-300'}`} />
+          {capturing ? '正在抓取真机屏幕...' : '刷新真机截屏'}
+        </Button>
       </div>
     </div>
   );

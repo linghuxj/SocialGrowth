@@ -94,7 +94,8 @@ export function createRuntimeServer(options: ServerOptions) {
     res.setHeader("X-Content-Type-Options", "nosniff");
     try {
       const url = new URL(req.url ?? "/", "http://127.0.0.1");
-      const path = url.pathname.replace(/^\/api\/runtime/, "");
+      const normalizedPathname = url.pathname.replace(/(?<=.)\/$/, "");
+      const path = normalizedPathname.replace(/^\/api\/runtime/, "") || "/";
       requireFact(url.pathname.startsWith("/api/runtime/"), "NOT_FOUND");
       if (req.headers.origin)
         requireFact(
@@ -435,7 +436,8 @@ export function createRuntimeServer(options: ServerOptions) {
           result = { ok: true, event: published };
         } else if (path === "/devices/screenshot-step" && req.method === "POST") {
           const workerId = (req.headers["x-worker-id"] as string) || "worker01";
-          const deviceId = (req.headers["x-device-id"] as string) || device || "unknown";
+          const deviceId = (req.headers["x-device-id"] as string) || "phone01";
+          const serial = (req.headers["x-serial"] as string) || deviceId;
           const sessionId = (req.headers["x-session-id"] as string) || `sess_${Date.now()}`;
           const step = parseInt((req.headers["x-step"] as string) || "1", 10);
           const type = ((req.headers["x-type"] as string) || "post") as any;
@@ -448,7 +450,7 @@ export function createRuntimeServer(options: ServerOptions) {
           const imageBytes = await body(req, 30 * 1024 * 1024);
           const uploadResult = await screenshotStore.uploadScreenshot(imageBytes, {
             workerId,
-            deviceId,
+            deviceId: serial || deviceId,
             sessionId,
             step,
           });
@@ -456,6 +458,7 @@ export function createRuntimeServer(options: ServerOptions) {
           const published = globalStepEventBus.publish({
             workerId,
             deviceId,
+            serial,
             sessionId,
             step,
             type,

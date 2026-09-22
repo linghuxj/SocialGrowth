@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { z } from "zod";
 import { requireFact } from "./contracts.ts";
@@ -47,9 +48,11 @@ export class AppProvisioner {
     const adb = (args: string[]) => run("adb", ["-s", serial, ...args]);
     requireFact(await adb(["get-state"]) === "device", "DEVICE_UNAVAILABLE");
     requireFact(await adb(["shell", "getprop", "ro.kernel.qemu"]) !== "1", "PHYSICAL_DEVICE_REQUIRED");
+    const catalogPath = this.options.catalogPath ?? process.env.SG_APP_CATALOG ?? (existsSync("/Users/linghuxj/Documents/Codex/2026-09-20/new-chat/outputs/android-packages/catalog.json") ? "/Users/linghuxj/Documents/Codex/2026-09-20/new-chat/outputs/android-packages/catalog.json" : undefined);
+    const buildTools = this.options.buildTools ?? process.env.SG_ANDROID_BUILD_TOOLS ?? (existsSync("/Users/linghuxj/Library/Android/sdk/build-tools/36.0.0") ? "/Users/linghuxj/Library/Android/sdk/build-tools/36.0.0" : undefined);
     let entry: AppCatalog["apps"][number] | undefined;
-    if (this.options.catalogPath) {
-      const catalog = appCatalogSchema.parse(JSON.parse(await readFile(this.options.catalogPath, "utf8")));
+    if (catalogPath) {
+      const catalog = appCatalogSchema.parse(JSON.parse(await readFile(catalogPath, "utf8")));
       requireFact(new Set(catalog.apps.map(a => a.packageName)).size === catalog.apps.length, "APP_CATALOG_DUPLICATE");
       entry = catalog.apps.find(a => a.packageName === packageName);
       requireFact(entry, "APP_CATALOG_ENTRY_MISSING");
@@ -82,8 +85,8 @@ export class AppProvisioner {
       return { packageName, status: "installed", ...current };
     }
     if (!installMissing) return { packageName, status: "missing" };
-    requireFact(entry && this.options.catalogPath, "APP_CATALOG_REQUIRED");
-    requireFact(this.options.buildTools && isAbsolute(this.options.buildTools), "ANDROID_BUILD_TOOLS_REQUIRED");
+    requireFact(entry && catalogPath, "APP_CATALOG_REQUIRED");
+    requireFact(buildTools && isAbsolute(buildTools), "ANDROID_BUILD_TOOLS_REQUIRED");
     const sdk = Number(await adb(["shell", "getprop", "ro.build.version.sdk"]));
     const abis = (await adb(["shell", "getprop", "ro.product.cpu.abilist"])).split(",");
     requireFact(Number.isSafeInteger(sdk) && sdk > 0 && abis.length, "DEVICE_CAPABILITIES_UNREADABLE");
@@ -93,13 +96,13 @@ export class AppProvisioner {
     requireFact(entry.files.filter(f => !f.split).length === 1, "APK_BASE_REQUIRED");
     requireFact(new Set(entry.files.map(f => f.split ?? "base")).size === entry.files.length, "APK_SPLIT_DUPLICATE");
     for (const file of [...entry.files].sort((a, b) => Number(!!a.split) - Number(!!b.split))) {
-      const path = resolve(dirname(this.options.catalogPath), file.path);
+      const path = resolve(dirname(catalogPath), file.path);
       const bytes = await readFile(path);
       requireFact(createHash("sha256").update(bytes).digest("hex") === file.sha256, "APK_HASH_MISMATCH");
-      const signature = await run(resolve(this.options.buildTools, "apksigner"), ["verify", "--print-certs", "--min-sdk-version", String(sdk), "--max-sdk-version", String(sdk), path]);
+      const signature = await run(resolve(buildTools, "apksigner"), ["verify", "--print-certs", "--min-sdk-version", String(sdk), "--max-sdk-version", String(sdk), path]);
       const signers = [...signature.matchAll(/^Signer[^\n]*certificate SHA-256 digest: ([a-f0-9]{64})$/gm)].map(m => m[1]);
       requireFact(signers.length > 0 && signers.every(s => entry!.signerSha256.includes(s)), "APK_SIGNATURE_MISMATCH");
-      const info = await run(resolve(this.options.buildTools, "aapt"), ["dump", "badging", path]);
+      const info = await run(resolve(buildTools, "aapt"), ["dump", "badging", path]);
       requireFact(info.match(/^package: name='([^']+)'/)?.[1] === packageName, "APK_PACKAGE_MISMATCH");
       requireFact(info.match(/versionCode='(\d+)'/)?.[1] === entry.versionCode, "APK_VERSION_MISMATCH");
       requireFact(info.match(/\bsplit='([^']+)'/)?.[1] === file.split, "APK_SPLIT_MISMATCH");
@@ -110,7 +113,7 @@ export class AppProvisioner {
         const native = info.match(/^native-code: (.+)$/m)?.[1];
         requireFact(!native || [...native.matchAll(/'([^']+)'/g)].some(m => abis.includes(m[1])), "APK_ABI_INCOMPATIBLE");
       }
-      const xml = await run(resolve(this.options.buildTools, "aapt"), ["dump", "xmltree", path, "AndroidManifest.xml"]);
+      const xml = await run(resolve(buildTools, "aapt"), ["dump", "xmltree", path, "AndroidManifest.xml"]);
       for (const value of xml.match(/android:requiredSplitTypes[^=]*="([^"]*)"/)?.[1]?.split(",") ?? []) if (value) requiredTypes.add(value);
       for (const value of xml.match(/android:splitTypes[^=]*="([^"]*)"/)?.[1]?.split(",") ?? []) if (value) suppliedTypes.add(value);
       paths.push(path);
