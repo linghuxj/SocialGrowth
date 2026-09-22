@@ -18,6 +18,7 @@ import {
 } from "./web-verification.ts";
 import { ScreenshotStore } from "./storage/screenshot-store.ts";
 import { globalStepEventBus, stepEventSchema } from "./events/step-event-bus.ts";
+import { listAdbDevices, captureDeviceScreen } from "./device-detector.ts";
 import type { WebSocket } from "ws";
 
 export interface ServerOptions {
@@ -466,7 +467,158 @@ export function createRuntimeServer(options: ServerOptions) {
           broadcastToWebClients({ type: "step", event: published });
           result = { ok: true, imageKey: uploadResult.imageKey, event: published };
         } else if (path === "/devices/states" && req.method === "GET") {
-          result = { ok: true, devices: globalStepEventBus.getAllLatest() };
+          const adbDevices = await listAdbDevices();
+          const bindings = runtime.bindings();
+          const tasks = runtime.tasks();
+          const challenges = assistance.list();
+          const holds = store.db.prepare("SELECT * FROM device_holds").all() as Array<{ device: string }>;
+
+          const deviceMap = new Map<string, any>();
+
+          // 1. Process all ADB connected devices
+          for (const adb of adbDevices) {
+            const binding = bindings.find((b) => b.serial === adb.serial || b.deviceId === adb.serial);
+            const runningTask = tasks.find((t) => t.task.binding.serial === adb.serial && t.status === "running");
+            const activeChallenge = challenges.find((c) => c.deviceId === adb.serial && (c.status === "waiting" || c.status === "claimed"));
+            const isHeld = holds.some((h) => h.device === adb.serial);
+            const latestEvt = globalStepEventBus.getLatest(adb.serial);
+
+            let status: "running" | "idle" | "blocked" | "completed" | "failed" | "offline" = "idle";
+            let action = "standby";
+            let actionDesc = "物理真机已在线就绪，等待排期派发";
+
+            if (adb.state !== "device") {
+              status = "offline";
+              actionDesc = `设备连接异常: ${adb.state}`;
+            } else if (activeChallenge) {
+              status = "blocked";
+              action = activeChallenge.kind === "password" ? "human_password_input" : "challenge";
+              actionDesc = activeChallenge.kind === "password" ? "等待人工输入密码" : "账号安全验证挑战待处理";
+            } else if (isHeld) {
+              status = "blocked";
+              action = "diagnostic_hold";
+              actionDesc = "设备处于人工诊断接管状态";
+            } else if (runningTask) {
+              status = "running";
+              action = latestEvt?.action || "execute_task";
+              actionDesc = latestEvt?.actionDesc || `正在执行任务 ${runningTask.taskId}`;
+            } else if (latestEvt) {
+              status = latestEvt.status;
+              action = latestEvt.action;
+              actionDesc = latestEvt.actionDesc;
+            }
+
+            let imageKey = latestEvt?.imageKey;
+            // If online and no screenshot captured yet, try a quick capture
+            if (!imageKey && adb.state === "device" && url.searchParams.get("capture") === "1") {
+              const pngBytes = await captureDeviceScreen(adb.serial);
+              if (pngBytes) {
+                try {
+                  const uploadResult = await screenshotStore.uploadScreenshot(pngBytes, {
+                    workerId: "worker01",
+                    deviceId: adb.serial,
+                    sessionId: `init_${Date.now()}`,
+                    step: 0,
+                  });
+                  imageKey = uploadResult.imageKey;
+                } catch {}
+              }
+            }
+
+            deviceMap.set(adb.serial, {
+              deviceId: binding?.deviceId || adb.serial,
+              serial: adb.serial,
+              model: adb.model ? `${adb.model} (Galaxy S23)` : "Samsung Galaxy S23",
+              workerId: "worker01",
+              step: latestEvt?.step || (runningTask ? 1 : 0),
+              totalSteps: latestEvt?.totalSteps,
+              type: runningTask ? "post" : "idle",
+              status,
+              action,
+              actionDesc,
+              imageKey,
+              platform: binding?.platform || "facebook",
+              platformIdentity: binding?.platformIdentity || "未绑定专属账号",
+              isPhysical: true,
+              adbStatus: adb.state,
+              timestamp: latestEvt?.timestamp || Date.now(),
+            });
+          }
+
+          // 2. Add bound devices that are not connected via ADB as offline
+          for (const binding of bindings) {
+            if (!deviceMap.has(binding.serial)) {
+              const latestEvt = globalStepEventBus.getLatest(binding.serial);
+              deviceMap.set(binding.serial, {
+                deviceId: binding.deviceId,
+                serial: binding.serial,
+                model: "物理真机 (离线)",
+                workerId: "worker01",
+                step: latestEvt?.step || 0,
+                type: "idle",
+                status: "offline",
+                action: "disconnected",
+                actionDesc: "物理设备未连接，请检查 USB 连接或 ADB 授权",
+                imageKey: latestEvt?.imageKey,
+                platform: binding.platform,
+                platformIdentity: binding.platformIdentity,
+                isPhysical: true,
+                adbStatus: "offline",
+                timestamp: latestEvt?.timestamp || Date.now(),
+              });
+            }
+          }
+
+          // 3. Add any devices that have published step events
+          for (const evt of globalStepEventBus.getAllLatest()) {
+            const key = evt.deviceId;
+            if (key && !deviceMap.has(key)) {
+              deviceMap.set(key, {
+                deviceId: evt.deviceId,
+                serial: evt.deviceId,
+                model: "移动终端设备",
+                workerId: evt.workerId,
+                step: evt.step,
+                totalSteps: evt.totalSteps,
+                type: evt.type,
+                status: evt.status,
+                action: evt.action,
+                actionDesc: evt.actionDesc,
+                imageKey: evt.imageKey,
+                platform: evt.platform || "facebook",
+                platformIdentity: evt.platformIdentity || "未绑定",
+                timestamp: evt.timestamp,
+              });
+            }
+          }
+
+          result = { ok: true, devices: Array.from(deviceMap.values()) };
+        } else if (path === "/devices/refresh" && req.method === "POST") {
+          const reqBody = (await body(req, 4096)).toString();
+          const input = reqBody ? JSON.parse(reqBody) : {};
+          const serial = input.serial || input.deviceId || "RFCW40MYYCV";
+          const pngBytes = await captureDeviceScreen(serial);
+          requireFact(pngBytes, "DEVICE_SCREENSHOT_FAILED");
+          const uploadResult = await screenshotStore.uploadScreenshot(pngBytes, {
+            workerId: "worker01",
+            deviceId: serial,
+            sessionId: `refresh_${Date.now()}`,
+            step: 0,
+          });
+          const published = globalStepEventBus.publish({
+            workerId: "worker01",
+            deviceId: serial,
+            sessionId: `refresh_${Date.now()}`,
+            step: 0,
+            type: "idle",
+            status: "idle",
+            action: "manual_refresh",
+            actionDesc: "已捕获物理真机实时屏幕快照",
+            imageKey: uploadResult.imageKey,
+            timestamp: Date.now(),
+          });
+          broadcastToWebClients({ type: "step", event: published });
+          result = { ok: true, deviceId: serial, imageKey: uploadResult.imageKey, event: published };
         } else throw new RuntimeError("NOT_FOUND", 404);
       }
       res.setHeader("Content-Type", "application/json");

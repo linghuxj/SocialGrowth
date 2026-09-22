@@ -6,157 +6,74 @@ import {
   CheckCircle2,
   AlertTriangle,
   Radio,
-  Clock,
   RefreshCw,
-  Eye,
+  Camera,
   Layers,
-  Sparkles,
   ShieldAlert,
-  SlidersHorizontal,
+  WifiOff,
+  Cable,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { runtimeRequest } from '@/lib/operations-context';
 
 export interface DeviceStepInfo {
   deviceId: string;
+  serial: string;
+  model?: string;
   workerId: string;
   sessionId?: string;
   step: number;
   totalSteps?: number;
   type: 'post' | 'preflight' | 'verify_identity' | 'idle' | 'recovery';
-  status: 'running' | 'idle' | 'blocked' | 'completed' | 'failed';
+  status: 'running' | 'idle' | 'blocked' | 'completed' | 'failed' | 'offline';
   action?: string;
   actionDesc?: string;
   imageKey?: string;
   timestamp: number;
   platform?: 'facebook' | 'youtube' | 'unknown';
   platformIdentity?: string;
-  serial?: string;
+  isPhysical?: boolean;
+  adbStatus?: string;
 }
 
-const DEFAULT_DEVICES: DeviceStepInfo[] = [
-  {
-    deviceId: 'phone01',
-    workerId: 'worker01',
-    step: 18,
-    totalSteps: 25,
-    type: 'post',
-    status: 'running',
-    action: 'input_text',
-    actionDesc: '正在输入 Facebook 帖子正文与话题标签',
-    timestamp: Date.now() - 4000,
-    platform: 'facebook',
-    platformIdentity: 'fb_page_techpulse',
-    serial: 'RFCW40MYYCV',
-  },
-  {
-    deviceId: 'phone02',
-    workerId: 'worker01',
-    step: 13,
-    totalSteps: 22,
-    type: 'post',
-    status: 'running',
-    action: 'verify_identity',
-    actionDesc: '核对 YouTube 频道主页身份与上传权限',
-    timestamp: Date.now() - 8000,
-    platform: 'youtube',
-    platformIdentity: 'yt_channel_globaldigest',
-    serial: 'RFCW40MY02B',
-  },
-  {
-    deviceId: 'phone03',
-    workerId: 'worker01',
-    step: 0,
-    type: 'idle',
-    status: 'idle',
-    action: 'standby',
-    actionDesc: '设备空闲待命，等待下一个发布排期',
-    timestamp: Date.now() - 30000,
-    platform: 'facebook',
-    platformIdentity: 'fb_page_entertainment',
-    serial: 'RFCW40MY03C',
-  },
-  {
-    deviceId: 'phone04',
-    workerId: 'worker01',
-    step: 5,
-    totalSteps: 20,
-    type: 'verify_identity',
-    status: 'blocked',
-    action: 'human_password_input',
-    actionDesc: '账号触发安全验证挑战，等待运营人员人工接入',
-    timestamp: Date.now() - 15000,
-    platform: 'facebook',
-    platformIdentity: 'fb_page_asianovels',
-    serial: 'RFCW40MY04D',
-  },
-  {
-    deviceId: 'phone05',
-    workerId: 'worker01',
-    step: 0,
-    type: 'idle',
-    status: 'idle',
-    action: 'standby',
-    actionDesc: '设备空闲待命，ADB 与 USB 连接正常',
-    timestamp: Date.now() - 45000,
-    platform: 'youtube',
-    platformIdentity: 'yt_channel_shortclips',
-    serial: 'RFCW40MY05E',
-  },
-  {
-    deviceId: 'phone06',
-    workerId: 'worker01',
-    step: 22,
-    totalSteps: 22,
-    type: 'post',
-    status: 'completed',
-    action: 'observe_screen',
-    actionDesc: '发布完成并完成 UI 树公开 URL 交叉证据比对',
-    timestamp: Date.now() - 12000,
-    platform: 'youtube',
-    platformIdentity: 'yt_channel_dailytrend',
-    serial: 'RFCW40MY06F',
-  },
-];
-
 export function DeviceFarmMonitor() {
-  const [devices, setDevices] = useState<Record<string, DeviceStepInfo>>(() => {
-    const map: Record<string, DeviceStepInfo> = {};
-    for (const d of DEFAULT_DEVICES) map[d.deviceId] = d;
-    return map;
-  });
-  const [filter, setFilter] = useState<'all' | 'running' | 'idle' | 'blocked'>('all');
+  const [devices, setDevices] = useState<Record<string, DeviceStepInfo>>({});
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [filter, setFilter] = useState<'all' | 'running' | 'idle' | 'blocked' | 'offline'>('all');
   const [connected, setConnected] = useState(false);
-  const [lastPing, setLastPing] = useState(Date.now());
   const [, startTransition] = useTransition();
 
-  // Load initial device states and connect to SSE stream
-  useEffect(() => {
-    let es: EventSource | null = null;
-    let pollTimer: any = null;
-
-    const fetchSnapshot = async () => {
-      try {
-        const res = await runtimeRequest<{ ok: boolean; devices: DeviceStepInfo[] }>('/devices/states');
-        if (res.ok && Array.isArray(res.devices) && res.devices.length > 0) {
-          startTransition(() => {
-            setDevices((prev) => {
-              const updated = { ...prev };
-              for (const d of res.devices) {
-                updated[d.deviceId] = { ...updated[d.deviceId], ...d };
-              }
-              return updated;
-            });
-          });
-        }
-      } catch {
-        // Fallback to local default state
+  const fetchRealDevices = async (capture = false) => {
+    try {
+      setRefreshing(true);
+      const res = await runtimeRequest<{ ok: boolean; devices: DeviceStepInfo[] }>(
+        `/devices/states${capture ? '?capture=1' : ''}`,
+      );
+      if (res.ok && Array.isArray(res.devices)) {
+        startTransition(() => {
+          const map: Record<string, DeviceStepInfo> = {};
+          for (const d of res.devices) {
+            map[d.serial || d.deviceId] = d;
+          }
+          setDevices(map);
+        });
       }
-    };
+    } catch {
+      // Retain current state if offline
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
-    void fetchSnapshot();
+  useEffect(() => {
+    // Initial fetch with automatic screenshot capture of connected devices
+    void fetchRealDevices(true);
 
-    // Connect SSE stream
+    let es: EventSource | null = null;
+    let pollTimer: NodeJS.Timeout | null = null;
+
     try {
       es = new EventSource('/api/runtime/events/stream');
       es.onopen = () => setConnected(true);
@@ -168,7 +85,10 @@ export function DeviceFarmMonitor() {
           if (Array.isArray(list) && list.length > 0) {
             setDevices((prev) => {
               const updated = { ...prev };
-              for (const d of list) updated[d.deviceId] = { ...updated[d.deviceId], ...d };
+              for (const d of list) {
+                const key = d.serial || d.deviceId;
+                updated[key] = { ...updated[key], ...d };
+              }
               return updated;
             });
           }
@@ -178,19 +98,21 @@ export function DeviceFarmMonitor() {
       es.addEventListener('step', (evt) => {
         try {
           const event: DeviceStepInfo = JSON.parse(evt.data);
-          setLastPing(Date.now());
-          setDevices((prev) => ({
-            ...prev,
-            [event.deviceId]: {
-              ...(prev[event.deviceId] ?? {}),
-              ...event,
-            },
-          }));
+          setDevices((prev) => {
+            const key = event.serial || event.deviceId;
+            return {
+              ...prev,
+              [key]: {
+                ...(prev[key] ?? {}),
+                ...event,
+              },
+            };
+          });
         } catch {}
       });
     } catch {
-      // Fallback poll
-      pollTimer = setInterval(fetchSnapshot, 3000);
+      // Fallback poll every 4s
+      pollTimer = setInterval(() => void fetchRealDevices(false), 4000);
     }
 
     return () => {
@@ -198,6 +120,27 @@ export function DeviceFarmMonitor() {
       if (pollTimer) clearInterval(pollTimer);
     };
   }, []);
+
+  const handleRefreshSingle = async (serial: string) => {
+    try {
+      const res = await runtimeRequest<{ ok: boolean; deviceId: string; imageKey: string; event: DeviceStepInfo }>(
+        '/devices/refresh',
+        { serial },
+      );
+      if (res.ok && res.event) {
+        setDevices((prev) => ({
+          ...prev,
+          [serial]: {
+            ...(prev[serial] ?? {}),
+            ...res.event,
+            imageKey: res.imageKey,
+          },
+        }));
+      }
+    } catch (e) {
+      alert(`刷新真机截屏失败：${e instanceof Error ? e.message : 'ADB 通信异常'}`);
+    }
+  };
 
   const deviceList = Object.values(devices).filter((d) => {
     if (filter === 'all') return true;
@@ -208,46 +151,7 @@ export function DeviceFarmMonitor() {
   const runningCount = Object.values(devices).filter((d) => d.status === 'running').length;
   const idleCount = Object.values(devices).filter((d) => d.status === 'idle').length;
   const blockedCount = Object.values(devices).filter((d) => d.status === 'blocked').length;
-
-  // Simulate a step event for demonstration / verification
-  const simulateStep = async () => {
-    const target = devices['phone01'] || DEFAULT_DEVICES[0];
-    const nextStep = (target.step || 0) + 1;
-    const actions = [
-      '正在输入帖子正文与话题标签',
-      '正在选择媒体库指定视频切片',
-      '正在核验主页发帖身份与权限',
-      '正在勾选 AI 标识与受众公开选项',
-      '核验最终预览画面与发布按钮',
-    ];
-    const actionDesc = actions[nextStep % actions.length];
-
-    try {
-      await runtimeRequest('/events/step', {
-        workerId: 'worker01',
-        deviceId: 'phone01',
-        sessionId: 'sess_live_demo',
-        step: nextStep,
-        totalSteps: 25,
-        type: 'post',
-        status: 'running',
-        action: 'input_text',
-        actionDesc,
-        timestamp: Date.now(),
-      });
-    } catch {
-      // Local fallback
-      setDevices((prev) => ({
-        ...prev,
-        phone01: {
-          ...prev.phone01,
-          step: nextStep,
-          actionDesc,
-          timestamp: Date.now(),
-        },
-      }));
-    }
-  };
+  const offlineCount = Object.values(devices).filter((d) => d.status === 'offline').length;
 
   return (
     <div className="space-y-6">
@@ -262,7 +166,7 @@ export function DeviceFarmMonitor() {
               <div>
                 <h2 className="text-xl font-bold tracking-tight">真机群控监控大屏 (Device Farm)</h2>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Worker 01 调度节点 · 实时 Step 截屏与真机状态流 (MinIO WebP 存储)
+                  真实物理设备连接 · Worker 01 调度中枢 · MinIO WebP 实时截屏流
                 </p>
               </div>
             </div>
@@ -277,7 +181,7 @@ export function DeviceFarmMonitor() {
                   filter === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                全部 ({totalCount})
+                全部真实设备 ({totalCount})
               </button>
               <button
                 onClick={() => setFilter('running')}
@@ -293,7 +197,7 @@ export function DeviceFarmMonitor() {
                   filter === 'idle' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                空闲 ({idleCount})
+                就绪待命 ({idleCount})
               </button>
               <button
                 onClick={() => setFilter('blocked')}
@@ -301,18 +205,29 @@ export function DeviceFarmMonitor() {
                   filter === 'blocked' ? 'bg-rose-600 text-white' : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                阻断 ({blockedCount})
+                阻断/需介入 ({blockedCount})
               </button>
+              {offlineCount > 0 && (
+                <button
+                  onClick={() => setFilter('offline')}
+                  className={`px-3 py-1.5 rounded-lg font-medium transition ${
+                    filter === 'offline' ? 'bg-amber-700 text-white' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  离线 ({offlineCount})
+                </button>
+              )}
             </div>
 
             <Button
               variant="outline"
               size="sm"
-              onClick={simulateStep}
-              className="bg-indigo-950/60 border-indigo-700/50 text-indigo-300 hover:bg-indigo-900 hover:text-white text-xs gap-1.5"
+              disabled={refreshing}
+              onClick={() => void fetchRealDevices(true)}
+              className="bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700 text-xs gap-1.5"
             >
-              <Sparkles className="w-3.5 h-3.5" />
-              模拟真机步骤更新
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-emerald-400' : ''}`} />
+              重新扫描真机与屏幕
             </Button>
           </div>
         </div>
@@ -321,11 +236,11 @@ export function DeviceFarmMonitor() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-slate-800/80 text-xs">
           <div className="flex items-center gap-2 text-slate-300">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-            <span>执行中真机：<strong className="text-white font-semibold">{runningCount}</strong> 台</span>
+            <span>物理真机已连接：<strong className="text-white font-semibold">{totalCount}</strong> 台</span>
           </div>
           <div className="flex items-center gap-2 text-slate-300">
-            <span className="w-2.5 h-2.5 rounded-full bg-slate-500" />
-            <span>待命中真机：<strong className="text-white font-semibold">{idleCount}</strong> 台</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-slate-400" />
+            <span>就绪待命中：<strong className="text-white font-semibold">{idleCount}</strong> 台</span>
           </div>
           <div className="flex items-center gap-2 text-slate-300">
             <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
@@ -333,42 +248,91 @@ export function DeviceFarmMonitor() {
           </div>
           <div className="flex items-center gap-2 text-slate-300">
             <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-            <span>对象存储：<strong className="text-white font-semibold">MinIO (WebP) 正常</strong></span>
+            <span>底座架构：<strong className="text-white font-semibold">Google Artemis + MinIO</strong></span>
           </div>
         </div>
       </div>
 
-      {/* Device Farm Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6">
-        {deviceList.map((device) => (
-          <PhoneCard key={device.deviceId} device={device} />
-        ))}
-      </div>
+      {/* Loading or Empty State */}
+      {loading ? (
+        <div className="flex flex-col items-center justify-center p-12 bg-slate-900/40 border border-slate-800 rounded-3xl text-center space-y-3">
+          <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
+          <p className="text-sm text-slate-300 font-medium">正在通过 ADB 探测已连接的物理真机...</p>
+          <p className="text-xs text-slate-500">核对 USB 拓扑、1:1 账号绑定关系与当前屏幕快照</p>
+        </div>
+      ) : deviceList.length === 0 ? (
+        <div className="flex flex-col items-center justify-center p-12 bg-slate-900/40 border border-slate-800 rounded-3xl text-center space-y-3">
+          <Cable className="w-12 h-12 text-slate-600" />
+          <p className="text-base text-slate-200 font-semibold">未检测到已连接的物理真机</p>
+          <p className="text-xs text-slate-400 max-w-md leading-relaxed">
+            请将真实 Android 手机通过 USB 连接至本机，并在手机上开启【USB 调试】模式；
+            运行 <code className="text-indigo-400 font-mono">adb devices</code> 确认设备状态为 <code className="text-emerald-400 font-mono">device</code>。
+          </p>
+          <Button
+            size="sm"
+            onClick={() => void fetchRealDevices(true)}
+            className="mt-2 bg-indigo-600 hover:bg-indigo-500 text-xs"
+          >
+            再次检测连接
+          </Button>
+        </div>
+      ) : (
+        /* Real Device Cards Grid */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6">
+          {deviceList.map((device) => (
+            <RealPhoneCard
+              key={device.serial || device.deviceId}
+              device={device}
+              onRefreshScreenshot={() => void handleRefreshSingle(device.serial || device.deviceId)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function PhoneCard({ device }: { device: DeviceStepInfo }) {
+function RealPhoneCard({
+  device,
+  onRefreshScreenshot,
+}: {
+  device: DeviceStepInfo;
+  onRefreshScreenshot: () => void;
+}) {
+  const [capturing, setCapturing] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
 
   const isRunning = device.status === 'running';
   const isBlocked = device.status === 'blocked';
+  const isOffline = device.status === 'offline';
   const isIdle = device.status === 'idle';
-  const isCompleted = device.status === 'completed';
 
   const imageUrl = device.imageKey
     ? `/api/runtime/screenshots/${device.imageKey}`
     : undefined;
 
+  const handleCapture = async () => {
+    setCapturing(true);
+    setImgLoaded(false);
+    setImgError(false);
+    try {
+      await onRefreshScreenshot();
+    } finally {
+      setCapturing(false);
+    }
+  };
+
   return (
     <div
       className={`relative flex flex-col items-center p-4 rounded-3xl transition-all duration-300 border ${
         isBlocked
-          ? 'bg-rose-950/20 border-rose-600/40 shadow-rose-950/30 shadow-lg'
+          ? 'bg-rose-950/20 border-rose-600/50 shadow-rose-950/30 shadow-lg'
           : isRunning
-          ? 'bg-slate-900/60 border-slate-800 hover:border-emerald-500/40 hover:shadow-emerald-950/20 shadow-md'
-          : 'bg-slate-900/40 border-slate-800/80 hover:border-slate-700'
+          ? 'bg-slate-900/80 border-emerald-500/40 shadow-emerald-950/20 shadow-md'
+          : isOffline
+          ? 'bg-slate-900/30 border-slate-800/60 opacity-70'
+          : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
       }`}
     >
       {/* Device Header Bar */}
@@ -380,7 +344,9 @@ function PhoneCard({ device }: { device: DeviceStepInfo }) {
                 ? 'bg-rose-500/20 text-rose-400'
                 : isRunning
                 ? 'bg-emerald-500/20 text-emerald-400'
-                : 'bg-slate-800 text-slate-400'
+                : isOffline
+                ? 'bg-slate-800 text-slate-500'
+                : 'bg-indigo-500/20 text-indigo-400'
             }`}
           >
             <Smartphone className="w-4 h-4" />
@@ -389,11 +355,13 @@ function PhoneCard({ device }: { device: DeviceStepInfo }) {
             <h3 className="font-bold text-sm text-slate-100 uppercase tracking-wide">
               {device.deviceId}
             </h3>
-            <p className="text-[11px] text-slate-400 font-mono">{device.serial || 'Samsung S23'}</p>
+            <p className="text-[11px] text-slate-400 font-mono">
+              {device.model || 'Samsung Galaxy S23'} · {device.serial}
+            </p>
           </div>
         </div>
 
-        {/* Platform Badge */}
+        {/* Platform & Status Badge */}
         <div className="flex items-center gap-1.5">
           <span
             className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
@@ -404,7 +372,7 @@ function PhoneCard({ device }: { device: DeviceStepInfo }) {
                 : 'bg-slate-800 text-slate-400'
             }`}
           >
-            {device.platform === 'facebook' ? 'FB Page' : device.platform === 'youtube' ? 'YT Shorts' : '平台'}
+            {device.platform === 'facebook' ? 'FB Page' : device.platform === 'youtube' ? 'YT Channel' : '未绑定'}
           </span>
           <span
             className={`text-[11px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-1 ${
@@ -412,21 +380,16 @@ function PhoneCard({ device }: { device: DeviceStepInfo }) {
                 ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-700/50'
                 : isBlocked
                 ? 'bg-rose-950 text-rose-300 border border-rose-700/60 animate-pulse'
-                : isCompleted
-                ? 'bg-blue-950/80 text-blue-300 border border-blue-700/50'
-                : 'bg-slate-800/80 text-slate-400 border border-slate-700/50'
+                : isOffline
+                ? 'bg-slate-800 text-slate-500 border border-slate-700'
+                : 'bg-slate-800/80 text-emerald-400 border border-slate-700/50'
             }`}
           >
             {isRunning && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />}
             {isBlocked && <AlertTriangle className="w-3 h-3 text-rose-400" />}
-            {isCompleted && <CheckCircle2 className="w-3 h-3 text-blue-400" />}
-            {isRunning
-              ? `Step ${device.step}`
-              : isBlocked
-              ? '需介入'
-              : isCompleted
-              ? '已完成'
-              : '闲置'}
+            {isOffline && <WifiOff className="w-3 h-3 text-slate-500" />}
+            {isIdle && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+            {isRunning ? `Step ${device.step}` : isBlocked ? '需人工处理' : isOffline ? '离线' : '就绪待命'}
           </span>
         </div>
       </div>
@@ -443,53 +406,63 @@ function PhoneCard({ device }: { device: DeviceStepInfo }) {
         <div className="relative w-full h-full rounded-[28px] overflow-hidden bg-slate-950 flex flex-col justify-between border border-slate-900/90 shadow-inner">
           {/* Top In-screen Status Bar */}
           <div className="w-full px-3 py-1 flex items-center justify-between text-[10px] text-slate-400 z-10 bg-gradient-to-b from-black/80 to-transparent">
-            <span>09:41</span>
+            <span>物理真机</span>
             <div className="flex items-center gap-1">
-              <Radio className="w-2.5 h-2.5" />
-              <span>5G</span>
+              <Radio className="w-2.5 h-2.5 text-emerald-400" />
+              <span>ADB 5G</span>
               <span className="text-[9px]">100%</span>
             </div>
           </div>
 
-          {/* Screen Content: Live Screenshot vs Idle Standby */}
+          {/* Screen Content: Live Screenshot vs Standby vs Blocked */}
           <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
             {imageUrl && !imgError ? (
               <img
                 src={imageUrl}
-                alt={`Screenshot for ${device.deviceId}`}
+                alt={`Real screenshot from ${device.serial}`}
                 onLoad={() => setImgLoaded(true)}
                 onError={() => setImgError(true)}
                 className={`w-full h-full object-cover transition-opacity duration-300 ${
                   imgLoaded ? 'opacity-100' : 'opacity-20'
                 }`}
               />
-            ) : isRunning ? (
-              <div className="flex flex-col items-center justify-center p-4 text-center space-y-2">
-                <RefreshCw className="w-8 h-8 text-emerald-400 animate-spin opacity-80" />
-                <p className="text-xs text-emerald-300 font-medium">画面实时刷新中...</p>
-                <p className="text-[10px] text-slate-500 font-mono">Step {device.step}</p>
-              </div>
             ) : isBlocked ? (
               <div className="flex flex-col items-center justify-center p-4 text-center space-y-3 bg-rose-950/40">
                 <ShieldAlert className="w-10 h-10 text-rose-400 animate-bounce" />
                 <div className="space-y-1">
-                  <p className="text-xs text-rose-300 font-bold">登录/验证挑战</p>
+                  <p className="text-xs text-rose-300 font-bold">人工介入待办</p>
                   <p className="text-[10px] text-rose-200/80 leading-relaxed">
-                    当前应用触发人工验证
+                    {device.actionDesc || '应用出现登录挑战或安全验证'}
                   </p>
                 </div>
                 <a
                   href="#/receipts"
                   className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-[11px] font-semibold transition shadow"
                 >
-                  去处理
+                  前往处理
                 </a>
               </div>
+            ) : isOffline ? (
+              <div className="flex flex-col items-center justify-center p-4 text-center space-y-2 opacity-50">
+                <WifiOff className="w-10 h-10 text-slate-500" />
+                <p className="text-xs text-slate-400 font-medium">设备未连接</p>
+                <p className="text-[10px] text-slate-600 font-mono">检查 USB 线缆</p>
+              </div>
             ) : (
-              <div className="flex flex-col items-center justify-center p-4 text-center space-y-2 opacity-60">
-                <Smartphone className="w-10 h-10 text-slate-500" />
-                <p className="text-xs text-slate-400 font-medium">设备待命中</p>
-                <p className="text-[10px] text-slate-600 font-mono">1:1 专属账号已锁定</p>
+              <div className="flex flex-col items-center justify-center p-4 text-center space-y-2">
+                <Smartphone className="w-10 h-10 text-emerald-500/80" />
+                <p className="text-xs text-slate-300 font-medium">真实真机在线</p>
+                <p className="text-[10px] text-slate-500 font-mono">{device.serial}</p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleCapture}
+                  disabled={capturing}
+                  className="h-7 px-2.5 text-[10px] bg-slate-800/80 border-slate-700 hover:bg-slate-700 text-slate-300 gap-1 mt-1"
+                >
+                  <Camera className={`w-3 h-3 ${capturing ? 'animate-spin text-emerald-400' : ''}`} />
+                  {capturing ? '截屏中...' : '点击抓取实时屏幕'}
+                </Button>
               </div>
             )}
           </div>
@@ -499,14 +472,20 @@ function PhoneCard({ device }: { device: DeviceStepInfo }) {
             <div className="bg-slate-900/90 border border-slate-700/60 rounded-xl p-2 backdrop-blur">
               <div className="flex items-center justify-between text-[10px] text-slate-300 mb-0.5">
                 <span className="font-semibold text-emerald-400">
-                  {isRunning ? `Step ${device.step}${device.totalSteps ? ` / ${device.totalSteps}` : ''}` : device.status}
+                  {isRunning
+                    ? `Step ${device.step}${device.totalSteps ? ` / ${device.totalSteps}` : ''}`
+                    : isBlocked
+                    ? '挑战待办'
+                    : isIdle
+                    ? '真机就绪'
+                    : '已离线'}
                 </span>
                 <span className="text-[9px] text-slate-400 font-mono">
                   {new Date(device.timestamp).toLocaleTimeString()}
                 </span>
               </div>
               <p className="text-[11px] text-slate-200 line-clamp-2 leading-tight">
-                {device.actionDesc || '无详细操作信息'}
+                {device.actionDesc || '物理真机已在线，等待发布指令'}
               </p>
             </div>
             {/* Phone Home Bar */}
@@ -515,19 +494,31 @@ function PhoneCard({ device }: { device: DeviceStepInfo }) {
         </div>
       </div>
 
-      {/* Card Footer Details */}
+      {/* Card Footer Details & Actions */}
       <div className="w-full mt-3 px-2 text-xs space-y-1">
         <div className="flex items-center justify-between text-slate-400">
-          <span>绑定身份:</span>
-          <span className="font-mono text-slate-200 truncate max-w-[140px]">
-            {device.platformIdentity || '未绑定'}
+          <span>专属绑定:</span>
+          <span className="font-mono text-slate-200 truncate max-w-[135px]" title={device.platformIdentity}>
+            {device.platformIdentity || '暂未绑定'}
           </span>
         </div>
         <div className="flex items-center justify-between text-slate-400">
-          <span>执行动作:</span>
-          <span className="font-mono text-slate-300 truncate max-w-[140px]">
+          <span>当前动作:</span>
+          <span className="font-mono text-slate-300 truncate max-w-[135px]">
             {device.action || 'standby'}
           </span>
+        </div>
+        <div className="pt-2 flex gap-1.5">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={capturing || isOffline}
+            onClick={handleCapture}
+            className="w-full h-7 text-[11px] bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200 gap-1"
+          >
+            <Camera className={`w-3 h-3 ${capturing ? 'animate-spin text-emerald-400' : 'text-slate-400'}`} />
+            {capturing ? '正在截取真机屏幕...' : '实时刷新真机画面'}
+          </Button>
         </div>
       </div>
     </div>
