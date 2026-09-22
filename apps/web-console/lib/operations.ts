@@ -5,7 +5,7 @@ import type {
 
 export const pages = [
   { id: 'home', name: '工作台', group: 'home' },
-  { id: 'device-farm', name: '真机监控大屏', group: 'execution' },
+  { id: 'device-farm', name: '真机监控大屏', group: 'device-farm' },
   { id: 'accounts', name: '账号管理', group: 'accounts' },
   { id: 'content', name: '内容资产', group: 'content' },
   { id: 'strategies', name: '策略草案', group: 'strategy' },

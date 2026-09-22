@@ -2,6 +2,7 @@
 import React, { useState, useSyncExternalStore } from 'react';
 import {
   LayoutDashboard,
+  Smartphone,
   Users,
   Library,
   ClipboardList,
@@ -32,6 +33,7 @@ const subscribe = (listener: () => void) => {
 };
 const groups = [
   { id: 'home', name: '工作台', icon: LayoutDashboard },
+  { id: 'device-farm', name: '真机监控大屏', icon: Smartphone },
   { id: 'clients', name: '运营项目', icon: Handshake },
   { id: 'accounts', name: '账号管理', icon: Users },
   { id: 'content', name: '内容资产', icon: Library },
@@ -100,9 +102,22 @@ export function OperationsConsole() {
         <a href={href('home')} className="op-brand">
           <span>SG</span>SocialGrowth <strong>运营管理</strong>
         </a>
-        <a href={href('connections')} className="op-environment">
-          本机执行工作区 · 发布结果以证据为准
-        </a>
+        <div className="flex items-center gap-2">
+          <a
+            href={href('device-farm')}
+            className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 transition ${
+              page === 'device-farm'
+                ? 'bg-emerald-600 text-white shadow'
+                : 'bg-slate-800 text-emerald-400 border border-emerald-500/30 hover:bg-slate-700'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            真机监控大屏
+          </a>
+          <a href={href('connections')} className="op-environment">
+            本机执行工作区 · 发布结果以证据为准
+          </a>
+        </div>
       </header>
       <div className="op-layout">
         <aside className={`op-sidebar ${menu ? 'is-open' : ''}`}>
