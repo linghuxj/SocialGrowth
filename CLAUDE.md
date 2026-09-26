@@ -1,31 +1,9 @@
-# SocialGrowth 开发规范与工程基准指南 (CLAUDE.md)
+# SocialGrowth 工程规范
 
-本文记录仓库工程规范与当前技术路线。业务语义以最新用户确认的[业务决策](docs/handoff/2026-09-19-business-flow-proposal.md)为准；[产品能力路线](docs/product-roadmap.md)按最终目的与能力依赖推进，商业交付数量和效果不构成开发上限或启动门槛。本轮仅同步文档，未更换既有技术路线或开展实现。
+2026-09-25 需求重新对齐：旧版业务基线、技术路线与文档索引已归档，新一轮业务约束以用户后续确认为准。归档内容不自动成为当前要求。现有工程运行与代码规范暂时保留。
 
----
-
-## 一、 核心架构五大铁律（强制执行）
-
-任何代码实现、接口定义与架构设计严禁违反以下既定业务基线：
-
-1. **执行底座锁定**：
-   - 100% 采用 **Google Artemis 纯物理真机设备池**（如 Samsung Galaxy S23 等）；
-   - **彻底废除并严禁引入任何 Android 模拟器或虚拟化实例**；
-   - 内容发布与端侧交互必须驱动原生 App 走端到端 UI 自动化，不采用官方发布 API。
-2. **阶段平台收敛**：
-   - 前期核心阶段仅开放 **Facebook (FB)** 与 **YouTube (YT)** 双平台；
-   - **Instagram (INS)** 作为战略储备平台，系统预留接口枚举与槽位，但在前 3 个月业务周期内**禁止引入对 INS 的硬性运行依赖**。
-3. **1:1 设备账号强绑定（单机跨平台隔离）**：
-   - 单台真机在同一时期内，同一平台仅登录并绑定 1 个专属账号（单机承载上限为 1 个 FB Page + 1 个 YT 频道）；
-   - **严禁在同一 App 内轮换多个账号开展运营**，以减少身份混用与错误路由；该绑定不证明平台不会关联账号。经独立批准恢复到原指定账号的“设备错配纠正”不属于运营轮换，须重新核验身份和绑定，不能用于绕过封禁；当前诊断入口不自动授予此权限。
-4. **切片素材排他独占锁（Exclusive Lock）**：
-   - 漫剧切片资产经人工确认后，系统强制加注唯一目标账号独占锁；
-   - 同一内容的语言版本共用身份，只选一个版本发布一次，原账号也不得另行重发。取消释放与少量剧情衔接依 G-03 系列处理；独占规则不替代内容权利或平台原创性判断。
-5. **数据来源与评价边界**：
-   - 官方与第三方数据按指标核验权限、可得性和可比性；来源变化、缺失及原因必须可见，第三方不保证提供全部私有指标。
-   - 按 G-05 在试验前明确主指标与判据；主指标不可用时保留未知或证据不足，不静默更换评分强制选赢家。完整复盘、策略效果、商业目标与推广权限分别记录。
-
----
+- 当前需求：[需求对齐](docs/requirements-alignment.md)
+- 旧版全文：[历史 CLAUDE.md](archive/2026-09-25-before-realignment/CLAUDE.md)
 
 ## 二、 本地开发与运行纪律
 
@@ -76,43 +54,3 @@
   `[<模块名>] <动作>: <简明说明>`（例如 `[artemis-controller] fix: 严格限制 1:1 设备账号路由，杜绝串号派发`）。
 
 ---
-
-## 四、 仓库工程架构导航
-
-```
-SocialGrowth/
-├── apps/                               # 终端应用与人机界面层
-│   ├── web-console/                    # 统一现代 Web 运营管理控制台 (Next.js + shadcn UI)
-│   └── artemis-controller/             # Artemis 纯真机群控调度端
-├── services/                           # 核心中枢与计算服务层
-│   ├── ai-engine/                      # AI 策略生成、规则解析与 A/B 评估中枢
-│   └── shortlink-service/              # 导流短链服务 (302 跳转、三层日志与爬虫过滤)
-├── docs/                               # 权威规划与交付规范
-│   ├── delivery-specification.md       # 【核心基准】7 大核心交付模块与系统规格说明书
-│   ├── business-requirements.md        # 业务需求与技术规划讨论全记录
-│   ├── monthly-delivery.md             # 连续 12 个月逐月交付表与里程碑
-│   ├── budget-summary.md               # 年度五类技术预算汇总
-│   ├── platform-rules.md               # 平台官方规则核查记录
-│   └── handoff/                        # 研发交接台账与整改任务看板
-├── scripts/                            # 自动化脚本层 (数据测算与报告构建)
-├── artifacts/                          # 最终成果物输出 (数据模型与正式汇报文档)
-├── CONTEXT.md                          # 全局业务术语表与边界约定
-└── CLAUDE.md                           # 本规范文档 (开发最高准则)
-```
-
----
-
-## 五、 核心基准文档索引
-
-- **开发规格及 Issue 跟踪**：[`docs/specs/README.md`](docs/specs/README.md)。个人公开仓库 `linghuxj/SocialGrowth` 使用 GitHub Issues；规格标签 `ready-for-agent`，同编号优先更新已有 Issue。任务范围与依赖以首批总规格及 FL 清单为准，标签不替代真实接入或生产动作授权。
-- 7 大交付模块完整规格：[`docs/delivery-specification.md`](docs/delivery-specification.md)
-- **Artemis 真机集成与运营处置指南**：[`docs/engineering/artemis-integration-guide.md`](docs/engineering/artemis-integration-guide.md)
-- 最新业务细节对齐规格书：[`docs/handoff/2026-09-19-aligned-business-spec.md`](docs/handoff/2026-09-19-aligned-business-spec.md)
-- 研发交接任务书与整改看板：[`docs/handoff/README.md`](docs/handoff/README.md)
-- 本轮业务审计处理结果：[`docs/handoff/2026-09-19-business-audit-closure.md`](docs/handoff/2026-09-19-business-audit-closure.md)
-- **原项目文档审计报告（历史发现）**：[`docs/handoff/2026-09-19-document-audit-report.md`](docs/handoff/2026-09-19-document-audit-report.md)
-- **需求与规划文档全面审计报告（原发现及复核标注）**：[`docs/handoff/2026-09-19-full-document-audit.md`](docs/handoff/2026-09-19-full-document-audit.md)
-- **44 项复核、修复及待核证据**：[`docs/handoff/2026-09-19-audit-verification.md`](docs/handoff/2026-09-19-audit-verification.md)
-- **开发实施准备度审查（原意见及复核标注）**：[`docs/handoff/2026-09-19-implementation-readiness-audit.md`](docs/handoff/2026-09-19-implementation-readiness-audit.md)；首次事实判断见[逐项复核](docs/handoff/2026-09-19-readiness-verification.md)，最新规格修复与待实现事项见[修复台账](docs/handoff/2026-09-19-readiness-remediation.md)；不能将原 5 项一概视为全局开工阻断，也不能把规格修复等同应用验收。
-- 业务术语字典：[`CONTEXT.md`](CONTEXT.md)
-- 测算数据基准：[`artifacts/data/3至20台真机设备-前三个月发布与准入测算.md`](artifacts/data/3至20台真机设备-前三个月发布与准入测算.md)

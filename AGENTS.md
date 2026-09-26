@@ -1,5 +1,7 @@
 # SocialGrowth Agent 工作规范
 
+> 2026-09-25：旧业务文档已归档。当前需求入口为 [docs/requirements-alignment.md](docs/requirements-alignment.md)，新需求待确认；不得将归档中的旧业务基线自动视为当前要求。以下工程操作规范继续保留。
+
 本文件适用于整个仓库。执行任务前须阅读并遵守 [CLAUDE.md](CLAUDE.md) 中的工程规范与业务边界。
 
 ## 安装与启动

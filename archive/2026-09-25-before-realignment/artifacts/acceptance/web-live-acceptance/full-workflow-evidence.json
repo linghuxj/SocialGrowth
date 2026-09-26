@@ -1,0 +1,30 @@
+{
+  "timestamp": "2026-09-23T03:50:18.101Z",
+  "taskId": "773d8e16-5d31-483b-ab74-22f844d56d4e",
+  "executionStatus": "completed",
+  "receipt": {
+    "schemaVersion": "design-v1",
+    "eventId": "b6dcb48a-6b52-4630-ad5c-3341998022da",
+    "taskId": "773d8e16-5d31-483b-ab74-22f844d56d4e",
+    "attemptId": "7399cfbc-b142-431e-8624-5a29f7abfd44",
+    "deviceId": "RFCW40MYYCV",
+    "accountId": "account-4ee9e05f-77cd-44a3-8f7c-0f6b451ab145",
+    "occurredAt": "2026-09-23T03:50:09.143Z",
+    "executionStatus": "completed",
+    "publishStatus": "not_submitted",
+    "evidenceRefs": [
+      "evidence:773d8e16-5d31-483b-ab74-22f844d56d4e:d642c3f5c5257333ba18a87e82bd90905a16c7b6c9c79d93c9f4c4201c9b669f",
+      "evidence:773d8e16-5d31-483b-ab74-22f844d56d4e:071d22a7b86ba271c3d6f807fe5d62a46fe2c914d788318f91fc1a5de5888488",
+      "evidence:773d8e16-5d31-483b-ab74-22f844d56d4e:b2491b78125e96af2c8b1bcbe787fc02be420e4ebd4766fb1904c3df1674475e",
+      "evidence:773d8e16-5d31-483b-ab74-22f844d56d4e:59f959216f932724041b7adb7801b44811808284b673e170a4dcdf9e72b24618",
+      "evidence:773d8e16-5d31-483b-ab74-22f844d56d4e:e8075ad409f40bf5e0defe142a8f076cb3a4b872b2a425109ab8a25c42fdea5e"
+    ],
+    "resourceStatus": "available"
+  },
+  "autoRefreshVerified": true,
+  "screenshots": [
+    "/Users/linghuxj/Documents/myproject/project/SocialGrowth/artifacts/acceptance/web-live-acceptance/05-task-queued.png",
+    "/Users/linghuxj/Documents/myproject/project/SocialGrowth/artifacts/acceptance/web-live-acceptance/06-device-farm-initial.png",
+    "/Users/linghuxj/Documents/myproject/project/SocialGrowth/artifacts/acceptance/web-live-acceptance/07-task-final-receipt.png"
+  ]
+}

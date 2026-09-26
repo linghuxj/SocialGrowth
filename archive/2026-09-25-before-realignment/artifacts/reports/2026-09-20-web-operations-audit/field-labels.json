@@ -1,0 +1,296 @@
+[
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "项目名称",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "服务客户 ID",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "当前主目标",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "目标受众",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "责任人 ID",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "已有内容身份 ID（新增语言版本时填写）",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "内容标题",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "来源引用",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "剧情范围说明",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "语言，如 en-US",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "受控文件引用",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "SHA256（64位）",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "权利依据引用",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "项目 ID",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "批准 ID",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "主指标键",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": null,
+    "tag": "SELECT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "数值（不可用状态留空）",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "来源",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "单位",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "范围",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": "观察窗开始",
+    "labelCount": 0,
+    "placeholder": null,
+    "tag": "INPUT",
+    "type": "datetime-local"
+  },
+  {
+    "ariaLabel": "观察窗结束",
+    "labelCount": 0,
+    "placeholder": null,
+    "tag": "INPUT",
+    "type": "datetime-local"
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": null,
+    "tag": "SELECT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "项目 ID",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "账号 ID",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "服务客户 ID",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "账号所有方 ID",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "授权方 ID",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "授权依据引用",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "共享批准引用（按需）",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "项目 ID",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "账号 ID",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "频道/范围 ID",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "实际目的地 URL",
+    "tag": "INPUT",
+    "type": "url"
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "维护权限依据",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "项目 ID",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "规则陈述",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "规则来源引用",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "草案依据说明",
+    "tag": "INPUT",
+    "type": null
+  },
+  {
+    "ariaLabel": null,
+    "labelCount": 0,
+    "placeholder": "本批批准数量",
+    "tag": "INPUT",
+    "type": "number"
+  },
+  {
+    "ariaLabel": "批准有效期",
+    "labelCount": 0,
+    "placeholder": null,
+    "tag": "INPUT",
+    "type": "datetime-local"
+  }
+]

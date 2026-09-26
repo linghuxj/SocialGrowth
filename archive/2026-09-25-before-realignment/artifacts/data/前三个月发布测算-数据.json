@@ -1,0 +1,181 @@
+{
+  "assumptions": {
+    "model_version": "v2.1-20260919",
+    "month_days": 30,
+    "realization": 0.9,
+    "current_month_share": 0.5,
+    "next_month_share": 0.5,
+    "long_tail_after_30_days": 0,
+    "note": "参数为情景假设；FB公开观看与YT合格观看不得合并为同口径受众。"
+  },
+  "independent_content": {
+    "planned_monthly": [
+      240,
+      780,
+      2400
+    ],
+    "planned_total": 3420,
+    "successful_monthly": [
+      216.0,
+      702.0,
+      2160.0
+    ],
+    "successful_total": 3078.0,
+    "note": "本情景每个计划位使用独立合格内容；语言版本不增加库存，成功量不替代计划备货量。"
+  },
+  "per_platform_plan": [
+    120,
+    390,
+    1200
+  ],
+  "both_platforms_plan": [
+    240,
+    780,
+    2400
+  ],
+  "per_platform_realized": [
+    108.0,
+    351.0,
+    1080.0
+  ],
+  "both_platforms_realized": [
+    216.0,
+    702.0,
+    2160.0
+  ],
+  "calendar_month_view_coefficients": [
+    54.0,
+    229.5,
+    715.5
+  ],
+  "monthly_views": {
+    "低表现": {
+      "facebook_public": [
+        5400.0,
+        22950.0,
+        71550.0
+      ],
+      "youtube_qualified": [
+        27000.0,
+        114750.0,
+        357750.0
+      ]
+    },
+    "工作假设": {
+      "facebook_public": [
+        16200.0,
+        68850.0,
+        214650.0
+      ],
+      "youtube_qualified": [
+        108000.0,
+        459000.0,
+        1431000.0
+      ]
+    },
+    "较强表现": {
+      "facebook_public": [
+        54000.0,
+        229500.0,
+        715500.0
+      ],
+      "youtube_qualified": [
+        540000.0,
+        2295000.0,
+        7155000.0
+      ]
+    }
+  },
+  "cohorts": [
+    {
+      "name": "首批试点(第1月投入-4台真机)",
+      "accounts_per_platform": 4,
+      "daily": [
+        1,
+        2,
+        2
+      ],
+      "per_account_realized_posts": [
+        27.0,
+        54.0,
+        54.0
+      ],
+      "cumulative_view_coefficients": [
+        13.5,
+        54.0,
+        108.0
+      ],
+      "q_required_at_month3": {
+        "expanded_3m": 27778,
+        "full_10m": 92593
+      },
+      "month3_views_by_q": {
+        "500": 54000.0,
+        "2000": 216000.0,
+        "10000": 1080000.0,
+        "30000": 3240000.0,
+        "100000": 10800000.0
+      }
+    },
+    {
+      "name": "第2月爬坡新增(5台真机)",
+      "accounts_per_platform": 5,
+      "daily": [
+        0,
+        1,
+        2
+      ],
+      "per_account_realized_posts": [
+        0.0,
+        27.0,
+        54.0
+      ],
+      "cumulative_view_coefficients": [
+        0.0,
+        13.5,
+        54.0
+      ],
+      "q_required_at_month3": {
+        "expanded_3m": 55556,
+        "full_10m": 185186
+      },
+      "month3_views_by_q": {
+        "500": 27000.0,
+        "2000": 108000.0,
+        "10000": 540000.0,
+        "30000": 1620000.0,
+        "100000": 5400000.0
+      }
+    },
+    {
+      "name": "第3月规模化新增(11台真机)",
+      "accounts_per_platform": 11,
+      "daily": [
+        0,
+        0,
+        2
+      ],
+      "per_account_realized_posts": [
+        0.0,
+        0.0,
+        54.0
+      ],
+      "cumulative_view_coefficients": [
+        0.0,
+        0.0,
+        27.0
+      ],
+      "q_required_at_month3": {
+        "expanded_3m": 111112,
+        "full_10m": 370371
+      },
+      "month3_views_by_q": {
+        "500": 13500.0,
+        "2000": 54000.0,
+        "10000": 270000.0,
+        "30000": 810000.0,
+        "100000": 2700000.0
+      }
+    }
+  ]
+}
