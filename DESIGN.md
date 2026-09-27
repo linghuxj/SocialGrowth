@@ -1,0 +1,201 @@
+---
+name: SocialGrowth Operations Workspace
+description: 浅色、适中密度的 Web 运营工作台；首页采用并列处理布局，UI-014 恢复原浅色设备与接管稿、替代 UI-013 的 Demo 大屏方向，tokens 为候选值。
+colors:
+  primary: "#2459C4"
+  canvas: "#F4F6FA"
+  surface: "#FFFFFF"
+  text: "#172B4D"
+  muted: "#526176"
+  border: "#DCE2EA"
+  warning: "#8A4B08"
+  warning-surface: "#FFF4DF"
+  success: "#146C43"
+  success-surface: "#EAF6EF"
+  error: "#B42318"
+  error-surface: "#FFF0EE"
+typography:
+  title:
+    fontFamily: '"PingFang SC", "Microsoft YaHei", sans-serif'
+    fontSize: 24px
+    fontWeight: 600
+    lineHeight: 1.4
+  heading:
+    fontFamily: '"PingFang SC", "Microsoft YaHei", sans-serif'
+    fontSize: 18px
+    fontWeight: 600
+    lineHeight: 1.5
+  body:
+    fontFamily: '"PingFang SC", "Microsoft YaHei", sans-serif'
+    fontSize: 14px
+    fontWeight: 400
+    lineHeight: 1.6
+  supporting:
+    fontFamily: '"PingFang SC", "Microsoft YaHei", sans-serif'
+    fontSize: 13px
+    fontWeight: 400
+    lineHeight: 1.5
+rounded:
+  control: 6px
+  panel: 8px
+spacing:
+  xs: 4px
+  sm: 8px
+  md: 16px
+  lg: 24px
+  xl: 32px
+components:
+  workspace:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.text}"
+    typography: "{typography.body}"
+  content:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.text}"
+    rounded: "{rounded.panel}"
+  button-primary:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.surface}"
+    rounded: "{rounded.control}"
+    height: 36px
+  supporting-text:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.muted}"
+    typography: "{typography.supporting}"
+  status-warning:
+    backgroundColor: "{colors.warning-surface}"
+    textColor: "{colors.warning}"
+  status-success:
+    backgroundColor: "{colors.success-surface}"
+    textColor: "{colors.success}"
+  status-error:
+    backgroundColor: "{colors.error-surface}"
+    textColor: "{colors.error}"
+  divider:
+    backgroundColor: "{colors.border}"
+---
+
+## Overview
+
+SocialGrowth 的 Web 工作台服务内部运营人员。运营在多个项目间准备资料、处理需要人工介入的问题、确认方向并检查效果；AI 在批准范围内负责日常安排和执行推进。界面的主要任务，是让运营迅速判断哪里需要行动、行动影响什么，以及后续是否真正落实。
+
+设计依据为[需求基线](docs/current-requirements-summary.md)和[工作台 UI 对齐记录](docs/workbench-ui-alignment.md)中的确认与修订，当前视觉以 UI-001～UI-012 及最新 UI-014 为准。UI-014 恢复原浅色设计稿，替代 UI-013 的 Demo 大屏样式分支；现有 Demo 不自动成为最终方案。术语遵循 [CONTEXT.md](CONTEXT.md)，页面职责、字段与状态见[页面规格](docs/workbench-page-spec.md)。
+
+UI-011 确认浅色办公工作台：浅灰底、白色内容区、清晰表格与表单、适中密度。以运营人员连续阅读待办、核对成品并处理问题的办公桌面为参照，重要信息容易扫描，详细依据就近可查。
+
+本文件采用 [google-labs-code/design.md](https://github.com/google-labs-code/design.md) 的设计叙述与结构化值分工。用户已选[并列处理首页原稿](docs/design/workbench/home-selected-original.png)作为布局依据；[修订稿](docs/design/workbench/home-refined-v1.png)去除多余警示色及口号，尚未另行确认。下列视觉规则与 YAML 数值仍是候选方案，静态图稿不证明精确 token 或页面验收。
+
+## Colors
+
+候选方案以浅灰 canvas 为背景、白色 surface 承载内容，深色 text 用于正文。primary 蓝色用于主要操作和当前选中项，不代表用户已经指定品牌色。muted 只用于辅助信息，不能让重要阻断原因弱化为难读的小字。
+
+警示、成功与错误使用相应文字及浅色底，配合明确状态文案。待核实保持中性或需关注的表达，不仅凭黄色或红色宣称失败。border 用作轻量分隔，具体交互控件的可辨识边界还需在代表页面中检查。
+
+## Typography
+
+候选采用中文系统无衬线字体栈，正文 14px、辅助信息 13px、分组标题 18px、页面标题 24px。关键操作、阻断和所需行动使用正文字级；长说明利用换行和分段，不压缩字级塞入表格。字号、字重及行高须结合实际渲染调整。
+
+## Layout
+
+### 已确认的工作结构
+
+默认进入全局工作台，展示全部项目需要人工处理的待办，按紧迫性排列并说明依据。可筛选本人负责项目或具体项目；负责人筛选不构成权限隔离。
+
+UI-012 确认首页并列处理：全局导航右侧是待办队列，再右侧是选中事项的详情与操作。选择待办仅改变查看对象，不自动申请接管或修改业务状态。窄窗口下的布局细化需保持字段可读，手机阅读使用列表到详情的顺序；不将这一首页结构强制复制到素材表格和复盘页。
+
+全局导航包含工作台、项目、账号与设备、提供者与分佣。素材、发布安排、效果与复盘以及设置位于项目内部，持续保留项目上下文。筹备项目使用可分批填写、可保存和返回的准备清单。
+
+电脑承担完整运营工作。手机浏览器用于查看待办与进展，复杂处理回电脑完成；设备提供者 Android App 不属于本文件的布局范围。浏览器接管仍需依实际环境验证。
+
+### 布局细化建议
+
+工作台以需要行动的事项为主要区域，辅以等待复核等跟进事项及正常项目的运行摘要。没有人工待办时仍展示正常进展。
+
+列表帮助比较和定位，详情帮助理解和处理。普通笔记本窗口应能完成主要工作，较宽窗口可增加并列详情。页面返回保留筛选和浏览位置，跨项目切换核对未保存输入及实际操作对象。
+
+手机视图按阅读顺序纵向组织项目、问题、影响、当前状态及更新时间；需电脑处理时说明原因。密度采用 UI-011 的适中方向，候选间距为 4/8/16/24/32px。具体断点、宽度与布局组件尚未定稿。
+
+## Elevation & Depth
+
+候选方案先使用间距、对齐和分隔线组织信息，再使用白色与浅灰表面的层次。普通列表行不逐条做成浮起的卡片；需要脱离页面的菜单或浮层才使用轻量阴影。主工作区保留连续的阅读与操作顺序。
+
+## Shapes
+
+候选控件圆角 6px，内容面板圆角 8px。按钮保持明确矩形轮廓，状态标签轻量，不把每个数字或字段都包成胶囊。上述为候选 token，不以圆角选择增加业务功能。
+
+## Components
+
+### 待办与处理表单
+
+已确认以结构化表单和明确按钮完成处理，AI 提供解释与建议。处理详情建议按问题、影响与依据、所需动作、结果反馈组织；复杂证据按需展开，不能让关键事实只存在于聊天中。
+
+按钮表达实际动作。申请接管、获得独占控制、交还、提交处理结果和恢复复核分别显示；不能用一个“完成”掩盖它们的差别。恢复结果关联原任务，并逐项呈现尚未解除的阻断。
+
+### 项目准备与设置
+
+准备清单沿用分批保存、可返回的方式，分别呈现资料、检查、方向确认和资源就绪。设计稿见[项目准备](docs/design/workbench/project-readiness-v1.png)、[方向确认](docs/design/workbench/project-direction-v1.png)和[周期设置变更](docs/design/workbench/project-settings-v1.png)，交互以[页面规格 3 节](docs/workbench-page-spec.md#3-项目筹备与设置)为准。
+
+“确认方向”明确说明就绪任务可在范围内自动执行，不增加第二次启动批准。待确认的目标/边界与已明确方向下的未就绪资源分别处理，不能靠勾选清单解除阻断。运行中改复盘间隔或时区时并列当前值、拟改值和下周期生效时间；保存不直接显示已生效，旧周期与历史口径保留。
+
+### 素材表格
+
+已确认以批量表格整理成品，共同字段批量填，单条可展开预览，保留人工核对和未完成资料。批量范围、被修改字段及实际检查结果须可见；不自动推断语言、集序或版本关系。
+
+建议分别呈现文件上传、资料完整性与准入结果。部分失败保留成功内容及待补资料；候选资格不等于已有发布安排。
+
+素材页细化稿见[批量列表](docs/design/workbench/materials-batch-v1.png)、[批量填写](docs/design/workbench/materials-bulk-dialog-v1.png)及[单条预览](docs/design/workbench/materials-preview-v1.png)。它们沿用已选风格，尚未新增用户确认；以[素材交互规格](docs/workbench-page-spec.md#4-素材批量整理)解释选择范围、未保存修改、保存与检查等状态，不能把图稿中的控件瑕疵当作规范。
+
+批量应用只改变待保存资料；页面保存所有当前项目未保存修改时应显式列明数量及对象，单条保存仅作用于当前素材。部分选中使用不确定态，文件版本只读，来源已填写不使用成功色冒充已核验。未保存输入不因筛选或返回而静默消失。
+
+### 执行列表
+
+已确认发布安排默认采用执行列表，显示内容、平台账号、计划时间、执行进展与核验结果，支持日期及状态筛选。详情建议补充明确的素材版本、Page/频道、执行手机、安排依据及证据。
+
+计划时间与实际发布时间分别显示，时区明确。待核实不等于失败，操作结束不等于已核验发布。重排和恢复保留原任务关联，不增加发布计数。
+
+设计细化见[发布列表](docs/design/workbench/publication-list-v1.png)、[待核实详情](docs/design/workbench/publication-pending-v1.png)和[核验成功详情](docs/design/workbench/publication-verified-v1.png)，语义以[页面规格 5 节](docs/workbench-page-spec.md#5-发布安排与任务详情)为准。执行进展、平台结果和效果可用性分开呈现；核验成功仍保留此前的断线与人工处理记录，不把手机恢复或后续执行一并记为成功。
+
+具体日期筛选不混入时间未知任务；需要同时查看未排期记录时显式标明范围。证据展示说明已核对的身份与内容，以及时间/标识的可得性；未知不是失败，缺少平台链接不自动禁止以其他充分证据核验成功。人工提交处理结果之后仍需复核，没有自由切换“发布成功”的普通操作。
+
+### 效果与复盘
+
+已确认先展示目标进展、缺口及数据局限，再展示 AI 维持或调整安排的依据与后续落实情况，可下钻指标明细。摘要中的结论必须能对应证据，生成建议、更新安排及完成执行分别表达。
+
+效果数据保留来源、统计范围及截止时间，未知不显示成零。窗口未满或证据不足时明确暂不能判断，不能用图表填充造成已有结论的印象。
+
+细化稿见[周期总览](docs/design/workbench/effects-overview-v1.png)与[复盘落实详情](docs/design/workbench/review-followthrough-v1.png)，动作和数据口径见[页面规格 6 节](docs/workbench-page-spec.md#6-效果与复盘)。周期目标、账号阶段、数据局限和后续行动分层呈现；后续任务与原周期计数分开，建议、安排更新、执行核验和效果判断保持可追溯关系。
+
+本页周期选择只改变查看范围，业务时区只读；配置修改经项目设置从下周期生效。指标下钻保留来源时间与归因层级，不把账号点击分配到单条内容；后续任务已核验也不自动使用“优化成功”文案。示例稿中的范围标注及控件偏差见[图稿检查记录](docs/design/workbench/README.md#效果与复盘页面目视核对)，不能机械照搬。
+
+### 真机监控与接管
+
+UI-014 恢复原浅色稿：通过[设备资源列表](docs/design/workbench/devices-overview-v1.png)定位问题，进入[人工接管详情](docs/design/workbench/device-takeover-v1.png)查看画面、处理范围及操作记录。手机画面与右侧处理区并列，保持完整屏幕比例，状态放在画面外，不把深色大屏作为当前主要方案。原稿中的生成屏幕、数字和状态仅为示例，真实页面仍须按实际回传显示。
+
+[Demo 大屏探索预览](docs/design/workbench/device-monitor-preview.html)已转为历史参考，不作为当前视觉依据，也未接入实时手机。[字段盘点](docs/design/workbench/device-monitor-data-mapping.md)中关于未知值、时间和固定兜底的核对仍可参考，不能照搬无依据的机型、信号、电量或“就绪”推断。
+
+画面时间与事件时间分开；旧画面不因页面刷新变成最新。查看、放大、申请控制、取得独占、提交处理、交还确认及恢复复核分别反馈，受暂停、授权、同机互斥和任务条件约束。具体动作与异常见[页面规格 7 节](docs/workbench-page-spec.md#7-账号设备及接管)。
+
+### 提供者与基础分佣
+
+沿用浅色表格和证据详情结构，见[提供者详情](docs/design/workbench/provider-detail-v1.png)及[收入与分佣依据](docs/design/workbench/commission-detail-v1.png)。先看每台设备的条件与需处理事项，再查具体收入、承接期间、适用比例和处理记录；不以钱包总余额掩盖口径差异。
+
+预估收入、实际到账且核清收入、可结算佣金和实际已付分别表达。比例缺失显示未配置，不填默认数；账号承接或收入无法拆清时保留待核对，保存说明不触发付款。暂停手机不使用惩罚性文案或自动扣费图标。动作与异常见[页面规格 8 节](docs/workbench-page-spec.md#8-提供者与基础分佣)。
+
+### 状态与反馈
+
+高影响操作的代表稿见[暂停进展](docs/design/workbench/project-pause-v1.png)、[恢复检查](docs/design/workbench/project-resume-v1.png)与[正式结束确认](docs/design/workbench/project-end-v1.png)。操作前展示具体对象与影响，操作后保留请求、实际停止/取消、核验和仍待处理事项。恢复与结束是不同路径，不把它们串成固定向导，也不增加逐条发布审批。
+
+主动作使用具体业务动词：确认暂停发布、恢复并检查任务、确认结束项目。结束操作单独使用强调色，普通查看/返回不跟随危险按钮样式。内部运营同权，记录实际操作人；项目负责人只是提醒和责任归属，不限制其他运营代办。[跨页面核对表](docs/workbench-flow-consistency.md)统一状态含义、深链对象与返回连续性，具体边界见[页面规格第 9 节](docs/workbench-page-spec.md#9-高影响操作与反馈)。
+
+以下为从既定业务推导的组件要求：请求已受理、执行进行中、实际结果和复核状态分别表达。项目暂停发布与提供者暂停手机的影响不同；网络在线与业务就绪不同。
+
+建议状态使用明确文字与辅助图形，颜色不作为唯一表达。失联时显示最后已知状态与更新时间，重要阻断和不可操作原因保持可读。候选 tokens 服务于初轮视觉稿；悬停、聚焦、禁用、加载等完整组件状态仍需设计和验证。
+
+## Do's and Don'ts
+
+- 保持项目、平台发布身份与操作对象清楚可见，沿用已确认的授权和人工协作边界。
+- 给出紧迫性与建议的事实依据；正常工作可追踪，未知结果如实显示。
+- 保存资料、批准范围、执行、发布核验和效果评价分别反馈。
+- 不把素材上传、任务提交、人工已处理或通知已读当成业务完成。
+- 不因列表、日历或聊天的呈现方式引入逐条发布审批、额外授权或重复发布。
+- 将未确认的视觉选择保持为待定；当前文件不证明页面、可访问性或实机验收通过。

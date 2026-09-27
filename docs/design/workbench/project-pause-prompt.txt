@@ -1,0 +1,17 @@
+Use case: ui-mockup. Single high fidelity Chinese desktop SocialGrowth screen1500x1100. Follow original light office reference, white panels,palegraycanvas,blue actions,thin borders,8px radius. No darkdashboard.
+Sidebar SocialGrowth / 工作台 / 项目(selected) / 账号与设备 / 提供者与分佣.
+Breadcrumb 项目 / 短剧出海 / 暂停进展. Title 项目暂停：等待执行端确认.
+Header 2026-09-28 10:02 · 设计稿·示例数据. Link 返回项目概览.
+Status facts in3separate columns 暂停请求 已受理10:00 / 新发布 已停止启动 / 在途操作 仍有1项待停止确认.
+Amber concise banner "暂停请求已受理，不代表所有手机已停止。"
+Main panel title 受影响任务. table 任务 / 请求时事实 / 当前处理 / 操作.
+PUB-FB-021 · 独立宣传片 / 尚未开始 / 保留安排，暂停启动 / 查看任务
+PUB-YT-022 · 连载片段 / 编辑中，尚未提交 / 等待可确认节点停止 / 查看停止进展
+PUB-FB-023 · 独立宣传片 / 已有提交动作，结果未知 / 继续核实原任务，不重发 / 查看核实待办
+helper "未提交、已提交与未知分别处理；暂停不把任务取消或判失败。"
+Below two columns:
+left 暂停期间仍可推进: 已发布内容按既定安排尝试采集效果；实际权限、人工接管与设备条件仍需满足。
+right 保留的范围: 账号和手机分配保留；平台已有内容不自动删除；提供者暂停手机时不得借采集继续操作。
+Bottom 操作记录 timeline10:00李运营发起暂停 / 10:00停止启动新发布 / 10:02一项编辑中任务等待停止确认.
+Buttons 查看关联待办(primary), 返回项目概览(secondary). No resumeall/force-stop/delete/publish button. No success banner or allstopped while pending.
+All records fictional design scenario separate from previous day; prevent labels or flags claiming real execution.

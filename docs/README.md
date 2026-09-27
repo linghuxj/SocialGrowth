@@ -14,6 +14,12 @@
 | 4 | [验证推进安排](next-stage-plan.md) | 汇总运行前输入、技术设计问题和验证顺序，不从 Demo 缺口倒推需求 |
 | 5 | [首期技术设计](technical-design.md) | 将已确认需求落实为部署职责、数据与任务契约、控制及恢复方案；新增选型为设计建议 |
 | 6 | [证据盘点与首轮验证](verification-readiness.md) | 记录 Demo 复用边界、当前资源状态和按顺序执行的增量验证步骤 |
+| UI 对齐中 | [Web 运营工作台 UI 与交互](workbench-ui-alignment.md) | 依据当前业务与 DESIGN.md 范式，对齐工作顺序、页面内容及交互；未确认建议不覆盖需求基线 |
+| 设计对齐稿 | [DESIGN.md](../DESIGN.md) | 当前以 UI-001～UI-012 和 UI-014 为准：首页并列、浅色设备与接管稿；UI-013 的 Demo 大屏方向已留档 |
+| 页面规格草案 | [Web 工作台页面规格](workbench-page-spec.md) | 0.9：主要页面、项目控制、跨页状态及可点击原型范围；方向确认沿用 R-017 |
+| 流程核对 | [跨页面流程与状态](workbench-flow-consistency.md) | 同一任务在首页、项目、设备、复盘等页面的语义与返回路径，供后续原型与真实验证 |
+| 视觉稿与预览 | [工作台视觉稿索引](design/workbench/README.md) | 主要页面及暂停/恢复/结束图稿、提示词与生成偏差；Demo 大屏探索为历史参考 |
+| 可点击设计原型 | [原型与检查说明](design/workbench/prototype/README.md) | 17 个视图、9 组 Playwright 原型检查及截图；未连接真实业务 |
 | 参考 | [业务术语](../CONTEXT.md) | 统一业务名词，不承载技术方案 |
 
 ## 来源与研究

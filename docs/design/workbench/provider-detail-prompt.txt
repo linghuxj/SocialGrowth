@@ -1,0 +1,23 @@
+Use case: ui-mockup
+Asset type: high fidelity Chinese desktop operations console screen, 1500x1100, flat screenshot.
+Primary request: Provider detail for SocialGrowth, consistent with the ORIGINAL LIGHT design reference. White content panels, pale gray #F4F6FA canvas, #172B4D text, #2459C4 links and primary buttons, thin #DCE2EA borders, moderate density, 8px radius. Do NOT use dark device farm aesthetic. Reference image is style only.
+Sidebar SocialGrowth / 工作台 / 项目 / 账号与设备 / 提供者与分佣(selected).
+Breadcrumb 提供者与分佣 / 提供者 / 林先生
+Title 林先生, small status 已注册; secondary identity PRV-002 · 受邀加入
+Top right 2026-09-27 · 设计稿 · 示例数据. Link 返回提供者列表.
+Local tabs 设备与接入(selected) / 分佣记录.
+Top concise white strip "关联手机 2 台" / "就绪检查与运行条件逐台判断" / small action 查看接入记录. No total income counter, no invitations send button.
+Main white panel title 关联设备.
+Table columns 手机 / 项目与发布身份 / 当前条件 / 需要处理的事项 / 操作
+row SG-012 / 短剧出海 · YT频道 CostaDrama / 在线，恢复复核待处理 / 核对当前频道与页面 / 查看设备
+row SG-021 / 家居产品 · FB Page HomeVista / 提供者已暂停，停止已确认 / 等待提供者自行请求恢复 / 查看设备
+Neutral helper "暂停与恢复作用于对应手机，不联动同一提供者的其他设备。"
+Second large white panel title 基础分佣 · 记录摘要
+subtitle "仅关联账号广告收益；金额按原币种展示。"
+Table columns 收入记录 / 收益产生区间 / 收入事实 / 佣金状态 / 操作
+row COM-009 · FB Page HomeVista / 2026-08-01—08-31（UTC） / 已到账并核清 USD 100.00 / 待配置适用比例，佣金未计算 / 查看依据
+row COM-010 · YT频道 ArchiveStories / 2026-08-01—08-31（UTC） / 待拆分收入 USD 240.00 / 承接跨界待核对，非本人应得金额 / 查看待核对项
+row EST-011 · FB Page HomeVista / 2026-09-01—09-26（UTC） / 预估广告收益 USD 80.00 / 未到账，不进入可结算佣金 / 查看来源
+Footer under table "三行口径不同，不合并为可结算金额。尚无已核实付款记录，不记作已付 0。"
+Bottom modest 2 columns: left title 账号承接与历史 "当前设备用于查看现状；历史收益按对应账号的承接期间归属。交接后迟到账不改归属。" right title 首期处理边界 "保留收入依据、适用比例与处理记录；付款记录不触发转账。" Text link 查看账号承接记录.
+No fake default commission rate; do not calculate earnings. No wallet, withdrawal, automatic payout, operational penalty, payout approve button, phone controls, bank details or made up personal contacts. Preserve exact figures and separate confirmed receipts from attribution-pending source total. All values illustrative, not actual financial data.

@@ -1,0 +1,17 @@
+Use case: ui-mockup. Create a high fidelity Chinese desktop SocialGrowth preparation overview, approx1500x1100. Reference style only: original light office, white panels, #F4F6FA canvas, #172B4D text, #2459C4 primary, thin borders,8px radius, moderate density. No dark dashboard.
+Sidebar SocialGrowth / 工作台 / 项目(selected) / 账号与设备 / 提供者与分佣.
+Title 短剧出海·二期 with 筹备中. Header 2026-09-27 · 设计稿 · 示例数据. Project tabs 概览(selected) 素材 发布安排 效果与复盘 设置.
+White summary: 先确认方向，准备工作可并行推进. 方向尚未确认；部分资源仍在准备。保存资料不启动发布。 Primary 查看并确认方向; secondary 查看项目设置.
+Large table 准备清单, subtitle 各项可独立补齐并保存；就绪与否以实际检查结果为准.
+Columns 准备事项 / 当前事实 / 对执行的影响 / 操作.
+Rows:
+目标与自主范围 / 已保存方向草案v1，待确认 / 方向未确认，不能启动发布 / 查看方向
+素材与业务资料 / 2项候选，1项缺语言资料 / 缺项素材不能选用，已通过素材保留 / 整理素材
+发布身份与手机 / FB已就绪；YT初始化中 / YT尚不可执行，分别判断账号条件 / 查看资源
+引流入口 / 链接已保存，平台入口待核验 / 尚不能计为有效引流任务 / 查看引流配置
+周期与运行规则 / 首次起点10-01 00:00，复盘间隔7天 / Asia/Shanghai，最低引流6项/周期 / 查看规则
+负责人及提醒 / 林运营，提醒邮箱已保存 / 通知送达不等于事项已处理 / 查看负责人
+Below two panels 当前可推进: 补齐素材资料；继续YT初始化及引流入口核验。上述准备仍遵守各自授权与控制条件。
+确认后的执行方式: 确认方向后，满足条件的任务可在批准范围内自动执行；未就绪事项保留阻断，无需额外启动审批。
+Footer 示例项目与参数仅用于设计；不写入真实配置。各项保存、检查、方向确认分别记录。
+No 100% progress, forced linear wizard, launch button or per-task approval. Legible complete Chinese, no clipped columns.

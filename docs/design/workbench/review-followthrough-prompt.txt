@@ -1,0 +1,30 @@
+Use case: ui-mockup
+Asset type: high fidelity desktop Chinese operator console screen, same visual system as reference.
+Primary request: companion detail screen "复盘与落实" for project 短剧出海, one full screen, not a chatbot. Reference image style only; keep navigation, white panels, pale gray background, blue actions, restrained amber blocked status, navy text. Approximately 1500x1100 landscape, sharp readable Simplified Chinese.
+Left sidebar SocialGrowth / 工作台 / 项目(selected) / 账号与设备 / 提供者与分佣.
+Header breadcrumb 项目 / 短剧出海 / 效果与复盘; upper right 2026-09-27 12:00 and 设计稿 · 示例数据.
+Title 维持方向，调整可执行时段
+subtitle REV-0927-01 · 复盘生成 2026-09-27 08:00
+link 返回效果与复盘.
+A slim scope band: "复盘依据：09-20 00:00 至 09-27 00:00（结束不含）" and "后续跟踪：09-27 00:00 起 · Asia/Shanghai". Important: cycle totals exclude follow-up new tasks.
+Main two column upper layout:
+Left wider white panel title 本轮判断与依据.
+3 concise numbered text groups:
+"维持已批准方向" / "资格进展数据未补齐，暂不改变主指标，也不按单条视频点击排名选片。"
+"调整 2 项未开始任务" / "依据手机可用时段，在原有效窗口内重排；调整时均未进入平台发布流程。"
+"保留历史缺口 2 项" / "原周期 4 项核验成功、1 项待核实、1 项失败；继续核实原任务，不自动追加下期要求。"
+Small links 查看数据来源 查看批准范围.
+Right narrower white panel title 批准范围与生效记录.
+rows 执行主体 业务 AI; 调整时间 09-27 08:10; 变更范围 原批准窗口内; 确认要求 无需逐条审批.
+Neutral helper "主目标、方向和硬性约束保持原批准范围。"
+No approve all button.
+Bottom wide table panel title 后续安排与实际落实
+subtitle "以下为新周期任务，未计入上方原周期完成数。"
+columns 关联任务 / 原安排 → 当前安排 / 实际执行与核验 / 新反馈 / 操作.
+row1 "PUB-FB-005 / 独立宣传片 / CostaDrama FB"; "09-27 09:00 → 11:00 / 有效窗口 09:00–12:00"; "实际发布 11:03 / 核验成功 11:08"; "效果待采集 / 暂不能判断改善"; blue 查看任务.
+row2 "PUB-YT-004 / 海岸来信·第4集 / CostaDrama"; "09-27 13:00 → 15:00 / 有效窗口 13:00–17:00"; amber "等待手机恢复复核 / 前置第3集已核验"; "尚未发布 / 无新效果"; blue 查看阻断.
+Below table compact neutral band "安排已更新 2 项 · 发布已核验 1 项 · 受阻 1 项 · 改善结论尚未形成".
+Below a pale white section "关联记录" with mini horizontal text "08:00 形成复盘 → 08:10 更新安排 → 11:08 FB 发布核验 → 12:00 新效果待取得". Button/link 查看完整记录.
+Footer "图中账号、任务及时间均为示例；发布成功不代表效果改善。"
+All times 2026-09-27 Asia/Shanghai. Task 3 may have been verified10:12 as earlier reference, so task4 precondition now met but phone recovery blocked. Changes at08:10 remain valid scheduling while dependency pending, not execution authorization.
+No unsupported percentage improvements, no charts, no generic chat, no new publish approval, no immediate retry, no final publishing buttons. No fake outcome data. Make the core lineage from evidence → decision → changed schedules → actual result → still missing feedback readable.

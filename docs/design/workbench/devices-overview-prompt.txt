@@ -1,0 +1,22 @@
+Use case: ui-mockup
+Asset type: high fidelity Chinese desktop operations dashboard, single flat screen around 1500x1100.
+Primary request: SocialGrowth global 账号与设备 page, 手机 tab selected. Use reference only for light office visual system, not its content. White panels on #F4F6FA, text #172B4D, muted #526176, blue #2459C4, amber only actual blocking conditions, restrained green verified condition. Moderate density, thin borders,8px radius, legible Simplified Chinese, no charts.
+Persistent left sidebar width215: SocialGrowth / 工作台 / 项目 / 账号与设备(selected) / 提供者与分佣.
+Main header title 账号与设备, subtitle 查看发布身份、手机条件与受影响任务. Upper right 2026-09-27 12:00 · 设计稿 · 示例数据.
+Top local tabs 发布身份 / 手机(selected).
+Filter row 项目：全部 / 执行条件：全部 / 搜索手机、身份或提供者; secondary 刷新.
+Subtle neutral instruction strip "网络在线不等于可执行；暂停、授权与当前控制情况分别核对。"
+White table panel title 手机资源.
+Columns 手机 / 提供者与项目 / 发布身份 / 连接与授权 / 当前控制 / 执行条件 / 操作.
+4 generous rows:
+SG-012 | 林先生 / 短剧出海 | YT频道 CostaDrama | 在线·12:00 / 授权有效 | 无操作方·暂停 | amber 恢复复核待处理 / 需核对当前频道与页面 | 查看详情
+SG-008 | 陈女士 / 短剧出海 | FB Page CostaDrama FB | 在线·12:00 / 授权有效 | 空闲 | 就绪 / 任务仍按排期与约束执行 | 查看详情
+SG-021 | 林先生 / 家居产品 | FB Page HomeVista | 在线·11:59 / 授权有效 | 无操作方·已停止 | 提供者已暂停 / 不进行手机业务操作 | 查看详情
+SG-022 | 王先生 / 旅行推广 | YT频道 TravelVista | 离线·最后在线09:20 / 当前授权待核实 | 最后已知：AI / 停止未确认 | 已退出·停止新派发 / 旧端停止与清理待处理 | 查看详情
+Highlight SG-012 subtly selected. Footer 当前显示4台，均为示例.
+Lower compact selected resource section "SG-012 · 当前影响与处理".
+Left facts 当前项目 短剧出海; 发布身份 YouTube频道 / CostaDrama; 关联待办 OPS-012 / 频道与当前界面核对.
+Right two linked task rows PUB-YT-003 发布已核验，不重发; PUB-YT-004 第4集 / 15:00排期 / 等待手机恢复复核.
+Primary blue CTA "查看并处理待办", helper "进入详情不会自动申请接管。" Secondary 查看设备条件.
+Bottom small explanatory sentence "同一提供者的手机分别授权与运行；现场协助仅在必要时提出。"
+No one-click force restore, no batch takeover, no install instructions, no credentials, no invented uptime/health score, no approval for provider stop. This is static proposed UI, not proof of actual device capability.

@@ -1,0 +1,43 @@
+Use case: ui-mockup. Edit attached SocialGrowth task-detail mockup into a LATER VERIFIED state for the SAME example task. Preserve 1488 x 1056 source proportions, sidebar, breadcrumbs, two-column overview/evidence layout, typography, light colors, task identity, content file and project. Current date anchor 2026-09-27; visible “设计稿 · 示例数据”. All facts below are fictional design data, not a real platform report. Do not add a platform screenshot, actual public URL or fake real evidence.
+
+Keep title “海岸来信 · 第3集”, subline “PUB-YT-003 · YouTube Shorts”, breadcrumb 项目 / 短剧出海 / 发布安排 and 返回发布列表.
+Change the three independent states to:
+“执行进展：提交动作已记录” (neutral)
+“平台结果：发布成功” (small green)
+“效果数据：待采集” (neutral).
+Replace amber banner with a calm pale-green strip “已核验正确频道与内容；效果数据尚未取得”.
+
+Task information stays exactly:
+项目 短剧出海
+发布频道 CostaDrama
+执行手机 SG-012
+素材 coast_03.mp4
+语言 / 文件版本 西班牙语 / v1
+计划时间 2026-09-27 09:30
+有效窗口 09:20–10:00
+Change 实际发布时间 to “2026-09-27 09:35”.
+Retain timezone “Asia/Shanghai · UTC+08:00”. Known actual time is distinct from planned and verification time.
+Execution timeline same region/size, show five key entries:
+09:34 提交动作已记录
+09:35 手机连接中断
+09:40 转人工核实
+10:05 人工处理结果已提交
+10:12 平台发布核验成功
+Use restrained green ONLY for final verified outcome. Small collapsed “查看更早记录” retains previous history. Do not erase disconnect or human-intervention history.
+Keep collapsed bottom row “查看发布信息与安排依据”.
+
+Right panel heading “核验结果与证据”. Show legible label/value rows:
+“平台发布身份” — “CostaDrama · 已核对”
+“内容与版本” — “第3集 / 西班牙语 / v1”
+“平台内容标识” — “已关联（示例）”
+“实际发布时间” — “09:35”
+“核验完成时间” — “10:12”
+Below source text “依据：平台内容页核对记录（示例）”.
+One primary blue button “查看核验证据”; quiet secondary link “查看原核实待办”.
+No approval button, mark-success button, repost, publish or automatic device-restore control.
+Below divider heading “后续进展” with three lines:
+“效果数据待采集，不记为零”
+“YT 第4集的发布前置已满足”
+“后续仍需检查手机、授权与有效窗口”
+Small separate neutral line “手机运行状态需另行复核”.
+Do NOT say tasks resumed or phone online. Published content can be verified while device recovery remains pending. Do not show revenue, view counts or a success score. Keep clear text/spacing; no clipped bottom, no new side panels or image collages. Output one revised static screenshot, no numbered option label.

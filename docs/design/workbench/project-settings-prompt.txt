@@ -1,0 +1,27 @@
+Use case: ui-mockup. High fidelity Chinese SocialGrowth desktop settings change preview approx1500x1100, reference original light office design. White panels, pale gray canvas, blue primary, thin borders, moderate density.
+Sidebar SocialGrowth / 工作台 / 项目(selected) / 账号与设备 / 提供者与分佣.
+Breadcrumb 项目 / 短剧出海 / 设置. Title 周期与业务时区. Upper right 2026-09-27 · 设计稿 · 示例数据.
+Project tabs 概览 素材 发布安排 效果与复盘 设置(selected).
+Settings tabs 目标与范围 / 周期与观察(selected) / 执行规则 / 负责人及提醒. Badge 有未保存修改.
+Top white panel 当前周期保持不变:
+2026-09-27 00:00 → 2026-10-04 00:00（结束不含）
+Asia/Shanghai · UTC+08:00
+本周期引流最低要求 6 项（示例）
+运行后不重设首次统计起点，不缩短或拆开当前周期。
+Middle two columns:
+left 拟修改配置: 复盘间隔 input14天, 当前7天; 业务时区 dropdownAsia/Bangkok, 当前Asia/Shanghai; read-only 首次统计起点 已固定，运行中不可编辑. Helper 当前表单只修改复盘间隔与业务时区；引流要求及其他配置不在本次变更中。
+right 生效预览:
+下周期起点（同一实际时刻）
+2026-10-04 00:00 Asia/Shanghai
+=
+2026-10-03 23:00 Asia/Bangkok
+下一周期（新时区，结束不含）
+2026-10-03 23:00 → 2026-10-17 23:00
+连续衔接，没有空档、重叠或额外过渡周期。
+Bottom wide 影响范围:
+当前周期边界与最低要求不变，历史报告保留原口径。
+新配置从下周期起点生效；已开始任务与未决发布仍按原事实单独处理。
+跨生效点的未开始安排需按原批准范围与有效窗口复查，不因换时区自动补发或扩权。
+Bottom secondary 放弃本次修改, primary 保存，下周期生效.
+Helper 保存成功后显示待生效版本与具体时间，不立即显示新配置已运行。
+No applynow/startproject/publish buttons. No success toast before saving. Exact timezone arithmetic. All values illustrative,14days not default.

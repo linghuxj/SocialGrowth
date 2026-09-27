@@ -1,0 +1,19 @@
+Use case: ui-mockup. High fidelity Chinese desktop SocialGrowth formal end confirmation screen1500x1100. Original light office style, white panels, palegraycanvas, restrainedred only destructive final button.
+Sidebar SocialGrowth / 工作台 / 项目(selected) / 账号与设备 / 提供者与分佣.
+Breadcrumb 项目 / 短剧出海 / 结束项目. Title 正式结束项目.
+subtitle 当前项目已暂停 · 本页尚未提交结束. Upper right 2026-09-28 · 设计稿·示例数据.
+This is ALTERNATIVE design branch to resume, not outcome following resume. Header side link 返回项目概览.
+Top paleamber notice "结束后不再启动新发布；已取消安排不能通过普通恢复继续。"
+Main panel 本次处理范围 table 对象 / 当前事实 / 结束后处理:
+PUB-FB-021 / 尚未开始 / 取消该未提交安排，保留历史
+PUB-YT-022 / 已停止并确认未提交 / 取消该未提交安排，保留记录
+PUB-FB-023 / 已有提交动作，结果未知 / 单独继续核实，不取消、不重发
+Below small "实际执行时再次核对任务状态；失联或停止未知不计作已停止。"
+Middle two white cards:
+收尾观察: 期限7天（本项目示例配置，非默认）; 起点项目结束生效时刻; 到期汇总实际可得数据并停止常规采集; 缺失与局限保留，未决发布仍单独核实.
+资源与平台内容: 账号与手机不自动释放; 平台已发布内容不自动撤下; 如需交接或撤下，进入对应范围确认与核验流程.
+Bottom detail row 保存处理依据 可选说明 textarea placeholder 说明本次结束原因（勿填写敏感凭据）.
+Consequence summary "将结束发布安排并进入收尾；请求受理、执行端停止与未决核实分别显示。"
+Bottom secondary 保持暂停并返回, final moderate red button 确认结束项目.
+Footer "没有立即删除、自动清理或恢复已取消任务；全部为静态设计示例。"
+No typedprojectname challenge or checkboxwall, no funds settings, no fake finished result. show effect preview before final action. All times have no invented alreadyended timestamp.
