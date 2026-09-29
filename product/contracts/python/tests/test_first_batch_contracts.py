@@ -128,6 +128,18 @@ class FirstBatchContractsTest(unittest.TestCase):
             "sessionToken": "A" * 43,
         }
         self.assertIs(self.contracts.validate("providerAuthResponse", auth), auth)
+        wide_offset_and_supplementary_name = {
+            **provider,
+            "displayName": "😀" * 51,
+            "createdAt": "2026-09-29T08:00:00+19:00",
+            "updatedAt": "2026-09-29T09:00:00+19:00",
+        }
+        self.assertIs(
+            self.contracts.validate(
+                "providerSelfView", wide_offset_and_supplementary_name
+            ),
+            wide_offset_and_supplementary_name,
+        )
 
         contradictions = [
             (

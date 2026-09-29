@@ -532,6 +532,17 @@ const providerStatusSchema = requireSchemaProperty(
   "status",
   "providerSelfView",
 );
+const providerDisplayNameSchema = requireSchemaProperty(
+  providerSelf.properties,
+  "displayName",
+  "providerSelfView",
+);
+requireOnlyKeys(
+  providerDisplayNameSchema,
+  ["type", "minLength", "maxLength"],
+  "providerSelfView.displayName",
+);
+requireSchemaType(providerDisplayNameSchema, "string", "providerSelfView.displayName");
 const providerAuthProviderSchema = requireSchemaProperty(
   providerAuth.properties,
   "provider",
@@ -575,6 +586,8 @@ internal object GeneratedFirstBatchContractSpec {
     const val PHONE_HINT_PATTERN = ${kotlinString(requireString(phoneHintSchema.pattern, "phoneVerificationChallengeResponse.phoneHint.pattern"))}
     const val SESSION_TOKEN_PATTERN = ${kotlinString(requireString(sessionTokenSchema.pattern, "providerAuthResponse.sessionToken.pattern"))}
     const val PHONE_CHALLENGE_DELIVERY_STATE = ${kotlinString(requireString(deliveryStateSchema.const, "phoneVerificationChallengeResponse.deliveryState.const"))}
+    const val PROVIDER_DISPLAY_NAME_MIN_CODE_POINTS = ${requireNumber(providerDisplayNameSchema.minLength, "providerSelfView.displayName.minLength")}
+    const val PROVIDER_DISPLAY_NAME_MAX_CODE_POINTS = ${requireNumber(providerDisplayNameSchema.maxLength, "providerSelfView.displayName.maxLength")}
     val ASSOCIATION_QR_KEYS = ${kotlinSet(Object.keys(associationQrProperties))}
     val ASSOCIATION_QR_REQUIRED_KEYS = ${kotlinSet(associationQrRequired)}
     val INSTALLATION_SELF_KEYS = ${kotlinSet(Object.keys(installationProperties))}

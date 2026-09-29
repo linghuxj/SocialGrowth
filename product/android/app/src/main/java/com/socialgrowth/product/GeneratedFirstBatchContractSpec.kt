@@ -15,6 +15,8 @@ internal object GeneratedFirstBatchContractSpec {
     const val PHONE_HINT_PATTERN = "^\\+(?=[0-9*]{7,18}\$)(?=[0-9]*\\*)[0-9*]+\$"
     const val SESSION_TOKEN_PATTERN = "^[A-Za-z0-9_-]{43}\$"
     const val PHONE_CHALLENGE_DELIVERY_STATE = "accepted"
+    const val PROVIDER_DISPLAY_NAME_MIN_CODE_POINTS = 1
+    const val PROVIDER_DISPLAY_NAME_MAX_CODE_POINTS = 100
     val ASSOCIATION_QR_KEYS = setOf("contractVersion", "associationCode")
     val ASSOCIATION_QR_REQUIRED_KEYS = setOf("contractVersion", "associationCode")
     val INSTALLATION_SELF_KEYS = setOf("factVersion", "updatedAt", "installationId", "state", "deviceId")

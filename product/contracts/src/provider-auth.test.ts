@@ -122,6 +122,15 @@ test("provider login accepts only a verified proof and auth responses keep the f
   assert.equal(providerAuthResponseSchema.safeParse(response).success, true);
   assert.equal(providerAuthResponseSchema.safeParse({
     ...response,
+    provider: {
+      ...response.provider,
+      displayName: "😀".repeat(51),
+      createdAt: "2026-09-29T08:00:00+19:00",
+      updatedAt: "2026-09-29T09:00:00+19:00",
+    },
+  }).success, true);
+  assert.equal(providerAuthResponseSchema.safeParse({
+    ...response,
     provider: { ...response.provider, phoneE164: "+8613800000001" },
   }).success, false);
   assert.equal(providerAuthResponseSchema.safeParse({

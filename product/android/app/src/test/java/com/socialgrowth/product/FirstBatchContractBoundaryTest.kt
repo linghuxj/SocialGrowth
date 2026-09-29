@@ -70,6 +70,11 @@ class FirstBatchContractBoundaryTest {
             """{"provider":{"providerId":"$id","displayName":"设备提供者","phoneHint":"+86*******001","status":"active","createdAt":"2026-09-29T00:00:00Z","updatedAt":"2026-09-29T00:00:00.0000000001Z"},"session":{"sessionId":"00000000-0000-4000-8000-000000000002","createdAt":"2026-09-29T00:00:00Z","expiresAt":"2026-10-29T00:00:00Z"},"sessionToken":"${"A".repeat(43)}"}""",
         )
         assertEquals("+86*******001", auth.provider.phoneHint)
+
+        val supplementaryPlaneName = FirstBatchContractBoundary.parseProviderSelfView(
+            """{"providerId":"$id","displayName":"${"😀".repeat(51)}","phoneHint":"+86*******001","status":"active","createdAt":"2026-09-29T08:00:00+19:00","updatedAt":"2026-09-29T08:00:00.0000000001+19:00"}""",
+        )
+        assertEquals(51, supplementaryPlaneName.displayName.codePointCount(0, supplementaryPlaneName.displayName.length))
     }
 
     @Test
@@ -92,6 +97,11 @@ class FirstBatchContractBoundaryTest {
         assertFailsWith<ContractBoundaryException> {
             FirstBatchContractBoundary.parseProviderSelfView(
                 """{"providerId":"$id","displayName":"设备提供者","phoneHint":"+86*******001","status":"active","createdAt":"2026-09-29T00:00:00Z","updatedAt":"2026-09-28T23:59:59Z"}""",
+            )
+        }
+        assertFailsWith<ContractBoundaryException> {
+            FirstBatchContractBoundary.parseProviderSelfView(
+                """{"providerId":"$id","displayName":"${"😀".repeat(101)}","phoneHint":"+86*******001","status":"active","createdAt":"2026-09-29T00:00:00Z","updatedAt":"2026-09-29T00:00:00Z"}""",
             )
         }
         assertFailsWith<ContractBoundaryException> {

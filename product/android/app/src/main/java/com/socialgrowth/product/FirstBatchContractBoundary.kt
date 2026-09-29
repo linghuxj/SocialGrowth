@@ -2,7 +2,8 @@ package com.socialgrowth.product
 
 import org.json.JSONObject
 import java.math.BigDecimal
-import java.time.OffsetDateTime
+import java.time.LocalDateTime
+import java.time.ZoneOffset
 import java.util.UUID
 
 data class AssociationQrPayload(
@@ -239,7 +240,12 @@ object FirstBatchContractBoundary {
             GeneratedFirstBatchContractSpec.PROVIDER_SELF_REQUIRED_KEYS,
         )
         val displayName = requireString(json, "displayName")
-        require(displayName.length in 1..100) { "invalid displayName" }
+        val displayNameCodePoints = displayName.codePointCount(0, displayName.length)
+        require(
+            displayNameCodePoints in
+                GeneratedFirstBatchContractSpec.PROVIDER_DISPLAY_NAME_MIN_CODE_POINTS..
+                GeneratedFirstBatchContractSpec.PROVIDER_DISPLAY_NAME_MAX_CODE_POINTS,
+        ) { "invalid displayName" }
         val status = requireString(json, "status")
         require(status in GeneratedFirstBatchContractSpec.PROVIDER_STATUSES) { "unknown provider status" }
         val createdAt = requireTimestamp(json, "createdAt")
@@ -328,8 +334,16 @@ object FirstBatchContractBoundary {
             val match = requireNotNull(timestampPartsRegex.matchEntire(value)) {
                 "timestamp was not structurally validated"
             }
-            val wholeSeconds = OffsetDateTime.parse(match.groupValues[1] + match.groupValues[3])
-                .toEpochSecond()
+            val localSeconds = LocalDateTime.parse(match.groupValues[1])
+                .toEpochSecond(ZoneOffset.UTC)
+            val zone = match.groupValues[3]
+            val offsetMinutes = if (zone == "Z") {
+                0
+            } else {
+                val sign = if (zone[0] == '+') 1 else -1
+                sign * (zone.substring(1, 3).toInt() * 60 + zone.substring(4, 6).toInt())
+            }
+            val wholeSeconds = localSeconds - offsetMinutes * 60L
             return wholeSeconds to match.groupValues[2]
         }
         val leftParts = parts(left)
