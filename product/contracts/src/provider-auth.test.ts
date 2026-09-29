@@ -7,6 +7,8 @@ import {
   phoneVerificationChallengeResponseSchema,
   phoneVerificationResponseSchema,
   providerAuthResponseSchema,
+  providerLogoutRequestSchema,
+  providerRegistrationAuthResponseSchema,
   providerLoginRequestSchema,
   requestPhoneVerificationSchema,
   verifyPhoneCodeRequestSchema,
@@ -145,4 +147,36 @@ test("first registration no longer requires a name field absent from the selecte
     invitationCode: "A".repeat(43),
     phoneVerificationId: verificationId,
   }).success, true);
+});
+
+test("registration enters management with the same provider and logout stays explicit", () => {
+  const providerId = "018f47ac-7a69-7db4-a572-8c62f3650193";
+  const response = {
+    registration: {
+      providerId,
+      invitationId: "018f47ac-7a69-7db4-a572-8c62f3650195",
+      registeredAt: "2026-09-29T08:02:00Z",
+    },
+    provider: {
+      providerId,
+      displayName: "设备提供者",
+      phoneHint: "+86*******001",
+      status: "active",
+      createdAt: "2026-09-29T08:02:00Z",
+      updatedAt: "2026-09-29T08:02:00Z",
+    },
+    session: {
+      sessionId: "018f47ac-7a69-7db4-a572-8c62f3650194",
+      createdAt: "2026-09-29T08:02:00Z",
+      expiresAt: "2026-10-29T08:02:00Z",
+    },
+    sessionToken: "S".repeat(43),
+  };
+  assert.equal(providerRegistrationAuthResponseSchema.safeParse(response).success, true);
+  assert.equal(providerRegistrationAuthResponseSchema.safeParse({
+    ...response,
+    registration: { ...response.registration, providerId: verificationId },
+  }).success, false);
+  assert.equal(providerLogoutRequestSchema.safeParse({ metadata: mutationMetadata }).success, true);
+  assert.equal(providerLogoutRequestSchema.safeParse({ metadata: mutationMetadata, sessionToken: response.sessionToken }).success, false);
 });

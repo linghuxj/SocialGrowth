@@ -33,11 +33,34 @@ test("provider HTTP routes parse strict requests and keep the session token expl
       observed.push(input);
       return { sessionToken: "S".repeat(43) };
     },
+    async completeRegistrationSession(input: unknown) {
+      observed.push({ completeRegistrationSession: input });
+      return {
+        provider: {
+          providerId: "00000000-0000-4000-8000-000000000010",
+          displayName: "设备提供者",
+          phoneHint: "+86*******201",
+          status: "active",
+          createdAt: "2026-09-29T00:00:00Z",
+          updatedAt: "2026-09-29T00:00:00Z",
+        },
+        session: {
+          sessionId: "00000000-0000-4000-8000-000000000011",
+          createdAt: "2026-09-29T00:00:00Z",
+          expiresAt: "2026-10-29T00:00:00Z",
+        },
+        sessionToken: "R".repeat(43),
+      };
+    },
   } as unknown as ProviderAuthService;
   const identity = {
     async registerProvider(input: unknown, context: unknown) {
       observed.push({ context, input });
-      return { providerId: "provider" };
+      return {
+        providerId: "00000000-0000-4000-8000-000000000010",
+        invitationId: "00000000-0000-4000-8000-000000000012",
+        registeredAt: "2026-09-29T00:00:00Z",
+      };
     },
   } as unknown as IdentityTransactionService;
   const controller = new ProviderController(auth, identity);
@@ -55,11 +78,32 @@ test("provider HTTP routes parse strict requests and keep the session token expl
     challengeId: "00000000-0000-4000-8000-000000000002",
     code: "123456",
   });
-  await controller.register({ metadata, invitationCode, phoneVerificationId: proofId });
+  const registration = await controller.register({ metadata, invitationCode, phoneVerificationId: proofId });
   const login = await controller.login({ metadata, phoneVerificationId: proofId });
 
   assert.deepEqual(challenge, { challengeId: "challenge" });
   assert.deepEqual(login, { sessionToken: "S".repeat(43) });
+  assert.deepEqual(registration, {
+    registration: {
+      providerId: "00000000-0000-4000-8000-000000000010",
+      invitationId: "00000000-0000-4000-8000-000000000012",
+      registeredAt: "2026-09-29T00:00:00Z",
+    },
+    provider: {
+      providerId: "00000000-0000-4000-8000-000000000010",
+      displayName: "设备提供者",
+      phoneHint: "+86*******201",
+      status: "active",
+      createdAt: "2026-09-29T00:00:00Z",
+      updatedAt: "2026-09-29T00:00:00Z",
+    },
+    session: {
+      sessionId: "00000000-0000-4000-8000-000000000011",
+      createdAt: "2026-09-29T00:00:00Z",
+      expiresAt: "2026-10-29T00:00:00Z",
+    },
+    sessionToken: "R".repeat(43),
+  });
   assert.deepEqual(observed[2], {
     input: { metadata, invitationCode, phoneVerificationId: proofId },
     context: { verifiedPhoneVerificationId: proofId },
@@ -115,4 +159,25 @@ test("provider HTTP rejects unsupported contracts before calling services", asyn
     },
   );
   assert.equal(called, false);
+});
+
+test("provider logout requires an explicit bearer token and forwards the request identity", async () => {
+  const observed: unknown[] = [];
+  const auth = {
+    async logout(token: string, requestId: string) {
+      observed.push({ requestId, token });
+      return { loggedOutAt: "2026-09-29T00:00:00Z" };
+    },
+  } as unknown as ProviderAuthService;
+  const controller = new ProviderController(auth, {} as IdentityTransactionService);
+  await assert.rejects(
+    controller.logout({ metadata }),
+    (error: unknown) => error instanceof HttpException && error.getStatus() === 401,
+  );
+  const token = "L".repeat(43);
+  assert.deepEqual(
+    await controller.logout({ metadata }, `Bearer ${token}`),
+    { loggedOutAt: "2026-09-29T00:00:00Z" },
+  );
+  assert.deepEqual(observed, [{ requestId: metadata.requestId, token }]);
 });

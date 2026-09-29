@@ -53,3 +53,37 @@
 - 后续如改用自有日期时间组件，可统一中文年月日顺序并增加明确时区提示；这不阻断当前阶段。
 
 final result: passed
+
+---
+
+# WP-04 第三阶段 Android 注册／登录设计 QA
+
+日期：2026-09-29。范围为选定的受邀注册视觉在 Kotlin 原生 Android 管理模式中的实现；业务成功态、登录态和退出态另以真机流程验证，不把参考图的示例状态当作后端事实。
+
+## 比较目标与证据
+
+- source visual truth：`docs/design/android/provider-registration-v1.png`，853 × 1844 px；同时受原始 `provider-registration-prompt.txt`、`docs/design/android/DESIGN.md` 与页面规格约束。
+- implementation screenshot：`artifacts/design-qa/wp04-stage3-registration-final.png`，Samsung SM-S9110 真机 1080 × 2340 px、物理密度 480 dpi；截图保留真实系统状态栏与导航栏。
+- authenticated screenshot：`artifacts/design-qa/wp04-stage3-success.png`，同一真机及尺寸，证明注册后的管理身份提示不把本机表达为执行手机。
+- combined comparison：`artifacts/design-qa/wp04-stage3-comparison.png`；HTML 比较画布把两张纵向图分别以 390 × 844 CSS px 呈现，避免不同原始像素密度影响结构比较。
+- state：实现对深链中的邀请只先表达“邀请待校验”；实际验证码请求由服务端确认邀请后才切换为“邀请已校验”。这比静态参考图直接显示已校验更符合权威事实，不是遗漏。
+
+## 视觉与交互核对
+
+- 保持浅灰 `#F4F6FA` 画布、白色表单卡、深蓝正文、蓝色主按钮、绿色邀请状态及细灰边框，没有渐变、装饰插画、底部登录前导航或未确认业务入口。
+- 标题、说明、手机号／验证码字段、独立获取验证码动作、主注册动作、不会接入本机提示、已有账号登录入口和逐台扫码说明均与参考层级一致。
+- 触控目标不小于 48dp，输入框与主按钮为 54dp；实际真机没有横向溢出，内容可滚动，系统栏不覆盖表单动作。
+- 返回使用 Android 主题提供的原生 up indicator；页面没有字符拼装图标、自制 SVG、占位图片或不必要的生成资产。
+- 手机号不预设 `+86`，客户端按后端 E.164 边界要求用户输入带国际区号的完整号码；验证码允许 4～8 位，不把静态稿固定为六位。
+
+## Findings 与迭代
+
+- Pass 1：真机整体结构、颜色、字号、间距和主要动作与参考方向一致；发现系统 `ic_media_previous` 呈现为上一曲图标，不符合返回语义。
+- Pass 2：改为解析 Android 主题 `homeAsUpIndicator`，真机重建与截图确认返回箭头正确；Debug/Release 构建及两套 JVM 测试通过。
+- 当前没有可执行的 P0、P1 或 P2 视觉差异。参考图的绿色勾选图标未单独复制；状态色和文案已完整传达语义，避免为装饰性小图标引入手制图形。
+
+## 最终结果
+
+真机实现忠实承接选定方向，同时按服务端事实纠正邀请初始状态。注册成功页明确说明管理登录不会接入本机；完整真机流程证据另记入 WP-04 交付记录。
+
+final result: passed

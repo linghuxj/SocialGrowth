@@ -10,6 +10,7 @@ import {
   phoneVerificationChallengeResponseSchema,
   phoneVerificationResponseSchema,
   providerAuthResponseSchema,
+  providerLogoutResponseSchema,
   providerLoginRequestSchema,
   requestPhoneVerificationSchema,
   verifyPhoneCodeRequestSchema,
@@ -17,6 +18,7 @@ import {
   type PhoneVerificationResponse,
   type ProviderAuthResponse,
   type ProviderLoginRequest,
+  type ProviderLogoutResponse,
   type RequestPhoneVerification,
   type VerifyPhoneCodeRequest,
 } from "@socialgrowth/product-contracts";
@@ -471,21 +473,56 @@ export class ProviderAuthService {
 
   async login(input: ProviderLoginRequest): Promise<ProviderAuthResponse> {
     const request = providerLoginRequestSchema.parse(input);
+    return this.completeProviderSession(
+      request.phoneVerificationId,
+      "provider_login",
+      request.metadata.requestId,
+    );
+  }
+
+  async completeRegistrationSession(
+    phoneVerificationId: string,
+    requestId: string,
+  ): Promise<ProviderAuthResponse> {
+    return this.completeProviderSession(
+      phoneVerificationId,
+      "provider_registration",
+      requestId,
+    );
+  }
+
+  private async completeProviderSession(
+    phoneVerificationId: string,
+    expectedPurpose: "provider_registration" | "provider_login",
+    requestId: string,
+  ): Promise<ProviderAuthResponse> {
     return inTransaction(this.pool, async (client) => {
       const proofResult = await client.query<VerificationRow>(
         `SELECT phone_e164, purpose, provider_id, verified_at, expires_at, consumed_at
            FROM ${schema}.phone_verifications WHERE verification_id = $1 FOR UPDATE`,
-        [request.phoneVerificationId],
+        [phoneVerificationId],
       );
       const proof = proofResult.rows[0];
-      if (!proof || proof.purpose !== "provider_login" || !proof.provider_id ||
-          !proof.verified_at) {
-        throw new ProductTransactionError("PHONE_VERIFICATION_INVALID", "Login proof is unavailable");
+      if (!proof || proof.purpose !== expectedPurpose || !proof.verified_at) {
+        throw new ProductTransactionError("PHONE_VERIFICATION_INVALID", "Provider proof is unavailable");
+      }
+      let providerId = proof.provider_id;
+      if (expectedPurpose === "provider_registration") {
+        const registrationResult = await client.query<{ provider_id: string }>(
+          `SELECT provider_id
+             FROM ${schema}.provider_invitation_consumptions
+            WHERE verification_id = $1`,
+          [phoneVerificationId],
+        );
+        providerId = registrationResult.rows[0]?.provider_id ?? null;
+      }
+      if (!providerId) {
+        throw new ProductTransactionError("PHONE_VERIFICATION_INVALID", "Provider proof has no registered identity");
       }
       const providerResult = await client.query<ProviderRow>(
         `SELECT provider_id, display_name, phone_e164, status, created_at, updated_at
            FROM ${schema}.providers WHERE provider_id = $1 FOR UPDATE`,
-        [proof.provider_id],
+        [providerId],
       );
       const provider = providerResult.rows[0];
       if (!provider) throw new ProductTransactionError("PHONE_NOT_REGISTERED", "Provider was not found");
@@ -497,17 +534,17 @@ export class ProviderAuthService {
           "Login proof expired or no longer matches the provider phone",
         );
       }
-      const token = providerSessionToken(this.securityPepper, request.phoneVerificationId);
-      if (proof.consumed_at) {
-        const replay = await client.query<ProviderSessionRow>(
-          `SELECT session_id, token_digest, created_at, expires_at, revoked_at
-             FROM ${schema}.provider_sessions
-            WHERE phone_verification_id = $1`,
-          [request.phoneVerificationId],
-        );
-        const session = replay.rows[0];
-        if (!session || session.revoked_at || session.expires_at <= now) {
-          throw new ProductTransactionError("PHONE_VERIFICATION_INVALID", "Login proof was already consumed");
+      const token = providerSessionToken(this.securityPepper, phoneVerificationId);
+      const replay = await client.query<ProviderSessionRow>(
+        `SELECT session_id, token_digest, created_at, expires_at, revoked_at
+           FROM ${schema}.provider_sessions
+          WHERE phone_verification_id = $1`,
+        [phoneVerificationId],
+      );
+      const session = replay.rows[0];
+      if (session) {
+        if (session.revoked_at || session.expires_at <= now) {
+          throw new ProductTransactionError("PHONE_VERIFICATION_INVALID", "Provider session is no longer active");
         }
         const replayDigest = secretDigest(this.securityPepper, token);
         if (
@@ -536,6 +573,12 @@ export class ProviderAuthService {
           sessionToken: token,
         });
       }
+      if (
+        (expectedPurpose === "provider_login" && proof.consumed_at) ||
+        (expectedPurpose === "provider_registration" && !proof.consumed_at)
+      ) {
+        throw new ProductTransactionError("PHONE_VERIFICATION_INVALID", "Provider proof consumption state is invalid");
+      }
       const sessionId = randomUUID();
       const expiresAt = new Date(now.getTime() + sessionLifetimeMilliseconds);
       await client.query(
@@ -544,19 +587,21 @@ export class ProviderAuthService {
            phone_verification_id
          ) VALUES ($1, $2, $3, $4, $5, $6)`,
         [sessionId, provider.provider_id, secretDigest(this.securityPepper, token),
-          expiresAt, now, request.phoneVerificationId],
+          expiresAt, now, phoneVerificationId],
       );
-      await client.query(
-        `UPDATE ${schema}.phone_verifications SET consumed_at = $2 WHERE verification_id = $1`,
-        [request.phoneVerificationId, now],
-      );
+      if (expectedPurpose === "provider_login") {
+        await client.query(
+          `UPDATE ${schema}.phone_verifications SET consumed_at = $2 WHERE verification_id = $1`,
+          [phoneVerificationId, now],
+        );
+      }
       await client.query(
         `INSERT INTO ${schema}.audit_records (
            audit_record_id, actor_type, actor_id, action, object_type,
            object_id, request_id, facts
          ) VALUES ($1, 'provider', $2, 'provider.logged_in', 'provider_session',
            $3, $4, '{}'::jsonb)`,
-        [randomUUID(), provider.provider_id, sessionId, request.metadata.requestId],
+        [randomUUID(), provider.provider_id, sessionId, requestId],
       );
       return providerAuthResponseSchema.parse({
         provider: {
@@ -570,6 +615,46 @@ export class ProviderAuthService {
         session: { sessionId, createdAt: now.toISOString(), expiresAt: expiresAt.toISOString() },
         sessionToken: token,
       });
+    });
+  }
+
+  async logout(sessionToken: string, requestId: string): Promise<ProviderLogoutResponse> {
+    if (!/^[A-Za-z0-9_-]{43}$/.test(sessionToken)) {
+      throw new ProductTransactionError("AUTHENTICATION_REQUIRED", "Provider session is invalid");
+    }
+    return inTransaction(this.pool, async (client) => {
+      const result = await client.query<{
+        provider_id: string;
+        revoked_at: Date | null;
+        session_id: string;
+      }>(
+        `SELECT provider_id, revoked_at, session_id
+           FROM ${schema}.provider_sessions
+          WHERE token_digest = $1
+          FOR UPDATE`,
+        [secretDigest(this.securityPepper, sessionToken)],
+      );
+      const session = result.rows[0];
+      if (!session) {
+        throw new ProductTransactionError("AUTHENTICATION_REQUIRED", "Provider session is invalid");
+      }
+      if (session.revoked_at) {
+        return providerLogoutResponseSchema.parse({ loggedOutAt: session.revoked_at.toISOString() });
+      }
+      const now = await databaseNow(client);
+      await client.query(
+        `UPDATE ${schema}.provider_sessions SET revoked_at = $2 WHERE token_digest = $1`,
+        [secretDigest(this.securityPepper, sessionToken), now],
+      );
+      await client.query(
+        `INSERT INTO ${schema}.audit_records (
+           audit_record_id, actor_type, actor_id, action, object_type,
+           object_id, request_id, facts
+         ) VALUES ($1, 'provider', $2, 'provider.logged_out', 'provider_session',
+           $3, $4, '{}'::jsonb)`,
+        [randomUUID(), session.provider_id, session.session_id, requestId],
+      );
+      return providerLogoutResponseSchema.parse({ loggedOutAt: now.toISOString() });
     });
   }
 }

@@ -66,6 +66,17 @@ data class ProviderAuthResult(
     val sessionToken: String,
 )
 
+data class RegistrationReceipt(
+    val providerId: UUID,
+    val invitationId: UUID,
+    val registeredAt: String,
+)
+
+data class ProviderRegistrationAuthResult(
+    val registration: RegistrationReceipt,
+    val auth: ProviderAuthResult,
+)
+
 class ContractBoundaryException(message: String, cause: Throwable? = null) :
     IllegalArgumentException(message, cause)
 
@@ -220,13 +231,43 @@ object FirstBatchContractBoundary {
             GeneratedFirstBatchContractSpec.PROVIDER_AUTH_KEYS,
             GeneratedFirstBatchContractSpec.PROVIDER_AUTH_REQUIRED_KEYS,
         )
+        parseProviderAuthObject(json)
+    }
+
+    fun parseProviderRegistrationAuthResponse(raw: String): ProviderRegistrationAuthResult = wrap {
+        val json = JSONObject(raw)
+        requireExactKeys(
+            json,
+            setOf("registration", "provider", "session", "sessionToken"),
+            setOf("registration", "provider", "session", "sessionToken"),
+        )
+        val registrationJson = json.get("registration")
+        require(registrationJson is JSONObject) { "registration must be an object" }
+        requireExactKeys(
+            registrationJson,
+            setOf("providerId", "invitationId", "registeredAt"),
+            setOf("providerId", "invitationId", "registeredAt"),
+        )
+        val registration = RegistrationReceipt(
+            requireUuid(registrationJson, "providerId"),
+            requireUuid(registrationJson, "invitationId"),
+            requireTimestamp(registrationJson, "registeredAt"),
+        )
+        val auth = parseProviderAuthObject(json)
+        require(registration.providerId == auth.provider.providerId) {
+            "registration and session provider differ"
+        }
+        ProviderRegistrationAuthResult(registration, auth)
+    }
+
+    private fun parseProviderAuthObject(json: JSONObject): ProviderAuthResult {
         val providerJson = json.get("provider")
         require(providerJson is JSONObject) { "provider must be an object" }
         val sessionJson = json.get("session")
         require(sessionJson is JSONObject) { "session must be an object" }
         val sessionToken = requireString(json, "sessionToken")
         require(sessionTokenRegex.matches(sessionToken)) { "invalid sessionToken" }
-        ProviderAuthResult(
+        return ProviderAuthResult(
             parseProviderSelfObject(providerJson),
             parseSessionSummary(sessionJson),
             sessionToken,

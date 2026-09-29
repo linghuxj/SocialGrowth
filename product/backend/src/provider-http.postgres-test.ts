@@ -10,7 +10,8 @@ import {
   phoneVerificationResponseSchema,
   productErrorResponseSchema,
   providerAuthResponseSchema,
-  registerProviderResponseSchema,
+  providerLogoutResponseSchema,
+  providerRegistrationAuthResponseSchema,
 } from "@socialgrowth/product-contracts";
 import { Pool } from "pg";
 
@@ -227,7 +228,9 @@ test("real provider HTTP reads protected development codes and avoids duplicate 
     phoneVerificationId: registrationProof.phoneVerificationId,
   });
   assert.equal(registrationResult.response.status, 201);
-  const registration = registerProviderResponseSchema.parse(registrationResult.body);
+  const registrationAuth = providerRegistrationAuthResponseSchema.parse(registrationResult.body);
+  const registration = registrationAuth.registration;
+  assert.equal(registrationAuth.provider.providerId, registration.providerId);
   const recoveredRegistrationResult = await post("/api/provider/register", {
     metadata: { ...registrationMetadata, requestId: `request-${randomUUID()}` },
     invitationCode,
@@ -235,9 +238,17 @@ test("real provider HTTP reads protected development codes and avoids duplicate 
   });
   assert.equal(recoveredRegistrationResult.response.status, 201);
   assert.deepEqual(
-    registerProviderResponseSchema.parse(recoveredRegistrationResult.body),
-    registration,
+    providerRegistrationAuthResponseSchema.parse(recoveredRegistrationResult.body),
+    registrationAuth,
   );
+
+  const logoutResult = await post(
+    "/api/provider/logout",
+    { metadata: metadata("http-register-provider-logout-0001") },
+    { authorization: `Bearer ${registrationAuth.sessionToken}` },
+  );
+  assert.equal(logoutResult.response.status, 201);
+  providerLogoutResponseSchema.parse(logoutResult.body);
 
   const loginChallengeResult = await post("/api/provider/phone-verifications", {
     metadata: metadata("http-login-challenge-0001"),
@@ -279,6 +290,7 @@ test("real provider HTTP reads protected development codes and avoids duplicate 
     invitation_consumptions: string;
     provider_sessions: string;
     providers: string;
+    registration_logout_audits: string;
   }>(
     `SELECT
        (SELECT count(*)::text FROM socialgrowth_product.providers
@@ -288,13 +300,17 @@ test("real provider HTTP reads protected development codes and avoids duplicate 
        (SELECT count(*)::text FROM socialgrowth_product.provider_sessions
          WHERE provider_id = $2) AS provider_sessions,
        (SELECT count(*)::text FROM socialgrowth_product.phone_verification_challenges
-         WHERE phone_e164 = $1) AS challenges`,
+         WHERE phone_e164 = $1) AS challenges,
+       (SELECT count(*)::text FROM socialgrowth_product.audit_records
+         WHERE action = 'provider.logged_out' AND actor_id = $2
+           AND facts = '{}'::jsonb) AS registration_logout_audits`,
     [phoneE164, registration.providerId],
   );
   assert.deepEqual(facts.rows[0], {
     challenges: "2",
     invitation_consumptions: "1",
-    provider_sessions: "1",
+    provider_sessions: "2",
     providers: "1",
+    registration_logout_audits: "1",
   });
 });

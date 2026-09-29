@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="provider_phone" type="id" />
+    <item name="provider_code" type="id" />
+    <item name="provider_request_code" type="id" />
+    <item name="provider_submit" type="id" />
+    <item name="provider_switch_mode" type="id" />
+    <item name="provider_error" type="id" />
+    <item name="provider_logout" type="id" />
+</resources>

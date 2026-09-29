@@ -110,4 +110,17 @@ class FirstBatchContractBoundaryTest {
             )
         }
     }
+
+    @Test
+    fun registrationAuthRequiresOneProviderIdentity() {
+        val raw = """{"registration":{"providerId":"$id","invitationId":"00000000-0000-4000-8000-000000000003","registeredAt":"2026-09-29T00:00:00Z"},"provider":{"providerId":"$id","displayName":"设备提供者","phoneHint":"+86*******001","status":"active","createdAt":"2026-09-29T00:00:00Z","updatedAt":"2026-09-29T00:00:00Z"},"session":{"sessionId":"00000000-0000-4000-8000-000000000002","createdAt":"2026-09-29T00:00:00Z","expiresAt":"2026-10-29T00:00:00Z"},"sessionToken":"${"A".repeat(43)}"}"""
+        val parsed = FirstBatchContractBoundary.parseProviderRegistrationAuthResponse(raw)
+        assertEquals(parsed.registration.providerId, parsed.auth.provider.providerId)
+        assertFailsWith<ContractBoundaryException> {
+            FirstBatchContractBoundary.parseProviderRegistrationAuthResponse(
+                raw.replace(id, "00000000-0000-4000-8000-000000000009", ignoreCase = false)
+                    .replaceFirst("00000000-0000-4000-8000-000000000009", id),
+            )
+        }
+    }
 }

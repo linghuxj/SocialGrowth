@@ -7,6 +7,7 @@ import {
 } from "./common.js";
 import { sessionSummarySchema } from "./identity.js";
 import { invitationCodeSchema } from "./invitation.js";
+import { registerProviderResponseSchema } from "./invitation.js";
 
 export const phoneE164Schema = z.string().regex(/^\+[1-9][0-9]{7,14}$/);
 export const phoneVerificationCodeSchema = z.string().regex(/^[0-9]{4,8}$/);
@@ -116,6 +117,33 @@ export const providerAuthResponseSchema = z.strictObject({
   }
 });
 
+export const providerRegistrationAuthResponseSchema = z.strictObject({
+  registration: registerProviderResponseSchema,
+  provider: providerSelfViewSchema,
+  session: sessionSummarySchema,
+  sessionToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+}).superRefine((value, context) => {
+  if (value.registration.providerId !== value.provider.providerId) {
+    context.addIssue({
+      code: "custom",
+      path: ["provider", "providerId"],
+      message: "Registration and session must belong to the same provider",
+    });
+  }
+  const order = compareTimestamps(value.session.createdAt, value.session.expiresAt);
+  if (order !== null && order >= 0) {
+    context.addIssue({ code: "custom", path: ["session", "expiresAt"], message: "Session must expire after creation" });
+  }
+});
+
+export const providerLogoutRequestSchema = z.strictObject({
+  metadata: requestMetadataSchema,
+});
+
+export const providerLogoutResponseSchema = z.strictObject({
+  loggedOutAt: timestampSchema,
+});
+
 export type RequestPhoneVerification = z.infer<typeof requestPhoneVerificationSchema>;
 export type PhoneVerificationChallengeResponse = z.infer<
   typeof phoneVerificationChallengeResponseSchema
@@ -125,3 +153,6 @@ export type PhoneVerificationResponse = z.infer<typeof phoneVerificationResponse
 export type ProviderSelfView = z.infer<typeof providerSelfViewSchema>;
 export type ProviderLoginRequest = z.infer<typeof providerLoginRequestSchema>;
 export type ProviderAuthResponse = z.infer<typeof providerAuthResponseSchema>;
+export type ProviderRegistrationAuthResponse = z.infer<typeof providerRegistrationAuthResponseSchema>;
+export type ProviderLogoutRequest = z.infer<typeof providerLogoutRequestSchema>;
+export type ProviderLogoutResponse = z.infer<typeof providerLogoutResponseSchema>;
