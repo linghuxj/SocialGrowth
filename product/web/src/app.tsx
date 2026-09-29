@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useState } from "react";
 import type { OperatorView } from "@socialgrowth/product-contracts";
-import { ProductApiError, createOperator, disableOperator, listOperators, login, logout } from "./operator-api.js";
+import { ProductApiError, createOperator, disableOperator, hasCsrfToken, listOperators, login, logout } from "./operator-api.js";
 
 export const productEnvironment = "product" as const;
 
@@ -14,6 +14,7 @@ function errorMessage(error: unknown): string {
       FACT_VERSION_STALE: "账号状态已变化，请刷新后重试",
       AUTHENTICATION_REQUIRED: "登录已失效，请重新登录",
       INPUT_INVALID: "提交内容不符合要求",
+      INTERNAL_ERROR: "服务暂时不可用，请稍后重试",
     };
     return messages[error.response.error.code] ?? error.response.error.message;
   }
@@ -26,9 +27,24 @@ export function App() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
+  function handleFailure(error: unknown): void {
+    if (error instanceof ProductApiError && error.status === 401) {
+      setOperators(null);
+      setAuthenticated(false);
+    }
+    setMessage(errorMessage(error));
+  }
+
   async function refresh(): Promise<void> {
     try {
-      setOperators(await listOperators());
+      const nextOperators = await listOperators();
+      if (!hasCsrfToken()) {
+        setOperators(null);
+        setAuthenticated(false);
+        setMessage("请重新登录以恢复安全操作凭据");
+        return;
+      }
+      setOperators(nextOperators);
       setAuthenticated(true);
     } catch (error) {
       setOperators(null);
@@ -48,7 +64,7 @@ export function App() {
       await login(String(form.get("loginName") ?? ""), String(form.get("password") ?? ""));
       formElement.reset();
       await refresh();
-    } catch (error) { setMessage(errorMessage(error)); }
+    } catch (error) { handleFailure(error); }
     finally { setBusy(false); }
   }
 
@@ -66,7 +82,7 @@ export function App() {
       formElement.reset();
       await refresh();
       setMessage("运营账号已开通");
-    } catch (error) { setMessage(errorMessage(error)); }
+    } catch (error) { handleFailure(error); }
     finally { setBusy(false); }
   }
 
@@ -77,7 +93,7 @@ export function App() {
       await disableOperator(operator);
       await refresh();
       setMessage("账号已停用，会话已撤销");
-    } catch (error) { setMessage(errorMessage(error)); }
+    } catch (error) { handleFailure(error); }
     finally { setBusy(false); }
   }
 
@@ -88,7 +104,7 @@ export function App() {
       setAuthenticated(false);
       setOperators(null);
     } catch (error) {
-      setMessage(errorMessage(error));
+      handleFailure(error);
     } finally {
       setBusy(false);
     }

@@ -3,6 +3,7 @@ import { z } from "zod";
 const backendConfigSchema = z.object({
   SG_PRODUCT_BACKEND_HOST: z.string().min(1).default("127.0.0.1"),
   SG_PRODUCT_BACKEND_PORT: z.coerce.number().int().min(1).max(65535).default(4320),
+  SG_PRODUCT_TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(0),
 });
 
 const operatorRuntimeConfigSchema = z.object({

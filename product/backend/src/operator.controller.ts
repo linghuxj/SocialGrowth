@@ -103,8 +103,11 @@ function rethrowHttp(error: unknown, requestId: string): never {
       ? error
       : error instanceof ZodError
         ? new ProductTransactionError("INPUT_INVALID", "Request payload is invalid")
-        : null;
-  if (!transactionError) throw error;
+        : new ProductTransactionError(
+            "INTERNAL_ERROR",
+            "The service could not complete the request",
+            true,
+          );
   throw new HttpException(
     productErrorResponseSchema.parse({
       contractVersion,
@@ -115,7 +118,7 @@ function rethrowHttp(error: unknown, requestId: string): never {
         retryable: transactionError.retryable,
       },
     }),
-    statusFor(transactionError),
+    transactionError.code === "INTERNAL_ERROR" ? 500 : statusFor(transactionError),
   );
 }
 

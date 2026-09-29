@@ -1269,6 +1269,7 @@
                 "IDEMPOTENCY_KEY_REUSED",
                 "IDEMPOTENCY_RESULT_EXPIRED",
                 "INPUT_INVALID",
+                "INTERNAL_ERROR",
                 "INVITATION_EXPIRED",
                 "INVITATION_EXHAUSTED",
                 "INVITATION_REVOKED",

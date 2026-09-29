@@ -76,3 +76,21 @@ test("HTTP boundary reports an unsupported contract with the product envelope", 
     },
   );
 });
+
+test("HTTP boundary masks unexpected failures with a retryable product envelope", async () => {
+  const service = {
+    async listOperators() { throw new Error("database-password-must-not-leak"); },
+  } as unknown as OperatorAuthService;
+  const controller = new OperatorController(service);
+
+  await assert.rejects(
+    controller.list({ headers: {} }),
+    (error: unknown) => {
+      if (!(error instanceof HttpException) || error.getStatus() !== 500) return false;
+      const response = productErrorResponseSchema.parse(error.getResponse());
+      return response.error.code === "INTERNAL_ERROR"
+        && response.error.retryable
+        && !response.error.message.includes("database-password");
+    },
+  );
+});

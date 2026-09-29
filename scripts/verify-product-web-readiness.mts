@@ -27,6 +27,12 @@ try {
   const primary = await primaryContext.newPage();
   await signIn(primary, primaryLogin, primaryPassword);
 
+  const csrfRecoveryPage = await primaryContext.newPage();
+  await csrfRecoveryPage.goto(baseUrl, { waitUntil: "networkidle" });
+  await csrfRecoveryPage.getByRole("heading", { name: "登录正式产品" }).waitFor();
+  await csrfRecoveryPage.getByText("请重新登录以恢复安全操作凭据").waitFor();
+  await csrfRecoveryPage.close();
+
   await primary.getByLabel("登录名").fill(secondaryLogin);
   await primary.getByLabel("显示名").fill("Playwright Secondary Operator");
   await primary.getByLabel("初始密码").fill(secondaryPassword);
@@ -42,8 +48,12 @@ try {
   const secondaryRow = primary.getByRole("row").filter({ hasText: secondaryLogin });
   await secondaryRow.getByRole("button", { name: "停用" }).click();
   await primary.getByText("账号已停用，会话已撤销").waitFor();
-  await secondary.reload({ waitUntil: "networkidle" });
+  await secondary.getByLabel("登录名").fill("revoked.session.probe");
+  await secondary.getByLabel("显示名").fill("Revoked Session Probe");
+  await secondary.getByLabel("初始密码").fill(secondaryPassword);
+  await secondary.getByRole("button", { name: "开通账号" }).click();
   await secondary.getByRole("heading", { name: "登录正式产品" }).waitFor();
+  await secondary.getByText("登录已失效，请重新登录").waitFor();
 
   primary.once("dialog", (dialog) => void dialog.accept());
   const primaryRow = primary.getByRole("row").filter({ hasText: primaryLogin });

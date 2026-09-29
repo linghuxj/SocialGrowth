@@ -28,6 +28,8 @@ SG_PRODUCT_TEST_ALLOW_RESET=1 \
 pnpm --filter @socialgrowth/product-backend test:postgres
 ```
 
+HTTP 服务默认不信任代理转发头（`SG_PRODUCT_TRUST_PROXY_HOPS=0`）。经反向代理部署时，必须按实际、固定网络拓扑显式设置可信代理跳数；本地 Vite 开发代理发送转发地址，因此联调后端使用 `SG_PRODUCT_TRUST_PROXY_HOPS=1`。不要在未限制入口来源的服务上扩大该值。
+
 不提供两个变量时测试立即拒绝执行，不存在隐式默认数据库。根据当前用户决定，本阶段不实现迁移历史组件；部署流程必须保证 `0001` 只执行一次。
 
 ## WP-02 运营账号管理入口
