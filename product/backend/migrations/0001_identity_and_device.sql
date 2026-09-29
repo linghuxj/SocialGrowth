@@ -45,8 +45,10 @@ CREATE TABLE socialgrowth_product.phone_verifications (
   created_at timestamptz NOT NULL DEFAULT transaction_timestamp(),
   CHECK (phone_e164 ~ '^[+][1-9][0-9]{7,14}$'),
   CHECK (expires_at > created_at),
+  CHECK (verified_at IS NULL OR verified_at >= created_at),
   CHECK (verified_at IS NULL OR verified_at <= expires_at),
   CHECK (consumed_at IS NULL OR verified_at IS NOT NULL),
+  CHECK (consumed_at IS NULL OR consumed_at >= created_at),
   CHECK (consumed_at IS NULL OR consumed_at >= verified_at),
   CHECK (consumed_at IS NULL OR consumed_at <= expires_at),
   CHECK (
