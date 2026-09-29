@@ -7,6 +7,7 @@ internal object GeneratedFirstBatchContractSpec {
     const val UUID_PATTERN = "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)\$"
     const val TIMESTAMP_PATTERN = "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))\$"
     const val FACT_VERSION_MAX = 9007199254740991L
+    const val FACT_VERSION_MIN = 0L
     const val REQUEST_ID_MIN_LENGTH = 8
     const val REQUEST_ID_MAX_LENGTH = 128
     const val ERROR_MESSAGE_MIN_LENGTH = 1

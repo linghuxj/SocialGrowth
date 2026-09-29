@@ -12,6 +12,14 @@ class ContractValidationError(ValueError):
     pass
 
 
+class ContractSpecificationError(ContractValidationError):
+    pass
+
+
+class ContractDataError(ContractValidationError):
+    pass
+
+
 class FirstBatchContracts:
     _SUPPORTED_KEYWORDS = {
         "$schema",
@@ -50,23 +58,55 @@ class FirstBatchContracts:
         return value
 
     def _validate_schema(self, schema: dict[str, Any], value: Any, path: str) -> None:
+        self._validate_specification(schema, path)
+        self._validate_value(schema, value, path)
+
+    def _validate_specification(self, schema: dict[str, Any], path: str) -> None:
         unsupported = schema.keys() - self._SUPPORTED_KEYWORDS
         if unsupported:
-            raise ContractValidationError(
+            raise ContractSpecificationError(
                 f"{path}: unsupported schema keywords {sorted(unsupported)}"
             )
+        schema_format = schema.get("format")
+        if schema_format is not None and "pattern" not in schema:
+            raise ContractSpecificationError(
+                f"{path}: format {schema_format} requires an explicit generated pattern"
+            )
+        for keyword in ("oneOf", "anyOf"):
+            if keyword not in schema:
+                continue
+            branches = schema[keyword]
+            if not isinstance(branches, list):
+                raise ContractSpecificationError(f"{path}: {keyword} must be an array")
+            for index, branch in enumerate(branches):
+                if not isinstance(branch, dict):
+                    raise ContractSpecificationError(
+                        f"{path}: {keyword}[{index}] must be an object"
+                    )
+                self._validate_specification(branch, f"{path}.{keyword}[{index}]")
+        properties = schema.get("properties", {})
+        if not isinstance(properties, dict):
+            raise ContractSpecificationError(f"{path}: properties must be an object")
+        for key, child in properties.items():
+            if not isinstance(child, dict):
+                raise ContractSpecificationError(
+                    f"{path}.properties.{key} must be an object"
+                )
+            self._validate_specification(child, f"{path}.{key}")
+
+    def _validate_value(self, schema: dict[str, Any], value: Any, path: str) -> None:
         for keyword in ("oneOf", "anyOf"):
             if keyword in schema:
                 matches = 0
                 for branch in schema[keyword]:
                     try:
-                        self._validate_schema(branch, value, path)
+                        self._validate_value(branch, value, path)
                         matches += 1
-                    except ContractValidationError:
+                    except ContractDataError:
                         pass
                 expected = 1 if keyword == "oneOf" else None
                 if matches == 0 or (expected is not None and matches != expected):
-                    raise ContractValidationError(f"{path}: {keyword} did not match")
+                    raise ContractDataError(f"{path}: {keyword} did not match")
 
         expected_type = schema.get("type")
         is_integer = (
@@ -83,43 +123,38 @@ class FirstBatchContracts:
             "null": value is None,
         }
         if expected_type is not None and not type_matches.get(expected_type, False):
-            raise ContractValidationError(f"{path}: expected {expected_type}")
+            raise ContractDataError(f"{path}: expected {expected_type}")
         if "const" in schema and value != schema["const"]:
-            raise ContractValidationError(f"{path}: unsupported constant value")
+            raise ContractDataError(f"{path}: unsupported constant value")
         if "enum" in schema and value not in schema["enum"]:
-            raise ContractValidationError(f"{path}: value is not in enum")
+            raise ContractDataError(f"{path}: value is not in enum")
 
         if isinstance(value, dict):
             properties = schema.get("properties", {})
             missing = set(schema.get("required", ())) - value.keys()
             if missing:
-                raise ContractValidationError(f"{path}: missing {sorted(missing)}")
+                raise ContractDataError(f"{path}: missing {sorted(missing)}")
             if schema.get("additionalProperties") is False:
                 unknown = value.keys() - properties.keys()
                 if unknown:
-                    raise ContractValidationError(f"{path}: unknown {sorted(unknown)}")
+                    raise ContractDataError(f"{path}: unknown {sorted(unknown)}")
             for key, item in value.items():
                 if key in properties:
-                    self._validate_schema(properties[key], item, f"{path}.{key}")
+                    self._validate_value(properties[key], item, f"{path}.{key}")
 
         if isinstance(value, str):
             if len(value) < schema.get("minLength", 0):
-                raise ContractValidationError(f"{path}: string is too short")
+                raise ContractDataError(f"{path}: string is too short")
             maximum = schema.get("maxLength")
             if maximum is not None and len(value) > maximum:
-                raise ContractValidationError(f"{path}: string is too long")
+                raise ContractDataError(f"{path}: string is too long")
             pattern = schema.get("pattern")
             if pattern is not None and re.fullmatch(pattern, value, flags=re.ASCII) is None:
-                raise ContractValidationError(f"{path}: pattern mismatch")
-            schema_format = schema.get("format")
-            if schema_format is not None and pattern is None:
-                raise ContractValidationError(
-                    f"{path}: format {schema_format} requires an explicit generated pattern"
-                )
+                raise ContractDataError(f"{path}: pattern mismatch")
 
         if is_integer:
             numeric_value = int(value)
             if numeric_value < schema.get("minimum", numeric_value):
-                raise ContractValidationError(f"{path}: integer below minimum")
+                raise ContractDataError(f"{path}: integer below minimum")
             if numeric_value > schema.get("maximum", numeric_value):
-                raise ContractValidationError(f"{path}: integer above maximum")
+                raise ContractDataError(f"{path}: integer above maximum")

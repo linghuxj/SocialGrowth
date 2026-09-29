@@ -58,7 +58,11 @@ object FirstBatchContractBoundary {
             GeneratedFirstBatchContractSpec.INSTALLATION_SELF_REQUIRED_KEYS,
         )
         val factVersion = requireLong(json, "factVersion")
-        require(factVersion in 0..GeneratedFirstBatchContractSpec.FACT_VERSION_MAX) {
+        require(
+            factVersion in
+                GeneratedFirstBatchContractSpec.FACT_VERSION_MIN..
+                GeneratedFirstBatchContractSpec.FACT_VERSION_MAX,
+        ) {
             "factVersion is outside the supported range"
         }
         val updatedAt = requireTimestamp(json, "updatedAt")

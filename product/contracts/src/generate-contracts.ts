@@ -80,6 +80,40 @@ function requireSchemaProperty(
   return requireObject(properties[name], `${label}.properties.${name}`);
 }
 
+function requireOnlyKeys(
+  value: JsonObject,
+  allowed: readonly string[],
+  label: string,
+): void {
+  const unexpected = Object.keys(value).filter((key) => !allowed.includes(key));
+  if (unexpected.length > 0) {
+    throw new Error(
+      `Cannot generate Android contracts: ${label} has unsupported keys ${unexpected.join(", ")}.`,
+    );
+  }
+}
+
+function requireSchemaType(
+  schema: JsonObject,
+  expected: string,
+  label: string,
+): void {
+  if (schema.type !== expected) {
+    throw new Error(
+      `Cannot generate Android contracts: ${label}.type must be ${expected}.`,
+    );
+  }
+}
+
+function requireStrictObject(schema: JsonObject, label: string): void {
+  requireSchemaType(schema, "object", label);
+  if (schema.additionalProperties !== false) {
+    throw new Error(
+      `Cannot generate Android contracts: ${label} must reject additional properties.`,
+    );
+  }
+}
+
 function sameStrings(left: readonly string[], right: readonly string[]): boolean {
   return left.length === right.length && left.every((item, index) => item === right[index]);
 }
@@ -92,16 +126,56 @@ const associationQrProperties = requireProperties(
   associationQrSchema,
   "associationQrPayload",
 );
+requireOnlyKeys(
+  associationQrSchema,
+  ["$schema", "type", "properties", "required", "additionalProperties"],
+  "associationQrPayload",
+);
+requireStrictObject(associationQrSchema, "associationQrPayload");
+requireOnlyKeys(
+  associationQrProperties,
+  ["contractVersion", "associationCode"],
+  "associationQrPayload.properties",
+);
+const associationVersionSchema = requireSchemaProperty(
+  associationQrProperties,
+  "contractVersion",
+  "associationQrPayload",
+);
+requireOnlyKeys(
+  associationVersionSchema,
+  ["type", "const"],
+  "associationQrPayload.contractVersion",
+);
+requireSchemaType(
+  associationVersionSchema,
+  "string",
+  "associationQrPayload.contractVersion",
+);
+if (associationVersionSchema.const !== contractVersion) {
+  throw new Error("Cannot generate Android contracts: QR contract version differs from the registry version.");
+}
+const associationCodeSchema = requireSchemaProperty(
+  associationQrProperties,
+  "associationCode",
+  "associationQrPayload",
+);
+requireOnlyKeys(
+  associationCodeSchema,
+  ["type", "pattern"],
+  "associationQrPayload.associationCode",
+);
+requireSchemaType(
+  associationCodeSchema,
+  "string",
+  "associationQrPayload.associationCode",
+);
 const associationQrRequired = requireStringArray(
   associationQrSchema.required,
   "associationQrPayload.required",
 );
 const associationCodePattern = requireString(
-  requireSchemaProperty(
-    associationQrProperties,
-    "associationCode",
-    "associationQrPayload",
-  ).pattern,
+  associationCodeSchema.pattern,
   "associationQrPayload.associationCode.pattern",
 );
 
@@ -118,6 +192,7 @@ const installationBranches = requireArray(
 if (installationBranches.length < 2) {
   throw new Error("Cannot generate Android contracts: installationSelfView needs at least two state branches.");
 }
+requireOnlyKeys(installationSelfSchema, ["$schema", "oneOf"], "installationSelfView");
 const installationProperties = requireProperties(
   installationBranches[0]!,
   "installationSelfView.oneOf[0]",
@@ -127,6 +202,12 @@ const installationRequired = requireStringArray(
   "installationSelfView.oneOf[0].required",
 );
 for (const [index, branch] of installationBranches.entries()) {
+  requireOnlyKeys(
+    branch,
+    ["type", "properties", "required", "additionalProperties"],
+    `installationSelfView.oneOf[${index}]`,
+  );
+  requireStrictObject(branch, `installationSelfView.oneOf[${index}]`);
   const properties = requireProperties(branch, `installationSelfView.oneOf[${index}]`);
   const required = requireStringArray(
     branch.required,
@@ -138,6 +219,23 @@ for (const [index, branch] of installationBranches.entries()) {
   ) {
     throw new Error("Cannot generate Android contracts: installationSelfView branches must expose identical keys.");
   }
+  for (const sharedName of ["factVersion", "updatedAt", "installationId"]) {
+    const expected = requireSchemaProperty(
+      installationProperties,
+      sharedName,
+      "installationSelfView.oneOf[0]",
+    );
+    const actual = requireSchemaProperty(
+      properties,
+      sharedName,
+      `installationSelfView.oneOf[${index}]`,
+    );
+    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+      throw new Error(
+        `Cannot generate Android contracts: ${sharedName} differs across installationSelfView branches.`,
+      );
+    }
+  }
 }
 const installationStatePairs = installationBranches.flatMap((branch, index) => {
   const properties = requireProperties(branch, `installationSelfView.oneOf[${index}]`);
@@ -146,20 +244,36 @@ const installationStatePairs = installationBranches.flatMap((branch, index) => {
     "state",
     `installationSelfView.oneOf[${index}]`,
   );
+  requireOnlyKeys(
+    state,
+    state.enum === undefined ? ["type", "const"] : ["type", "enum"],
+    `installationSelfView.oneOf[${index}].state`,
+  );
+  requireSchemaType(
+    state,
+    "string",
+    `installationSelfView.oneOf[${index}].state`,
+  );
   const states = state.enum === undefined
     ? [requireString(state.const, `installationSelfView.oneOf[${index}].state.const`)]
     : requireStringArray(state.enum, `installationSelfView.oneOf[${index}].state.enum`);
+  const deviceId = requireSchemaProperty(
+    properties,
+    "deviceId",
+    `installationSelfView.oneOf[${index}]`,
+  );
   const deviceType = requireString(
-    requireSchemaProperty(
-      properties,
-      "deviceId",
-      `installationSelfView.oneOf[${index}]`,
-    ).type,
+    deviceId.type,
     `installationSelfView.oneOf[${index}].deviceId.type`,
   );
   if (deviceType !== "null" && deviceType !== "string") {
     throw new Error("Cannot generate Android contracts: deviceId branch type must be null or string.");
   }
+  requireOnlyKeys(
+    deviceId,
+    deviceType === "null" ? ["type"] : ["type", "format", "pattern"],
+    `installationSelfView.oneOf[${index}].deviceId`,
+  );
   return states.map((value) => ({ deviceType, value }));
 });
 const installationIdSchema = requireSchemaProperty(
@@ -177,6 +291,24 @@ const factVersionSchema = requireSchemaProperty(
   "factVersion",
   "installationSelfView.oneOf[0]",
 );
+requireOnlyKeys(
+  factVersionSchema,
+  ["type", "minimum", "maximum"],
+  "installationSelfView.factVersion",
+);
+requireSchemaType(factVersionSchema, "integer", "installationSelfView.factVersion");
+requireOnlyKeys(
+  timestampSchema,
+  ["type", "format", "pattern"],
+  "installationSelfView.updatedAt",
+);
+requireSchemaType(timestampSchema, "string", "installationSelfView.updatedAt");
+requireOnlyKeys(
+  installationIdSchema,
+  ["type", "format", "pattern"],
+  "installationSelfView.installationId",
+);
+requireSchemaType(installationIdSchema, "string", "installationSelfView.installationId");
 
 const productErrorSchema = requireObject(
   schemas.productErrorResponse,
@@ -186,6 +318,35 @@ const productErrorProperties = requireProperties(
   productErrorSchema,
   "productErrorResponse",
 );
+requireOnlyKeys(
+  productErrorSchema,
+  ["$schema", "type", "properties", "required", "additionalProperties"],
+  "productErrorResponse",
+);
+requireStrictObject(productErrorSchema, "productErrorResponse");
+requireOnlyKeys(
+  productErrorProperties,
+  ["contractVersion", "requestId", "error"],
+  "productErrorResponse.properties",
+);
+const errorVersionSchema = requireSchemaProperty(
+  productErrorProperties,
+  "contractVersion",
+  "productErrorResponse",
+);
+requireOnlyKeys(
+  errorVersionSchema,
+  ["type", "const"],
+  "productErrorResponse.contractVersion",
+);
+requireSchemaType(
+  errorVersionSchema,
+  "string",
+  "productErrorResponse.contractVersion",
+);
+if (errorVersionSchema.const !== contractVersion) {
+  throw new Error("Cannot generate Android contracts: error contract version differs from the registry version.");
+}
 const productErrorRequired = requireStringArray(
   productErrorSchema.required,
   "productErrorResponse.required",
@@ -195,6 +356,12 @@ const requestIdSchema = requireSchemaProperty(
   "requestId",
   "productErrorResponse",
 );
+requireOnlyKeys(
+  requestIdSchema,
+  ["type", "minLength", "maxLength"],
+  "productErrorResponse.requestId",
+);
+requireSchemaType(requestIdSchema, "string", "productErrorResponse.requestId");
 const errorDetailSchema = requireSchemaProperty(
   productErrorProperties,
   "error",
@@ -204,6 +371,22 @@ const errorDetailProperties = requireProperties(
   errorDetailSchema,
   "productErrorResponse.error",
 );
+requireOnlyKeys(
+  errorDetailSchema,
+  ["type", "properties", "required", "additionalProperties"],
+  "productErrorResponse.error",
+);
+requireStrictObject(errorDetailSchema, "productErrorResponse.error");
+requireSchemaType(
+  requireSchemaProperty(errorDetailProperties, "code", "productErrorResponse.error"),
+  "string",
+  "productErrorResponse.error.code",
+);
+requireOnlyKeys(
+  errorDetailProperties,
+  ["code", "message", "retryable", "field"],
+  "productErrorResponse.error.properties",
+);
 const errorDetailRequired = requireStringArray(
   errorDetailSchema.required,
   "productErrorResponse.error.required",
@@ -211,6 +394,11 @@ const errorDetailRequired = requireStringArray(
 const errorCodes = requireStringArray(
   requireSchemaProperty(errorDetailProperties, "code", "productErrorResponse.error").enum,
   "productErrorResponse.error.code.enum",
+);
+requireOnlyKeys(
+  requireSchemaProperty(errorDetailProperties, "code", "productErrorResponse.error"),
+  ["type", "enum"],
+  "productErrorResponse.error.code",
 );
 const errorMessageSchema = requireSchemaProperty(
   errorDetailProperties,
@@ -222,6 +410,36 @@ const errorFieldSchema = requireSchemaProperty(
   "field",
   "productErrorResponse.error",
 );
+requireSchemaType(
+  errorMessageSchema,
+  "string",
+  "productErrorResponse.error.message",
+);
+requireSchemaType(
+  errorFieldSchema,
+  "string",
+  "productErrorResponse.error.field",
+);
+requireOnlyKeys(
+  errorMessageSchema,
+  ["type", "minLength"],
+  "productErrorResponse.error.message",
+);
+requireSchemaType(
+  requireSchemaProperty(errorDetailProperties, "retryable", "productErrorResponse.error"),
+  "boolean",
+  "productErrorResponse.error.retryable",
+);
+requireOnlyKeys(
+  errorFieldSchema,
+  ["type", "minLength"],
+  "productErrorResponse.error.field",
+);
+requireOnlyKeys(
+  requireSchemaProperty(errorDetailProperties, "retryable", "productErrorResponse.error"),
+  ["type"],
+  "productErrorResponse.error.retryable",
+);
 const androidGeneratedContent = `// Generated by product/contracts; do not edit manually.
 package com.socialgrowth.product
 
@@ -231,6 +449,7 @@ internal object GeneratedFirstBatchContractSpec {
     const val UUID_PATTERN = ${kotlinString(requireString(installationIdSchema.pattern, "installationSelfView.installationId.pattern"))}
     const val TIMESTAMP_PATTERN = ${kotlinString(requireString(timestampSchema.pattern, "installationSelfView.updatedAt.pattern"))}
     const val FACT_VERSION_MAX = ${requireNumber(factVersionSchema.maximum, "installationSelfView.factVersion.maximum")}L
+    const val FACT_VERSION_MIN = ${requireNumber(factVersionSchema.minimum, "installationSelfView.factVersion.minimum")}L
     const val REQUEST_ID_MIN_LENGTH = ${requireNumber(requestIdSchema.minLength, "productErrorResponse.requestId.minLength")}
     const val REQUEST_ID_MAX_LENGTH = ${requireNumber(requestIdSchema.maxLength, "productErrorResponse.requestId.maxLength")}
     const val ERROR_MESSAGE_MIN_LENGTH = ${requireNumber(errorMessageSchema.minLength, "productErrorResponse.error.message.minLength")}

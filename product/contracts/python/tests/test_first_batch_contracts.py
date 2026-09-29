@@ -4,7 +4,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from socialgrowth_contracts import ContractValidationError, FirstBatchContracts
+from socialgrowth_contracts import (
+    ContractSpecificationError,
+    ContractValidationError,
+    FirstBatchContracts,
+)
 
 
 class FirstBatchContractsTest(unittest.TestCase):
@@ -91,12 +95,37 @@ class FirstBatchContractsTest(unittest.TestCase):
                 "bad",
                 "probe",
             )
-        with self.assertRaises(ContractValidationError):
+        with self.assertRaises(ContractSpecificationError):
             self.contracts._validate_schema(
                 {"type": "string", "futureKeyword": True},
                 "value",
                 "probe",
             )
+
+    def test_composition_does_not_hide_invalid_schema_branches(self) -> None:
+        invalid_schemas = [
+            {"anyOf": [{"type": "string"}, {"futureKeyword": True}]},
+            {
+                "anyOf": [
+                    {"type": "string"},
+                    {"type": "string", "format": "email"},
+                ]
+            },
+            {
+                "anyOf": [
+                    {"type": "string"},
+                    {
+                        "type": "object",
+                        "properties": {"unused": {"futureKeyword": True}},
+                    },
+                ]
+            },
+        ]
+        for schema in invalid_schemas:
+            with self.subTest(schema=schema), self.assertRaises(
+                ContractSpecificationError
+            ):
+                self.contracts._validate_schema(schema, "bad", "probe")
 
 
 if __name__ == "__main__":
