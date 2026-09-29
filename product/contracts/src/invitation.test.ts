@@ -123,3 +123,24 @@ test("revoke responses apply the full invitation semantics", () => {
     invitation: { ...revoked, revokedAt: "2026-09-30T00:00:00.000Z" },
   }));
 });
+
+test("malformed timestamps remain safe validation failures at every entry", () => {
+  const malformed = { ...activeInvitation, expiresAt: "not-a-timestamp" };
+  const code = "A".repeat(43);
+  const probes = [
+    () => invitationViewSchema.safeParse(malformed),
+    () => createInvitationResponseSchema.safeParse({ invitation: malformed, access: { code } }),
+    () => listInvitationsResponseSchema.safeParse({ invitations: [malformed] }),
+    () => revokeInvitationResponseSchema.safeParse({
+      invitation: {
+        ...malformed,
+        status: "revoked",
+        revokedAt: activeInvitation.evaluatedAt,
+        revokedByOperatorId: operatorId,
+      },
+    }),
+  ];
+  for (const probe of probes) {
+    assert.equal(probe().success, false);
+  }
+});

@@ -61,10 +61,10 @@ const invitationViewStructureSchema = z.discriminatedUnion("status", [
 
 type InvitationViewStructure = z.infer<typeof invitationViewStructureSchema>;
 
-function exactTimestampParts(timestamp: string): { fraction: string; seconds: bigint } {
+function exactTimestampParts(timestamp: string): { fraction: string; seconds: bigint } | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|([+-])(\d{2}):(\d{2}))$/.exec(timestamp);
   if (!match?.[1] || !match[2] || !match[3] || !match[4] || !match[5] || !match[6] || !match[8]) {
-    throw new Error("Timestamp was not structurally validated");
+    return null;
   }
   const date = new Date(0);
   date.setUTCFullYear(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
@@ -78,9 +78,10 @@ function exactTimestampParts(timestamp: string): { fraction: string; seconds: bi
   };
 }
 
-function compareTimestamps(left: string, right: string): number {
+function compareTimestamps(left: string, right: string): number | null {
   const leftParts = exactTimestampParts(left);
   const rightParts = exactTimestampParts(right);
+  if (!leftParts || !rightParts) return null;
   if (leftParts.seconds !== rightParts.seconds) {
     return leftParts.seconds < rightParts.seconds ? -1 : 1;
   }
@@ -94,14 +95,17 @@ function validateInvitationSemantics(
   invitation: InvitationViewStructure,
   context: z.RefinementCtx,
 ): void {
-    const invalid = (message: string, path: Array<string | number>) => {
+  const invalid = (message: string, path: Array<string | number>) => {
       context.addIssue({ code: "custom", message, path });
     };
 
-    if (compareTimestamps(invitation.expiresAt, invitation.createdAt) <= 0) {
+    const expiresAfterCreation = compareTimestamps(invitation.expiresAt, invitation.createdAt);
+    const evaluationAfterCreation = compareTimestamps(invitation.evaluatedAt, invitation.createdAt);
+    if (expiresAfterCreation === null || evaluationAfterCreation === null) return;
+    if (expiresAfterCreation <= 0) {
       invalid("Invitation must expire after creation", ["expiresAt"]);
     }
-    if (compareTimestamps(invitation.evaluatedAt, invitation.createdAt) < 0) {
+    if (evaluationAfterCreation < 0) {
       invalid("Invitation cannot be evaluated before creation", ["evaluatedAt"]);
     }
     if (invitation.consumedUses > invitation.maxUses) {
@@ -115,25 +119,30 @@ function validateInvitationSemantics(
       invalid("Invitation registrations must contain unique providers", ["registrations"]);
     }
     for (const [index, registration] of invitation.registrations.entries()) {
-      if (
-        compareTimestamps(registration.registeredAt, invitation.createdAt) < 0
-        || compareTimestamps(registration.registeredAt, invitation.evaluatedAt) > 0
-      ) {
+      const registrationAfterCreation = compareTimestamps(registration.registeredAt, invitation.createdAt);
+      const registrationBeforeEvaluation = compareTimestamps(registration.registeredAt, invitation.evaluatedAt);
+      if (registrationAfterCreation === null || registrationBeforeEvaluation === null) return;
+      if (registrationAfterCreation < 0 || registrationBeforeEvaluation > 0) {
         invalid("Registration time is outside the invitation observation window", ["registrations", index, "registeredAt"]);
       }
     }
 
     if (invitation.status === "revoked") {
-      if (compareTimestamps(invitation.revokedAt, invitation.createdAt) < 0) {
+      const revocationAfterCreation = compareTimestamps(invitation.revokedAt, invitation.createdAt);
+      const revocationBeforeEvaluation = compareTimestamps(invitation.revokedAt, invitation.evaluatedAt);
+      if (revocationAfterCreation === null || revocationBeforeEvaluation === null) return;
+      if (revocationAfterCreation < 0) {
         invalid("Invitation cannot be revoked before creation", ["revokedAt"]);
       }
-      if (compareTimestamps(invitation.revokedAt, invitation.evaluatedAt) > 0) {
+      if (revocationBeforeEvaluation > 0) {
         invalid("Invitation revocation is outside the observation window", ["revokedAt"]);
       }
       return;
     }
 
-    const expectedStatus = compareTimestamps(invitation.expiresAt, invitation.evaluatedAt) <= 0
+    const expirationAtEvaluation = compareTimestamps(invitation.expiresAt, invitation.evaluatedAt);
+    if (expirationAtEvaluation === null) return;
+    const expectedStatus = expirationAtEvaluation <= 0
       ? "expired"
       : invitation.consumedUses === invitation.maxUses
         ? "exhausted"
