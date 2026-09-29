@@ -28,13 +28,13 @@ const metadata = {
 test("registration accepts verification proof but rejects client-owned identity", () => {
   const accepted = registerProviderRequestSchema.safeParse({
     metadata,
-    invitationCode: "invite-code-01",
+    invitationCode: "I".repeat(43),
     phoneVerificationId: "018f47ac-7a69-7db4-a572-8c62f3650191",
     displayName: "Provider A",
   });
   const rejected = registerProviderRequestSchema.safeParse({
     metadata,
-    invitationCode: "invite-code-01",
+    invitationCode: "I".repeat(43),
     phoneVerificationId: "018f47ac-7a69-7db4-a572-8c62f3650191",
     displayName: "Provider A",
     providerId: "018f47ac-7a69-7db4-a572-8c62f3650192",

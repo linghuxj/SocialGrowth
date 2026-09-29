@@ -16,9 +16,13 @@ import {
 } from "./identity.js";
 import {
   createInvitationRequestSchema,
+  createInvitationResponseSchema,
   invitationViewSchema,
+  listInvitationsResponseSchema,
   registerProviderRequestSchema,
   registerProviderResponseSchema,
+  revokeInvitationRequestSchema,
+  revokeInvitationResponseSchema,
 } from "./invitation.js";
 import {
   createOperatorRequestSchema,
@@ -45,6 +49,7 @@ export const firstBatchContractRegistry = {
   createAssociationSessionRequest: createAssociationSessionRequestSchema,
   createAssociationSessionResponse: createAssociationSessionResponseSchema,
   createInvitationRequest: createInvitationRequestSchema,
+  createInvitationResponse: createInvitationResponseSchema,
   createOperatorRequest: createOperatorRequestSchema,
   createOperatorResponse: createOperatorResponseSchema,
   disableOperatorRequest: disableOperatorRequestSchema,
@@ -53,6 +58,7 @@ export const firstBatchContractRegistry = {
   invitationView: invitationViewSchema,
   inspectAssociationCodeRequest: inspectAssociationCodeRequestSchema,
   listOperatorsResponse: listOperatorsResponseSchema,
+  listInvitationsResponse: listInvitationsResponseSchema,
   operatorDeviceView: operatorDeviceViewSchema,
   operatorLoginRequest: operatorLoginRequestSchema,
   operatorLoginResponse: operatorLoginResponseSchema,
@@ -61,6 +67,8 @@ export const firstBatchContractRegistry = {
   providerDeviceView: providerDeviceViewSchema,
   registerProviderRequest: registerProviderRequestSchema,
   registerProviderResponse: registerProviderResponseSchema,
+  revokeInvitationRequest: revokeInvitationRequestSchema,
+  revokeInvitationResponse: revokeInvitationResponseSchema,
   sessionSummary: sessionSummarySchema,
 } satisfies Record<string, z.ZodType>;
 

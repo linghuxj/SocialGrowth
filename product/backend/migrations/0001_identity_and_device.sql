@@ -58,12 +58,19 @@ CREATE TABLE socialgrowth_product.provider_invitations (
   created_by_operator_id uuid NOT NULL REFERENCES socialgrowth_product.operators(operator_id),
   max_uses integer NOT NULL CHECK (max_uses > 0),
   consumed_uses integer NOT NULL DEFAULT 0 CHECK (consumed_uses >= 0),
+  fact_version bigint NOT NULL DEFAULT 0 CHECK (fact_version >= 0),
   expires_at timestamptz NOT NULL,
   revoked_at timestamptz,
+  revoked_by_operator_id uuid REFERENCES socialgrowth_product.operators(operator_id),
   created_at timestamptz NOT NULL DEFAULT transaction_timestamp(),
   CHECK (consumed_uses <= max_uses),
-  CHECK (expires_at > created_at)
+  CHECK (expires_at > created_at),
+  CHECK (revoked_at IS NULL OR revoked_at >= created_at),
+  CHECK ((revoked_at IS NULL) = (revoked_by_operator_id IS NULL))
 );
+
+CREATE INDEX provider_invitations_created_idx
+  ON socialgrowth_product.provider_invitations(created_at DESC, invitation_id DESC);
 
 CREATE TABLE socialgrowth_product.phone_verifications (
   verification_id uuid PRIMARY KEY,

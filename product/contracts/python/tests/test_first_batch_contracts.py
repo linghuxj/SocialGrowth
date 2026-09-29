@@ -156,6 +156,42 @@ class FirstBatchContractsTest(unittest.TestCase):
                     "listOperatorsResponse", {"operators": [invalid_operator]}
                 )
 
+    def test_invitation_list_excludes_access_secret_and_fixes_revocation(self) -> None:
+        invitation = {
+            "invitationId": self.installation_id,
+            "maxUses": 5,
+            "consumedUses": 1,
+            "expiresAt": "2026-10-06T00:00:00Z",
+            "createdAt": "2026-09-29T00:00:00Z",
+            "createdByOperatorId": "00000000-0000-4000-8000-000000000002",
+            "factVersion": 1,
+            "registrations": [],
+            "status": "active",
+            "revokedAt": None,
+            "revokedByOperatorId": None,
+        }
+        response = {"invitations": [invitation]}
+        self.assertIs(
+            self.contracts.validate("listInvitationsResponse", response), response
+        )
+
+        invalid_invitations = [
+            {**invitation, "code": "A" * 43},
+            {**invitation, "status": "revoked"},
+            {
+                **invitation,
+                "revokedAt": "2026-09-29T01:00:00Z",
+                "revokedByOperatorId": "00000000-0000-4000-8000-000000000002",
+            },
+        ]
+        for invalid_invitation in invalid_invitations:
+            with self.subTest(invitation=invalid_invitation), self.assertRaises(
+                ContractValidationError
+            ):
+                self.contracts.validate(
+                    "listInvitationsResponse", {"invitations": [invalid_invitation]}
+                )
+
 
 if __name__ == "__main__":
     unittest.main()
