@@ -10,9 +10,10 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && pnpm generate",
-    "check": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.json && pnpm generate:check",
+    "check": "tsc -p tsconfig.json --noEmit && pnpm generate:check",
     "generate": "tsx src/generate-contracts.ts",
+    "generate:check": "tsx src/generate-contracts.ts --check",
     "lint": "oxlint src",
     "test": "tsx --test src/*.test.ts"
   },

@@ -2,9 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { contractVersion } from "./common.js";
-import { confirmAssociationRequestSchema } from "./association.js";
+import {
+  associationQrPayloadSchema,
+  confirmAssociationRequestSchema,
+} from "./association.js";
 import { registerProviderRequestSchema } from "./invitation.js";
-import { installationSelfViewSchema } from "./status.js";
+import {
+  installationSelfViewSchema,
+  operatorDeviceViewSchema,
+} from "./status.js";
 
 const metadata = {
   contractVersion,
@@ -49,11 +55,46 @@ test("installation status excludes provider and operator identifiers", () => {
     installationId: "018f47ac-7a69-7db4-a572-8c62f3650194",
     deviceId: null,
     state: "unassociated",
-    providerDisplayName: null,
     providerId: "018f47ac-7a69-7db4-a572-8c62f3650192",
     factVersion: 0,
     updatedAt: "2026-09-29T10:00:00+08:00",
   });
 
+  assert.equal(rejected.success, false);
+});
+
+test("status views reject contradictory ownership facts", () => {
+  const rejectedInstallation = installationSelfViewSchema.safeParse({
+    installationId: "018f47ac-7a69-7db4-a572-8c62f3650194",
+    deviceId: "018f47ac-7a69-7db4-a572-8c62f3650195",
+    state: "unassociated",
+    factVersion: 0,
+    updatedAt: "2026-09-29T10:00:00+08:00",
+  });
+  const rejectedOperator = operatorDeviceViewSchema.safeParse({
+    deviceId: "018f47ac-7a69-7db4-a572-8c62f3650195",
+    installationId: "018f47ac-7a69-7db4-a572-8c62f3650194",
+    providerId: "018f47ac-7a69-7db4-a572-8c62f3650192",
+    state: "unassociated",
+    lastObservedAt: null,
+    factVersion: 0,
+    updatedAt: "2026-09-29T10:00:00+08:00",
+  });
+
+  assert.equal(rejectedInstallation.success, false);
+  assert.equal(rejectedOperator.success, false);
+});
+
+test("association QR payload is versioned and uses the fixed code format", () => {
+  const accepted = associationQrPayloadSchema.safeParse({
+    contractVersion,
+    associationCode: `sgassoc_v1_${"A".repeat(43)}`,
+  });
+  const rejected = associationQrPayloadSchema.safeParse({
+    contractVersion,
+    associationCode: "unversioned-code",
+  });
+
+  assert.equal(accepted.success, true);
   assert.equal(rejected.success, false);
 });

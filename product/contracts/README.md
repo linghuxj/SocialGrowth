@@ -8,7 +8,8 @@
 | --- | --- | --- | --- |
 | `authenticatedPrincipal`、`sessionSummary` | 三类身份分别认证 | Backend | 请求体中的 ID 不是授权证明 |
 | `createInvitationRequest`、`registerProviderRequest` | 运营创建；未登录注册流程消费验证结果 | Backend/PostgreSQL | 短信通过不等于注册；最终事务再查邀请和手机号 |
-| `associationSessionView`、`confirmAssociationRequest` | 安装创建待确认会话；提供者本人确认 | Backend/PostgreSQL | 必须匹配预期安装；扫码不直接写归属 |
+| `associationQrPayload`、`createAssociationSession*`、`inspectAssociationCodeRequest` | 安装创建待确认会话；提供者本人扫描 | Backend/PostgreSQL | `sgassoc_v1_` 码制与契约版本均可校验；新会话响应明示旧会话已替换 |
+| `associationSessionView`、`confirmAssociationRequest` | 提供者本人查看必要目标并确认 | Backend/PostgreSQL | 必须匹配预期安装；扫码不直接写归属 |
 | 三类 device view | 运营/本人/安装各取所需字段 | Backend | 严格 schema 拒绝跨身份多余字段；较低 `factVersion` 不覆盖新事实 |
 | `productErrorResponse` | 当前认证身份 | Backend | 稳定错误码、可重试标志和原请求 ID，不暴露技术栈或秘密 |
 
@@ -20,13 +21,20 @@
 | --- | --- | --- | --- |
 | 创建邀请 | operator | `createInvitationRequest` / `invitationView` | `AUTHORIZATION_DENIED`, `INPUT_INVALID` |
 | 注册提供者 | registration proof | `registerProviderRequest` / `registerProviderResponse` | `INVITATION_*`, `PHONE_*`, `IDEMPOTENCY_KEY_REUSED` |
-| 读取扫码目标 | provider | path token / `associationSessionView` | `ASSOCIATION_SESSION_EXPIRED`, `AUTHORIZATION_DENIED` |
+| 创建/刷新关联会话 | installation | `createAssociationSessionRequest` / `createAssociationSessionResponse` | `AUTHORIZATION_DENIED`, `INPUT_INVALID` |
+| 解析扫码目标 | provider | `inspectAssociationCodeRequest` / `associationSessionView` | `ASSOCIATION_SESSION_EXPIRED`, `AUTHORIZATION_DENIED` |
 | 确认关联 | provider | `confirmAssociationRequest` / `confirmAssociationResponse` | `ASSOCIATION_*`, `DEVICE_ALREADY_ASSOCIATED` |
 | 读取运营设备视图 | operator | query / `operatorDeviceView[]` | `AUTHENTICATION_REQUIRED` |
 | 读取本人设备视图 | provider | query / `providerDeviceView[]` | `AUTHORIZATION_DENIED` |
 | 读取本机状态 | installation | query / `installationSelfView` | `FACT_VERSION_STALE` |
 
-所有写请求携带 `contractVersion`、`requestId` 和作用域内的 `idempotencyKey`。同键同载荷在授权仍有效时返回原结果；同键不同载荷拒绝。未知字段由 strict schema 拒绝，不兼容版本在开始事务前拒绝。
+所有写请求携带 `contractVersion`、`requestId` 和作用域内的 `idempotencyKey`。同键同载荷在授权仍有效且响应保留期内返回原结果；同键不同载荷拒绝。响应过期后返回 `IDEMPOTENCY_RESULT_EXPIRED`，不重新执行业务副作用。授权失效时先返回认证/授权错误，不因幂等命中泄露旧响应。
+
+请求与响应都使用 strict schema，但兼容方向不同：
+
+- 请求新增服务端可选字段，且旧请求仍能按原语义处理时，可作为同版本兼容变更；新客户端不得向尚未支持该字段的旧服务端发送它。
+- 响应新增任何字段都会被旧 strict 消费端拒绝，因此必须提升 `contractVersion`，在服务端按协商版本只发送对应字段，并完成 Kotlin/Python/Web 消费方确认。
+- 删除/改义字段、收紧有效值、改变身份或错误语义均是不兼容变更。未知字段拒绝和不兼容版本拒绝必须在业务事务前发生。
 
 ## 生成与检查
 
@@ -36,4 +44,4 @@ pnpm --filter @socialgrowth/product-contracts test
 pnpm --filter @socialgrowth/product-contracts build
 ```
 
-`build` 会重新生成 JSON Schema。提交时源 schema 与生成文件必须一致。真实 PostgreSQL 并发、跨语言消费端、旧客户端、短信和真机业务流程需要在对应工作包单独验收。
+`generate` 显式更新 JSON Schema；`check` 和 `build` 使用 `generate:check` 字节比较源 schema 与已提交文件，发现漂移直接失败且不重写文件。真实 PostgreSQL 并发、跨语言消费端、旧客户端、短信和真机业务流程需要在对应工作包单独验收。

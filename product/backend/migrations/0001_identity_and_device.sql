@@ -43,9 +43,16 @@ CREATE TABLE socialgrowth_product.phone_verifications (
   expires_at timestamptz NOT NULL,
   consumed_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT transaction_timestamp(),
-  CHECK (phone_e164 ~ '^\\+[1-9][0-9]{7,14}$'),
+  CHECK (phone_e164 ~ '^[+][1-9][0-9]{7,14}$'),
   CHECK (expires_at > created_at),
-  CHECK (consumed_at IS NULL OR verified_at IS NOT NULL)
+  CHECK (verified_at IS NULL OR verified_at <= expires_at),
+  CHECK (consumed_at IS NULL OR verified_at IS NOT NULL),
+  CHECK (consumed_at IS NULL OR consumed_at >= verified_at),
+  CHECK (consumed_at IS NULL OR consumed_at <= expires_at),
+  CHECK (
+    (purpose = 'provider_registration' AND provider_id IS NULL)
+    OR (purpose IN ('provider_login', 'phone_rebind') AND provider_id IS NOT NULL)
+  )
 );
 
 CREATE TABLE socialgrowth_product.providers (
@@ -55,7 +62,7 @@ CREATE TABLE socialgrowth_product.providers (
   status text NOT NULL CHECK (status IN ('active', 'disabled')),
   created_at timestamptz NOT NULL DEFAULT transaction_timestamp(),
   updated_at timestamptz NOT NULL DEFAULT transaction_timestamp(),
-  CHECK (phone_e164 ~ '^\\+[1-9][0-9]{7,14}$'),
+  CHECK (phone_e164 ~ '^[+][1-9][0-9]{7,14}$'),
   CHECK (length(btrim(display_name)) > 0)
 );
 
@@ -132,7 +139,10 @@ CREATE TABLE socialgrowth_product.association_sessions (
   created_at timestamptz NOT NULL DEFAULT transaction_timestamp(),
   CHECK (expires_at > created_at),
   CHECK ((consumed_at IS NULL) = (consumed_by_provider_id IS NULL)),
-  CHECK (consumed_at IS NULL OR invalidated_at IS NULL)
+  CHECK (consumed_at IS NULL OR invalidated_at IS NULL),
+  CHECK (consumed_at IS NULL OR consumed_at >= created_at),
+  CHECK (consumed_at IS NULL OR consumed_at <= expires_at),
+  CHECK (invalidated_at IS NULL OR invalidated_at >= created_at)
 );
 
 CREATE UNIQUE INDEX association_sessions_one_open_per_installation_idx
@@ -168,12 +178,15 @@ CREATE TABLE socialgrowth_product.idempotency_requests (
   status text NOT NULL CHECK (status IN ('processing', 'succeeded', 'failed')),
   response_status integer,
   response_body jsonb,
+  result_object_type text,
+  result_object_id uuid,
   created_at timestamptz NOT NULL DEFAULT transaction_timestamp(),
-  expires_at timestamptz NOT NULL,
+  response_available_until timestamptz NOT NULL,
   UNIQUE (operation, principal_type, principal_id, idempotency_key),
-  CHECK (expires_at > created_at),
+  CHECK (response_available_until > created_at),
   CHECK ((status = 'processing') = (response_status IS NULL)),
-  CHECK (response_body IS NULL OR response_status IS NOT NULL)
+  CHECK (response_body IS NULL OR response_status IS NOT NULL),
+  CHECK ((result_object_type IS NULL) = (result_object_id IS NULL))
 );
 
 CREATE TABLE socialgrowth_product.audit_records (

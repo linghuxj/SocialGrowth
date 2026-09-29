@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { timestampSchema, uuidSchema, versionedFactSchema } from "./common.js";
 
-const deviceStateSchema = z.enum([
+export const deviceStateSchema = z.enum([
   "unassociated",
   "associated_pending_access",
   "access_ready",
@@ -11,14 +11,25 @@ const deviceStateSchema = z.enum([
   "exited",
 ]);
 
-export const operatorDeviceViewSchema = z.strictObject({
+const operatorDeviceBaseShape = {
   ...versionedFactSchema.shape,
   deviceId: uuidSchema,
   installationId: uuidSchema,
-  providerId: uuidSchema.nullable(),
-  state: deviceStateSchema,
   lastObservedAt: timestampSchema.nullable(),
-});
+};
+
+export const operatorDeviceViewSchema = z.discriminatedUnion("state", [
+  z.strictObject({
+    ...operatorDeviceBaseShape,
+    state: z.literal("unassociated"),
+    providerId: z.null(),
+  }),
+  z.strictObject({
+    ...operatorDeviceBaseShape,
+    state: deviceStateSchema.exclude(["unassociated"]),
+    providerId: uuidSchema,
+  }),
+]);
 
 export const providerDeviceViewSchema = z.strictObject({
   ...versionedFactSchema.shape,
@@ -28,13 +39,23 @@ export const providerDeviceViewSchema = z.strictObject({
   lastObservedAt: timestampSchema.nullable(),
 });
 
-export const installationSelfViewSchema = z.strictObject({
+const installationBaseShape = {
   ...versionedFactSchema.shape,
   installationId: uuidSchema,
-  deviceId: uuidSchema.nullable(),
-  state: deviceStateSchema,
-  providerDisplayName: z.string().min(1).nullable(),
-});
+};
+
+export const installationSelfViewSchema = z.discriminatedUnion("state", [
+  z.strictObject({
+    ...installationBaseShape,
+    state: z.literal("unassociated"),
+    deviceId: z.null(),
+  }),
+  z.strictObject({
+    ...installationBaseShape,
+    state: deviceStateSchema.exclude(["unassociated"]),
+    deviceId: uuidSchema,
+  }),
+]);
 
 export type OperatorDeviceView = z.infer<typeof operatorDeviceViewSchema>;
 export type ProviderDeviceView = z.infer<typeof providerDeviceViewSchema>;
