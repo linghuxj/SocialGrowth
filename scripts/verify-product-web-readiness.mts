@@ -45,8 +45,7 @@ try {
   let initialCreation: { access: { code: string }; invitation: { invitationId: string } } | undefined;
   let replayCreation: typeof initialCreation;
   const invitationCountBefore = await primary.locator(".invitation-list tbody tr").count();
-  let loseFirstCreationResponse = true;
-  await primary.route("**/api/operator/invitations", async (route) => {
+  const loseFirstCreationResponse = async (route: import("playwright").Route): Promise<void> => {
     if (route.request().method() !== "POST") {
       await route.continue();
       return;
@@ -55,19 +54,12 @@ try {
       metadata?: { idempotencyKey?: string };
     };
     if (payload.metadata?.idempotencyKey) invitationKeys.push(payload.metadata.idempotencyKey);
-    if (loseFirstCreationResponse) {
-      loseFirstCreationResponse = false;
-      const response = await route.fetch();
-      if (!response.ok()) throw new Error(`Initial invitation creation failed with ${response.status()}`);
-      initialCreation = await response.json() as typeof initialCreation;
-      await route.abort("failed");
-      return;
-    }
     const response = await route.fetch();
-    if (!response.ok()) throw new Error(`Invitation replay failed with ${response.status()}`);
-    replayCreation = await response.json() as typeof replayCreation;
-    await route.fulfill({ response });
-  });
+    if (!response.ok()) throw new Error(`Initial invitation creation failed with ${response.status()}`);
+    initialCreation = await response.json() as typeof initialCreation;
+    await route.abort("failed");
+  };
+  await primary.route("**/api/operator/invitations", loseFirstCreationResponse);
   await primary.getByLabel("成功注册次数上限").fill("3");
   const expiry = new Date(Date.now() + 86_400_000);
   const localExpiry = new Date(expiry.getTime() - expiry.getTimezoneOffset() * 60_000)
@@ -75,7 +67,21 @@ try {
   await primary.getByLabel("有效至").fill(localExpiry);
   await primary.getByRole("button", { name: "创建邀请" }).click();
   await primary.getByText(/fetch|操作失败|网络/i).waitFor();
+  await primary.unroute("**/api/operator/invitations", loseFirstCreationResponse);
+  const replayRequestPromise = primary.waitForRequest((request) =>
+    request.method() === "POST" && new URL(request.url()).pathname === "/api/operator/invitations",
+  );
+  const replayResponsePromise = primary.waitForResponse((response) =>
+    response.request().method() === "POST"
+      && new URL(response.url()).pathname === "/api/operator/invitations",
+  );
   await primary.getByRole("button", { name: "创建邀请" }).click();
+  const replayRequest = await replayRequestPromise;
+  const replayResponse = await replayResponsePromise;
+  if (!replayResponse.ok()) throw new Error(`Invitation replay failed with ${replayResponse.status()}`);
+  replayCreation = await replayResponse.json() as typeof replayCreation;
+  const replayPayload = replayRequest.postDataJSON() as { metadata?: { idempotencyKey?: string } };
+  if (replayPayload.metadata?.idempotencyKey) invitationKeys.push(replayPayload.metadata.idempotencyKey);
   await primary.getByRole("heading", { name: "邀请已创建" }).waitFor();
   if (invitationKeys.length !== 2 || invitationKeys[0] !== invitationKeys[1]) {
     throw new Error("Invitation response-loss retry did not preserve its idempotency key");
