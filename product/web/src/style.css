@@ -123,6 +123,7 @@ code { color: #31425f; }
   .nav-item span { display: none; }
   .operator-chip div, .logout-button { display: none; }
   .operator-chip { justify-content: center; }
+  .mobile-logout-button { display: inline-flex; padding-inline: 12px; }
   .summary-strip { grid-template-columns: 1fr 1fr; }
   .summary-strip p { grid-column: 1 / -1; padding: 14px 0 0; }
   .access-grid { grid-template-columns: 1fr; }
@@ -139,7 +140,7 @@ code { color: #31425f; }
   .page-header { align-items: flex-end; }
   .outline-button { padding-inline: 12px; }
   .header-actions { align-items: flex-end; flex-direction: column; }
-  .mobile-logout-button { display: inline-flex; margin-top: 0; padding-inline: 12px; }
+  .mobile-logout-button { margin-top: 0; }
   .summary-strip { grid-template-columns: 1fr; }
   .summary-strip > div, .summary-strip > div + div { padding: 10px 0; border-right: 0; border-bottom: 1px solid #e3e8ef; }
   .summary-strip p { grid-column: auto; }

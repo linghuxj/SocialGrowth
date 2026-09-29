@@ -85,7 +85,9 @@ export function App() {
       }
       setOperators(nextOperators); setInvitations(nextInvitations); setAuthenticated(true);
     } catch (error) {
-      if (error instanceof ProductApiError && error.status === 401) clearAuthenticatedState();
+      if (error instanceof ProductApiError && error.status === 401) {
+        clearAuthenticatedState(); setMessage(errorMessage(error));
+      }
       else {
         if (authenticated === null) clearAuthenticatedState();
         setMessage(errorMessage(error));
