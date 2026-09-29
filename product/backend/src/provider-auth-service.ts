@@ -23,6 +23,14 @@ import {
 import type { Pool, PoolClient } from "pg";
 
 import { ProductTransactionError } from "./product-transaction-error.js";
+import type { SmsDeliveryPort } from "./sms-delivery.js";
+
+export {
+  DevelopmentSmsCapturePort,
+  DisabledDevelopmentSmsCodeReader,
+  UnavailableSmsDeliveryPort,
+} from "./sms-delivery.js";
+export type { SmsDeliveryPort } from "./sms-delivery.js";
 
 const schema = "socialgrowth_product";
 const challengeLifetimeMilliseconds = 5 * 60 * 1000;
@@ -31,25 +39,6 @@ const rateLimitWindowMilliseconds = 15 * 60 * 1000;
 const rateLimitCount = 5;
 const proofLifetimeMilliseconds = 10 * 60 * 1000;
 const sessionLifetimeMilliseconds = 30 * 24 * 60 * 60 * 1000;
-
-export interface SmsDeliveryPort {
-  sendVerificationCode(input: {
-    challengeId: string;
-    code: string;
-    phoneE164: string;
-    purpose: "provider_registration" | "provider_login";
-  }): Promise<void>;
-}
-
-export class UnavailableSmsDeliveryPort implements SmsDeliveryPort {
-  async sendVerificationCode(): Promise<never> {
-    throw new ProductTransactionError(
-      "SMS_DELIVERY_UNAVAILABLE",
-      "SMS delivery is not configured",
-      true,
-    );
-  }
-}
 
 interface ChallengeRow {
   challenge_id: string;
@@ -296,6 +285,7 @@ export class ProviderAuthService {
       await this.smsDelivery.sendVerificationCode({
         challengeId: reservation.row.challenge_id,
         code: reservation.code,
+        expiresAt: reservation.row.expires_at,
         phoneE164: reservation.row.phone_e164,
         purpose: reservation.row.purpose,
       });

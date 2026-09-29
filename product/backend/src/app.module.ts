@@ -1,17 +1,22 @@
 import { Module } from "@nestjs/common";
 import { Pool } from "pg";
 import { AppController } from "./app.controller.js";
-import { readOperatorRuntimeConfig } from "./config.js";
+import { readBackendConfig, readOperatorRuntimeConfig } from "./config.js";
 import { DatabaseLifecycle } from "./database-lifecycle.js";
+import { DevelopmentProviderSmsController } from "./development-provider-sms.controller.js";
 import { InvitationManagementService } from "./invitation-management-service.js";
 import { IdentityTransactionService } from "./identity-transactions.js";
 import { OperatorAuthService } from "./operator-auth-service.js";
 import { OperatorController } from "./operator.controller.js";
-import {
-  ProviderAuthService,
-  UnavailableSmsDeliveryPort,
-} from "./provider-auth-service.js";
+import { ProviderAuthService } from "./provider-auth-service.js";
 import { ProviderController } from "./provider.controller.js";
+import {
+  DevelopmentSmsCapturePort,
+  DisabledDevelopmentSmsCodeReader,
+  SMS_RUNTIME,
+  UnavailableSmsDeliveryPort,
+  type SmsRuntime,
+} from "./sms-delivery.js";
 
 const poolProvider = {
   provide: Pool,
@@ -49,27 +54,50 @@ const identityTransactionProvider = {
   useFactory: (pool: Pool) => new IdentityTransactionService(pool),
 };
 
+const smsRuntimeProvider = {
+  provide: SMS_RUNTIME,
+  useFactory: (): SmsRuntime => {
+    const config = readBackendConfig();
+    if (config.SG_PRODUCT_SMS_MODE === "development_capture") {
+      const capture = new DevelopmentSmsCapturePort(
+        config.SG_PRODUCT_DEVELOPMENT_SMS_TOKEN!,
+      );
+      return { codeReader: capture, deliveryPort: capture };
+    }
+    return {
+      codeReader: new DisabledDevelopmentSmsCodeReader(),
+      deliveryPort: new UnavailableSmsDeliveryPort(),
+    };
+  },
+};
+
 const providerAuthProvider = {
   provide: ProviderAuthService,
-  inject: [Pool],
-  useFactory: (pool: Pool) => {
+  inject: [Pool, SMS_RUNTIME],
+  useFactory: (pool: Pool, smsRuntime: SmsRuntime) => {
     const config = readOperatorRuntimeConfig();
     return new ProviderAuthService(
       pool,
       config.SG_PRODUCT_AUTH_PEPPER,
-      new UnavailableSmsDeliveryPort(),
+      smsRuntime.deliveryPort,
       config.SG_PRODUCT_SMS_CODE_LENGTH,
     );
   },
 };
 
 @Module({
-  controllers: [AppController, OperatorController, ProviderController],
+  controllers: [
+    AppController,
+    DevelopmentProviderSmsController,
+    OperatorController,
+    ProviderController,
+  ],
   providers: [
     poolProvider,
     operatorAuthProvider,
     invitationManagementProvider,
     identityTransactionProvider,
+    smsRuntimeProvider,
     providerAuthProvider,
     DatabaseLifecycle,
   ],

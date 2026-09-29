@@ -3,7 +3,6 @@ import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { after, before, test } from "node:test";
 
-import { Module } from "@nestjs/common";
 import { NestFactory, type NestApplication } from "@nestjs/core";
 import {
   contractVersion,
@@ -15,13 +14,8 @@ import {
 } from "@socialgrowth/product-contracts";
 import { Pool } from "pg";
 
-import { IdentityTransactionService } from "./identity-transactions.js";
-import {
-  ProviderAuthService,
-  type SmsDeliveryPort,
-} from "./provider-auth-service.js";
+import { AppModule } from "./app.module.js";
 import { ProductExceptionFilter } from "./product-exception.filter.js";
-import { ProviderController } from "./provider.controller.js";
 
 const databaseUrl = process.env.SG_PRODUCT_TEST_DATABASE_URL;
 if (!databaseUrl || process.env.SG_PRODUCT_TEST_ALLOW_RESET !== "1") {
@@ -32,49 +26,25 @@ if (!databaseUrl || process.env.SG_PRODUCT_TEST_ALLOW_RESET !== "1") {
 
 const pool = new Pool({ connectionString: databaseUrl, max: 8 });
 const pepper = "test-provider-http-pepper-00000000000000000001";
+const developmentSmsToken = "test-development-sms-token-000000000000000001";
 const migrationUrls = [
   new URL("../migrations/0001_identity_and_device.sql", import.meta.url),
   new URL("../migrations/0002_provider_phone_auth.sql", import.meta.url),
   new URL("../migrations/0003_provider_auth_recovery.sql", import.meta.url),
 ];
 
-interface Delivery {
-  challengeId: string;
-  code: string;
-  phoneE164: string;
-  purpose: "provider_registration" | "provider_login";
-}
-
-class RecordingSmsPort implements SmsDeliveryPort {
-  readonly deliveries: Delivery[] = [];
-
-  async sendVerificationCode(input: Delivery): Promise<void> {
-    const committed = await pool.query<{ delivery_state: string }>(
-      `SELECT delivery_state
-         FROM socialgrowth_product.phone_verification_challenges
-        WHERE challenge_id = $1`,
-      [input.challengeId],
-    );
-    assert.equal(committed.rows[0]?.delivery_state, "pending");
-    this.deliveries.push(input);
-  }
-}
-
-const sms = new RecordingSmsPort();
-const auth = new ProviderAuthService(pool, pepper, sms);
-const identity = new IdentityTransactionService(pool);
-
-class ProviderHttpTestModule {}
-Module({
-  controllers: [ProviderController],
-  providers: [
-    { provide: ProviderAuthService, useValue: auth },
-    { provide: IdentityTransactionService, useValue: identity },
-  ],
-})(ProviderHttpTestModule);
-
 let app: NestApplication;
 let baseUrl = "";
+const configuredEnvironment = [
+  "SG_PRODUCT_AUTH_PEPPER",
+  "SG_PRODUCT_BACKEND_HOST",
+  "SG_PRODUCT_DATABASE_URL",
+  "SG_PRODUCT_DEVELOPMENT_SMS_TOKEN",
+  "SG_PRODUCT_SMS_MODE",
+] as const;
+const previousEnvironment = Object.fromEntries(
+  configuredEnvironment.map((name) => [name, process.env[name]]),
+) as Record<(typeof configuredEnvironment)[number], string | undefined>;
 
 function digest(value: string): Buffer {
   return createHash("sha256").update(value, "utf8").digest();
@@ -104,17 +74,35 @@ async function seedInvitation(code: string): Promise<void> {
   );
 }
 
-async function post(path: string, body: unknown): Promise<{
+async function post(
+  path: string,
+  body: unknown,
+  extraHeaders: Record<string, string> = {},
+): Promise<{
   body: unknown;
   response: Response;
 }> {
   const response = await fetch(`${baseUrl}${path}`, {
     body: JSON.stringify(body),
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...extraHeaders },
     method: "POST",
   });
   assert.equal(response.headers.get("cache-control"), "no-store");
   return { body: await response.json(), response };
+}
+
+async function readDevelopmentCode(challengeId: string): Promise<string> {
+  const result = await post(
+    "/internal/development/provider-sms-codes/read",
+    { challengeId, requestId: `request-${randomUUID()}` },
+    { "x-development-sms-token": developmentSmsToken },
+  );
+  assert.equal(result.response.status, 200);
+  assert.deepEqual(Object.keys(result.body as object).sort(), ["challengeId", "code"]);
+  const response = result.body as { challengeId: unknown; code: unknown };
+  assert.equal(response.challengeId, challengeId);
+  assert.match(String(response.code), /^[0-9]{6}$/);
+  return String(response.code);
 }
 
 before(async () => {
@@ -122,7 +110,12 @@ before(async () => {
   for (const migrationUrl of migrationUrls) {
     await pool.query(await readFile(migrationUrl, "utf8"));
   }
-  app = await NestFactory.create(ProviderHttpTestModule, { logger: false });
+  process.env.SG_PRODUCT_AUTH_PEPPER = pepper;
+  process.env.SG_PRODUCT_BACKEND_HOST = "127.0.0.1";
+  process.env.SG_PRODUCT_DATABASE_URL = databaseUrl;
+  process.env.SG_PRODUCT_DEVELOPMENT_SMS_TOKEN = developmentSmsToken;
+  process.env.SG_PRODUCT_SMS_MODE = "development_capture";
+  app = await NestFactory.create(AppModule, { logger: false });
   app.useGlobalFilters(new ProductExceptionFilter());
   await app.listen(0, "127.0.0.1");
   baseUrl = await app.getUrl();
@@ -134,10 +127,15 @@ after(async () => {
     await pool.query("DROP SCHEMA IF EXISTS socialgrowth_product CASCADE");
   } finally {
     await pool.end();
+    for (const name of configuredEnvironment) {
+      const previous = previousEnvironment[name];
+      if (previous === undefined) delete process.env[name];
+      else process.env[name] = previous;
+    }
   }
 });
 
-test("real provider HTTP recovers registration and login results without duplicating facts", async () => {
+test("real provider HTTP reads protected development codes and avoids duplicate facts", async () => {
   const invitationCode = `invite-${randomUUID()}`;
   const phoneE164 = "+8613800000301";
   await seedInvitation(invitationCode);
@@ -156,7 +154,17 @@ test("real provider HTTP recovers registration and login results without duplica
   const firstChallenge = phoneVerificationChallengeResponseSchema.parse(
     firstChallengeResult.body,
   );
-  assert.equal(sms.deliveries.length, 1);
+
+  const deniedCodeResult = await post(
+    "/internal/development/provider-sms-codes/read",
+    { challengeId: firstChallenge.challengeId, requestId: `request-${randomUUID()}` },
+    { "x-development-sms-token": "wrong-development-token" },
+  );
+  assert.equal(deniedCodeResult.response.status, 403);
+  assert.equal(
+    productErrorResponseSchema.parse(deniedCodeResult.body).error.code,
+    "AUTHORIZATION_DENIED",
+  );
 
   const recoveredChallengeResult = await post(
     "/api/provider/phone-verifications",
@@ -173,13 +181,25 @@ test("real provider HTTP recovers registration and login results without duplica
     phoneVerificationChallengeResponseSchema.parse(recoveredChallengeResult.body),
     firstChallenge,
   );
-  assert.equal(sms.deliveries.length, 1);
 
-  const registrationDelivery = sms.deliveries[0]!;
+  const registrationCode = await readDevelopmentCode(firstChallenge.challengeId);
+  const storedSecret = await pool.query<{ code_digest: Buffer; leaked_audits: string }>(
+    `SELECT code_digest,
+       (SELECT count(*)::text FROM socialgrowth_product.audit_records
+         WHERE facts::text LIKE $2) AS leaked_audits
+       FROM socialgrowth_product.phone_verification_challenges
+      WHERE challenge_id = $1`,
+    [firstChallenge.challengeId, `%${registrationCode}%`],
+  );
+  assert.equal(
+    storedSecret.rows[0]?.code_digest.includes(Buffer.from(registrationCode, "utf8")),
+    false,
+  );
+  assert.equal(storedSecret.rows[0]?.leaked_audits, "0");
   const wrongCodeResult = await post("/api/provider/phone-verifications/verify", {
     metadata: metadata("http-registration-wrong-code-0001"),
     challengeId: firstChallenge.challengeId,
-    code: registrationDelivery.code === "000000" ? "111111" : "000000",
+    code: registrationCode === "000000" ? "111111" : "000000",
   });
   assert.equal(wrongCodeResult.response.status, 400);
   assert.equal(
@@ -192,7 +212,7 @@ test("real provider HTTP recovers registration and login results without duplica
     {
       metadata: metadata("http-registration-verify-0001"),
       challengeId: firstChallenge.challengeId,
-      code: registrationDelivery.code,
+      code: registrationCode,
     },
   );
   assert.equal(registrationProofResult.response.status, 201);
@@ -228,13 +248,12 @@ test("real provider HTTP recovers registration and login results without duplica
   const loginChallenge = phoneVerificationChallengeResponseSchema.parse(
     loginChallengeResult.body,
   );
-  const loginDelivery = sms.deliveries.at(-1)!;
-  assert.equal(loginDelivery.purpose, "provider_login");
+  const loginCode = await readDevelopmentCode(loginChallenge.challengeId);
 
   const loginProofResult = await post("/api/provider/phone-verifications/verify", {
     metadata: metadata("http-login-verify-0001"),
     challengeId: loginChallenge.challengeId,
-    code: loginDelivery.code,
+    code: loginCode,
   });
   assert.equal(loginProofResult.response.status, 201);
   const loginProof = phoneVerificationResponseSchema.parse(loginProofResult.body);
@@ -256,6 +275,7 @@ test("real provider HTTP recovers registration and login results without duplica
   assert.deepEqual(providerAuthResponseSchema.parse(recoveredLoginResult.body), login);
 
   const facts = await pool.query<{
+    challenges: string;
     invitation_consumptions: string;
     provider_sessions: string;
     providers: string;
@@ -266,10 +286,13 @@ test("real provider HTTP recovers registration and login results without duplica
        (SELECT count(*)::text FROM socialgrowth_product.provider_invitation_consumptions
          WHERE provider_id = $2) AS invitation_consumptions,
        (SELECT count(*)::text FROM socialgrowth_product.provider_sessions
-         WHERE provider_id = $2) AS provider_sessions`,
+         WHERE provider_id = $2) AS provider_sessions,
+       (SELECT count(*)::text FROM socialgrowth_product.phone_verification_challenges
+         WHERE phone_e164 = $1) AS challenges`,
     [phoneE164, registration.providerId],
   );
   assert.deepEqual(facts.rows[0], {
+    challenges: "2",
     invitation_consumptions: "1",
     provider_sessions: "1",
     providers: "1",

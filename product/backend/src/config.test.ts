@@ -3,8 +3,10 @@ import test from "node:test";
 import { readBackendConfig, readOperatorRuntimeConfig } from "./config.js";
 
 test("backend uses an isolated default port", () => {
-  assert.equal(readBackendConfig({}).SG_PRODUCT_BACKEND_PORT, 4320);
-  assert.equal(readBackendConfig({}).SG_PRODUCT_TRUST_PROXY_HOPS, 0);
+  const config = readBackendConfig({});
+  assert.equal(config.SG_PRODUCT_BACKEND_PORT, 4320);
+  assert.equal(config.SG_PRODUCT_SMS_MODE, "unavailable");
+  assert.equal(config.SG_PRODUCT_TRUST_PROXY_HOPS, 0);
 });
 
 test("backend rejects invalid ports", () => {
@@ -16,6 +18,31 @@ test("backend accepts an explicit bounded trusted proxy hop count", () => {
   assert.equal(
     readBackendConfig({ SG_PRODUCT_TRUST_PROXY_HOPS: "1" }).SG_PRODUCT_TRUST_PROXY_HOPS,
     1,
+  );
+});
+
+test("development SMS capture requires a loopback host and independent token", () => {
+  const token = "development-sms-token-with-at-least-32-bytes";
+  assert.throws(() =>
+    readBackendConfig({ SG_PRODUCT_SMS_MODE: "development_capture" }),
+  );
+  assert.throws(() =>
+    readBackendConfig({
+      SG_PRODUCT_BACKEND_HOST: "0.0.0.0",
+      SG_PRODUCT_DEVELOPMENT_SMS_TOKEN: token,
+      SG_PRODUCT_SMS_MODE: "development_capture",
+    }),
+  );
+  assert.throws(() =>
+    readBackendConfig({ SG_PRODUCT_DEVELOPMENT_SMS_TOKEN: token }),
+  );
+  assert.equal(
+    readBackendConfig({
+      SG_PRODUCT_BACKEND_HOST: "127.0.0.1",
+      SG_PRODUCT_DEVELOPMENT_SMS_TOKEN: token,
+      SG_PRODUCT_SMS_MODE: "development_capture",
+    }).SG_PRODUCT_SMS_MODE,
+    "development_capture",
   );
 });
 
