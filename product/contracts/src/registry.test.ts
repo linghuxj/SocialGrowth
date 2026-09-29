@@ -9,6 +9,8 @@ import {
 import { registerProviderRequestSchema } from "./invitation.js";
 import {
   createOperatorRequestSchema,
+  disableOperatorResponseSchema,
+  operatorLoginResponseSchema,
   operatorLoginRequestSchema,
   operatorViewSchema,
 } from "./operator.js";
@@ -161,8 +163,46 @@ test("operator account responses keep passwords write-only and status consistent
     displayName: " Operator Three ",
     initialPassword: "another-long-password",
   });
+  const unicodePaddedDisplayName = createOperatorRequestSchema.safeParse({
+    metadata,
+    loginName: "operator.four",
+    displayName: "\u00a0Operator Four",
+    initialPassword: "another-long-password",
+  });
 
   assert.equal(leakedPassword.success, false);
   assert.equal(contradictory.success, false);
   assert.equal(paddedDisplayName.success, false);
+  assert.equal(unicodePaddedDisplayName.success, false);
+});
+
+test("operator action responses fix the resulting account status", () => {
+  const baseOperator = {
+    operatorId: "018f47ac-7a69-7db4-a572-8c62f3650191",
+    loginName: "operator.one",
+    displayName: "Operator One",
+    factVersion: 1,
+    createdAt: "2026-09-29T10:00:00+08:00",
+    updatedAt: "2026-09-29T10:01:00+08:00",
+  };
+  const disabledLogin = operatorLoginResponseSchema.safeParse({
+    operator: {
+      ...baseOperator,
+      status: "disabled",
+      disabledAt: "2026-09-29T10:01:00+08:00",
+    },
+    session: {
+      sessionId: "018f47ac-7a69-7db4-a572-8c62f3650192",
+      createdAt: "2026-09-29T10:01:00+08:00",
+      expiresAt: "2026-09-29T18:01:00+08:00",
+    },
+    csrfToken: "A".repeat(43),
+  });
+  const activeDisable = disableOperatorResponseSchema.safeParse({
+    operator: { ...baseOperator, status: "active", disabledAt: null },
+    revokedSessionCount: 1,
+  });
+
+  assert.equal(disabledLogin.success, false);
+  assert.equal(activeDisable.success, false);
 });

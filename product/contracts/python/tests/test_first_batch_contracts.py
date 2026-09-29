@@ -127,6 +127,33 @@ class FirstBatchContractsTest(unittest.TestCase):
             ):
                 self.contracts._validate_schema(schema, "bad", "probe")
 
+    def test_operator_list_validates_each_item_and_unicode_edge_whitespace(self) -> None:
+        operator = {
+            "operatorId": self.installation_id,
+            "loginName": "operator.one",
+            "displayName": "Operator One",
+            "factVersion": 0,
+            "createdAt": "2026-09-29T00:00:00Z",
+            "updatedAt": "2026-09-29T00:00:00Z",
+            "status": "active",
+            "disabledAt": None,
+        }
+        response = {"operators": [operator]}
+        self.assertIs(self.contracts.validate("listOperatorsResponse", response), response)
+
+        invalid_operators = [
+            {**operator, "passwordHash": "must-not-leak"},
+            {**operator, "status": "disabled", "disabledAt": None},
+            {**operator, "displayName": "\u00a0Operator One"},
+        ]
+        for invalid_operator in invalid_operators:
+            with self.subTest(operator=invalid_operator), self.assertRaises(
+                ContractValidationError
+            ):
+                self.contracts.validate(
+                    "listOperatorsResponse", {"operators": [invalid_operator]}
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -18,7 +18,9 @@ export const operatorDisplayNameSchema = z
   .string()
   .min(1)
   .max(100)
-  .regex(/^\S(?:[\s\S]*\S)?$/);
+  .regex(
+    /^[^\s\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000](?:[\s\S]*[^\s\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000])?$/,
+  );
 
 const operatorBaseShape = {
   operatorId: uuidSchema,
@@ -29,17 +31,21 @@ const operatorBaseShape = {
   updatedAt: timestampSchema,
 };
 
+export const activeOperatorViewSchema = z.strictObject({
+  ...operatorBaseShape,
+  status: z.literal("active"),
+  disabledAt: z.null(),
+});
+
+export const disabledOperatorViewSchema = z.strictObject({
+  ...operatorBaseShape,
+  status: z.literal("disabled"),
+  disabledAt: timestampSchema,
+});
+
 export const operatorViewSchema = z.discriminatedUnion("status", [
-  z.strictObject({
-    ...operatorBaseShape,
-    status: z.literal("active"),
-    disabledAt: z.null(),
-  }),
-  z.strictObject({
-    ...operatorBaseShape,
-    status: z.literal("disabled"),
-    disabledAt: timestampSchema,
-  }),
+  activeOperatorViewSchema,
+  disabledOperatorViewSchema,
 ]);
 
 export const operatorLoginRequestSchema = z.strictObject({
@@ -49,7 +55,7 @@ export const operatorLoginRequestSchema = z.strictObject({
 });
 
 export const operatorLoginResponseSchema = z.strictObject({
-  operator: operatorViewSchema,
+  operator: activeOperatorViewSchema,
   session: sessionSummarySchema,
   csrfToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
 });
@@ -62,7 +68,7 @@ export const createOperatorRequestSchema = z.strictObject({
 });
 
 export const createOperatorResponseSchema = z.strictObject({
-  operator: operatorViewSchema,
+  operator: activeOperatorViewSchema,
 });
 
 export const disableOperatorRequestSchema = z.strictObject({
@@ -72,7 +78,7 @@ export const disableOperatorRequestSchema = z.strictObject({
 });
 
 export const disableOperatorResponseSchema = z.strictObject({
-  operator: operatorViewSchema,
+  operator: disabledOperatorViewSchema,
   revokedSessionCount: z.int().nonnegative(),
 });
 

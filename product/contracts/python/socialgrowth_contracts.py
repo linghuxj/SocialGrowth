@@ -28,6 +28,7 @@ class FirstBatchContracts:
         "const",
         "enum",
         "format",
+        "items",
         "maxLength",
         "maximum",
         "minLength",
@@ -93,6 +94,11 @@ class FirstBatchContracts:
                     f"{path}.properties.{key} must be an object"
                 )
             self._validate_specification(child, f"{path}.{key}")
+        items = schema.get("items")
+        if items is not None:
+            if not isinstance(items, dict):
+                raise ContractSpecificationError(f"{path}: items must be an object")
+            self._validate_specification(items, f"{path}.items")
 
     def _validate_value(self, schema: dict[str, Any], value: Any, path: str) -> None:
         for keyword in ("oneOf", "anyOf"):
@@ -121,6 +127,7 @@ class FirstBatchContracts:
             "boolean": isinstance(value, bool),
             "integer": is_integer,
             "null": value is None,
+            "array": isinstance(value, list),
         }
         if expected_type is not None and not type_matches.get(expected_type, False):
             raise ContractDataError(f"{path}: expected {expected_type}")
@@ -141,6 +148,12 @@ class FirstBatchContracts:
             for key, item in value.items():
                 if key in properties:
                     self._validate_value(properties[key], item, f"{path}.{key}")
+
+        if isinstance(value, list):
+            items = schema.get("items")
+            if items is not None:
+                for index, item in enumerate(value):
+                    self._validate_value(items, item, f"{path}[{index}]")
 
         if isinstance(value, str):
             if len(value) < schema.get("minLength", 0):
