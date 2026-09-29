@@ -75,8 +75,12 @@ interface ProviderContext {
 }
 
 interface InstallationContext {
-  installationGeneration: number;
+  installationGeneration: bigint;
   installationId: string;
+}
+
+interface DatabaseTimeRow {
+  database_now: Date;
 }
 
 function digest(value: string): Buffer {
@@ -103,6 +107,15 @@ function requestDigest(value: unknown): Buffer {
     );
   }
   return digest(JSON.stringify(value));
+}
+
+async function databaseNow(client: PoolClient): Promise<Date> {
+  const result = await client.query<DatabaseTimeRow>(
+    "SELECT transaction_timestamp() AS database_now",
+  );
+  const now = result.rows[0]?.database_now;
+  if (!now) throw new Error("PostgreSQL did not return its transaction timestamp");
+  return now;
 }
 
 async function writeAudit(
@@ -270,7 +283,7 @@ export class IdentityTransactionService {
     }
 
     return inTransaction(this.pool, async (client) => {
-      const now = new Date();
+      const now = await databaseNow(client);
       const verificationResult = await client.query<VerificationRow>(
         `SELECT phone_e164, purpose, verified_at, expires_at, consumed_at
            FROM ${schema}.phone_verifications
@@ -408,7 +421,7 @@ export class IdentityTransactionService {
   ): Promise<ReturnType<typeof createAssociationSessionResponseSchema.parse>> {
     const request = createAssociationSessionRequestSchema.parse(input);
     return inTransaction(this.pool, async (client) => {
-      const now = new Date();
+      const now = await databaseNow(client);
       const installation = await client.query<{ generation: string; status: string }>(
         `SELECT generation, status FROM ${schema}.installations
           WHERE installation_id = $1 FOR UPDATE`,
@@ -418,7 +431,7 @@ export class IdentityTransactionService {
       if (
         !row ||
         row.status !== "active" ||
-        Number(row.generation) !== context.installationGeneration
+        row.generation !== context.installationGeneration.toString()
       ) {
         throw new ProductTransactionError(
           "AUTHORIZATION_DENIED",
@@ -440,6 +453,19 @@ export class IdentityTransactionService {
       );
       if (existing) {
         return createAssociationSessionResponseSchema.parse(existing.response_body);
+      }
+
+      const currentAssociation = await client.query(
+        `SELECT 1 FROM ${schema}.device_associations
+          WHERE installation_id = $1 AND ended_at IS NULL
+          FOR UPDATE`,
+        [context.installationId],
+      );
+      if (currentAssociation.rowCount) {
+        throw new ProductTransactionError(
+          "DEVICE_ALREADY_ASSOCIATED",
+          "Installation already has a current association",
+        );
       }
 
       const invalidated: QueryResult = await client.query(
@@ -515,7 +541,8 @@ export class IdentityTransactionService {
       const result = await this.pool.query<AssociationSessionRow>(
         `SELECT association_session_id, installation_id,
                 expected_installation_generation, device_label, expires_at,
-                consumed_at, invalidated_at
+                consumed_at, invalidated_at,
+                transaction_timestamp() AS database_now
            FROM ${schema}.association_sessions
           WHERE code_digest = $1`,
         [digest(request.associationCode)],
@@ -525,7 +552,8 @@ export class IdentityTransactionService {
         !session ||
         session.consumed_at ||
         session.invalidated_at ||
-        session.expires_at.getTime() < Date.now()
+        session.expires_at.getTime() <
+          (session as AssociationSessionRow & DatabaseTimeRow).database_now.getTime()
       ) {
         throw new ProductTransactionError(
           "ASSOCIATION_SESSION_EXPIRED",
@@ -552,7 +580,7 @@ export class IdentityTransactionService {
   ): Promise<ReturnType<typeof confirmAssociationResponseSchema.parse>> {
     const request = confirmAssociationRequestSchema.parse(input);
     return inTransaction(this.pool, async (client) => {
-      const now = new Date();
+      const now = await databaseNow(client);
       const provider = await client.query<{ status: string }>(
         `SELECT status FROM ${schema}.providers WHERE provider_id = $1 FOR UPDATE`,
         [context.providerId],
@@ -578,9 +606,28 @@ export class IdentityTransactionService {
       );
       if (existing) return confirmAssociationResponseSchema.parse(existing.response_body);
 
+      const sessionIdentity = await client.query<{ installation_id: string }>(
+        `SELECT installation_id
+           FROM ${schema}.association_sessions
+          WHERE association_session_id = $1`,
+        [request.associationSessionId],
+      );
+      const installationId = sessionIdentity.rows[0]?.installation_id;
+      if (!installationId) {
+        throw new ProductTransactionError(
+          "ASSOCIATION_SESSION_EXPIRED",
+          "Association session is unavailable",
+        );
+      }
+
+      const installation = await client.query<{ generation: string; status: string }>(
+        `SELECT generation, status FROM ${schema}.installations
+          WHERE installation_id = $1 FOR UPDATE`,
+        [installationId],
+      );
       const sessionResult = await client.query<AssociationSessionRow>(
         `SELECT installation_id, expected_installation_generation, device_label,
-                expires_at, consumed_at, invalidated_at
+                association_session_id, expires_at, consumed_at, invalidated_at
            FROM ${schema}.association_sessions
           WHERE association_session_id = $1
           FOR UPDATE`,
@@ -612,11 +659,6 @@ export class IdentityTransactionService {
         );
       }
 
-      const installation = await client.query<{ generation: string; status: string }>(
-        `SELECT generation, status FROM ${schema}.installations
-          WHERE installation_id = $1 FOR UPDATE`,
-        [session.installation_id],
-      );
       const installationRow = installation.rows[0];
       if (
         !installationRow ||

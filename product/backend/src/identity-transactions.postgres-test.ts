@@ -231,16 +231,48 @@ test("same phone concurrent registration creates exactly one provider", async ()
   assert.equal(providers.rows[0]?.count, "1");
 });
 
+test("failed registration rolls back invitation and verification consumption", async () => {
+  const operatorId = await seedOperator();
+  const invitationCode = `invite-${randomUUID()}`;
+  await seedInvitation(operatorId, invitationCode, 1);
+  const phone = "+8613800000013";
+  await seedProvider(phone);
+  const verificationId = await seedVerification(phone);
+
+  await assert.rejects(
+    service.registerProvider(
+      {
+        displayName: "Duplicate Phone",
+        invitationCode,
+        metadata: metadata("registration-rollback-0001"),
+        phoneVerificationId: verificationId,
+      },
+      { verifiedPhoneVerificationId: verificationId },
+    ),
+    (error: unknown) =>
+      error instanceof ProductTransactionError &&
+      error.code === "PHONE_ALREADY_REGISTERED",
+  );
+  const facts = await pool.query<{ consumed_at: Date | null; consumed_uses: number }>(
+    `SELECT v.consumed_at, i.consumed_uses
+       FROM socialgrowth_product.phone_verifications v
+       CROSS JOIN socialgrowth_product.provider_invitations i
+      WHERE v.verification_id = $1 AND i.code_digest = $2`,
+    [verificationId, digest(invitationCode)],
+  );
+  assert.deepEqual(facts.rows[0], { consumed_at: null, consumed_uses: 0 });
+});
+
 test("association session replacement and confirmation are atomic and idempotent", async () => {
   const installationId = await seedInstallation();
   const providerId = await seedProvider("+8613800000021");
   const firstSession = await service.createAssociationSession(
     { deviceLabel: "Phone A", metadata: metadata("association-create-key-0001") },
-    { installationGeneration: 1, installationId },
+    { installationGeneration: 1n, installationId },
   );
   const secondSession = await service.createAssociationSession(
     { deviceLabel: "Phone A", metadata: metadata("association-create-key-0002") },
-    { installationGeneration: 1, installationId },
+    { installationGeneration: 1n, installationId },
   );
   assert.equal(firstSession.replacedPreviousSession, false);
   assert.equal(secondSession.replacedPreviousSession, true);
@@ -307,7 +339,7 @@ test("one-time association session permits only one concurrent provider", async 
   const providerB = await seedProvider("+8613800000032");
   const session = await service.createAssociationSession(
     { deviceLabel: "Phone Race", metadata: metadata("association-race-create-0001") },
-    { installationGeneration: 1, installationId },
+    { installationGeneration: 1n, installationId },
   );
 
   const results = await Promise.allSettled([
@@ -334,4 +366,127 @@ test("one-time association session permits only one concurrent provider", async 
   assert.ok(rejection && rejection.status === "rejected");
   assert.ok(rejection.reason instanceof ProductTransactionError);
   assert.equal(rejection.reason.code, "ASSOCIATION_SESSION_CONSUMED");
+});
+
+test("revoked provider cannot replay a retained association response", async () => {
+  const installationId = await seedInstallation();
+  const providerId = await seedProvider("+8613800000041");
+  const session = await service.createAssociationSession(
+    { deviceLabel: "Phone Revoked", metadata: metadata("revoked-create-0001") },
+    { installationGeneration: 1n, installationId },
+  );
+  const request = {
+    associationSessionId: session.associationSessionId,
+    expectedInstallationId: installationId,
+    metadata: metadata("revoked-confirm-0001"),
+  };
+  await service.confirmAssociation(request, { providerId });
+  await pool.query(
+    "UPDATE socialgrowth_product.providers SET status = 'disabled' WHERE provider_id = $1",
+    [providerId],
+  );
+
+  await assert.rejects(
+    service.confirmAssociation(request, { providerId }),
+    (error: unknown) =>
+      error instanceof ProductTransactionError &&
+      error.code === "AUTHORIZATION_DENIED",
+  );
+});
+
+test("generation changes and database-expired sessions are rejected", async () => {
+  const providerId = await seedProvider("+8613800000042");
+  const changedInstallation = await seedInstallation();
+  const changedSession = await service.createAssociationSession(
+    { deviceLabel: "Phone Generation", metadata: metadata("generation-create-0001") },
+    { installationGeneration: 1n, installationId: changedInstallation },
+  );
+  await pool.query(
+    "UPDATE socialgrowth_product.installations SET generation = 2 WHERE installation_id = $1",
+    [changedInstallation],
+  );
+  await assert.rejects(
+    service.confirmAssociation(
+      {
+        associationSessionId: changedSession.associationSessionId,
+        expectedInstallationId: changedInstallation,
+        metadata: metadata("generation-confirm-0001"),
+      },
+      { providerId },
+    ),
+    (error: unknown) =>
+      error instanceof ProductTransactionError &&
+      error.code === "ASSOCIATION_TARGET_CHANGED",
+  );
+
+  const expiredInstallation = await seedInstallation();
+  const expiredSession = await service.createAssociationSession(
+    { deviceLabel: "Phone Expired", metadata: metadata("expired-create-0001") },
+    { installationGeneration: 1n, installationId: expiredInstallation },
+  );
+  await pool.query(
+    `UPDATE socialgrowth_product.association_sessions
+        SET created_at = transaction_timestamp() - interval '2 minutes',
+            expires_at = transaction_timestamp() - interval '1 second'
+      WHERE association_session_id = $1`,
+    [expiredSession.associationSessionId],
+  );
+  await assert.rejects(
+    service.confirmAssociation(
+      {
+        associationSessionId: expiredSession.associationSessionId,
+        expectedInstallationId: expiredInstallation,
+        metadata: metadata("expired-confirm-0001"),
+      },
+      { providerId },
+    ),
+    (error: unknown) =>
+      error instanceof ProductTransactionError &&
+      error.code === "ASSOCIATION_SESSION_EXPIRED",
+  );
+});
+
+test("association refresh and confirmation use a deadlock-free lock order", async () => {
+  const providerId = await seedProvider("+8613800000043");
+  for (let iteration = 0; iteration < 5; iteration += 1) {
+    const installationId = await seedInstallation();
+    const session = await service.createAssociationSession(
+      {
+        deviceLabel: `Phone Interleave ${iteration}`,
+        metadata: metadata(`interleave-create-${iteration}-0001`),
+      },
+      { installationGeneration: 1n, installationId },
+    );
+    const [refresh, confirm] = await Promise.allSettled([
+      service.createAssociationSession(
+        {
+          deviceLabel: `Phone Interleave ${iteration}`,
+          metadata: metadata(`interleave-refresh-${iteration}-0001`),
+        },
+        { installationGeneration: 1n, installationId },
+      ),
+      service.confirmAssociation(
+        {
+          associationSessionId: session.associationSessionId,
+          expectedInstallationId: installationId,
+          metadata: metadata(`interleave-confirm-${iteration}-0001`),
+        },
+        { providerId },
+      ),
+    ]);
+
+    if (refresh.status === "rejected") {
+      assert.ok(refresh.reason instanceof ProductTransactionError);
+      assert.equal(refresh.reason.code, "DEVICE_ALREADY_ASSOCIATED");
+    }
+    if (confirm.status === "rejected") {
+      assert.ok(confirm.reason instanceof ProductTransactionError);
+      assert.ok(
+        ["ASSOCIATION_SESSION_EXPIRED", "ASSOCIATION_SESSION_CONSUMED"].includes(
+          confirm.reason.code,
+        ),
+      );
+    }
+    assert.ok(refresh.status === "fulfilled" || confirm.status === "fulfilled");
+  }
 });
