@@ -7,6 +7,11 @@ import { contractVersion } from "@socialgrowth/product-contracts";
 import { Pool } from "pg";
 
 import { IdentityTransactionService } from "./identity-transactions.js";
+import {
+  OperatorAuthService,
+  hashOperatorPassword,
+  verifyOperatorPassword,
+} from "./operator-auth-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
 
 const databaseUrl = process.env.SG_PRODUCT_TEST_DATABASE_URL;
@@ -18,7 +23,15 @@ if (!databaseUrl || process.env.SG_PRODUCT_TEST_ALLOW_RESET !== "1") {
 
 const pool = new Pool({ connectionString: databaseUrl, max: 8 });
 const service = new IdentityTransactionService(pool);
+const operatorService = new OperatorAuthService(
+  pool,
+  "test-only-operator-auth-pepper-0000000000000001",
+);
 const migrationUrl = new URL("../migrations/0001_identity_and_device.sql", import.meta.url);
+
+interface CountRow {
+  count: string;
+}
 
 function digest(value: string): Buffer {
   return createHash("sha256").update(value, "utf8").digest();
@@ -510,4 +523,292 @@ test("association refresh and confirmation use a deadlock-free lock order", asyn
         (finalFact?.current_associations === "0" && finalFact.open_sessions === "1"),
     );
   }
+});
+
+test("operator authentication enforces throttling, revocation and last-account protection", async () => {
+  await pool.query("DROP SCHEMA IF EXISTS socialgrowth_product CASCADE");
+  await pool.query(await readFile(migrationUrl, "utf8"));
+
+  const password = "initial-password-0001";
+  const replacementPassword = "replacement-password-0002";
+  const first = await operatorService.initializeFirstOperator({
+    displayName: "First Operator",
+    loginName: "operator.one",
+    password,
+    requestId: "request-operator-init-0001",
+  });
+  const repeated = await operatorService.initializeFirstOperator({
+    displayName: "First Operator",
+    loginName: "operator.one",
+    password,
+    requestId: "request-operator-init-0002",
+  });
+  assert.equal(repeated.operatorId, first.operatorId);
+
+  const encoded = await hashOperatorPassword(password);
+  assert.equal(await verifyOperatorPassword(password, encoded), true);
+  assert.equal(await verifyOperatorPassword("wrong-password-0000", encoded), false);
+  assert.equal(encoded.includes(password), false);
+
+  const firstLogin = await operatorService.login(
+    {
+      metadata: {
+        contractVersion,
+        requestId: "request-operator-login-0001",
+      },
+      loginName: "operator.one",
+      password,
+    },
+    "test-client-one",
+  );
+  assert.equal("sessionToken" in firstLogin.response, false);
+  assert.equal(firstLogin.sessionToken.length, 43);
+
+  const createRequest = {
+    metadata: metadata("operator-create-0001"),
+    loginName: "operator.two",
+    displayName: "Second Operator",
+    initialPassword: "second-password-0002",
+  };
+  const created = await operatorService.createOperator(
+    firstLogin.sessionToken,
+    firstLogin.response.csrfToken,
+    createRequest,
+  );
+  const replayed = await operatorService.createOperator(
+    firstLogin.sessionToken,
+    firstLogin.response.csrfToken,
+    {
+      ...createRequest,
+      metadata: { ...createRequest.metadata, requestId: "request-retry-0002" },
+      initialPassword: "different-retry-password-0003",
+    },
+  );
+  assert.equal(replayed.operator.operatorId, created.operator.operatorId);
+
+  const secondLogin = await operatorService.login(
+    {
+      metadata: {
+        contractVersion,
+        requestId: "request-operator-login-0002",
+      },
+      loginName: "operator.two",
+      password: createRequest.initialPassword,
+    },
+    "test-client-two",
+  );
+  const listed = await operatorService.listOperators(firstLogin.sessionToken);
+  assert.equal(listed.operators.length, 2);
+
+  await assert.rejects(
+    operatorService.createOperator(firstLogin.sessionToken, "A".repeat(43), {
+      ...createRequest,
+      metadata: metadata("operator-create-0002"),
+      loginName: "operator.three",
+    }),
+    (error: unknown) =>
+      error instanceof ProductTransactionError && error.code === "AUTHENTICATION_REQUIRED",
+  );
+
+  const disabled = await operatorService.disableOperator(
+    firstLogin.sessionToken,
+    firstLogin.response.csrfToken,
+    {
+      metadata: metadata("operator-disable-0001"),
+      operatorId: created.operator.operatorId,
+      expectedFactVersion: created.operator.factVersion,
+    },
+  );
+  assert.equal(disabled.operator.status, "disabled");
+  assert.equal(disabled.revokedSessionCount, 1);
+  await assert.rejects(
+    operatorService.authenticateSession(secondLogin.sessionToken),
+    (error: unknown) =>
+      error instanceof ProductTransactionError && error.code === "AUTHENTICATION_REQUIRED",
+  );
+  await assert.rejects(
+    operatorService.disableOperator(
+      firstLogin.sessionToken,
+      firstLogin.response.csrfToken,
+      {
+        metadata: metadata("operator-disable-0002"),
+        operatorId: first.operatorId,
+        expectedFactVersion: first.factVersion,
+      },
+    ),
+    (error: unknown) =>
+      error instanceof ProductTransactionError && error.code === "LAST_ACTIVE_OPERATOR",
+  );
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await assert.rejects(
+      operatorService.login(
+        {
+          metadata: {
+            contractVersion,
+            requestId: `request-bad-login-${attempt}`,
+          },
+          loginName: "operator.missing",
+          password: "incorrect-password-0000",
+        },
+        "throttled-client",
+      ),
+      (error: unknown) =>
+        error instanceof ProductTransactionError && error.code === "INVALID_CREDENTIALS",
+    );
+  }
+  await assert.rejects(
+    operatorService.login(
+      {
+        metadata: { contractVersion, requestId: "request-rate-limited-0001" },
+        loginName: "operator.missing",
+        password: "incorrect-password-0000",
+      },
+      "throttled-client",
+    ),
+    (error: unknown) =>
+      error instanceof ProductTransactionError && error.code === "LOGIN_RATE_LIMITED",
+  );
+
+  const concurrentFailures = await Promise.allSettled(
+    Array.from({ length: 5 }, (_, attempt) =>
+      operatorService.login(
+        {
+          metadata: {
+            contractVersion,
+            requestId: `request-concurrent-bad-login-${attempt}`,
+          },
+          loginName: "operator.absent",
+          password: "incorrect-password-0000",
+        },
+        "concurrent-throttled-client",
+      ),
+    ),
+  );
+  assert.equal(
+    concurrentFailures.every(
+      (result) =>
+        result.status === "rejected" &&
+        result.reason instanceof ProductTransactionError &&
+        result.reason.code === "INVALID_CREDENTIALS",
+    ),
+    true,
+  );
+  await assert.rejects(
+    operatorService.login(
+      {
+        metadata: { contractVersion, requestId: "request-concurrent-limited-0001" },
+        loginName: "operator.absent",
+        password: "incorrect-password-0000",
+      },
+      "concurrent-throttled-client",
+    ),
+    (error: unknown) =>
+      error instanceof ProductTransactionError && error.code === "LOGIN_RATE_LIMITED",
+  );
+
+  const recovered = await operatorService.recoverOperator({
+    operatorId: first.operatorId,
+    newPassword: replacementPassword,
+    requestId: "request-recover-0001",
+  });
+  assert.equal(recovered.factVersion, first.factVersion + 1);
+  await assert.rejects(
+    operatorService.authenticateSession(firstLogin.sessionToken),
+    (error: unknown) =>
+      error instanceof ProductTransactionError && error.code === "AUTHENTICATION_REQUIRED",
+  );
+  await assert.rejects(
+    operatorService.login(
+      {
+        metadata: { contractVersion, requestId: "request-old-password-0001" },
+        loginName: "operator.one",
+        password,
+      },
+      "test-client-three",
+    ),
+    (error: unknown) =>
+      error instanceof ProductTransactionError && error.code === "INVALID_CREDENTIALS",
+  );
+  const recoveredLogin = await operatorService.login(
+    {
+      metadata: { contractVersion, requestId: "request-new-password-0001" },
+      loginName: "operator.one",
+      password: replacementPassword,
+    },
+    "test-client-three",
+  );
+  await operatorService.logout(
+    recoveredLogin.sessionToken,
+    recoveredLogin.response.csrfToken,
+    "request-logout-0001",
+  );
+  await assert.rejects(operatorService.authenticateSession(recoveredLogin.sessionToken));
+
+  const firstConcurrencyLogin = await operatorService.login(
+    {
+      metadata: { contractVersion, requestId: "request-concurrency-login-0001" },
+      loginName: "operator.one",
+      password: replacementPassword,
+    },
+    "concurrency-client-one",
+  );
+  const third = await operatorService.createOperator(
+    firstConcurrencyLogin.sessionToken,
+    firstConcurrencyLogin.response.csrfToken,
+    {
+      metadata: metadata("operator-create-0003"),
+      loginName: "operator.three",
+      displayName: "Third Operator",
+      initialPassword: "third-password-0003",
+    },
+  );
+  const thirdLogin = await operatorService.login(
+    {
+      metadata: { contractVersion, requestId: "request-concurrency-login-0002" },
+      loginName: "operator.three",
+      password: "third-password-0003",
+    },
+    "concurrency-client-three",
+  );
+  const competingDisables = await Promise.allSettled([
+    operatorService.disableOperator(
+      firstConcurrencyLogin.sessionToken,
+      firstConcurrencyLogin.response.csrfToken,
+      {
+        metadata: metadata("operator-disable-concurrent-0001"),
+        operatorId: third.operator.operatorId,
+        expectedFactVersion: third.operator.factVersion,
+      },
+    ),
+    operatorService.disableOperator(
+      thirdLogin.sessionToken,
+      thirdLogin.response.csrfToken,
+      {
+        metadata: metadata("operator-disable-concurrent-0002"),
+        operatorId: first.operatorId,
+        expectedFactVersion: recovered.factVersion,
+      },
+    ),
+  ]);
+  assert.equal(
+    competingDisables.filter((result) => result.status === "fulfilled").length,
+    1,
+  );
+  const activeOperators = await pool.query<CountRow>(
+    `SELECT count(*)::text AS count
+       FROM socialgrowth_product.operators
+      WHERE status = 'active'`,
+  );
+  assert.equal(activeOperators.rows[0]?.count, "1");
+
+  const sensitiveAudit = await pool.query<CountRow>(
+    `SELECT count(*)::text AS count
+       FROM socialgrowth_product.audit_records
+      WHERE facts::text LIKE '%password%'
+         OR facts::text LIKE $1
+         OR facts::text LIKE $2`,
+    [`%${firstLogin.sessionToken}%`, `%${firstLogin.response.csrfToken}%`],
+  );
+  assert.equal(sensitiveAudit.rows[0]?.count, "0");
 });

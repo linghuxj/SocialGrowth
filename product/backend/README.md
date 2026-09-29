@@ -29,3 +29,23 @@ pnpm --filter @socialgrowth/product-backend test:postgres
 ```
 
 不提供两个变量时测试立即拒绝执行，不存在隐式默认数据库。根据当前用户决定，本阶段不实现迁移历史组件；部署流程必须保证 `0001` 只执行一次。
+
+## WP-02 运营账号管理入口
+
+首账号初始化和受控密码恢复只提供部署命令，不开放公众 HTTP 入口。命令要求显式 `SG_PRODUCT_DATABASE_URL` 和至少 32 字节的 `SG_PRODUCT_AUTH_PEPPER`；后者用于对登录限流的客户端范围做 HMAC，不得与密码共用。密码只能经标准输入传入，不得写入参数、shell 历史、普通日志或交付文档：
+
+```sh
+printf '%s\n' "$OPERATOR_PASSWORD" | pnpm --filter @socialgrowth/product-backend operator:admin -- \
+  initialize --login-name operator.one --display-name "Operator One" \
+  --request-id request-controlled-init-0001
+```
+
+受控恢复将更新密码摘要和凭据版本并撤销该账号全部有效会话，不会重新启用已停用账号：
+
+```sh
+printf '%s\n' "$OPERATOR_PASSWORD" | pnpm --filter @socialgrowth/product-backend operator:admin -- \
+  recover --operator-id 00000000-0000-4000-8000-000000000001 \
+  --request-id request-controlled-recovery-0001
+```
+
+示例变量仅表示受控秘密来源，不能把真实密码写入仓库或普通终端记录。后续 HTTP 层必须把登录返回的内部 session token 放入受保护 cookie；普通 JSON 响应只使用公开契约，不包含 session token、密码或摘要。

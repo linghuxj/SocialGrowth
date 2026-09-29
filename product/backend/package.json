@@ -9,6 +9,7 @@
     "precheck": "pnpm --filter @socialgrowth/product-contracts build",
     "check": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint src",
+    "operator:admin": "tsx src/operator-admin.ts",
     "start": "node dist/main.js",
     "dev": "tsx watch src/main.ts",
     "pretest": "pnpm --filter @socialgrowth/product-contracts build",

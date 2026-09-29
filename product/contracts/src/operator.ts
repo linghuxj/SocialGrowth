@@ -90,4 +90,7 @@ export type OperatorView = z.infer<typeof operatorViewSchema>;
 export type OperatorLoginRequest = z.infer<typeof operatorLoginRequestSchema>;
 export type OperatorLoginResponse = z.infer<typeof operatorLoginResponseSchema>;
 export type CreateOperatorRequest = z.infer<typeof createOperatorRequestSchema>;
+export type CreateOperatorResponse = z.infer<typeof createOperatorResponseSchema>;
 export type DisableOperatorRequest = z.infer<typeof disableOperatorRequestSchema>;
+export type DisableOperatorResponse = z.infer<typeof disableOperatorResponseSchema>;
+export type ListOperatorsResponse = z.infer<typeof listOperatorsResponseSchema>;
