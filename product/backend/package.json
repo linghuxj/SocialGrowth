@@ -14,7 +14,7 @@
     "dev": "tsx watch src/main.ts",
     "pretest": "pnpm --filter @socialgrowth/product-contracts build",
     "test": "tsx --test src/*.test.ts",
-    "test:postgres": "tsx --test src/*.postgres-test.ts"
+    "test:postgres": "tsx --test --test-concurrency=1 src/*.postgres-test.ts"
   },
   "dependencies": {
     "@nestjs/common": "12.1.1",

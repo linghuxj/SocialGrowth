@@ -8,6 +8,7 @@ WP-01 开始建立正式权威数据模型：
 
 - [首批身份与设备 ER 及事务边界](docs/identity-device-er.md)
 - [`0001_identity_and_device.sql`](migrations/0001_identity_and_device.sql)
+- [`0002_provider_phone_auth.sql`](migrations/0002_provider_phone_auth.sql)：短信挑战状态、重发/尝试限制和用途绑定；须在 0001 后执行。
 
 迁移当前是待后端迁移执行器消费的前向 SQL；未在真实 PostgreSQL 执行前，不得将其记为迁移或并发验收通过。
 

@@ -34,4 +34,18 @@ test("operator runtime requires an explicit database and sufficiently long peppe
     }).SG_PRODUCT_DATABASE_URL,
     "postgresql://test",
   );
+  assert.equal(
+    readOperatorRuntimeConfig({
+      SG_PRODUCT_DATABASE_URL: "postgresql://test",
+      SG_PRODUCT_AUTH_PEPPER: "a-secure-test-pepper-with-more-than-32-bytes",
+    }).SG_PRODUCT_SMS_CODE_LENGTH,
+    6,
+  );
+  assert.throws(() =>
+    readOperatorRuntimeConfig({
+      SG_PRODUCT_DATABASE_URL: "postgresql://test",
+      SG_PRODUCT_AUTH_PEPPER: "a-secure-test-pepper-with-more-than-32-bytes",
+      SG_PRODUCT_SMS_CODE_LENGTH: "9",
+    }),
+  );
 });
