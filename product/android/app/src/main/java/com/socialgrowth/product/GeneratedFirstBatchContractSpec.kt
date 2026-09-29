@@ -12,6 +12,9 @@ internal object GeneratedFirstBatchContractSpec {
     const val REQUEST_ID_MAX_LENGTH = 128
     const val ERROR_MESSAGE_MIN_LENGTH = 1
     const val ERROR_FIELD_MIN_LENGTH = 1
+    const val PHONE_HINT_PATTERN = "^\\+(?=[0-9*]{7,18}\$)(?=[0-9]*\\*)[0-9*]+\$"
+    const val SESSION_TOKEN_PATTERN = "^[A-Za-z0-9_-]{43}\$"
+    const val PHONE_CHALLENGE_DELIVERY_STATE = "accepted"
     val ASSOCIATION_QR_KEYS = setOf("contractVersion", "associationCode")
     val ASSOCIATION_QR_REQUIRED_KEYS = setOf("contractVersion", "associationCode")
     val INSTALLATION_SELF_KEYS = setOf("factVersion", "updatedAt", "installationId", "state", "deviceId")
@@ -22,5 +25,17 @@ internal object GeneratedFirstBatchContractSpec {
     val ERROR_RESPONSE_REQUIRED_KEYS = setOf("contractVersion", "requestId", "error")
     val ERROR_DETAIL_KEYS = setOf("code", "message", "retryable", "field")
     val ERROR_DETAIL_REQUIRED_KEYS = setOf("code", "message", "retryable")
-    val ERROR_CODES = setOf("AUTHENTICATION_REQUIRED", "AUTHORIZATION_DENIED", "INVALID_CREDENTIALS", "LOGIN_RATE_LIMITED", "OPERATOR_ALREADY_EXISTS", "OPERATOR_DISABLED", "LAST_ACTIVE_OPERATOR", "CONTRACT_VERSION_UNSUPPORTED", "IDEMPOTENCY_KEY_REUSED", "IDEMPOTENCY_RESULT_EXPIRED", "INPUT_INVALID", "INTERNAL_ERROR", "INVITATION_EXPIRED", "INVITATION_EXHAUSTED", "INVITATION_REVOKED", "PHONE_ALREADY_REGISTERED", "PHONE_VERIFICATION_INVALID", "ASSOCIATION_SESSION_EXPIRED", "ASSOCIATION_SESSION_CONSUMED", "ASSOCIATION_TARGET_CHANGED", "DEVICE_ALREADY_ASSOCIATED", "FACT_VERSION_STALE")
+    val ERROR_CODES = setOf("AUTHENTICATION_REQUIRED", "AUTHORIZATION_DENIED", "INVALID_CREDENTIALS", "LOGIN_RATE_LIMITED", "OPERATOR_ALREADY_EXISTS", "OPERATOR_DISABLED", "LAST_ACTIVE_OPERATOR", "CONTRACT_VERSION_UNSUPPORTED", "IDEMPOTENCY_KEY_REUSED", "IDEMPOTENCY_RESULT_EXPIRED", "INPUT_INVALID", "INTERNAL_ERROR", "INVITATION_EXPIRED", "INVITATION_EXHAUSTED", "INVITATION_REVOKED", "PHONE_ALREADY_REGISTERED", "PHONE_NOT_REGISTERED", "PHONE_VERIFICATION_CODE_INVALID", "PHONE_VERIFICATION_EXPIRED", "PHONE_VERIFICATION_INVALID", "PHONE_VERIFICATION_RATE_LIMITED", "PROVIDER_DISABLED", "SMS_DELIVERY_UNAVAILABLE", "ASSOCIATION_SESSION_EXPIRED", "ASSOCIATION_SESSION_CONSUMED", "ASSOCIATION_TARGET_CHANGED", "DEVICE_ALREADY_ASSOCIATED", "FACT_VERSION_STALE")
+    val PHONE_VERIFICATION_PURPOSES = setOf("provider_registration", "provider_login")
+    val PHONE_CHALLENGE_KEYS = setOf("challengeId", "purpose", "phoneHint", "deliveryState", "expiresAt", "resendAvailableAt")
+    val PHONE_CHALLENGE_REQUIRED_KEYS = setOf("challengeId", "purpose", "phoneHint", "deliveryState", "expiresAt", "resendAvailableAt")
+    val PHONE_PROOF_KEYS = setOf("phoneVerificationId", "purpose", "phoneHint", "verifiedAt", "expiresAt")
+    val PHONE_PROOF_REQUIRED_KEYS = setOf("phoneVerificationId", "purpose", "phoneHint", "verifiedAt", "expiresAt")
+    val PROVIDER_SELF_KEYS = setOf("providerId", "displayName", "phoneHint", "status", "createdAt", "updatedAt")
+    val PROVIDER_SELF_REQUIRED_KEYS = setOf("providerId", "displayName", "phoneHint", "status", "createdAt", "updatedAt")
+    val PROVIDER_STATUSES = setOf("active", "disabled")
+    val PROVIDER_AUTH_KEYS = setOf("provider", "session", "sessionToken")
+    val PROVIDER_AUTH_REQUIRED_KEYS = setOf("provider", "session", "sessionToken")
+    val SESSION_KEYS = setOf("sessionId", "createdAt", "expiresAt")
+    val SESSION_REQUIRED_KEYS = setOf("sessionId", "createdAt", "expiresAt")
 }

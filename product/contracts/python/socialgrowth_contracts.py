@@ -70,6 +70,24 @@ class FirstBatchContracts:
                 self._validate_invitation_view(
                     invitation, f"{name}.invitations[{index}]"
                 )
+        elif name == "phoneVerificationChallengeResponse":
+            if self._compare_timestamps(
+                value["resendAvailableAt"], value["expiresAt"]
+            ) > 0:
+                raise ContractDataError(
+                    f"{name}: resend availability is after challenge expiry"
+                )
+        elif name == "phoneVerificationResponse":
+            if self._compare_timestamps(value["verifiedAt"], value["expiresAt"]) >= 0:
+                raise ContractDataError(f"{name}: verification proof is already expired")
+        elif name == "providerSelfView":
+            self._validate_provider_view(value, name)
+        elif name == "providerAuthResponse":
+            self._validate_provider_view(value["provider"], f"{name}.provider")
+            if self._compare_timestamps(
+                value["session"]["createdAt"], value["session"]["expiresAt"]
+            ) >= 0:
+                raise ContractDataError(f"{name}.session: session is already expired")
 
     @staticmethod
     def _timestamp_parts(value: str) -> tuple[datetime, str]:
@@ -157,6 +175,10 @@ class FirstBatchContracts:
         )
         if invitation["status"] != expected_status:
             raise ContractDataError(f"{path}: status contradicts evaluated facts")
+
+    def _validate_provider_view(self, provider: dict[str, Any], path: str) -> None:
+        if self._compare_timestamps(provider["updatedAt"], provider["createdAt"]) < 0:
+            raise ContractDataError(f"{path}: update predates creation")
 
     def _validate_schema(self, schema: dict[str, Any], value: Any, path: str) -> None:
         self._validate_specification(schema, path)

@@ -95,6 +95,80 @@ class FirstBatchContractsTest(unittest.TestCase):
                 "bad",
                 "probe",
             )
+
+    def test_provider_auth_contracts_preserve_masking_and_time_semantics(self) -> None:
+        challenge = {
+            "challengeId": self.installation_id,
+            "purpose": "provider_registration",
+            "phoneHint": "+86*******001",
+            "deliveryState": "accepted",
+            "expiresAt": "2026-09-29T00:05:00.0000000001Z",
+            "resendAvailableAt": "2026-09-29T00:01:00Z",
+        }
+        self.assertIs(
+            self.contracts.validate("phoneVerificationChallengeResponse", challenge),
+            challenge,
+        )
+
+        provider = {
+            "providerId": self.installation_id,
+            "displayName": "设备提供者",
+            "phoneHint": "+86*******001",
+            "status": "active",
+            "createdAt": "2026-09-29T00:00:00Z",
+            "updatedAt": "2026-09-29T00:00:00.0000000001Z",
+        }
+        auth = {
+            "provider": provider,
+            "session": {
+                "sessionId": "00000000-0000-4000-8000-000000000002",
+                "createdAt": "2026-09-29T00:00:00Z",
+                "expiresAt": "2026-10-29T00:00:00Z",
+            },
+            "sessionToken": "A" * 43,
+        }
+        self.assertIs(self.contracts.validate("providerAuthResponse", auth), auth)
+
+        contradictions = [
+            (
+                "phoneVerificationChallengeResponse",
+                {**challenge, "resendAvailableAt": "2026-09-29T00:06:00Z"},
+            ),
+            (
+                "phoneVerificationResponse",
+                {
+                    "phoneVerificationId": self.installation_id,
+                    "purpose": "provider_login",
+                    "phoneHint": "+86*******001",
+                    "verifiedAt": "2026-09-29T00:05:00Z",
+                    "expiresAt": "2026-09-29T00:05:00Z",
+                },
+            ),
+            ("providerSelfView", {**provider, "updatedAt": "2026-09-28T23:59:59Z"}),
+            (
+                "providerAuthResponse",
+                {
+                    **auth,
+                    "provider": {
+                        **provider,
+                        "phoneHint": "+8613800000001",
+                    },
+                },
+            ),
+            (
+                "providerAuthResponse",
+                {
+                    **auth,
+                    "session": {
+                        **auth["session"],
+                        "expiresAt": auth["session"]["createdAt"],
+                    },
+                },
+            ),
+        ]
+        for name, value in contradictions:
+            with self.subTest(name=name), self.assertRaises(ContractValidationError):
+                self.contracts.validate(name, value)
         with self.assertRaises(ContractSpecificationError):
             self.contracts._validate_schema(
                 {"type": "string", "futureKeyword": True},

@@ -53,4 +53,51 @@ class FirstBatchContractBoundaryTest {
             )
         }
     }
+
+    @Test
+    fun validatesProviderVerificationAndAuthWithoutLeakingPhone() {
+        val challenge = FirstBatchContractBoundary.parsePhoneVerificationChallenge(
+            """{"challengeId":"$id","purpose":"provider_registration","phoneHint":"+86*******001","deliveryState":"accepted","expiresAt":"2026-09-29T00:05:00.0000000001Z","resendAvailableAt":"2026-09-29T00:01:00Z"}""",
+        )
+        assertEquals("accepted", challenge.deliveryState)
+
+        val proof = FirstBatchContractBoundary.parsePhoneVerificationProof(
+            """{"phoneVerificationId":"$id","purpose":"provider_login","phoneHint":"+86*******001","verifiedAt":"2026-09-29T00:00:00.0000000001Z","expiresAt":"2026-09-29T00:05:00Z"}""",
+        )
+        assertEquals("provider_login", proof.purpose)
+
+        val auth = FirstBatchContractBoundary.parseProviderAuthResponse(
+            """{"provider":{"providerId":"$id","displayName":"设备提供者","phoneHint":"+86*******001","status":"active","createdAt":"2026-09-29T00:00:00Z","updatedAt":"2026-09-29T00:00:00.0000000001Z"},"session":{"sessionId":"00000000-0000-4000-8000-000000000002","createdAt":"2026-09-29T00:00:00Z","expiresAt":"2026-10-29T00:00:00Z"},"sessionToken":"${"A".repeat(43)}"}""",
+        )
+        assertEquals("+86*******001", auth.provider.phoneHint)
+    }
+
+    @Test
+    fun rejectsProviderAuthSemanticContradictions() {
+        val invalidChallenges = listOf(
+            """{"challengeId":"$id","purpose":"provider_registration","phoneHint":"+8613800000001","deliveryState":"accepted","expiresAt":"2026-09-29T00:05:00Z","resendAvailableAt":"2026-09-29T00:01:00Z"}""",
+            """{"challengeId":"$id","purpose":"provider_registration","phoneHint":"+86*******001","deliveryState":"delivered","expiresAt":"2026-09-29T00:05:00Z","resendAvailableAt":"2026-09-29T00:01:00Z"}""",
+            """{"challengeId":"$id","purpose":"provider_registration","phoneHint":"+86*******001","deliveryState":"accepted","expiresAt":"2026-09-29T00:05:00Z","resendAvailableAt":"2026-09-29T00:06:00Z"}""",
+        )
+        invalidChallenges.forEach { raw ->
+            assertFailsWith<ContractBoundaryException> {
+                FirstBatchContractBoundary.parsePhoneVerificationChallenge(raw)
+            }
+        }
+        assertFailsWith<ContractBoundaryException> {
+            FirstBatchContractBoundary.parsePhoneVerificationProof(
+                """{"phoneVerificationId":"$id","purpose":"provider_login","phoneHint":"+86*******001","verifiedAt":"2026-09-29T00:05:00Z","expiresAt":"2026-09-29T00:05:00Z"}""",
+            )
+        }
+        assertFailsWith<ContractBoundaryException> {
+            FirstBatchContractBoundary.parseProviderSelfView(
+                """{"providerId":"$id","displayName":"设备提供者","phoneHint":"+86*******001","status":"active","createdAt":"2026-09-29T00:00:00Z","updatedAt":"2026-09-28T23:59:59Z"}""",
+            )
+        }
+        assertFailsWith<ContractBoundaryException> {
+            FirstBatchContractBoundary.parseProviderAuthResponse(
+                """{"provider":{"providerId":"$id","displayName":"设备提供者","phoneHint":"+86*******001","status":"active","createdAt":"2026-09-29T00:00:00Z","updatedAt":"2026-09-29T00:00:00Z"},"session":{"sessionId":"00000000-0000-4000-8000-000000000002","createdAt":"2026-09-29T00:00:00Z","expiresAt":"2026-09-29T00:00:00Z"},"sessionToken":"${"A".repeat(43)}"}""",
+            )
+        }
+    }
 }

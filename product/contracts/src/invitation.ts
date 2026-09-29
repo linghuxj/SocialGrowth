@@ -183,7 +183,7 @@ export const registerProviderRequestSchema = z.strictObject({
   metadata: requestMetadataSchema,
   invitationCode: z.string().min(8).max(128),
   phoneVerificationId: uuidSchema,
-  displayName: z.string().trim().min(1).max(100),
+  displayName: z.string().trim().min(1).max(100).optional(),
 });
 
 export const registerProviderResponseSchema = z.strictObject({

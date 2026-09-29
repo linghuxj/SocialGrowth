@@ -35,6 +35,15 @@ import {
   operatorViewSchema,
 } from "./operator.js";
 import {
+  phoneVerificationChallengeResponseSchema,
+  phoneVerificationResponseSchema,
+  providerAuthResponseSchema,
+  providerLoginRequestSchema,
+  providerSelfViewSchema,
+  requestPhoneVerificationSchema,
+  verifyPhoneCodeRequestSchema,
+} from "./provider-auth.js";
+import {
   installationSelfViewSchema,
   operatorDeviceViewSchema,
   providerDeviceViewSchema,
@@ -63,13 +72,20 @@ export const firstBatchContractRegistry = {
   operatorLoginRequest: operatorLoginRequestSchema,
   operatorLoginResponse: operatorLoginResponseSchema,
   operatorView: operatorViewSchema,
+  phoneVerificationChallengeResponse: phoneVerificationChallengeResponseSchema,
+  phoneVerificationResponse: phoneVerificationResponseSchema,
   productErrorResponse: productErrorResponseSchema,
+  providerAuthResponse: providerAuthResponseSchema,
   providerDeviceView: providerDeviceViewSchema,
+  providerLoginRequest: providerLoginRequestSchema,
+  providerSelfView: providerSelfViewSchema,
+  requestPhoneVerification: requestPhoneVerificationSchema,
   registerProviderRequest: registerProviderRequestSchema,
   registerProviderResponse: registerProviderResponseSchema,
   revokeInvitationRequest: revokeInvitationRequestSchema,
   revokeInvitationResponse: revokeInvitationResponseSchema,
   sessionSummary: sessionSummarySchema,
+  verifyPhoneCodeRequest: verifyPhoneCodeRequestSchema,
 } satisfies Record<string, z.ZodType>;
 
 export type FirstBatchContractName = keyof typeof firstBatchContractRegistry;

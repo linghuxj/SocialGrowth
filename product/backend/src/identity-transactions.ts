@@ -367,7 +367,7 @@ export class IdentityTransactionService {
           `INSERT INTO ${schema}.providers (
              provider_id, phone_e164, display_name, status, created_at, updated_at
            ) VALUES ($1, $2, $3, 'active', $4, $4)`,
-          [providerId, verification.phone_e164, request.displayName, acceptedAt],
+          [providerId, verification.phone_e164, request.displayName ?? "设备提供者", acceptedAt],
         );
       } catch (error) {
         if (isUniqueViolation(error, "providers_phone_e164_key")) {

@@ -1888,6 +1888,91 @@
         }
       ]
     },
+    "phoneVerificationChallengeResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "challengeId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "purpose": {
+          "type": "string",
+          "enum": [
+            "provider_registration",
+            "provider_login"
+          ]
+        },
+        "phoneHint": {
+          "type": "string",
+          "pattern": "^\\+(?=[0-9*]{7,18}$)(?=[0-9]*\\*)[0-9*]+$"
+        },
+        "deliveryState": {
+          "type": "string",
+          "const": "accepted"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        },
+        "resendAvailableAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        }
+      },
+      "required": [
+        "challengeId",
+        "purpose",
+        "phoneHint",
+        "deliveryState",
+        "expiresAt",
+        "resendAvailableAt"
+      ],
+      "additionalProperties": false
+    },
+    "phoneVerificationResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "phoneVerificationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "purpose": {
+          "type": "string",
+          "enum": [
+            "provider_registration",
+            "provider_login"
+          ]
+        },
+        "phoneHint": {
+          "type": "string",
+          "pattern": "^\\+(?=[0-9*]{7,18}$)(?=[0-9]*\\*)[0-9*]+$"
+        },
+        "verifiedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        }
+      },
+      "required": [
+        "phoneVerificationId",
+        "purpose",
+        "phoneHint",
+        "verifiedAt",
+        "expiresAt"
+      ],
+      "additionalProperties": false
+    },
     "productErrorResponse": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -1923,7 +2008,13 @@
                 "INVITATION_EXHAUSTED",
                 "INVITATION_REVOKED",
                 "PHONE_ALREADY_REGISTERED",
+                "PHONE_NOT_REGISTERED",
+                "PHONE_VERIFICATION_CODE_INVALID",
+                "PHONE_VERIFICATION_EXPIRED",
                 "PHONE_VERIFICATION_INVALID",
+                "PHONE_VERIFICATION_RATE_LIMITED",
+                "PROVIDER_DISABLED",
+                "SMS_DELIVERY_UNAVAILABLE",
                 "ASSOCIATION_SESSION_EXPIRED",
                 "ASSOCIATION_SESSION_CONSUMED",
                 "ASSOCIATION_TARGET_CHANGED",
@@ -1955,6 +2046,93 @@
         "contractVersion",
         "requestId",
         "error"
+      ],
+      "additionalProperties": false
+    },
+    "providerAuthResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "object",
+          "properties": {
+            "providerId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "displayName": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "phoneHint": {
+              "type": "string",
+              "pattern": "^\\+(?=[0-9*]{7,18}$)(?=[0-9]*\\*)[0-9*]+$"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "active",
+                "disabled"
+              ]
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            }
+          },
+          "required": [
+            "providerId",
+            "displayName",
+            "phoneHint",
+            "status",
+            "createdAt",
+            "updatedAt"
+          ],
+          "additionalProperties": false
+        },
+        "session": {
+          "type": "object",
+          "properties": {
+            "sessionId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            },
+            "expiresAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            }
+          },
+          "required": [
+            "sessionId",
+            "createdAt",
+            "expiresAt"
+          ],
+          "additionalProperties": false
+        },
+        "sessionToken": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        }
+      },
+      "required": [
+        "provider",
+        "session",
+        "sessionToken"
       ],
       "additionalProperties": false
     },
@@ -2014,6 +2192,191 @@
       ],
       "additionalProperties": false
     },
+    "providerLoginRequest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "metadata": {
+          "type": "object",
+          "properties": {
+            "contractVersion": {
+              "type": "string",
+              "const": "2026-09-29.identity-v1"
+            },
+            "requestId": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            },
+            "idempotencyKey": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 128
+            }
+          },
+          "required": [
+            "contractVersion",
+            "requestId",
+            "idempotencyKey"
+          ],
+          "additionalProperties": false
+        },
+        "phoneVerificationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "metadata",
+        "phoneVerificationId"
+      ],
+      "additionalProperties": false
+    },
+    "providerSelfView": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "providerId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "phoneHint": {
+          "type": "string",
+          "pattern": "^\\+(?=[0-9*]{7,18}$)(?=[0-9]*\\*)[0-9*]+$"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "disabled"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        }
+      },
+      "required": [
+        "providerId",
+        "displayName",
+        "phoneHint",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ],
+      "additionalProperties": false
+    },
+    "requestPhoneVerification": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "metadata": {
+              "type": "object",
+              "properties": {
+                "contractVersion": {
+                  "type": "string",
+                  "const": "2026-09-29.identity-v1"
+                },
+                "requestId": {
+                  "type": "string",
+                  "minLength": 8,
+                  "maxLength": 128
+                },
+                "idempotencyKey": {
+                  "type": "string",
+                  "minLength": 16,
+                  "maxLength": 128
+                }
+              },
+              "required": [
+                "contractVersion",
+                "requestId",
+                "idempotencyKey"
+              ],
+              "additionalProperties": false
+            },
+            "purpose": {
+              "type": "string",
+              "const": "provider_registration"
+            },
+            "phoneE164": {
+              "type": "string",
+              "pattern": "^\\+[1-9][0-9]{7,14}$"
+            },
+            "invitationCode": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{43}$"
+            }
+          },
+          "required": [
+            "metadata",
+            "purpose",
+            "phoneE164",
+            "invitationCode"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "metadata": {
+              "type": "object",
+              "properties": {
+                "contractVersion": {
+                  "type": "string",
+                  "const": "2026-09-29.identity-v1"
+                },
+                "requestId": {
+                  "type": "string",
+                  "minLength": 8,
+                  "maxLength": 128
+                },
+                "idempotencyKey": {
+                  "type": "string",
+                  "minLength": 16,
+                  "maxLength": 128
+                }
+              },
+              "required": [
+                "contractVersion",
+                "requestId",
+                "idempotencyKey"
+              ],
+              "additionalProperties": false
+            },
+            "purpose": {
+              "type": "string",
+              "const": "provider_login"
+            },
+            "phoneE164": {
+              "type": "string",
+              "pattern": "^\\+[1-9][0-9]{7,14}$"
+            }
+          },
+          "required": [
+            "metadata",
+            "purpose",
+            "phoneE164"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
     "registerProviderRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -2062,8 +2425,7 @@
       "required": [
         "metadata",
         "invitationCode",
-        "phoneVerificationId",
-        "displayName"
+        "phoneVerificationId"
       ],
       "additionalProperties": false
     },
@@ -2284,6 +2646,52 @@
         "sessionId",
         "createdAt",
         "expiresAt"
+      ],
+      "additionalProperties": false
+    },
+    "verifyPhoneCodeRequest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "metadata": {
+          "type": "object",
+          "properties": {
+            "contractVersion": {
+              "type": "string",
+              "const": "2026-09-29.identity-v1"
+            },
+            "requestId": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            },
+            "idempotencyKey": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 128
+            }
+          },
+          "required": [
+            "contractVersion",
+            "requestId",
+            "idempotencyKey"
+          ],
+          "additionalProperties": false
+        },
+        "challengeId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "code": {
+          "type": "string",
+          "pattern": "^[0-9]{4,8}$"
+        }
+      },
+      "required": [
+        "metadata",
+        "challengeId",
+        "code"
       ],
       "additionalProperties": false
     }
