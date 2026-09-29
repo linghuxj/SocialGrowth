@@ -72,6 +72,7 @@ interface ProviderSessionRow {
   expires_at: Date;
   revoked_at: Date | null;
   session_id: string;
+  token_digest: Buffer;
 }
 
 interface ProviderRow {
@@ -367,16 +368,27 @@ export class ProviderAuthService {
         throw new ProductTransactionError("PHONE_VERIFICATION_INVALID", "Verification challenge is unavailable");
       }
       const now = await databaseNow(client);
+      if (challenge.attempt_count >= 5) {
+        throw new ProductTransactionError("PHONE_VERIFICATION_RATE_LIMITED", "Verification attempts exhausted");
+      }
       if (challenge.verified_at) {
         const replayDigest = secretDigest(
           this.securityPepper,
           `${challenge.challenge_id}:${request.code}`,
         );
         if (!timingSafeEqual(challenge.code_digest, replayDigest) || !challenge.verification_id) {
-          throw new ProductTransactionError(
-            "PHONE_VERIFICATION_CODE_INVALID",
-            "Verification code is invalid",
+          await client.query(
+            `UPDATE ${schema}.phone_verification_challenges
+                SET attempt_count = attempt_count + 1 WHERE challenge_id = $1`,
+            [challenge.challenge_id],
           );
+          return {
+            error: new ProductTransactionError(
+              "PHONE_VERIFICATION_CODE_INVALID",
+              "Verification code is invalid",
+            ),
+            response: null,
+          };
         }
         const replay = await client.query<{
           expires_at: Date;
@@ -407,9 +419,6 @@ export class ProviderAuthService {
       }
       if (challenge.expires_at <= now) {
         throw new ProductTransactionError("PHONE_VERIFICATION_EXPIRED", "Verification challenge expired");
-      }
-      if (challenge.attempt_count >= 5) {
-        throw new ProductTransactionError("PHONE_VERIFICATION_RATE_LIMITED", "Verification attempts exhausted");
       }
       const actual = secretDigest(this.securityPepper, `${challenge.challenge_id}:${request.code}`);
       if (!timingSafeEqual(challenge.code_digest, actual)) {
@@ -495,7 +504,7 @@ export class ProviderAuthService {
       const token = providerSessionToken(this.securityPepper, request.phoneVerificationId);
       if (proof.consumed_at) {
         const replay = await client.query<ProviderSessionRow>(
-          `SELECT session_id, created_at, expires_at, revoked_at
+          `SELECT session_id, token_digest, created_at, expires_at, revoked_at
              FROM ${schema}.provider_sessions
             WHERE phone_verification_id = $1`,
           [request.phoneVerificationId],
@@ -503,6 +512,16 @@ export class ProviderAuthService {
         const session = replay.rows[0];
         if (!session || session.revoked_at || session.expires_at <= now) {
           throw new ProductTransactionError("PHONE_VERIFICATION_INVALID", "Login proof was already consumed");
+        }
+        const replayDigest = secretDigest(this.securityPepper, token);
+        if (
+          session.token_digest.length !== replayDigest.length ||
+          !timingSafeEqual(session.token_digest, replayDigest)
+        ) {
+          throw new ProductTransactionError(
+            "PHONE_VERIFICATION_INVALID",
+            "Login session cannot be recovered with the active key",
+          );
         }
         return providerAuthResponseSchema.parse({
           provider: {

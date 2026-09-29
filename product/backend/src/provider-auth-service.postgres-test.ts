@@ -24,6 +24,7 @@ const pool = new Pool({ connectionString: databaseUrl, max: 8 });
 const migrationUrls = [
   new URL("../migrations/0001_identity_and_device.sql", import.meta.url),
   new URL("../migrations/0002_provider_phone_auth.sql", import.meta.url),
+  new URL("../migrations/0003_provider_auth_recovery.sql", import.meta.url),
 ];
 const pepper = "test-provider-auth-pepper-00000000000000000001";
 
@@ -94,11 +95,54 @@ async function seedInvitation(code: string): Promise<void> {
   );
 }
 
+let legacyUpgradeVerified = false;
+
 before(async () => {
   await pool.query("DROP SCHEMA IF EXISTS socialgrowth_product CASCADE");
+  for (const migrationUrl of migrationUrls.slice(0, 2)) {
+    await pool.query(await readFile(migrationUrl, "utf8"));
+  }
+  const legacyProviderId = randomUUID();
+  const legacyVerificationId = randomUUID();
+  const legacySessionId = randomUUID();
+  await pool.query(
+    `INSERT INTO socialgrowth_product.providers (
+       provider_id, phone_e164, display_name, status
+     ) VALUES ($1, '+8613800000998', 'Legacy Provider', 'active')`,
+    [legacyProviderId],
+  );
+  await pool.query(
+    `INSERT INTO socialgrowth_product.phone_verifications (
+       verification_id, phone_e164, purpose, provider_id, verified_at,
+       expires_at, consumed_at
+     ) VALUES ($1, '+8613800000998', 'provider_login', $2,
+       transaction_timestamp(), transaction_timestamp() + interval '1 hour',
+       transaction_timestamp())`,
+    [legacyVerificationId, legacyProviderId],
+  );
+  await pool.query(
+    `INSERT INTO socialgrowth_product.provider_sessions (
+       session_id, provider_id, token_digest, expires_at
+     ) VALUES ($1, $2, $3, transaction_timestamp() + interval '1 hour')`,
+    [legacySessionId, legacyProviderId, digest("legacy-random-token")],
+  );
+  await pool.query(await readFile(migrationUrls[2]!, "utf8"));
+  const upgraded = await pool.query<{
+    phone_verification_id: string | null;
+  }>(
+    `SELECT phone_verification_id FROM socialgrowth_product.provider_sessions
+      WHERE session_id = $1`,
+    [legacySessionId],
+  );
+  legacyUpgradeVerified = upgraded.rows[0]?.phone_verification_id === null;
+  await pool.query("DROP SCHEMA socialgrowth_product CASCADE");
   for (const migrationUrl of migrationUrls) {
     await pool.query(await readFile(migrationUrl, "utf8"));
   }
+});
+
+test("0003 upgrades an existing 0002 database while preserving legacy sessions", () => {
+  assert.equal(legacyUpgradeVerified, true);
 });
 
 after(async () => {
@@ -163,11 +207,13 @@ test("wrong code persists attempts while correct code creates a purpose-bound pr
     phoneE164: "+8613800000102",
     invitationCode,
   });
+  const deliveredCode = sms.deliveries.at(-1)!.code;
+  const invalidCode = deliveredCode === "000000" ? "111111" : "000000";
   await assert.rejects(
     service.verifyCode({
       metadata: metadata("registration-wrong-code-0001"),
       challengeId: challenge.challengeId,
-      code: "000000",
+      code: invalidCode,
     }),
     (error: unknown) =>
       error instanceof ProductTransactionError &&
@@ -183,14 +229,14 @@ test("wrong code persists attempts while correct code creates a purpose-bound pr
   const proof = await service.verifyCode({
     metadata: metadata("registration-correct-code-0001"),
     challengeId: challenge.challengeId,
-    code: sms.deliveries.at(-1)!.code,
+    code: deliveredCode,
   });
   assert.equal(proof.purpose, "provider_registration");
   assert.match(proof.phoneHint, /\*/);
   const replay = await service.verifyCode({
     metadata: metadata("registration-correct-code-replay-0001"),
     challengeId: challenge.challengeId,
-    code: sms.deliveries.at(-1)!.code,
+    code: deliveredCode,
   });
   assert.deepEqual(replay, proof);
   const proofCount = await pool.query<{ count: string }>(
@@ -199,6 +245,28 @@ test("wrong code persists attempts while correct code creates a purpose-bound pr
     [proof.phoneVerificationId],
   );
   assert.equal(proofCount.rows[0]?.count, "1");
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    await assert.rejects(
+      service.verifyCode({
+        metadata: metadata(`verified-proof-wrong-replay-${attempt}`),
+        challengeId: challenge.challengeId,
+        code: invalidCode,
+      }),
+      (error: unknown) =>
+        error instanceof ProductTransactionError &&
+        error.code === "PHONE_VERIFICATION_CODE_INVALID",
+    );
+  }
+  await assert.rejects(
+    service.verifyCode({
+      metadata: metadata("verified-proof-attempt-limit-0001"),
+      challengeId: challenge.challengeId,
+      code: deliveredCode,
+    }),
+    (error: unknown) =>
+      error instanceof ProductTransactionError &&
+      error.code === "PHONE_VERIFICATION_RATE_LIMITED",
+  );
 });
 
 test("concurrent challenge requests for one phone send exactly one SMS", async () => {
@@ -303,6 +371,19 @@ test("registered provider login replays one stored-digest session without duplic
     phoneVerificationId: loginProof.phoneVerificationId,
   });
   assert.deepEqual(replay, response);
+  await assert.rejects(
+    new ProviderAuthService(
+      pool,
+      "rotated-provider-auth-pepper-000000000000000001",
+      sms,
+    ).login({
+      metadata: metadata("provider-login-wrong-pepper-0001"),
+      phoneVerificationId: loginProof.phoneVerificationId,
+    }),
+    (error: unknown) =>
+      error instanceof ProductTransactionError &&
+      error.code === "PHONE_VERIFICATION_INVALID",
+  );
   const sessionCount = await pool.query<{ count: string }>(
     `SELECT count(*)::text AS count FROM socialgrowth_product.provider_sessions
       WHERE phone_verification_id = $1`,
