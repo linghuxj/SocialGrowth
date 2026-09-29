@@ -5,8 +5,8 @@
 ## 比较目标与证据
 
 - source visual truth：`docs/design/workbench/provider-detail-v1.png`，并以 `provider-detail-prompt.txt`、`docs/design/workbench/README.md` 和 `docs/workbench-page-spec.md` §8.2 约束业务语义。该图是风格参考，不复制示例人物、设备、金额或状态。
-- implementation screenshot：`artifacts/design-qa/wp03-stage3/implementation-pass2-1465x1074.png`。
-- combined comparison：`artifacts/design-qa/wp03-stage3/comparison-pass2.png`；左侧参考、右侧实现。
+- implementation screenshot：`artifacts/design-qa/wp03-stage3/implementation-remediation-1465x1074.png`（共享码与注册链接已遮蔽）。
+- combined comparison：`artifacts/design-qa/wp03-stage3/comparison-remediation.png`；左侧参考、右侧实现。历史未脱敏截图已从本地证据目录移除。
 - viewport：1465 × 1074 CSS px，deviceScaleFactor 1；source 1465 × 1074 px，implementation 1465 × 1074 px，无缩放或密度归一化。
 - state：已登录；一份 3 次上限的有效邀请刚创建，一次性共享码/注册链接窗口可见，列表显示 0/3 和撤销入口。
 - browser evidence：Chromium 真实页面截图；Playwright 从实际 Web 入口完成登录、创建响应丢失后重试、凭证一致性、列表、撤销、账号开通/停用及退出。浏览器控制台未出现非预期页面错误；故意触发的 401、409 和响应丢失网络错误单独作为场景断言，不计作意外错误。
@@ -34,18 +34,18 @@
 
 ## Findings
 
-没有可执行的 P0、P1 或 P2 差异。
+复核曾发现会话切换后的秘密残留、截图未遮蔽、窄屏退出入口及手机写操作等 P1/P2 问题；本轮已修复并重新执行浏览器与视觉检查。当前没有可执行的 P0、P1 或 P2 差异。
 
 - P3：`datetime-local` 的可视日期格式由 Chromium/操作系统控件决定，本次截图仍显示英语顺序。参考图没有邀请创建表单，也未定义该原生控件；字段标签和提交值均为中文及 ISO 时间语义，正式验收应以实际浏览器 locale 与后端时间事实为准。
 
 ## 比较历史
 
 - Pass 1：确认整体结构、颜色、边框、密度及 1465px 视口无横向溢出；将 Playwright 浏览器 locale 显式设为 `zh-CN`，避免测试环境其他本地化漂移。没有 P0/P1/P2 finding。
-- Pass 2：以同尺寸重新截图并与参考并排检查；邀请核心状态、表单、凭证和列表完整可见，未产生新的 P0/P1/P2 finding。
+- Remediation：统一清除失效/切换会话的一次性凭证；桌面验收截图遮蔽秘密；700px 手机视图改为只读并保留退出入口。以同尺寸重新截图并与参考并排检查，未产生新的 P0/P1/P2 finding。
 
 ## 交互与控制台
 
-- 已测试：登录、刷新、切换邀请/账号视图、创建邀请、响应丢失重试、复制及剪贴板内容、撤销确认、注册集合展开入口、账号开通/停用、会话撤销、退出，以及 980px/700px 无横向溢出和核心导航可见。
+- 已测试：登录、刷新、切换邀请/账号视图、创建邀请、响应丢失后恢复同一邀请/共享码且列表仅一条、复制及剪贴板内容、撤销确认、注册集合展开入口、账号开通/停用、会话撤销、退出，以及 980px/700px 无横向溢出、手机只读和退出入口可见。
 - Playwright 断言通过；页面未产生非预期 console/page error。复制操作只更新本地剪贴板和页面反馈，不调用发送通路。
 
 ## Follow-up Polish
