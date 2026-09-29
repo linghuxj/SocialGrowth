@@ -10,6 +10,7 @@
 | `createInvitationRequest`、`registerProviderRequest` | 运营创建；未登录注册流程消费验证结果 | Backend/PostgreSQL | 短信通过不等于注册；最终事务再查邀请和手机号 |
 | `associationQrPayload`、`createAssociationSession*`、`inspectAssociationCodeRequest` | 安装创建待确认会话；提供者本人扫描 | Backend/PostgreSQL | `sgassoc_v1_` 码制与契约版本均可校验；新会话响应明示旧会话已替换 |
 | `associationSessionView`、`confirmAssociationRequest` | 提供者本人查看必要目标并确认 | Backend/PostgreSQL | 必须匹配预期安装；扫码不直接写归属 |
+| `queryAssociationResultRequest`、`associationResultResponse`、`listProviderDevices*` | 提供者查询原确认结果及本人多设备 | Backend/PostgreSQL/Android | pending 不写关联；已确认结果只向原 Provider 返回；本人列表不暴露 installationId 或其他 Provider |
 | `bootstrapInstallationRequest`、`installationAuthResponse` | 未关联执行手机建立或恢复低权限安装身份 | Backend/PostgreSQL/Android | 根凭据由客户端随机生成并安全保存；响应不回传根凭据；重装丢失凭据时创建新身份而不认领旧关系 |
 | 三类 device view | 运营/本人/安装各取所需字段 | Backend | 严格 schema 拒绝跨身份多余字段；较低 `factVersion` 不覆盖新事实 |
 | `productErrorResponse` | 当前认证身份 | Backend | 稳定错误码、可重试标志和原请求 ID，不暴露技术栈或秘密 |

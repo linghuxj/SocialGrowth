@@ -3,13 +3,18 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import {
   confirmAssociationRequestSchema,
   confirmAssociationResponseSchema,
+  associationResultResponseSchema,
   associationSessionViewSchema,
   createAssociationSessionRequestSchema,
   createAssociationSessionResponseSchema,
   inspectAssociationCodeRequestSchema,
+  installationSelfViewSchema,
+  listProviderDevicesResponseSchema,
+  queryAssociationResultRequestSchema,
   registerProviderRequestSchema,
   registerProviderResponseSchema,
   type ConfirmAssociationRequest,
+  type QueryAssociationResultRequest,
   type RegisterProviderRequest,
 } from "@socialgrowth/product-contracts";
 import type { Pool, PoolClient, QueryResult } from "pg";
@@ -58,6 +63,15 @@ interface CurrentAssociationRow {
   association_id: string;
   device_id: string;
   provider_id: string;
+}
+
+interface AssociationResultRow extends AssociationSessionRow {
+  association_id: string | null;
+  confirmed_at: Date | null;
+  consumed_by_provider_id: string | null;
+  device_id: string | null;
+  installation_generation: string;
+  installation_status: string;
 }
 
 interface IdempotencyIdentity {
@@ -555,13 +569,22 @@ export class IdentityTransactionService {
           "Provider identity is no longer active",
         );
       }
-      const result = await this.pool.query<AssociationSessionRow>(
-        `SELECT association_session_id, installation_id,
-                expected_installation_generation, device_label, expires_at,
-                consumed_at, invalidated_at,
+      const result = await this.pool.query<
+        AssociationSessionRow & {
+          installation_generation: string;
+          installation_status: string;
+        } & DatabaseTimeRow
+      >(
+        `SELECT s.association_session_id, s.installation_id,
+                s.expected_installation_generation, s.device_label, s.expires_at,
+                s.consumed_at, s.invalidated_at,
+                i.generation AS installation_generation,
+                i.status AS installation_status,
                 transaction_timestamp() AS database_now
-           FROM ${schema}.association_sessions
-          WHERE code_digest = $1`,
+           FROM ${schema}.association_sessions s
+           JOIN ${schema}.installations i
+             ON i.installation_id = s.installation_id
+          WHERE s.code_digest = $1`,
         [digest(request.associationCode)],
       );
       const session = result.rows[0];
@@ -569,12 +592,20 @@ export class IdentityTransactionService {
         !session ||
         session.consumed_at ||
         session.invalidated_at ||
-        session.expires_at.getTime() <
-          (session as AssociationSessionRow & DatabaseTimeRow).database_now.getTime()
+        session.expires_at.getTime() < session.database_now.getTime()
       ) {
         throw new ProductTransactionError(
           "ASSOCIATION_SESSION_EXPIRED",
           "Association code is unavailable or expired",
+        );
+      }
+      if (
+        session.installation_status !== "active" ||
+        session.installation_generation !== session.expected_installation_generation
+      ) {
+        throw new ProductTransactionError(
+          "ASSOCIATION_TARGET_CHANGED",
+          "Installation identity changed after the code was created",
         );
       }
       return associationSessionViewSchema.parse({
@@ -714,7 +745,7 @@ export class IdentityTransactionService {
         `INSERT INTO ${schema}.devices (
            device_id, display_name, fact_version, state, created_at, updated_at
          ) VALUES ($1, $2, 1, 'associated_pending_access', $3, $3)`,
-        [deviceId, `Device ${deviceId.slice(0, 8)}`, now],
+        [deviceId, session.device_label, now],
       );
       await client.query(
         `INSERT INTO ${schema}.device_associations (
@@ -763,6 +794,185 @@ export class IdentityTransactionService {
         { deviceId, installationId: session.installation_id },
       );
       return response;
+    });
+  }
+
+  async queryAssociationResult(
+    input: QueryAssociationResultRequest,
+    context: ProviderContext,
+  ): Promise<ReturnType<typeof associationResultResponseSchema.parse>> {
+    const request = queryAssociationResultRequestSchema.parse(input);
+    const provider = await this.pool.query<{ status: string }>(
+      `SELECT status FROM ${schema}.providers WHERE provider_id = $1`,
+      [context.providerId],
+    );
+    if (provider.rows[0]?.status !== "active") {
+      throw new ProductTransactionError(
+        "AUTHORIZATION_DENIED",
+        "Provider identity is no longer active",
+      );
+    }
+    const result = await this.pool.query<AssociationResultRow & DatabaseTimeRow>(
+      `SELECT s.association_session_id, s.installation_id,
+              s.expected_installation_generation, s.device_label,
+              s.expires_at, s.consumed_at, s.consumed_by_provider_id,
+              s.invalidated_at, a.association_id, a.device_id,
+              a.confirmed_at, i.generation AS installation_generation,
+              i.status AS installation_status,
+              clock_timestamp() AS database_now
+         FROM ${schema}.association_sessions s
+         JOIN ${schema}.installations i
+           ON i.installation_id = s.installation_id
+         LEFT JOIN ${schema}.device_associations a
+           ON a.association_session_id = s.association_session_id
+        WHERE s.association_session_id = $1
+          AND s.installation_id = $2`,
+      [request.associationSessionId, request.expectedInstallationId],
+    );
+    const row = result.rows[0];
+    if (!row || row.invalidated_at) {
+      throw new ProductTransactionError(
+        "ASSOCIATION_SESSION_EXPIRED",
+        "Association session is unavailable",
+      );
+    }
+    if (!row.consumed_at) {
+      if (
+        row.installation_status !== "active" ||
+        row.installation_generation !== row.expected_installation_generation
+      ) {
+        throw new ProductTransactionError(
+          "ASSOCIATION_TARGET_CHANGED",
+          "Installation identity changed after the code was created",
+        );
+      }
+      if (row.expires_at <= row.database_now) {
+        throw new ProductTransactionError(
+          "ASSOCIATION_SESSION_EXPIRED",
+          "Association session expired",
+        );
+      }
+      return associationResultResponseSchema.parse({
+        status: "pending",
+        associationSessionId: row.association_session_id,
+        installationId: row.installation_id,
+        expiresAt: row.expires_at.toISOString(),
+      });
+    }
+    if (
+      row.consumed_by_provider_id !== context.providerId ||
+      !row.association_id ||
+      !row.device_id ||
+      !row.confirmed_at
+    ) {
+      throw new ProductTransactionError(
+        "AUTHORIZATION_DENIED",
+        "Association result is not available to this provider",
+      );
+    }
+    return associationResultResponseSchema.parse({
+      status: "associated",
+      result: {
+        associationId: row.association_id,
+        providerId: context.providerId,
+        installationId: row.installation_id,
+        deviceId: row.device_id,
+        confirmedAt: row.confirmed_at.toISOString(),
+        state: "associated_pending_access",
+      },
+    });
+  }
+
+  async getInstallationState(
+    context: InstallationContext,
+  ): Promise<ReturnType<typeof installationSelfViewSchema.parse>> {
+    const result = await this.pool.query<{
+      device_id: string | null;
+      fact_version: string | null;
+      generation: string;
+      installation_id: string;
+      installation_updated_at: Date;
+      state: string | null;
+      device_updated_at: Date | null;
+      status: string;
+    }>(
+      `SELECT i.installation_id, i.generation, i.status,
+              i.updated_at AS installation_updated_at,
+              d.device_id, d.fact_version, d.state,
+              d.updated_at AS device_updated_at
+         FROM ${schema}.installations i
+         LEFT JOIN ${schema}.device_associations a
+           ON a.installation_id = i.installation_id AND a.ended_at IS NULL
+         LEFT JOIN ${schema}.devices d ON d.device_id = a.device_id
+        WHERE i.installation_id = $1`,
+      [context.installationId],
+    );
+    const row = result.rows[0];
+    if (
+      !row ||
+      row.status !== "active" ||
+      row.generation !== context.installationGeneration.toString()
+    ) {
+      throw new ProductTransactionError(
+        "AUTHORIZATION_DENIED",
+        "Installation identity or generation is no longer active",
+      );
+    }
+    if (!row.device_id) {
+      return installationSelfViewSchema.parse({
+        installationId: row.installation_id,
+        deviceId: null,
+        state: "unassociated",
+        factVersion: 0,
+        updatedAt: row.installation_updated_at.toISOString(),
+      });
+    }
+    return installationSelfViewSchema.parse({
+      installationId: row.installation_id,
+      deviceId: row.device_id,
+      state: row.state,
+      factVersion: Number(row.fact_version),
+      updatedAt: row.device_updated_at?.toISOString(),
+    });
+  }
+
+  async listProviderDevices(
+    context: ProviderContext,
+  ): Promise<ReturnType<typeof listProviderDevicesResponseSchema.parse>> {
+    const provider = await this.pool.query<{ status: string }>(
+      `SELECT status FROM ${schema}.providers WHERE provider_id = $1`,
+      [context.providerId],
+    );
+    if (provider.rows[0]?.status !== "active") {
+      throw new ProductTransactionError(
+        "AUTHORIZATION_DENIED",
+        "Provider identity is no longer active",
+      );
+    }
+    const result = await this.pool.query<{
+      device_id: string;
+      display_name: string;
+      fact_version: string;
+      state: string;
+      updated_at: Date;
+    }>(
+      `SELECT d.device_id, d.display_name, d.fact_version,
+              d.state, d.updated_at
+         FROM ${schema}.device_associations a
+         JOIN ${schema}.devices d ON d.device_id = a.device_id
+        WHERE a.provider_id = $1 AND a.ended_at IS NULL
+        ORDER BY a.confirmed_at, a.association_id`,
+      [context.providerId],
+    );
+    return listProviderDevicesResponseSchema.parse({
+      devices: result.rows.map((row) => ({
+        deviceId: row.device_id,
+        displayName: row.display_name,
+        state: row.state,
+        lastObservedAt: null,
+        factVersion: Number(row.fact_version),
+        updatedAt: row.updated_at.toISOString(),
+      })),
     });
   }
 }

@@ -1,17 +1,21 @@
 import { Body, Controller, Header, Headers, Inject, Post } from "@nestjs/common";
 import {
+  confirmAssociationRequestSchema,
+  inspectAssociationCodeRequestSchema,
+  listProviderDevicesRequestSchema,
   providerLogoutRequestSchema,
   providerRegistrationAuthResponseSchema,
   providerLoginRequestSchema,
   registerProviderRequestSchema,
   requestPhoneVerificationSchema,
+  queryAssociationResultRequestSchema,
   verifyPhoneCodeRequestSchema,
 } from "@socialgrowth/product-contracts";
 
 import { IdentityTransactionService } from "./identity-transactions.js";
 import { ProviderAuthService } from "./provider-auth-service.js";
-import { ProductTransactionError } from "./product-transaction-error.js";
 import {
+  bearerTokenFrom,
   requestIdFrom,
   requireSupportedContract,
   rethrowHttp,
@@ -93,14 +97,86 @@ export class ProviderController {
     try {
       requireSupportedContract(body);
       const request = providerLogoutRequestSchema.parse(body);
-      const match = /^Bearer ([A-Za-z0-9_-]{43})$/.exec(authorization ?? "");
-      if (!match?.[1]) {
-        throw new ProductTransactionError(
-          "AUTHENTICATION_REQUIRED",
-          "Provider bearer token is required",
-        );
-      }
-      return await this.auth.logout(match[1], request.metadata.requestId);
+      return await this.auth.logout(
+        bearerTokenFrom(authorization, "Provider"),
+        request.metadata.requestId,
+      );
+    } catch (error) {
+      rethrowHttp(error, requestId);
+    }
+  }
+
+  @Post("association-sessions/inspect")
+  @Header("Cache-Control", "no-store")
+  async inspectAssociation(
+    @Body() body: unknown,
+    @Headers("authorization") authorization?: string,
+  ) {
+    const requestId = requestIdFrom(body);
+    try {
+      requireSupportedContract(body);
+      const request = inspectAssociationCodeRequestSchema.parse(body);
+      const context = await this.auth.authenticate(
+        bearerTokenFrom(authorization, "Provider"),
+      );
+      return await this.identity.inspectAssociationCode(request, context);
+    } catch (error) {
+      rethrowHttp(error, requestId);
+    }
+  }
+
+  @Post("association-sessions/confirm")
+  @Header("Cache-Control", "no-store")
+  async confirmAssociation(
+    @Body() body: unknown,
+    @Headers("authorization") authorization?: string,
+  ) {
+    const requestId = requestIdFrom(body);
+    try {
+      requireSupportedContract(body);
+      const request = confirmAssociationRequestSchema.parse(body);
+      const context = await this.auth.authenticate(
+        bearerTokenFrom(authorization, "Provider"),
+      );
+      return await this.identity.confirmAssociation(request, context);
+    } catch (error) {
+      rethrowHttp(error, requestId);
+    }
+  }
+
+  @Post("association-sessions/result")
+  @Header("Cache-Control", "no-store")
+  async queryAssociationResult(
+    @Body() body: unknown,
+    @Headers("authorization") authorization?: string,
+  ) {
+    const requestId = requestIdFrom(body);
+    try {
+      requireSupportedContract(body);
+      const request = queryAssociationResultRequestSchema.parse(body);
+      const context = await this.auth.authenticate(
+        bearerTokenFrom(authorization, "Provider"),
+      );
+      return await this.identity.queryAssociationResult(request, context);
+    } catch (error) {
+      rethrowHttp(error, requestId);
+    }
+  }
+
+  @Post("devices/list")
+  @Header("Cache-Control", "no-store")
+  async listDevices(
+    @Body() body: unknown,
+    @Headers("authorization") authorization?: string,
+  ) {
+    const requestId = requestIdFrom(body);
+    try {
+      requireSupportedContract(body);
+      listProviderDevicesRequestSchema.parse(body);
+      const context = await this.auth.authenticate(
+        bearerTokenFrom(authorization, "Provider"),
+      );
+      return await this.identity.listProviderDevices(context);
     } catch (error) {
       rethrowHttp(error, requestId);
     }

@@ -6,6 +6,7 @@ import {
   timestampSchema,
   uuidSchema,
 } from "./common.js";
+import { providerDeviceViewSchema } from "./status.js";
 
 export const associationCodeSchema = z
   .string()
@@ -57,7 +58,41 @@ export const confirmAssociationResponseSchema = z.strictObject({
   state: z.literal("associated_pending_access"),
 });
 
+export const queryAssociationResultRequestSchema = z.strictObject({
+  metadata: requestMetadataSchema,
+  associationSessionId: uuidSchema,
+  expectedInstallationId: uuidSchema,
+});
+
+export const associationResultResponseSchema = z.discriminatedUnion("status", [
+  z.strictObject({
+    status: z.literal("pending"),
+    associationSessionId: uuidSchema,
+    installationId: uuidSchema,
+    expiresAt: timestampSchema,
+  }),
+  z.strictObject({
+    status: z.literal("associated"),
+    result: confirmAssociationResponseSchema,
+  }),
+]);
+
+export const installationStateRequestSchema = z.strictObject({
+  metadata: requestMetadataSchema,
+});
+
+export const listProviderDevicesRequestSchema = z.strictObject({
+  metadata: requestMetadataSchema,
+});
+
+export const listProviderDevicesResponseSchema = z.strictObject({
+  devices: z.array(providerDeviceViewSchema),
+});
+
 export type ConfirmAssociationRequest = z.infer<
   typeof confirmAssociationRequestSchema
 >;
 export type AssociationQrPayload = z.infer<typeof associationQrPayloadSchema>;
+export type QueryAssociationResultRequest = z.infer<
+  typeof queryAssociationResultRequestSchema
+>;

@@ -2,12 +2,17 @@ import { z } from "zod";
 
 import {
   associationQrPayloadSchema,
+  associationResultResponseSchema,
   associationSessionViewSchema,
   confirmAssociationRequestSchema,
   confirmAssociationResponseSchema,
   createAssociationSessionRequestSchema,
   createAssociationSessionResponseSchema,
   inspectAssociationCodeRequestSchema,
+  installationStateRequestSchema,
+  listProviderDevicesRequestSchema,
+  listProviderDevicesResponseSchema,
+  queryAssociationResultRequestSchema,
 } from "./association.js";
 import { productErrorResponseSchema } from "./errors.js";
 import {
@@ -59,6 +64,7 @@ import {
 
 export const firstBatchContractRegistry = {
   associationQrPayload: associationQrPayloadSchema,
+  associationResultResponse: associationResultResponseSchema,
   associationSessionView: associationSessionViewSchema,
   authenticatedPrincipal: authenticatedPrincipalSchema,
   bootstrapInstallationRequest: bootstrapInstallationRequestSchema,
@@ -77,7 +83,10 @@ export const firstBatchContractRegistry = {
   installationIdentity: installationIdentitySchema,
   invitationView: invitationViewSchema,
   inspectAssociationCodeRequest: inspectAssociationCodeRequestSchema,
+  installationStateRequest: installationStateRequestSchema,
   listOperatorsResponse: listOperatorsResponseSchema,
+  listProviderDevicesRequest: listProviderDevicesRequestSchema,
+  listProviderDevicesResponse: listProviderDevicesResponseSchema,
   listInvitationsResponse: listInvitationsResponseSchema,
   operatorDeviceView: operatorDeviceViewSchema,
   operatorLoginRequest: operatorLoginRequestSchema,
@@ -93,6 +102,7 @@ export const firstBatchContractRegistry = {
   providerLoginRequest: providerLoginRequestSchema,
   providerRegistrationAuthResponse: providerRegistrationAuthResponseSchema,
   providerSelfView: providerSelfViewSchema,
+  queryAssociationResultRequest: queryAssociationResultRequestSchema,
   requestPhoneVerification: requestPhoneVerificationSchema,
   registerProviderRequest: registerProviderRequestSchema,
   registerProviderResponse: registerProviderResponseSchema,

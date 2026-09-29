@@ -75,6 +75,10 @@ interface ProviderRow {
   updated_at: Date;
 }
 
+export interface AuthenticatedProvider {
+  providerId: string;
+}
+
 interface VerificationRow {
   consumed_at: Date | null;
   expires_at: Date;
@@ -489,6 +493,44 @@ export class ProviderAuthService {
       "provider_registration",
       requestId,
     );
+  }
+
+  async authenticate(sessionToken: string): Promise<AuthenticatedProvider> {
+    if (!/^[A-Za-z0-9_-]{43}$/.test(sessionToken)) {
+      throw new ProductTransactionError(
+        "AUTHENTICATION_REQUIRED",
+        "Provider session is invalid",
+      );
+    }
+    const result = await this.pool.query<{
+      database_now: Date;
+      expires_at: Date;
+      provider_id: string;
+      provider_status: string;
+      revoked_at: Date | null;
+    }>(
+      `SELECT s.provider_id, s.expires_at, s.revoked_at,
+              p.status AS provider_status,
+              clock_timestamp() AS database_now
+         FROM ${schema}.provider_sessions s
+         JOIN ${schema}.providers p ON p.provider_id = s.provider_id
+        WHERE s.token_digest = $1`,
+      [secretDigest(this.securityPepper, sessionToken)],
+    );
+    const row = result.rows[0];
+    if (!row || row.revoked_at || row.expires_at <= row.database_now) {
+      throw new ProductTransactionError(
+        "AUTHENTICATION_REQUIRED",
+        "Provider session is invalid or expired",
+      );
+    }
+    if (row.provider_status !== "active") {
+      throw new ProductTransactionError(
+        "PROVIDER_DISABLED",
+        "Provider is disabled",
+      );
+    }
+    return { providerId: row.provider_id };
   }
 
   private async completeProviderSession(

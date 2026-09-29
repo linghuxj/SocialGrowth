@@ -7,6 +7,7 @@ import { DevelopmentProviderSmsController } from "./development-provider-sms.con
 import { InvitationManagementService } from "./invitation-management-service.js";
 import { IdentityTransactionService } from "./identity-transactions.js";
 import { InstallationAuthService } from "./installation-auth-service.js";
+import { InstallationController } from "./installation.controller.js";
 import { OperatorAuthService } from "./operator-auth-service.js";
 import { OperatorController } from "./operator.controller.js";
 import { ProviderAuthService } from "./provider-auth-service.js";
@@ -99,6 +100,7 @@ const providerAuthProvider = {
   controllers: [
     AppController,
     DevelopmentProviderSmsController,
+    InstallationController,
     OperatorController,
     ProviderController,
   ],

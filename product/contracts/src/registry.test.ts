@@ -3,8 +3,10 @@ import test from "node:test";
 
 import { contractVersion } from "./common.js";
 import {
+  associationResultResponseSchema,
   associationQrPayloadSchema,
   confirmAssociationRequestSchema,
+  listProviderDevicesResponseSchema,
 } from "./association.js";
 import { registerProviderRequestSchema } from "./invitation.js";
 import {
@@ -121,6 +123,29 @@ test("association confirmation binds the scanned session to its expected install
     result.expectedInstallationId,
     "018f47ac-7a69-7db4-a572-8c62f3650194",
   );
+});
+
+test("association result and provider device list do not expose another owner", () => {
+  const pending = associationResultResponseSchema.parse({
+    status: "pending",
+    associationSessionId: "018f47ac-7a69-7db4-a572-8c62f3650193",
+    installationId: "018f47ac-7a69-7db4-a572-8c62f3650194",
+    expiresAt: "2026-09-29T11:00:00+08:00",
+  });
+  const leakedOwner = listProviderDevicesResponseSchema.safeParse({
+    devices: [{
+      deviceId: "018f47ac-7a69-7db4-a572-8c62f3650195",
+      displayName: "Phone A",
+      state: "associated_pending_access",
+      lastObservedAt: null,
+      factVersion: 1,
+      updatedAt: "2026-09-29T10:00:00+08:00",
+      providerId: "018f47ac-7a69-7db4-a572-8c62f3650192",
+    }],
+  });
+
+  assert.equal(pending.status, "pending");
+  assert.equal(leakedOwner.success, false);
 });
 
 test("installation status excludes provider and operator identifiers", () => {

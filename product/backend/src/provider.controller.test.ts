@@ -181,3 +181,60 @@ test("provider logout requires an explicit bearer token and forwards the request
   );
   assert.deepEqual(observed, [{ requestId: metadata.requestId, token }]);
 });
+
+test("provider association routes use the authenticated provider context", async () => {
+  const observed: unknown[] = [];
+  const providerId = "00000000-0000-4000-8000-000000000020";
+  const sessionId = "00000000-0000-4000-8000-000000000021";
+  const installationId = "00000000-0000-4000-8000-000000000022";
+  const auth = {
+    async authenticate(token: string) {
+      observed.push({ token });
+      return { providerId };
+    },
+  } as unknown as ProviderAuthService;
+  const identity = {
+    async inspectAssociationCode(input: unknown, context: unknown) {
+      observed.push({ context, inspect: input });
+      return { associationSessionId: sessionId };
+    },
+    async confirmAssociation(input: unknown, context: unknown) {
+      observed.push({ confirm: input, context });
+      return { associationId: "association" };
+    },
+    async queryAssociationResult(input: unknown, context: unknown) {
+      observed.push({ context, query: input });
+      return { status: "pending" };
+    },
+    async listProviderDevices(context: unknown) {
+      observed.push({ context, list: true });
+      return { devices: [] };
+    },
+  } as unknown as IdentityTransactionService;
+  const controller = new ProviderController(auth, identity);
+  const token = "P".repeat(43);
+  const authorization = `Bearer ${token}`;
+
+  await controller.inspectAssociation(
+    { metadata, associationCode: `sgassoc_v1_${"A".repeat(43)}` },
+    authorization,
+  );
+  await controller.confirmAssociation(
+    { metadata, associationSessionId: sessionId, expectedInstallationId: installationId },
+    authorization,
+  );
+  await controller.queryAssociationResult(
+    { metadata, associationSessionId: sessionId, expectedInstallationId: installationId },
+    authorization,
+  );
+  assert.deepEqual(
+    await controller.listDevices({ metadata }, authorization),
+    { devices: [] },
+  );
+
+  assert.deepEqual(observed[1], {
+    inspect: { metadata, associationCode: `sgassoc_v1_${"A".repeat(43)}` },
+    context: { providerId },
+  });
+  assert.equal(observed.filter((item) => "token" in (item as object)).length, 4);
+});

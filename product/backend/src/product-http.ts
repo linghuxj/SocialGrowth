@@ -9,6 +9,20 @@ import { ZodError } from "zod";
 
 import { ProductTransactionError } from "./product-transaction-error.js";
 
+export function bearerTokenFrom(
+  authorization: string | undefined,
+  principal: "Installation" | "Provider",
+): string {
+  const match = /^Bearer ([A-Za-z0-9_-]{43})$/.exec(authorization ?? "");
+  if (!match?.[1]) {
+    throw new ProductTransactionError(
+      "AUTHENTICATION_REQUIRED",
+      `${principal} bearer token is required`,
+    );
+  }
+  return match[1];
+}
+
 export function requestIdFrom(value: unknown): string {
   if (typeof value === "object" && value !== null && "metadata" in value) {
     const metadata = value.metadata;
@@ -61,6 +75,9 @@ function statusFor(error: ProductTransactionError): number {
     error.code === "LAST_ACTIVE_OPERATOR" ||
     error.code === "OPERATOR_ALREADY_EXISTS" ||
     error.code === "INVITATION_REVOKED" ||
+    error.code === "ASSOCIATION_SESSION_CONSUMED" ||
+    error.code === "ASSOCIATION_TARGET_CHANGED" ||
+    error.code === "DEVICE_ALREADY_ASSOCIATED" ||
     error.code.startsWith("IDEMPOTENCY_")
   ) {
     return 409;
