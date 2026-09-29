@@ -169,11 +169,23 @@ test("operator account responses keep passwords write-only and status consistent
     displayName: "\u00a0Operator Four",
     initialPassword: "another-long-password",
   });
+  const byteOrderMarkedDisplayNames = ["\ufeffOperator Five", "Operator Five\ufeff"];
 
   assert.equal(leakedPassword.success, false);
   assert.equal(contradictory.success, false);
   assert.equal(paddedDisplayName.success, false);
   assert.equal(unicodePaddedDisplayName.success, false);
+  for (const displayName of byteOrderMarkedDisplayNames) {
+    assert.equal(
+      createOperatorRequestSchema.safeParse({
+        metadata,
+        loginName: "operator.five",
+        displayName,
+        initialPassword: "another-long-password",
+      }).success,
+      false,
+    );
+  }
 });
 
 test("operator action responses fix the resulting account status", () => {

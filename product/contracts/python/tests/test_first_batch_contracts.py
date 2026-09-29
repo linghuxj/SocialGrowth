@@ -145,6 +145,8 @@ class FirstBatchContractsTest(unittest.TestCase):
             {**operator, "passwordHash": "must-not-leak"},
             {**operator, "status": "disabled", "disabledAt": None},
             {**operator, "displayName": "\u00a0Operator One"},
+            {**operator, "displayName": "\ufeffOperator One"},
+            {**operator, "displayName": "Operator One\ufeff"},
         ]
         for invalid_operator in invalid_operators:
             with self.subTest(operator=invalid_operator), self.assertRaises(

@@ -19,7 +19,7 @@ export const operatorDisplayNameSchema = z
   .min(1)
   .max(100)
   .regex(
-    /^[^\s\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000](?:[\s\S]*[^\s\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000])?$/,
+    /^[^\s\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff](?:[\s\S]*[^\s\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff])?$/,
   );
 
 const operatorBaseShape = {
