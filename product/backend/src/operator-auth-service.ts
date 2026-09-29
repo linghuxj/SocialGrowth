@@ -57,10 +57,15 @@ interface OperatorRow {
   updated_at: Date;
 }
 
-interface SessionOperatorRow extends OperatorRow {
+interface OperatorSessionRow {
+  credential_version: string;
   expires_at: Date;
   revoked_at: Date | null;
-  session_credential_version: string;
+  session_id: string;
+}
+
+interface SessionLookupRow {
+  operator_id: string;
   session_id: string;
 }
 
@@ -401,6 +406,21 @@ export class OperatorAuthService {
     if (clientScope.trim().length === 0 || clientScope.length > 512) {
       throw new ProductTransactionError("INPUT_INVALID", "Client scope is required");
     }
+    const scopeDigest = this.clientScopeDigest(clientScope);
+    const blocked = await this.pool.query(
+      `SELECT 1
+         FROM ${schema}.operator_login_throttles
+        WHERE login_name = $1 AND client_scope_digest = $2
+          AND blocked_until > transaction_timestamp()`,
+      [parsed.loginName, scopeDigest],
+    );
+    if ((blocked.rowCount ?? 0) > 0) {
+      throw new ProductTransactionError(
+        "LOGIN_RATE_LIMITED",
+        "Too many login attempts; retry later",
+        true,
+      );
+    }
     const candidate = await this.pool.query<OperatorRow>(
       `SELECT * FROM ${schema}.operators WHERE login_name = $1`,
       [parsed.loginName],
@@ -416,7 +436,10 @@ export class OperatorAuthService {
       | { response: OperatorLoginResponse; sessionToken: string }
     >(this.pool, async (client) => {
       const now = await databaseNow(client);
-      const scopeDigest = this.clientScopeDigest(clientScope);
+      const current = await client.query<OperatorRow>(
+        `SELECT * FROM ${schema}.operators WHERE login_name = $1 FOR UPDATE`,
+        [parsed.loginName],
+      );
       const throttle = await client.query<ThrottleRow>(
         `SELECT failure_count, blocked_until
            FROM ${schema}.operator_login_throttles
@@ -433,10 +456,6 @@ export class OperatorAuthService {
         );
       }
 
-      const current = await client.query<OperatorRow>(
-        `SELECT * FROM ${schema}.operators WHERE login_name = $1 FOR UPDATE`,
-        [parsed.loginName],
-      );
       const operator = current.rows[0];
       const valid =
         passwordMatches &&
@@ -555,7 +574,9 @@ export class OperatorAuthService {
     request: CreateOperatorRequest,
   ): Promise<CreateOperatorResponse> {
     const parsed = createOperatorRequestSchema.parse(request);
-    await this.authenticateSession(sessionToken, csrfToken);
+    await inTransaction(this.pool, (client) =>
+      this.authenticateSessionInTransaction(client, sessionToken, csrfToken, true),
+    );
     const passwordHash = await hashOperatorPassword(parsed.initialPassword);
     return inTransaction(this.pool, async (client) => {
       await client.query(`LOCK TABLE ${schema}.operators IN SHARE ROW EXCLUSIVE MODE`);
@@ -563,6 +584,7 @@ export class OperatorAuthService {
         client,
         sessionToken,
         csrfToken,
+        true,
       );
       const now = await databaseNow(client);
       const replay = await beginIdempotentRequest(
@@ -630,6 +652,7 @@ export class OperatorAuthService {
         client,
         sessionToken,
         csrfToken,
+        true,
       );
       const now = await databaseNow(client);
       const replay = await beginIdempotentRequest(
@@ -711,6 +734,7 @@ export class OperatorAuthService {
         client,
         sessionToken,
         csrfToken,
+        true,
       );
       const now = await databaseNow(client);
       await client.query(
@@ -774,38 +798,60 @@ export class OperatorAuthService {
     client: PoolClient,
     sessionToken: string,
     csrfToken?: string,
+    requireCsrf = false,
   ): Promise<OperatorSessionContext> {
     const now = await databaseNow(client);
-    const result = await client.query<SessionOperatorRow>(
-      `SELECT o.*, s.session_id, s.expires_at, s.revoked_at,
-              s.credential_version::text AS session_credential_version
-         FROM ${schema}.operator_sessions s
-         JOIN ${schema}.operators o ON o.operator_id = s.operator_id
-        WHERE s.token_digest = $1
-          AND ($2::bytea IS NULL OR s.csrf_digest = $2)
-        FOR UPDATE OF s, o`,
-      [
-        /^[A-Za-z0-9_-]{43}$/.test(sessionToken) ? digest(sessionToken) : Buffer.alloc(32),
-        csrfToken === undefined
-          ? null
-          : /^[A-Za-z0-9_-]{43}$/.test(csrfToken)
-            ? digest(csrfToken)
-            : Buffer.alloc(32),
-      ],
+    const sessionDigest = /^[A-Za-z0-9_-]{43}$/.test(sessionToken)
+      ? digest(sessionToken)
+      : Buffer.alloc(32);
+    const csrfDigest =
+      csrfToken !== undefined && /^[A-Za-z0-9_-]{43}$/.test(csrfToken)
+        ? digest(csrfToken)
+        : requireCsrf || csrfToken !== undefined
+          ? Buffer.alloc(32)
+          : null;
+    const lookup = await client.query<SessionLookupRow>(
+      `SELECT session_id, operator_id
+         FROM ${schema}.operator_sessions
+        WHERE token_digest = $1
+          AND ($2::bytea IS NULL OR csrf_digest = $2)`,
+      [sessionDigest, csrfDigest],
     );
-    const row = result.rows[0];
+    const identity = lookup.rows[0];
+    if (!identity) {
+      throw new ProductTransactionError(
+        "AUTHENTICATION_REQUIRED",
+        "Operator session is invalid or expired",
+      );
+    }
+    const operatorResult = await client.query<OperatorRow>(
+      `SELECT * FROM ${schema}.operators WHERE operator_id = $1 FOR UPDATE`,
+      [identity.operator_id],
+    );
+    const sessionResult = await client.query<OperatorSessionRow>(
+      `SELECT session_id, credential_version::text AS credential_version,
+              expires_at, revoked_at
+         FROM ${schema}.operator_sessions
+        WHERE session_id = $1 AND token_digest = $2
+          AND ($3::bytea IS NULL OR csrf_digest = $3)
+        FOR UPDATE`,
+      [identity.session_id, sessionDigest, csrfDigest],
+    );
+    const operator = operatorResult.rows[0];
+    const session = sessionResult.rows[0];
     if (
-      !row ||
-      row.revoked_at !== null ||
-      row.expires_at <= now ||
-      row.status !== "active" ||
-      row.session_credential_version !== row.credential_version
+      !operator ||
+      !session ||
+      session.revoked_at !== null ||
+      session.expires_at <= now ||
+      operator.status !== "active" ||
+      session.credential_version !== operator.credential_version
     ) {
       throw new ProductTransactionError(
         "AUTHENTICATION_REQUIRED",
         "Operator session is invalid or expired",
       );
     }
-    return { operator: operatorView(row), sessionId: row.session_id };
+    return { operator: operatorView(operator), sessionId: session.session_id };
   }
 }

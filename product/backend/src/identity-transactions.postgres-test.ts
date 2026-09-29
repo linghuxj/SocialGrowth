@@ -33,6 +33,10 @@ interface CountRow {
   count: string;
 }
 
+interface DeadlockRow {
+  deadlocks: string;
+}
+
 function digest(value: string): Buffer {
   return createHash("sha256").update(value, "utf8").digest();
 }
@@ -609,6 +613,16 @@ test("operator authentication enforces throttling, revocation and last-account p
     (error: unknown) =>
       error instanceof ProductTransactionError && error.code === "AUTHENTICATION_REQUIRED",
   );
+  await assert.rejects(
+    operatorService.logout(
+      firstLogin.sessionToken,
+      undefined as unknown as string,
+      "request-missing-csrf-0001",
+    ),
+    (error: unknown) =>
+      error instanceof ProductTransactionError && error.code === "AUTHENTICATION_REQUIRED",
+  );
+  await operatorService.authenticateSession(firstLogin.sessionToken);
 
   const disabled = await operatorService.disableOperator(
     firstLogin.sessionToken,
@@ -670,6 +684,37 @@ test("operator authentication enforces throttling, revocation and last-account p
       error instanceof ProductTransactionError && error.code === "LOGIN_RATE_LIMITED",
   );
 
+  const deadlocksBefore = await pool.query<DeadlockRow>(
+    `SELECT deadlocks::text AS deadlocks
+       FROM pg_stat_database
+      WHERE datname = current_database()`,
+  );
+  const existingAccountFailures = await Promise.allSettled(
+    Array.from({ length: 5 }, (_, attempt) =>
+      operatorService.login(
+        {
+          metadata: {
+            contractVersion,
+            requestId: `request-existing-bad-login-${attempt}`,
+          },
+          loginName: "operator.one",
+          password: "incorrect-password-0000",
+        },
+        "existing-account-concurrent-client",
+      ),
+    ),
+  );
+  assert.equal(existingAccountFailures.every((result) => result.status === "rejected"), true);
+  const deadlocksAfterLogin = await pool.query<DeadlockRow>(
+    `SELECT deadlocks::text AS deadlocks
+       FROM pg_stat_database
+      WHERE datname = current_database()`,
+  );
+  assert.equal(
+    deadlocksAfterLogin.rows[0]?.deadlocks,
+    deadlocksBefore.rows[0]?.deadlocks,
+  );
+
   const concurrentFailures = await Promise.allSettled(
     Array.from({ length: 5 }, (_, attempt) =>
       operatorService.login(
@@ -707,7 +752,7 @@ test("operator authentication enforces throttling, revocation and last-account p
       error instanceof ProductTransactionError && error.code === "LOGIN_RATE_LIMITED",
   );
 
-  const recovered = await operatorService.recoverOperator({
+  let recovered = await operatorService.recoverOperator({
     operatorId: first.operatorId,
     newPassword: replacementPassword,
     requestId: "request-recover-0001",
@@ -717,6 +762,45 @@ test("operator authentication enforces throttling, revocation and last-account p
     operatorService.authenticateSession(firstLogin.sessionToken),
     (error: unknown) =>
       error instanceof ProductTransactionError && error.code === "AUTHENTICATION_REQUIRED",
+  );
+  let currentPassword = replacementPassword;
+  for (let iteration = 0; iteration < 3; iteration += 1) {
+    const session = await operatorService.login(
+      {
+        metadata: {
+          contractVersion,
+          requestId: `request-recovery-race-login-${iteration}`,
+        },
+        loginName: "operator.one",
+        password: currentPassword,
+      },
+      `recovery-race-client-${iteration}`,
+    );
+    const nextPassword = `recovery-race-password-${iteration}-0001`;
+    const race = await Promise.allSettled([
+      operatorService.authenticateSession(session.sessionToken),
+      operatorService.recoverOperator({
+        operatorId: first.operatorId,
+        newPassword: nextPassword,
+        requestId: `request-recovery-race-${iteration}`,
+      }),
+    ]);
+    const recoveryResult = race[1];
+    if (!recoveryResult || recoveryResult.status === "rejected") {
+      throw recoveryResult?.reason ?? new Error("Recovery race returned no result");
+    }
+    recovered = recoveryResult.value;
+    currentPassword = nextPassword;
+    await assert.rejects(operatorService.authenticateSession(session.sessionToken));
+  }
+  const deadlocksAfterRecovery = await pool.query<DeadlockRow>(
+    `SELECT deadlocks::text AS deadlocks
+       FROM pg_stat_database
+      WHERE datname = current_database()`,
+  );
+  assert.equal(
+    deadlocksAfterRecovery.rows[0]?.deadlocks,
+    deadlocksBefore.rows[0]?.deadlocks,
   );
   await assert.rejects(
     operatorService.login(
@@ -734,7 +818,7 @@ test("operator authentication enforces throttling, revocation and last-account p
     {
       metadata: { contractVersion, requestId: "request-new-password-0001" },
       loginName: "operator.one",
-      password: replacementPassword,
+      password: currentPassword,
     },
     "test-client-three",
   );
@@ -749,7 +833,7 @@ test("operator authentication enforces throttling, revocation and last-account p
     {
       metadata: { contractVersion, requestId: "request-concurrency-login-0001" },
       loginName: "operator.one",
-      password: replacementPassword,
+      password: currentPassword,
     },
     "concurrency-client-one",
   );
