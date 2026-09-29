@@ -640,6 +640,12 @@ export class IdentityTransactionService {
           "Association session is unavailable",
         );
       }
+      if (session.installation_id !== installationId) {
+        throw new ProductTransactionError(
+          "ASSOCIATION_TARGET_CHANGED",
+          "Association session target changed while acquiring its lock",
+        );
+      }
       if (session.consumed_at) {
         throw new ProductTransactionError(
           "ASSOCIATION_SESSION_CONSUMED",

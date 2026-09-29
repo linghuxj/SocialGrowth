@@ -475,6 +475,10 @@ test("association refresh and confirmation use a deadlock-free lock order", asyn
       ),
     ]);
 
+    const fulfilledCount = [refresh, confirm].filter(
+      (result) => result.status === "fulfilled",
+    ).length;
+    assert.equal(fulfilledCount, 1);
     if (refresh.status === "rejected") {
       assert.ok(refresh.reason instanceof ProductTransactionError);
       assert.equal(refresh.reason.code, "DEVICE_ALREADY_ASSOCIATED");
@@ -487,6 +491,23 @@ test("association refresh and confirmation use a deadlock-free lock order", asyn
         ),
       );
     }
-    assert.ok(refresh.status === "fulfilled" || confirm.status === "fulfilled");
+    const finalFacts = await pool.query<{
+      current_associations: string;
+      open_sessions: string;
+    }>(
+      `SELECT
+         (SELECT count(*) FROM socialgrowth_product.device_associations
+           WHERE installation_id = $1 AND ended_at IS NULL)::text
+             AS current_associations,
+         (SELECT count(*) FROM socialgrowth_product.association_sessions
+           WHERE installation_id = $1 AND consumed_at IS NULL
+             AND invalidated_at IS NULL)::text AS open_sessions`,
+      [installationId],
+    );
+    const finalFact = finalFacts.rows[0];
+    assert.ok(
+      (finalFact?.current_associations === "1" && finalFact.open_sessions === "0") ||
+        (finalFact?.current_associations === "0" && finalFact.open_sessions === "1"),
+    );
   }
 });
