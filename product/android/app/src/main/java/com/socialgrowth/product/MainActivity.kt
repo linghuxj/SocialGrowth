@@ -64,6 +64,7 @@ class MainActivity : Activity() {
     private fun showAuthForm() {
         val root = vertical(20).apply {
             setBackgroundColor(canvas)
+            setPadding(dp(20), dp(20), dp(20), dp(72))
             minimumHeight = resources.displayMetrics.heightPixels - dp(48)
         }
         val scroll = ScrollView(this).apply {
@@ -152,7 +153,11 @@ class MainActivity : Activity() {
             contentDescription = submitLabel
         }
         card.addView(submit, matchHeight(54).apply { topMargin = dp(18) })
-        card.addView(label("注册不会将本机接入执行。", 13f, secondary).apply { gravity = Gravity.CENTER }, matchWrap().apply {
+        card.addView(label(
+            if (registrationMode) "注册不会将本机接入执行。" else "登录不会将本机接入执行。",
+            13f,
+            secondary,
+        ).apply { gravity = Gravity.CENTER }, matchWrap().apply {
             topMargin = dp(12)
         })
         root.addView(card, matchWrap().apply { topMargin = dp(18) })
@@ -177,10 +182,6 @@ class MainActivity : Activity() {
             topMargin = dp(24)
         })
         root.addView(View(this), LinearLayout.LayoutParams(1, 0, 1f))
-        root.addView(label("示例页面 · 2026-09-28", 12f, Color.rgb(122, 135, 151)).apply { gravity = Gravity.CENTER }, matchWrap().apply {
-            topMargin = dp(24)
-            bottomMargin = dp(10)
-        })
 
         requestCode.setOnClickListener {
             val phoneValue = phone.text.toString().trim()
