@@ -97,6 +97,7 @@ try {
     || replayCreation.access.code !== code) {
     throw new Error("Invitation response-loss retry did not recover the original invitation identity and access code");
   }
+  await primary.getByText("邀请已创建。请现在复制共享码或链接；关闭后将不再显示。").waitFor();
   await primary.locator(".access-panel .copy-field button").first().click();
   const copiedCode = await primary.evaluate(() => navigator.clipboard.readText());
   if (copiedCode !== code) throw new Error("Invitation code copy did not preserve the code");
@@ -187,7 +188,7 @@ try {
   }
 
   primary.once("dialog", (dialog) => void dialog.accept());
-  const primaryRow = primary.getByRole("row").filter({ hasText: primaryLogin });
+  const primaryRow = primary.getByRole("row").filter({ has: primary.getByText(primaryLogin, { exact: true }) });
   await primaryRow.getByRole("button", { name: "停用" }).click();
   await primary.getByText("必须至少保留一个有效运营账号").waitFor();
 

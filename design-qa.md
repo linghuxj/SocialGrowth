@@ -56,6 +56,26 @@ final result: passed
 
 ---
 
+# WP-06 第三阶段 Android 真机设计 QA
+
+日期：2026-09-30。范围仅为 Samsung SM-S9110／Android 16 上真实 0 台归属设备的管理首页、本人资料与原号码不可用帮助；非空设备详情及执行端本机页不在本次真机视觉结论内。
+
+## 输入与真实证据
+
+- source visual truth：`docs/design/android/home-list-v1.png`、`device-detail-v1.png`、`profile-v1.png`、`account-recovery-help-v1.png` 及各自同名 `*-prompt.txt`。参考中的设备、收益、发布身份、在线/授权及进度是示例，不能照搬为真实事实。
+- implementation：`artifacts/design-qa/wp06-stage3/management-home.png`、`profile.png`、`account-help.png`，真机 1080 × 2340 px。`web-provider-no-device.png` 为实际 Web 入口看到同一隔离后端的 1 位提供者／0 台设备补充核对。注册前和取验证码时的临时截图仅供本机调试，不作交付视觉证据。
+- combined comparison：`artifacts/design-qa/wp06-stage3/comparison.png`，左参考、右真机，以等显示高度并排检查。两侧数据状态不同，比较限于信息层级、色彩、布局和边界文案。
+
+## 检查结果与边界
+
+- 首页保留参考的浅色画布、深色标题、蓝色主按钮、白色事实卡片和页头资料入口；真实空态明确 0 台、连接未确认，不出现示例设备卡或虚构在线/任务/授权。资料页展示真实脱敏手机号、仅管理身份和明确退出；帮助页解释人工核验与受控换绑，不伪装为已有工单提交能力。
+- 真机系统返回按帮助→资料→首页逐级导航；退出后回到认证页，强停重启不回显原资料。屏幕内容可滚动，页面未观察到文字截断或底部操作被系统导航栏遮挡。真实邀请来自 Web 页面，验证码来自隔离后台受保护开发读取；二者不证明真实短信。
+- 参考设备详情和执行端本机页因只有一台实体手机、尚无经双机光学建立的归属，不能给出真实非空截图。其排版只经过代码/构建检查，不标视觉或业务通过。需要第二台执行手机后由 AND/QA 按 `docs/engineering/delivery/records/WP-06.md` 补验。
+
+final result: passed（仅上述三张真实管理端页面及空数据状态；非空详情、执行端、跨机影响未验证）
+
+---
+
 # WP-06 第二阶段运营手机事实页设计 QA
 
 日期：2026-09-30。范围为运营 Web“账号与设备／手机”在真实空数据下的页面，非 Android 或非空设备业务验收。

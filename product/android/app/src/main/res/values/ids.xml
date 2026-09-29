@@ -12,6 +12,10 @@
     <item name="installation_refresh" type="id" />
     <item name="provider_add_device" type="id" />
     <item name="provider_device_list" type="id" />
+    <item name="provider_device_refresh" type="id" />
+    <item name="provider_profile" type="id" />
+    <item name="provider_device_detail" type="id" />
+    <item name="provider_account_help" type="id" />
     <item name="association_confirm" type="id" />
     <item name="association_rescan" type="id" />
 </resources>

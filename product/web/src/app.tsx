@@ -185,7 +185,8 @@ export function App() {
       createInvitationKey.current ??= newIdempotencyKey();
       const response = await createInvitation({ maxUses: Number(maxUses), expiresAt: new Date(expiresAt).toISOString() }, createInvitationKey.current);
       createInvitationKey.current = null; setCreatedAccess(response); setMaxUses("5"); setExpiresAt(defaultExpiry());
-      await refresh(); setMessage("邀请已创建。请现在复制共享码或链接；关闭后将不再显示。");
+      setMessage("邀请已创建。请现在复制共享码或链接；关闭后将不再显示。");
+      await refresh();
     } catch (error) { handleFailure(error); } finally { setBusy(false); }
   }
   async function onRevoke(invitation: InvitationView): Promise<void> {
