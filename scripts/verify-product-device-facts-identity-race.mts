@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { chromium, type Page, type Route } from "playwright";
 
+import { fetchCapturedBrowserRequest } from "./product-playwright-safe-fetch.mjs";
+
 function required(name: string): string {
   const value = process.env[name];
   if (!value) throw new Error(`${name} is required`);
@@ -77,7 +79,7 @@ try {
     await releaseOldRead.promise;
     // Forward the browser's captured original headers after its server session is revoked.
     // The backend, not the test, determines whether this old request is a 401.
-    const response = await route.fetch({ headers: originalHeaders });
+    const response = await fetchCapturedBrowserRequest(route, originalHeaders);
     assert.equal(response.status(), 401, "intercepted old-session request did not receive a real backend 401");
     await route.fulfill({ response });
   };
