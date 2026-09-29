@@ -2394,6 +2394,7 @@
                 "CONTRACT_VERSION_UNSUPPORTED",
                 "IDEMPOTENCY_KEY_REUSED",
                 "IDEMPOTENCY_RESULT_EXPIRED",
+                "INSTALLATION_BOOTSTRAP_RATE_LIMITED",
                 "INPUT_INVALID",
                 "INTERNAL_ERROR",
                 "INVITATION_EXPIRED",

@@ -1,4 +1,4 @@
-import { Body, Controller, Header, Headers, Inject, Post } from "@nestjs/common";
+import { Body, Controller, Header, Headers, Inject, Post, Req } from "@nestjs/common";
 import {
   bootstrapInstallationRequestSchema,
   createAssociationSessionRequestSchema,
@@ -25,11 +25,18 @@ export class InstallationController {
 
   @Post("bootstrap")
   @Header("Cache-Control", "no-store")
-  async bootstrap(@Body() body: unknown) {
+  async bootstrap(
+    @Body() body: unknown,
+    @Req() request: { ip?: string; socket?: { remoteAddress?: string } },
+  ) {
     const requestId = requestIdFrom(body);
     try {
       requireSupportedContract(body);
-      return await this.auth.bootstrap(bootstrapInstallationRequestSchema.parse(body));
+      const sourceAddress = request.ip ?? request.socket?.remoteAddress ?? "";
+      return await this.auth.bootstrap(
+        bootstrapInstallationRequestSchema.parse(body),
+        sourceAddress,
+      );
     } catch (error) {
       rethrowHttp(error, requestId);
     }

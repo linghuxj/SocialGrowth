@@ -33,6 +33,7 @@ const migrationUrls = [
   new URL("../migrations/0001_identity_and_device.sql", import.meta.url),
   new URL("../migrations/0002_provider_phone_auth.sql", import.meta.url),
   new URL("../migrations/0003_provider_auth_recovery.sql", import.meta.url),
+  new URL("../migrations/0004_installation_bootstrap_admission.sql", import.meta.url),
 ];
 
 let app: NestApplication;
@@ -335,6 +336,30 @@ test("real HTTP keeps scan read-only and supports confirmation recovery and mult
   assert.equal(finalState.deviceId, confirmed.deviceId);
   assert.equal(finalState.state, "associated_pending_access");
 
+  await pool.query(
+    `UPDATE socialgrowth_product.devices
+        SET state = 'paused', fact_version = fact_version + 1,
+            updated_at = clock_timestamp()
+      WHERE device_id = $1`,
+    [confirmed.deviceId],
+  );
+  const stableReceiptResult = await post(
+    "/api/provider/association-sessions/result",
+    {
+      metadata: metadata("association-http-query-after-state-change-0001"),
+      associationSessionId: inspected.associationSessionId,
+      expectedInstallationId: inspected.installation.installationId,
+    },
+    owner.token,
+  );
+  const stableReceipt = associationResultResponseSchema.parse(
+    stableReceiptResult.body,
+  );
+  assert.equal(stableReceipt.status, "associated");
+  if (stableReceipt.status === "associated") {
+    assert.deepEqual(stableReceipt.result, confirmed);
+  }
+
   const secondBootstrapResult = await post("/api/installation/bootstrap", {
     metadata: metadata("association-http-bootstrap-second-0001"),
     installationCredential: installationCredential(),
@@ -406,4 +431,39 @@ test("real HTTP keeps scan read-only and supports confirmation recovery and mult
     installations: "2",
     sessions: "2",
   });
+});
+
+test("public bootstrap is bounded by a database-backed source admission limit", async () => {
+  await pool.query("DELETE FROM socialgrowth_product.installation_bootstrap_admissions");
+  const before = await pool.query<{ installations: string }>(
+    "SELECT count(*)::text AS installations FROM socialgrowth_product.installations",
+  );
+  for (let index = 0; index < 10; index += 1) {
+    const result = await post("/api/installation/bootstrap", {
+      metadata: metadata(`association-http-rate-admitted-${String(index).padStart(4, "0")}`),
+      installationCredential: installationCredential(),
+    });
+    assert.equal(result.response.status, 201);
+  }
+  const limited = await post("/api/installation/bootstrap", {
+    metadata: metadata("association-http-rate-limited-0010"),
+    installationCredential: installationCredential(),
+  });
+  assert.equal(limited.response.status, 429);
+  const error = productErrorResponseSchema.parse(limited.body);
+  assert.equal(error.error.code, "INSTALLATION_BOOTSTRAP_RATE_LIMITED");
+  assert.equal(error.error.retryable, true);
+  const afterLimit = await pool.query<{
+    admissions: string;
+    installations: string;
+  }>(
+    `SELECT
+       (SELECT count(*)::text FROM socialgrowth_product.installations) AS installations,
+       (SELECT count(*)::text FROM socialgrowth_product.installation_bootstrap_admissions) AS admissions`,
+  );
+  assert.equal(afterLimit.rows[0]?.admissions, "10");
+  assert.equal(
+    Number(afterLimit.rows[0]?.installations) - Number(before.rows[0]?.installations),
+    10,
+  );
 });

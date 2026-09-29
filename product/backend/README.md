@@ -10,6 +10,7 @@ WP-01 开始建立正式权威数据模型：
 - [`0001_identity_and_device.sql`](migrations/0001_identity_and_device.sql)
 - [`0002_provider_phone_auth.sql`](migrations/0002_provider_phone_auth.sql)：短信挑战状态、重发/尝试限制和用途绑定；须在 0001 后执行。
 - [`0003_provider_auth_recovery.sql`](migrations/0003_provider_auth_recovery.sql)：为已发布 0002 增加 proof/session 响应恢复关联；保留既有行并允许旧会话关联为空。
+- [`0004_installation_bootstrap_admission.sql`](migrations/0004_installation_bootstrap_admission.sql)：记录不含原始地址的安装引导准入事实，为来源和全局数据库限流提供并发一致的计数。
 
 迁移当前是待后端迁移执行器消费的前向 SQL；未在真实 PostgreSQL 执行前，不得将其记为迁移或并发验收通过。
 
@@ -21,6 +22,7 @@ WP-01 开始建立正式权威数据模型：
 - 安装端创建新关联会话时失效旧会话；提供者只能读取必要扫码目标并确认。确认事务原子消费会话、创建归属并写入 `associated_pending_access` 设备状态。
 - 安装引导只创建低权限 installation/session，不创建 device 或归属。客户端先持久化随机根凭据，服务端仅保存带 pepper 的摘要；同凭据重放恢复同一身份，清数据后新凭据不会自动找回旧设备。
 - `/api/installation/*` 以安装 Bearer 会话创建关联会话和查询本机事实；`/api/provider/association-sessions/*` 以 Provider Bearer 会话查看、确认及查询原结果。扫码查看只读，只有确认事务创建归属；`/api/provider/devices/list` 仅列本人设备的必要字段。
+- 未认证安装 bootstrap 只对“新根凭据创建新身份”消费准入额度：默认同一可信来源 15 分钟最多 10 个、全局最多 1000 个；计数与 installation 在同一 PostgreSQL 事务中写入，地址只保存 pepper-HMAC 摘要。同根凭据的恢复不新增事实、不消费新额度。
 - 幂等载荷摘要排除每次重试可变的 `requestId`；同键同业务载荷返回原结果，同键异载荷拒绝。
 - 成功注册、关联会话创建和设备关联写入不含令牌、验证码、原邀请码或手机号的审计事实。
 

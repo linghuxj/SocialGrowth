@@ -18,6 +18,18 @@ const schema = "socialgrowth_product";
 const sessionLifetimeMilliseconds = 30 * 24 * 60 * 60 * 1000;
 const installationSessionTokenPattern = /^[A-Za-z0-9_-]{43}$/;
 
+export interface InstallationBootstrapPolicy {
+  globalLimit: number;
+  perSourceLimit: number;
+  windowMilliseconds: number;
+}
+
+const defaultBootstrapPolicy: InstallationBootstrapPolicy = {
+  globalLimit: 1_000,
+  perSourceLimit: 10,
+  windowMilliseconds: 15 * 60 * 1000,
+};
+
 interface InstallationRow {
   installation_id: string;
   generation: string;
@@ -52,6 +64,12 @@ function sessionToken(pepper: string, credential: string): string {
   return createHmac("sha256", pepper)
     .update(`installation-session:${credential}`, "utf8")
     .digest("base64url");
+}
+
+function bootstrapSourceDigest(pepper: string, sourceAddress: string): Buffer {
+  return createHmac("sha256", pepper)
+    .update(`installation-bootstrap-source:${sourceAddress}`, "utf8")
+    .digest();
 }
 
 async function databaseNow(client: PoolClient): Promise<Date> {
@@ -89,25 +107,44 @@ export class InstallationAuthService {
   constructor(
     private readonly pool: Pool,
     private readonly securityPepper: string,
-  ) {}
+    private readonly bootstrapPolicy: InstallationBootstrapPolicy =
+      defaultBootstrapPolicy,
+  ) {
+    if (
+      bootstrapPolicy.globalLimit < 1 ||
+      bootstrapPolicy.perSourceLimit < 1 ||
+      bootstrapPolicy.perSourceLimit > bootstrapPolicy.globalLimit ||
+      bootstrapPolicy.windowMilliseconds < 1
+    ) {
+      throw new Error("Installation bootstrap policy is invalid");
+    }
+  }
 
   async bootstrap(
     input: BootstrapInstallationRequest,
+    sourceAddress: string,
   ): Promise<InstallationAuthResponse> {
     const request = bootstrapInstallationRequestSchema.parse(input);
+    if (sourceAddress.trim().length === 0 || sourceAddress.length > 128) {
+      throw new ProductTransactionError(
+        "AUTHORIZATION_DENIED",
+        "Installation bootstrap source is unavailable",
+      );
+    }
     const rootDigest = credentialDigest(
       this.securityPepper,
       request.installationCredential,
     );
     const token = sessionToken(this.securityPepper, request.installationCredential);
     const tokenDigest = digest(token);
+    const sourceDigest = bootstrapSourceDigest(this.securityPepper, sourceAddress);
 
     return inTransaction(this.pool, async (client) => {
       await client.query(
         "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
         [rootDigest.toString("hex")],
       );
-      const now = await databaseNow(client);
+      let now = await databaseNow(client);
       const existingInstallation = await client.query<InstallationRow>(
         `SELECT installation_id, generation, status, created_at, updated_at
            FROM ${schema}.installations
@@ -118,6 +155,41 @@ export class InstallationAuthService {
       let installation = existingInstallation.rows[0];
       const createdNewInstallation = !installation;
       if (!installation) {
+        await client.query(
+          "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+          ["installation-bootstrap-global"],
+        );
+        await client.query(
+          "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+          [`installation-bootstrap-source:${sourceDigest.toString("hex")}`],
+        );
+        now = await databaseNow(client);
+        const windowStart = new Date(
+          now.getTime() - this.bootstrapPolicy.windowMilliseconds,
+        );
+        const counts = await client.query<{
+          global_count: string;
+          source_count: string;
+        }>(
+          `SELECT
+             count(*)::text AS global_count,
+             count(*) FILTER (WHERE source_digest = $1)::text AS source_count
+             FROM ${schema}.installation_bootstrap_admissions
+            WHERE admitted_at >= $2`,
+          [sourceDigest, windowStart],
+        );
+        const count = counts.rows[0];
+        if (
+          !count ||
+          Number(count.global_count) >= this.bootstrapPolicy.globalLimit ||
+          Number(count.source_count) >= this.bootstrapPolicy.perSourceLimit
+        ) {
+          throw new ProductTransactionError(
+            "INSTALLATION_BOOTSTRAP_RATE_LIMITED",
+            "Installation bootstrap admission is temporarily limited",
+            true,
+          );
+        }
         const installationId = randomUUID();
         const inserted = await client.query<InstallationRow>(
           `INSERT INTO ${schema}.installations (
@@ -128,6 +200,12 @@ export class InstallationAuthService {
           [installationId, rootDigest, now],
         );
         installation = inserted.rows[0];
+        await client.query(
+          `INSERT INTO ${schema}.installation_bootstrap_admissions (
+             admission_id, source_digest, installation_id, admitted_at
+           ) VALUES ($1, $2, $3, $4)`,
+          [randomUUID(), sourceDigest, installationId, now],
+        );
       }
       if (!installation || installation.status !== "active") {
         throw new ProductTransactionError(

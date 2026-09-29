@@ -20,8 +20,8 @@ const metadata = {
 test("installation routes authenticate the server-owned identity context", async () => {
   const observed: unknown[] = [];
   const auth = {
-    async bootstrap(input: unknown) {
-      observed.push({ bootstrap: input });
+    async bootstrap(input: unknown, sourceAddress: string) {
+      observed.push({ bootstrap: input, sourceAddress });
       return { installation: { installationId: "installation" } };
     },
     async authenticate(token: string) {
@@ -47,7 +47,10 @@ test("installation routes authenticate the server-owned identity context", async
   const credential = `sginst_v1_${"C".repeat(43)}`;
 
   assert.deepEqual(
-    await controller.bootstrap({ metadata, installationCredential: credential }),
+    await controller.bootstrap(
+      { metadata, installationCredential: credential },
+      { ip: "127.0.0.1" },
+    ),
     { installation: { installationId: "installation" } },
   );
   assert.deepEqual(

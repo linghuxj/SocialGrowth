@@ -59,6 +59,7 @@ export function requireSupportedContract(value: unknown): void {
 function statusFor(error: ProductTransactionError): number {
   if (
     error.code === "LOGIN_RATE_LIMITED" ||
+    error.code === "INSTALLATION_BOOTSTRAP_RATE_LIMITED" ||
     error.code === "PHONE_VERIFICATION_RATE_LIMITED"
   ) return 429;
   if (error.code === "SMS_DELIVERY_UNAVAILABLE") return 503;

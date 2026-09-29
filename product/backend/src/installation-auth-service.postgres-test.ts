@@ -23,6 +23,7 @@ const migrationUrls = [
   new URL("../migrations/0001_identity_and_device.sql", import.meta.url),
   new URL("../migrations/0002_provider_phone_auth.sql", import.meta.url),
   new URL("../migrations/0003_provider_auth_recovery.sql", import.meta.url),
+  new URL("../migrations/0004_installation_bootstrap_admission.sql", import.meta.url),
 ];
 
 function credential(): string {
@@ -57,11 +58,11 @@ test("bootstrap replay returns one installation and one recoverable session", as
   const first = await service.bootstrap({
     metadata: metadata("installation-bootstrap-replay-0001"),
     installationCredential,
-  });
+  }, "source-replay");
   const replay = await service.bootstrap({
     metadata: metadata("installation-bootstrap-replay-0002"),
     installationCredential,
-  });
+  }, "source-replay");
 
   assert.equal(first.createdNewInstallation, true);
   assert.equal(replay.createdNewInstallation, false);
@@ -106,11 +107,11 @@ test("concurrent bootstrap requests serialize to one installation", async () => 
     service.bootstrap({
       metadata: metadata("installation-bootstrap-race-left-0001"),
       installationCredential,
-    }),
+    }, "source-race"),
     service.bootstrap({
       metadata: metadata("installation-bootstrap-race-right-0001"),
       installationCredential,
-    }),
+    }, "source-race"),
   ]);
 
   assert.equal(left.installation.installationId, right.installation.installationId);
@@ -122,11 +123,11 @@ test("a lost root credential creates a new identity and never reclaims the old o
   const oldIdentity = await service.bootstrap({
     metadata: metadata("installation-old-identity-0001"),
     installationCredential: credential(),
-  });
+  }, "source-old");
   const reinstalled = await service.bootstrap({
     metadata: metadata("installation-reinstalled-identity-0001"),
     installationCredential: credential(),
-  });
+  }, "source-reinstalled");
 
   assert.notEqual(
     reinstalled.installation.installationId,
@@ -145,7 +146,7 @@ test("revoked or replaced installation cannot use an old session", async () => {
   const auth = await service.bootstrap({
     metadata: metadata("installation-revoked-identity-0001"),
     installationCredential: credential(),
-  });
+  }, "source-revoked");
   await pool.query(
     `UPDATE socialgrowth_product.installations
         SET status = 'replaced', generation = generation + 1,
@@ -160,4 +161,50 @@ test("revoked or replaced installation cannot use an old session", async () => {
       error instanceof ProductTransactionError &&
       error.code === "AUTHENTICATION_REQUIRED",
   );
+});
+
+test("bootstrap admission enforces per-source and global database limits", async () => {
+  await pool.query("DELETE FROM socialgrowth_product.installation_bootstrap_admissions");
+  const limited = new InstallationAuthService(pool, pepper, {
+    globalLimit: 2,
+    perSourceLimit: 1,
+    windowMilliseconds: 15 * 60 * 1000,
+  });
+  await limited.bootstrap({
+    metadata: metadata("installation-limited-source-a-0001"),
+    installationCredential: credential(),
+  }, "source-a");
+  await assert.rejects(
+    limited.bootstrap({
+      metadata: metadata("installation-limited-source-a-0002"),
+      installationCredential: credential(),
+    }, "source-a"),
+    (error: unknown) =>
+      error instanceof ProductTransactionError &&
+      error.code === "INSTALLATION_BOOTSTRAP_RATE_LIMITED" &&
+      error.retryable,
+  );
+  await limited.bootstrap({
+    metadata: metadata("installation-limited-source-b-0001"),
+    installationCredential: credential(),
+  }, "source-b");
+  await assert.rejects(
+    limited.bootstrap({
+      metadata: metadata("installation-limited-source-c-0001"),
+      installationCredential: credential(),
+    }, "source-c"),
+    (error: unknown) =>
+      error instanceof ProductTransactionError &&
+      error.code === "INSTALLATION_BOOTSTRAP_RATE_LIMITED",
+  );
+  const facts = await pool.query<{ admissions: string; limited_installations: string }>(
+    `SELECT
+       count(*)::text AS admissions,
+       count(DISTINCT installation_id)::text AS limited_installations
+       FROM socialgrowth_product.installation_bootstrap_admissions`,
+  );
+  assert.deepEqual(facts.rows[0], {
+    admissions: "2",
+    limited_installations: "2",
+  });
 });

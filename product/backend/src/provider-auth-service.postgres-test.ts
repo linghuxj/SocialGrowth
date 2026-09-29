@@ -25,6 +25,7 @@ const migrationUrls = [
   new URL("../migrations/0001_identity_and_device.sql", import.meta.url),
   new URL("../migrations/0002_provider_phone_auth.sql", import.meta.url),
   new URL("../migrations/0003_provider_auth_recovery.sql", import.meta.url),
+  new URL("../migrations/0004_installation_bootstrap_admission.sql", import.meta.url),
 ];
 const pepper = "test-provider-auth-pepper-00000000000000000001";
 
