@@ -12,19 +12,22 @@
     "start": "node dist/main.js",
     "dev": "tsx watch src/main.ts",
     "pretest": "pnpm --filter @socialgrowth/product-contracts build",
-    "test": "tsx --test src/*.test.ts"
+    "test": "tsx --test src/*.test.ts",
+    "test:postgres": "tsx --test src/*.postgres-test.ts"
   },
   "dependencies": {
     "@nestjs/common": "12.1.1",
     "@nestjs/core": "12.1.1",
     "@nestjs/platform-express": "12.1.1",
     "@socialgrowth/product-contracts": "workspace:*",
+    "pg": "8.23.0",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
     "zod": "4.6.5"
   },
   "devDependencies": {
     "@types/node": "22.20.4",
+    "@types/pg": "8.20.0",
     "tsx": "4.23.13",
     "typescript": "5.9.3"
   }
