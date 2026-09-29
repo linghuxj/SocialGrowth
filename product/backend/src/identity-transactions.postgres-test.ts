@@ -111,6 +111,23 @@ async function seedInstallation(): Promise<string> {
   return installationId;
 }
 
+async function waitForBlockedQuery(fragment: string): Promise<void> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const result = await pool.query<CountRow>(
+      `SELECT count(*)::text AS count
+         FROM pg_stat_activity
+        WHERE datname = current_database()
+          AND state = 'active'
+          AND wait_event_type = 'Lock'
+          AND query LIKE $1`,
+      [`%${fragment}%`],
+    );
+    if (result.rows[0]?.count !== "0") return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(`Timed out waiting for blocked PostgreSQL query: ${fragment}`);
+}
+
 before(async () => {
   const migration = await readFile(migrationUrl, "utf8");
   await pool.query("DROP SCHEMA IF EXISTS socialgrowth_product CASCADE");
@@ -704,7 +721,35 @@ test("operator authentication enforces throttling, revocation and last-account p
       ),
     ),
   );
-  assert.equal(existingAccountFailures.every((result) => result.status === "rejected"), true);
+  assert.equal(
+    existingAccountFailures.every(
+      (result) =>
+        result.status === "rejected" &&
+        result.reason instanceof ProductTransactionError &&
+        result.reason.code === "INVALID_CREDENTIALS",
+    ),
+    true,
+  );
+  const existingThrottle = await pool.query<CountRow>(
+    `SELECT count(*)::text AS count
+       FROM socialgrowth_product.operator_login_throttles
+      WHERE login_name = 'operator.one'
+        AND failure_count = 5
+        AND blocked_until > transaction_timestamp()`,
+  );
+  assert.equal(existingThrottle.rows[0]?.count, "1");
+  await assert.rejects(
+    operatorService.login(
+      {
+        metadata: { contractVersion, requestId: "request-existing-limited-0001" },
+        loginName: "operator.one",
+        password: replacementPassword,
+      },
+      "existing-account-concurrent-client",
+    ),
+    (error: unknown) =>
+      error instanceof ProductTransactionError && error.code === "LOGIN_RATE_LIMITED",
+  );
   const deadlocksAfterLogin = await pool.query<DeadlockRow>(
     `SELECT deadlocks::text AS deadlocks
        FROM pg_stat_database
@@ -763,36 +808,53 @@ test("operator authentication enforces throttling, revocation and last-account p
     (error: unknown) =>
       error instanceof ProductTransactionError && error.code === "AUTHENTICATION_REQUIRED",
   );
-  let currentPassword = replacementPassword;
-  for (let iteration = 0; iteration < 3; iteration += 1) {
-    const session = await operatorService.login(
-      {
-        metadata: {
-          contractVersion,
-          requestId: `request-recovery-race-login-${iteration}`,
-        },
-        loginName: "operator.one",
-        password: currentPassword,
-      },
-      `recovery-race-client-${iteration}`,
+  const currentPassword = "recovery-race-password-0001";
+  const recoveryRaceSession = await operatorService.login(
+    {
+      metadata: { contractVersion, requestId: "request-recovery-race-login-0001" },
+      loginName: "operator.one",
+      password: replacementPassword,
+    },
+    "recovery-race-client",
+  );
+  const blocker = await pool.connect();
+  try {
+    await blocker.query("BEGIN");
+    await blocker.query(
+      `SELECT session_id
+         FROM socialgrowth_product.operator_sessions
+        WHERE session_id = $1
+        FOR UPDATE`,
+      [recoveryRaceSession.response.session.sessionId],
     );
-    const nextPassword = `recovery-race-password-${iteration}-0001`;
-    const race = await Promise.allSettled([
-      operatorService.authenticateSession(session.sessionToken),
-      operatorService.recoverOperator({
-        operatorId: first.operatorId,
-        newPassword: nextPassword,
-        requestId: `request-recovery-race-${iteration}`,
-      }),
-    ]);
+    const authentication = operatorService.authenticateSession(
+      recoveryRaceSession.sessionToken,
+    );
+    await waitForBlockedQuery("FROM socialgrowth_product.operator_sessions");
+    const recovery = operatorService.recoverOperator({
+      operatorId: first.operatorId,
+      newPassword: currentPassword,
+      requestId: "request-recovery-race-0001",
+    });
+    await waitForBlockedQuery("UPDATE socialgrowth_product.operators");
+    await blocker.query("COMMIT");
+    const race = await Promise.allSettled([authentication, recovery]);
+    assert.equal(race[0]?.status, "fulfilled");
     const recoveryResult = race[1];
     if (!recoveryResult || recoveryResult.status === "rejected") {
       throw recoveryResult?.reason ?? new Error("Recovery race returned no result");
     }
     recovered = recoveryResult.value;
-    currentPassword = nextPassword;
-    await assert.rejects(operatorService.authenticateSession(session.sessionToken));
+  } finally {
+    try {
+      await blocker.query("ROLLBACK");
+    } finally {
+      blocker.release();
+    }
   }
+  await assert.rejects(
+    operatorService.authenticateSession(recoveryRaceSession.sessionToken),
+  );
   const deadlocksAfterRecovery = await pool.query<DeadlockRow>(
     `SELECT deadlocks::text AS deadlocks
        FROM pg_stat_database
