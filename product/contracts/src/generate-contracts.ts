@@ -209,6 +209,11 @@ for (const [index, branch] of installationBranches.entries()) {
   );
   requireStrictObject(branch, `installationSelfView.oneOf[${index}]`);
   const properties = requireProperties(branch, `installationSelfView.oneOf[${index}]`);
+  requireOnlyKeys(
+    properties,
+    ["factVersion", "updatedAt", "installationId", "state", "deviceId"],
+    `installationSelfView.oneOf[${index}].properties`,
+  );
   const required = requireStringArray(
     branch.required,
     `installationSelfView.oneOf[${index}].required`,
@@ -237,6 +242,21 @@ for (const [index, branch] of installationBranches.entries()) {
     }
   }
 }
+const installationIdSchema = requireSchemaProperty(
+  installationProperties,
+  "installationId",
+  "installationSelfView.oneOf[0]",
+);
+const timestampSchema = requireSchemaProperty(
+  installationProperties,
+  "updatedAt",
+  "installationSelfView.oneOf[0]",
+);
+const factVersionSchema = requireSchemaProperty(
+  installationProperties,
+  "factVersion",
+  "installationSelfView.oneOf[0]",
+);
 const installationStatePairs = installationBranches.flatMap((branch, index) => {
   const properties = requireProperties(branch, `installationSelfView.oneOf[${index}]`);
   const state = requireSchemaProperty(
@@ -274,23 +294,16 @@ const installationStatePairs = installationBranches.flatMap((branch, index) => {
     deviceType === "null" ? ["type"] : ["type", "format", "pattern"],
     `installationSelfView.oneOf[${index}].deviceId`,
   );
+  if (
+    deviceType === "string" &&
+    JSON.stringify(deviceId) !== JSON.stringify(installationIdSchema)
+  ) {
+    throw new Error(
+      "Cannot generate Android contracts: string deviceId must use the installation UUID schema.",
+    );
+  }
   return states.map((value) => ({ deviceType, value }));
 });
-const installationIdSchema = requireSchemaProperty(
-  installationProperties,
-  "installationId",
-  "installationSelfView.oneOf[0]",
-);
-const timestampSchema = requireSchemaProperty(
-  installationProperties,
-  "updatedAt",
-  "installationSelfView.oneOf[0]",
-);
-const factVersionSchema = requireSchemaProperty(
-  installationProperties,
-  "factVersion",
-  "installationSelfView.oneOf[0]",
-);
 requireOnlyKeys(
   factVersionSchema,
   ["type", "minimum", "maximum"],
