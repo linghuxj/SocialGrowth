@@ -20,10 +20,23 @@ data class StoredProviderSession(
 )
 
 class ProviderSessionStore(context: Context) {
+    companion object {
+        private val sessionLock = Any()
+    }
+
     private val preferences = context.getSharedPreferences("provider_session", Context.MODE_PRIVATE)
     private val alias = "socialgrowth-provider-session-v1"
 
-    fun save(auth: ProviderAuthResult) {
+    fun save(auth: ProviderAuthResult) = synchronized(sessionLock) { saveLocked(auth) }
+
+    /** A late login response cannot replace a session created after its request began. */
+    fun saveIfCurrentMatches(auth: ProviderAuthResult, expectedToken: String?): Boolean = synchronized(sessionLock) {
+        if (loadLocked()?.sessionToken != expectedToken) return@synchronized false
+        saveLocked(auth)
+        true
+    }
+
+    private fun saveLocked(auth: ProviderAuthResult) {
         val plain = JSONObject()
             .put("providerId", auth.provider.providerId.toString())
             .put("displayName", auth.provider.displayName)
@@ -41,7 +54,18 @@ class ProviderSessionStore(context: Context) {
             .commit()) { "Unable to persist provider session" }
     }
 
-    fun load(): StoredProviderSession? = try {
+    fun load(): StoredProviderSession? = synchronized(sessionLock) { loadLocked() }
+
+    fun clear() = synchronized(sessionLock) { clearLocked() }
+
+    /** A stale Activity must never erase a newer login stored by another Activity. */
+    fun clearIfTokenMatches(expectedToken: String): Boolean = synchronized(sessionLock) {
+        if (loadLocked()?.sessionToken != expectedToken) return@synchronized false
+        clearLocked()
+        true
+    }
+
+    private fun loadLocked(): StoredProviderSession? = try {
         val iv = preferences.getString("iv", null) ?: return null
         val payload = preferences.getString("payload", null) ?: return null
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
@@ -67,12 +91,12 @@ class ProviderSessionStore(context: Context) {
         require(Instant.parse(session.expiresAt).isAfter(Instant.now()))
         session
     } catch (_: Exception) {
-        clear()
+        clearLocked()
         null
     }
 
-    fun clear() {
-        preferences.edit().clear().apply()
+    private fun clearLocked() {
+        check(preferences.edit().clear().commit()) { "Unable to clear provider session" }
     }
 
     private fun getOrCreateKey(): SecretKey {

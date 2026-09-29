@@ -61,7 +61,12 @@ class MainActivity : ComponentActivity() {
     private var pendingScanGeneration: Int? = null
     private var associationConfirmKey = newIdempotencyKey("association-confirm")
     private val barcodeLauncher = registerForActivityResult(ScanContract()) { result ->
-        if (pendingScanGeneration != screenGeneration) return@registerForActivityResult
+        if (pendingScanGeneration != screenGeneration) {
+            if (result.contents != null) {
+                Toast.makeText(this, "扫码页面已重建，请重新扫码核对设备。", Toast.LENGTH_LONG).show()
+            }
+            return@registerForActivityResult
+        }
         pendingScanGeneration = null
         result.contents?.let(::handleAssociationPayload)
             ?: sessionStore.load()?.let(::showManagement)
@@ -88,20 +93,37 @@ class MainActivity : ComponentActivity() {
         }
         sessionStore.load()?.let { session ->
             showManagement(session)
+            if (savedInstanceState?.getBoolean("pendingAssociationScan") == true) {
+                pendingScanGeneration = screenGeneration
+            }
             return
         }
         showAuthForm()
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean("pendingAssociationScan", pendingScanGeneration != null)
+        super.onSaveInstanceState(outState)
+    }
+
     override fun onDestroy() {
+        ++screenGeneration
+        pendingScanGeneration = null
+        mainHandler.removeCallbacksAndMessages(null)
         executor.shutdownNow()
         super.onDestroy()
     }
 
     override fun onResume() {
         super.onResume()
-        val token = managementSessionToken ?: return
-        if (::sessionStore.isInitialized && sessionStore.load()?.sessionToken != token) showAuthForm()
+        if (!::sessionStore.isInitialized) return
+        val current = sessionStore.load()
+        val token = managementSessionToken
+        if (token != null && current?.sessionToken != token) {
+            current?.let(::showManagement) ?: showAuthForm()
+        } else if (token == null && current != null && ::installationStore.isInitialized && !installationStore.exists()) {
+            showManagement(current)
+        }
     }
 
     private fun showAuthForm() {
@@ -244,6 +266,10 @@ class MainActivity : ComponentActivity() {
 
         requestCode.setOnClickListener {
             val phoneValue = phone.text.toString().trim()
+            val requestedRegistration = registrationMode
+            val requestedInvitation = invitationCode
+            val requestedChallengeKey = challengeKey
+            val generation = screenGeneration
             if (!phoneValue.matches(Regex("^\\+[1-9][0-9]{7,14}$"))) {
                 showError(error, "请输入带国际区号的完整手机号，例如以 + 开头。")
                 return@setOnClickListener
@@ -253,19 +279,21 @@ class MainActivity : ComponentActivity() {
                 action = {
                     api.requestVerification(
                         phoneValue,
-                        if (registrationMode) "provider_registration" else "provider_login",
-                        invitationCode,
-                        challengeKey,
+                        if (requestedRegistration) "provider_registration" else "provider_login",
+                        requestedInvitation,
+                        requestedChallengeKey,
                     )
                 },
                 success = { result ->
+                    if (generation != screenGeneration) return@runNetwork
                     challenge = result
                     requestCode.text = "验证码已受理"
-                    setStatus(status, if (registrationMode) "邀请已校验" else "账号已确认", "请填写验证码继续。", false)
+                    setStatus(status, if (requestedRegistration) "邀请已校验" else "账号已确认", "请填写验证码继续。", false)
                     setBusy(false, requestCode, submit, error, card)
                     requestCode.isEnabled = false
                 },
                 failure = { message ->
+                    if (generation != screenGeneration) return@runNetwork
                     showError(error, message)
                     setBusy(false, requestCode, submit, error, card)
                 },
@@ -274,6 +302,10 @@ class MainActivity : ComponentActivity() {
 
         submit.setOnClickListener {
             val activeChallenge = challenge
+            val requestedRegistration = registrationMode
+            val requestedInvitation = invitationCode
+            val generation = screenGeneration
+            val expectedStoredToken = sessionStore.load()?.sessionToken
             if (activeChallenge == null) {
                 showError(error, "请先获取验证码。")
                 return@setOnClickListener
@@ -287,23 +319,30 @@ class MainActivity : ComponentActivity() {
                 lastCode = codeValue
                 verifyKey = newIdempotencyKey("verify")
             }
+            val requestedVerifyKey = verifyKey
+            val requestedAuthKey = authKey
             setBusy(true, requestCode, submit, error, card)
             runNetwork(
                 action = {
-                    val proof = api.verifyCode(activeChallenge.challengeId, codeValue, verifyKey)
-                    if (registrationMode) api.register(invitationCode!!, proof.phoneVerificationId, authKey)
-                    else api.login(proof.phoneVerificationId, authKey)
+                    val proof = api.verifyCode(activeChallenge.challengeId, codeValue, requestedVerifyKey)
+                    if (requestedRegistration) api.register(requestedInvitation!!, proof.phoneVerificationId, requestedAuthKey)
+                    else api.login(proof.phoneVerificationId, requestedAuthKey)
                 },
                 success = { auth ->
+                    if (generation != screenGeneration) return@runNetwork
                     try {
-                        sessionStore.save(auth)
-                        showManagement(auth.toStored())
+                        if (sessionStore.saveIfCurrentMatches(auth, expectedStoredToken)) {
+                            showManagement(auth.toStored())
+                        } else {
+                            sessionStore.load()?.let(::showManagement) ?: showAuthForm()
+                        }
                     } catch (_: Exception) {
                         showError(error, "无法安全保存登录状态，请重试。")
                         setBusy(false, requestCode, submit, error, card)
                     }
                 },
                 failure = { message ->
+                    if (generation != screenGeneration) return@runNetwork
                     showError(error, message)
                     setBusy(false, requestCode, submit, error, card)
                 },
@@ -316,6 +355,7 @@ class MainActivity : ComponentActivity() {
         val generation = ++screenGeneration
         backAction = null
         managementSessionToken = session.sessionToken
+        pendingScanGeneration = null
         val content = vertical(20).apply { setBackgroundColor(canvas) }
         content.addView(appHeader("仅管理"), matchWrap())
         val titleRow = LinearLayout(this).apply {
@@ -391,6 +431,7 @@ class MainActivity : ComponentActivity() {
         val generation = ++screenGeneration
         backAction = null
         managementSessionToken = null
+        pendingScanGeneration = null
         val root = vertical(20).apply {
             setBackgroundColor(canvas)
             gravity = Gravity.CENTER_HORIZONTAL
@@ -936,9 +977,9 @@ class MainActivity : ComponentActivity() {
         runNetwork(
             action = { api.logout(session.sessionToken, newIdempotencyKey("logout")); true },
             success = {
-                sessionStore.clear()
+                sessionStore.clearIfTokenMatches(session.sessionToken)
                 resetAttemptKeys()
-                showAuthForm()
+                sessionStore.load()?.let(::showManagement) ?: showAuthForm()
             },
             failure = { message ->
                 button.isEnabled = true
@@ -964,9 +1005,7 @@ class MainActivity : ComponentActivity() {
                 mainHandler.post {
                     if (generation != screenGeneration) return@post
                     if (error.code == "AUTHENTICATION_REQUIRED" || error.code == "PROVIDER_DISABLED") {
-                        sessionStore.clear()
-                        showAuthForm()
-                        Toast.makeText(this, error.message, Toast.LENGTH_LONG).show()
+                        rejectManagementSession(session, error.message)
                     } else if (managementSessionValid(session)) failure(error.message)
                 }
             } catch (_: Exception) {
@@ -997,9 +1036,7 @@ class MainActivity : ComponentActivity() {
                 mainHandler.post {
                     if (generation != screenGeneration) return@post
                     if (error.code == "AUTHENTICATION_REQUIRED" || error.code == "PROVIDER_DISABLED") {
-                        sessionStore.clear()
-                        showAuthForm()
-                        Toast.makeText(this, error.message, Toast.LENGTH_LONG).show()
+                        rejectManagementSession(session, error.message)
                     } else if (managementSessionValid(session)) failure(error.message)
                 }
             } catch (_: Exception) {
@@ -1013,9 +1050,21 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun managementSessionValid(session: StoredProviderSession): Boolean {
-        if (sessionStore.load()?.sessionToken == session.sessionToken) return true
-        showAuthForm()
+        val current = sessionStore.load()
+        if (current?.sessionToken == session.sessionToken) return true
+        current?.let(::showManagement) ?: showAuthForm()
         return false
+    }
+
+    private fun rejectManagementSession(session: StoredProviderSession, message: String) {
+        sessionStore.clearIfTokenMatches(session.sessionToken)
+        val current = sessionStore.load()
+        if (current == null) {
+            showAuthForm()
+            Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+        } else {
+            showManagement(current)
+        }
     }
 
     private fun guardManagementExpiry(session: StoredProviderSession, generation: Int) {
