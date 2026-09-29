@@ -12,7 +12,17 @@ Object.defineProperty(globalThis, "sessionStorage", {
   },
 });
 
-const { ProductApiError, createOperator, hasCsrfToken, login, logout, newIdempotencyKey } = await import("./operator-api.js");
+const {
+  ProductApiError,
+  createInvitation,
+  createOperator,
+  hasCsrfToken,
+  listInvitations,
+  login,
+  logout,
+  newIdempotencyKey,
+  revokeInvitation,
+} = await import("./operator-api.js");
 
 const operator = {
   operatorId: "00000000-0000-4000-8000-000000000001",
@@ -23,6 +33,21 @@ const operator = {
   updatedAt: "2026-09-29T00:00:00.000Z",
   status: "active" as const,
   disabledAt: null,
+};
+
+const invitation = {
+  invitationId: "00000000-0000-4000-8000-000000000010",
+  maxUses: 3,
+  consumedUses: 0,
+  expiresAt: "2026-10-29T00:00:00.000Z",
+  createdAt: "2026-09-29T00:00:00.000Z",
+  evaluatedAt: "2026-09-29T00:00:00.000Z",
+  createdByOperatorId: operator.operatorId,
+  factVersion: 0,
+  registrations: [],
+  status: "active" as const,
+  revokedAt: null,
+  revokedByOperatorId: null,
 };
 
 test.beforeEach(() => storage.clear());
@@ -106,4 +131,72 @@ test("the caller explicitly changes the key after a confirmed mutation", async (
   assert.equal(keys.length, 2);
   assert.notEqual(keys[0], keys[1]);
   assert.equal(contractVersion.length > 0, true);
+});
+
+test("invitation creation sends csrf metadata and accepts one-time access", async () => {
+  storage.set("socialgrowth.operator.csrf", "C".repeat(43));
+  let observed: { input: string; body: Record<string, unknown>; csrf: string | null } | undefined;
+  globalThis.fetch = async (input, init) => {
+    observed = {
+      input: String(input),
+      body: JSON.parse(String(init?.body)),
+      csrf: new Headers(init?.headers).get("x-csrf-token"),
+    };
+    return new Response(JSON.stringify({ invitation, access: { code: "A".repeat(43) } }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+
+  const result = await createInvitation(
+    { maxUses: 3, expiresAt: invitation.expiresAt },
+    "create-invitation-api-0001",
+  );
+  assert.equal(result.access.code, "A".repeat(43));
+  assert.ok(observed);
+  const requestMetadata = observed.body.metadata as { requestId: string };
+  assert.equal(observed.input, "/api/operator/invitations");
+  assert.equal(observed.csrf, "C".repeat(43));
+  assert.deepEqual(observed.body, {
+    metadata: {
+      contractVersion,
+      idempotencyKey: "create-invitation-api-0001",
+      requestId: requestMetadata.requestId,
+    },
+    maxUses: 3,
+    expiresAt: invitation.expiresAt,
+  });
+});
+
+test("invitation list rejects accidental bearer access fields", async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    invitations: [{ ...invitation, access: { code: "A".repeat(43) } }],
+  }), { status: 200, headers: { "content-type": "application/json" } });
+
+  await assert.rejects(listInvitations());
+});
+
+test("invitation revocation uses path identity and the current fact version", async () => {
+  storage.set("socialgrowth.operator.csrf", "C".repeat(43));
+  let observedUrl = "";
+  let observedBody: { expectedFactVersion: number } | undefined;
+  globalThis.fetch = async (input, init) => {
+    observedUrl = String(input);
+    observedBody = JSON.parse(String(init?.body));
+    return new Response(JSON.stringify({
+      invitation: {
+        ...invitation,
+        status: "revoked",
+        factVersion: 1,
+        revokedAt: "2026-09-29T01:00:00.000Z",
+        evaluatedAt: "2026-09-29T01:00:00.000Z",
+        revokedByOperatorId: operator.operatorId,
+      },
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+
+  const result = await revokeInvitation(invitation, "revoke-invitation-api-0001");
+  assert.equal(observedUrl, `/api/operator/invitations/${invitation.invitationId}/revoke`);
+  assert.equal(observedBody?.expectedFactVersion, 0);
+  assert.equal(result.status, "revoked");
 });

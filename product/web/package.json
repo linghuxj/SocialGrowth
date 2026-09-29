@@ -14,6 +14,7 @@
     "test": "tsx --test src/*.test.ts src/*.test.tsx"
   },
   "dependencies": {
+    "@phosphor-icons/react": "2.1.10",
     "@socialgrowth/product-contracts": "workspace:*",
     "@vitejs/plugin-react": "6.0.2",
     "react": "19.2.6",

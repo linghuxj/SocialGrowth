@@ -1,10 +1,15 @@
 import {
   contractVersion,
+  createInvitationResponseSchema,
   createOperatorResponseSchema,
   disableOperatorResponseSchema,
   listOperatorsResponseSchema,
+  listInvitationsResponseSchema,
   operatorLoginResponseSchema,
   productErrorResponseSchema,
+  revokeInvitationResponseSchema,
+  type CreateInvitationResponse,
+  type InvitationView,
   type OperatorLoginResponse,
   type OperatorView,
   type ProductErrorResponse,
@@ -81,6 +86,44 @@ export async function login(loginName: string, password: string): Promise<Operat
 
 export async function listOperators(): Promise<OperatorView[]> {
   return (await request("/api/operator/accounts", listOperatorsResponseSchema)).operators;
+}
+
+export async function listInvitations(): Promise<InvitationView[]> {
+  return (await request("/api/operator/invitations", listInvitationsResponseSchema)).invitations;
+}
+
+export async function createInvitation(
+  input: { expiresAt: string; maxUses: number },
+  idempotencyKey: string,
+): Promise<CreateInvitationResponse> {
+  return request("/api/operator/invitations", createInvitationResponseSchema, {
+    method: "POST",
+    headers: { "x-csrf-token": csrfToken() },
+    body: JSON.stringify({
+      metadata: mutationMetadata(idempotencyKey),
+      maxUses: input.maxUses,
+      expiresAt: input.expiresAt,
+    }),
+  });
+}
+
+export async function revokeInvitation(
+  invitation: InvitationView,
+  idempotencyKey: string,
+): Promise<InvitationView> {
+  const response = await request(
+    `/api/operator/invitations/${invitation.invitationId}/revoke`,
+    revokeInvitationResponseSchema,
+    {
+      method: "POST",
+      headers: { "x-csrf-token": csrfToken() },
+      body: JSON.stringify({
+        metadata: mutationMetadata(idempotencyKey),
+        expectedFactVersion: invitation.factVersion,
+      }),
+    },
+  );
+  return response.invitation;
 }
 
 export async function createOperator(

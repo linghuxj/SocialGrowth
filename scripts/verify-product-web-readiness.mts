@@ -11,6 +11,7 @@ const primaryLogin = required("SG_PRODUCT_TEST_LOGIN_NAME");
 const primaryPassword = required("SG_PRODUCT_TEST_PASSWORD");
 const secondaryLogin = required("SG_PRODUCT_TEST_SECOND_LOGIN_NAME");
 const secondaryPassword = required("SG_PRODUCT_TEST_SECOND_PASSWORD");
+const screenshotPath = process.env.SG_PRODUCT_SCREENSHOT_PATH;
 const browser = await chromium.launch({ headless: true });
 
 async function signIn(page: import("playwright").Page, loginName: string, password: string) {
@@ -19,13 +20,89 @@ async function signIn(page: import("playwright").Page, loginName: string, passwo
   await page.getByLabel("登录名").fill(loginName);
   await page.getByLabel("密码").fill(password);
   await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByRole("heading", { name: "运营账号管理" }).waitFor();
+  await page.getByRole("heading", { name: "邀请与接入" }).waitFor();
 }
 
 try {
-  const primaryContext = await browser.newContext();
+  const primaryContext = await browser.newContext({
+    locale: "zh-CN",
+    viewport: { width: 1465, height: 1074 },
+  });
+  await primaryContext.grantPermissions(["clipboard-read", "clipboard-write"], {
+    origin: baseUrl,
+  });
   const primary = await primaryContext.newPage();
+  const browserErrors: string[] = [];
+  primary.on("console", (message) => {
+    if (message.type() === "error" && !message.text().startsWith("Failed to load resource")) {
+      browserErrors.push(message.text());
+    }
+  });
+  primary.on("pageerror", (error) => browserErrors.push(error.message));
   await signIn(primary, primaryLogin, primaryPassword);
+
+  const invitationKeys: string[] = [];
+  let loseFirstCreationResponse = true;
+  await primary.route("**/api/operator/invitations", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.continue();
+      return;
+    }
+    const payload = route.request().postDataJSON() as {
+      metadata?: { idempotencyKey?: string };
+    };
+    if (payload.metadata?.idempotencyKey) invitationKeys.push(payload.metadata.idempotencyKey);
+    if (loseFirstCreationResponse) {
+      loseFirstCreationResponse = false;
+      await route.fetch();
+      await route.abort("failed");
+      return;
+    }
+    await route.continue();
+  });
+  await primary.getByLabel("成功注册次数上限").fill("3");
+  const expiry = new Date(Date.now() + 86_400_000);
+  const localExpiry = new Date(expiry.getTime() - expiry.getTimezoneOffset() * 60_000)
+    .toISOString().slice(0, 16);
+  await primary.getByLabel("有效至").fill(localExpiry);
+  await primary.getByRole("button", { name: "创建邀请" }).click();
+  await primary.getByText(/fetch|操作失败|网络/i).waitFor();
+  await primary.getByRole("button", { name: "创建邀请" }).click();
+  await primary.getByRole("heading", { name: "邀请已创建" }).waitFor();
+  if (invitationKeys.length !== 2 || invitationKeys[0] !== invitationKeys[1]) {
+    throw new Error("Invitation response-loss retry did not preserve its idempotency key");
+  }
+  const code = await primary.getByLabel("共享码").inputValue();
+  const link = await primary.getByLabel("注册链接").inputValue();
+  if (!/^[A-Za-z0-9_-]{43}$/.test(code) || !link.includes(encodeURIComponent(code))) {
+    throw new Error("Invitation access code and link are inconsistent");
+  }
+  await primary.locator(".access-panel .copy-field button").first().click();
+  const copiedCode = await primary.evaluate(() => navigator.clipboard.readText());
+  if (copiedCode !== code) throw new Error("Invitation code copy did not preserve the code");
+  await primary.getByText("共享码已复制；复制不代表已发送或已注册。").waitFor();
+  const invitationRow = primary.getByRole("row")
+    .filter({ hasText: "0 / 3", has: primary.locator(".status.active") });
+  await invitationRow.getByText("有效", { exact: true }).waitFor();
+  const invitationRecordId = await invitationRow.locator(".record-id").innerText();
+  if (screenshotPath) await primary.screenshot({ path: screenshotPath });
+  primary.once("dialog", (dialog) => void dialog.accept());
+  await invitationRow.getByRole("button", { name: "撤销", exact: true }).click();
+  await primary.getByText("邀请已撤销，已有注册与设备不受影响").waitFor();
+  await primary.getByRole("row").filter({ hasText: invitationRecordId }).locator(".status.revoked").waitFor();
+
+  for (const width of [980, 700]) {
+    await primary.setViewportSize({ width, height: 900 });
+    const overflows = await primary.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    );
+    if (overflows) throw new Error(`Product Web overflows horizontally at ${width}px`);
+    await primary.getByRole("button", { name: "账号与设备" }).waitFor();
+  }
+  await primary.setViewportSize({ width: 1465, height: 1074 });
+
+  await primary.getByRole("button", { name: "账号与设备" }).click();
+  await primary.getByRole("heading", { name: "运营账号管理" }).waitFor();
 
   const csrfRecoveryPage = await primaryContext.newPage();
   await csrfRecoveryPage.goto(baseUrl, { waitUntil: "networkidle" });
@@ -43,6 +120,8 @@ try {
   const secondaryContext = await browser.newContext();
   const secondary = await secondaryContext.newPage();
   await signIn(secondary, secondaryLogin, secondaryPassword);
+  await secondary.getByRole("button", { name: "账号与设备" }).click();
+  await secondary.getByRole("heading", { name: "运营账号管理" }).waitFor();
 
   primary.once("dialog", (dialog) => void dialog.accept());
   const secondaryRow = primary.getByRole("row").filter({ hasText: secondaryLogin });
@@ -62,6 +141,9 @@ try {
 
   await primary.getByRole("button", { name: "退出登录" }).click();
   await primary.getByRole("heading", { name: "登录正式产品" }).waitFor();
+  if (browserErrors.length > 0) {
+    throw new Error(`Product Web emitted browser errors: ${browserErrors.join(" | ")}`);
+  }
   await secondaryContext.close();
   await primaryContext.close();
   console.log(`[playwright] product operator flow passed at ${baseUrl}`);
