@@ -4,6 +4,7 @@ import {
   createOperatorResponseSchema,
   disableOperatorResponseSchema,
   listOperatorsResponseSchema,
+  listOperatorDeviceFactsResponseSchema,
   listInvitationsResponseSchema,
   operatorLoginResponseSchema,
   productErrorResponseSchema,
@@ -12,6 +13,7 @@ import {
   type InvitationView,
   type OperatorLoginResponse,
   type OperatorView,
+  type ListOperatorDeviceFactsResponse,
   type ProductErrorResponse,
 } from "@socialgrowth/product-contracts";
 
@@ -57,6 +59,7 @@ async function responseError(response: Response): Promise<ProductApiError> {
 }
 
 async function request<T>(url: string, schema: { parse(input: unknown): T }, init?: RequestInit): Promise<T> {
+  const csrfAtStart = csrfToken();
   const response = await fetch(url, {
     credentials: "same-origin",
     ...init,
@@ -64,7 +67,7 @@ async function request<T>(url: string, schema: { parse(input: unknown): T }, ini
   });
   if (!response.ok) {
     const error = await responseError(response);
-    if (response.status === 401) clearLocalSession();
+    if (response.status === 401 && csrfToken() === csrfAtStart) clearLocalSession();
     throw error;
   }
   const body: unknown = await response.json();
@@ -90,6 +93,10 @@ export async function listOperators(): Promise<OperatorView[]> {
 
 export async function listInvitations(): Promise<InvitationView[]> {
   return (await request("/api/operator/invitations", listInvitationsResponseSchema)).invitations;
+}
+
+export async function listOperatorDeviceFacts(): Promise<ListOperatorDeviceFactsResponse> {
+  return request("/api/operator/device-facts", listOperatorDeviceFactsResponseSchema);
 }
 
 export async function createInvitation(
@@ -162,16 +169,17 @@ export async function disableOperator(
 }
 
 export async function logout(): Promise<void> {
+  const csrfAtStart = csrfToken();
   const response = await fetch("/api/operator/logout", {
     method: "POST",
     credentials: "same-origin",
-    headers: { "content-type": "application/json", "x-csrf-token": csrfToken() },
+    headers: { "content-type": "application/json", "x-csrf-token": csrfAtStart },
     body: JSON.stringify({ metadata: { contractVersion, requestId: requestId() } }),
   });
   if (!response.ok) {
     const error = await responseError(response);
-    if (response.status === 401) clearLocalSession();
+    if (response.status === 401 && csrfToken() === csrfAtStart) clearLocalSession();
     throw error;
   }
-  clearLocalSession();
+  if (csrfToken() === csrfAtStart) clearLocalSession();
 }

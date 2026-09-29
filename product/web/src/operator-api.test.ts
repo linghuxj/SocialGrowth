@@ -18,6 +18,7 @@ const {
   createOperator,
   hasCsrfToken,
   listInvitations,
+  listOperatorDeviceFacts,
   login,
   logout,
   newIdempotencyKey,
@@ -199,4 +200,52 @@ test("invitation revocation uses path identity and the current fact version", as
   assert.equal(observedUrl, `/api/operator/invitations/${invitation.invitationId}/revoke`);
   assert.equal(observedBody?.expectedFactVersion, 0);
   assert.equal(result.status, "revoked");
+});
+
+test("device facts accept current authority but reject leaked installation identities", async () => {
+  const response = {
+    readAt: "2026-09-30T00:00:00Z",
+    providers: [{
+      providerId: "00000000-0000-4000-8000-000000000021",
+      displayName: "Provider One",
+      phoneLastFour: "0021",
+      status: "active",
+    }],
+    devices: [{
+      deviceId: "00000000-0000-4000-8000-000000000022",
+      providerId: "00000000-0000-4000-8000-000000000021",
+      displayName: "Execution Phone One",
+      state: "associated_pending_access",
+      connectionState: "unknown",
+      lastConfirmedAt: null,
+      factVersion: 1,
+      updatedAt: "2026-09-29T23:00:00Z",
+    }],
+  };
+  let observedUrl = "";
+  globalThis.fetch = async (input) => {
+    observedUrl = String(input);
+    return new Response(JSON.stringify(response), { status: 200 });
+  };
+  assert.equal((await listOperatorDeviceFacts()).devices.length, 1);
+  assert.equal(observedUrl, "/api/operator/device-facts");
+
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    ...response,
+    devices: [{ ...response.devices[0], installationId: "00000000-0000-4000-8000-000000000023" }],
+  }), { status: 200 });
+  await assert.rejects(listOperatorDeviceFacts());
+});
+
+test("an old device read returning 401 cannot clear a newer login's CSRF", async () => {
+  const oldCsrf = "C".repeat(43);
+  const newCsrf = "N".repeat(43);
+  storage.set("socialgrowth.operator.csrf", oldCsrf);
+  let complete!: (response: Response) => void;
+  globalThis.fetch = async () => new Promise<Response>((resolve) => { complete = resolve; });
+  const oldRead = listOperatorDeviceFacts();
+  storage.set("socialgrowth.operator.csrf", newCsrf);
+  complete(new Response("not-json", { status: 401 }));
+  await assert.rejects(oldRead, ProductApiError);
+  assert.equal(storage.get("socialgrowth.operator.csrf"), newCsrf);
 });
