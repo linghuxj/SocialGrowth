@@ -118,6 +118,15 @@ async function databaseNow(client: PoolClient): Promise<Date> {
   return now;
 }
 
+async function databaseWallClock(client: PoolClient): Promise<Date> {
+  const result = await client.query<DatabaseTimeRow>(
+    "SELECT clock_timestamp() AS database_now",
+  );
+  const now = result.rows[0]?.database_now;
+  if (!now) throw new Error("PostgreSQL did not return its wall-clock timestamp");
+  return now;
+}
+
 async function writeAudit(
   client: PoolClient,
   actorType: "installation" | "provider" | "system",
@@ -338,7 +347,14 @@ export class IdentityTransactionService {
       if (invitation.revoked_at) {
         throw new ProductTransactionError("INVITATION_REVOKED", "Invitation was revoked");
       }
-      if (invitation.expires_at.getTime() <= now.getTime()) {
+      const acceptedAt = await databaseWallClock(client);
+      if (verification.expires_at.getTime() <= acceptedAt.getTime()) {
+        throw new ProductTransactionError(
+          "PHONE_VERIFICATION_INVALID",
+          "Phone verification expired while the registration was waiting",
+        );
+      }
+      if (invitation.expires_at.getTime() <= acceptedAt.getTime()) {
         throw new ProductTransactionError("INVITATION_EXPIRED", "Invitation expired");
       }
       if (invitation.consumed_uses >= invitation.max_uses) {
@@ -351,7 +367,7 @@ export class IdentityTransactionService {
           `INSERT INTO ${schema}.providers (
              provider_id, phone_e164, display_name, status, created_at, updated_at
            ) VALUES ($1, $2, $3, 'active', $4, $4)`,
-          [providerId, verification.phone_e164, request.displayName, now],
+          [providerId, verification.phone_e164, request.displayName, acceptedAt],
         );
       } catch (error) {
         if (isUniqueViolation(error, "providers_phone_e164_key")) {
@@ -372,7 +388,7 @@ export class IdentityTransactionService {
           invitation.invitation_id,
           providerId,
           request.phoneVerificationId,
-          now,
+          acceptedAt,
         ],
       );
       await client.query(
@@ -386,13 +402,13 @@ export class IdentityTransactionService {
         `UPDATE ${schema}.phone_verifications
             SET consumed_at = $2
           WHERE verification_id = $1`,
-        [request.phoneVerificationId, now],
+        [request.phoneVerificationId, acceptedAt],
       );
 
       const response = registerProviderResponseSchema.parse({
         invitationId: invitation.invitation_id,
         providerId,
-        registeredAt: now.toISOString(),
+        registeredAt: acceptedAt.toISOString(),
       });
       await completeIdempotentRequest(
         client,

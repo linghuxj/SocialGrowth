@@ -154,6 +154,12 @@ async function waitForBlockedQuery(fragment: string): Promise<void> {
   throw new Error(`Timed out waiting for blocked PostgreSQL query: ${fragment}`);
 }
 
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve: () => void = () => void 0;
+  const promise = new Promise<void>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
 before(async () => {
   const migration = await readFile(migrationUrl, "utf8");
   await pool.query("DROP SCHEMA IF EXISTS socialgrowth_product CASCADE");
@@ -208,6 +214,22 @@ test("operator creates and safely replays an invitation without storing its bear
   assert.deepEqual(audit.rows, [
     { actor_id: operatorId, action: "provider_invitation.created" },
   ]);
+
+  const rotatedKeyService = new InvitationManagementService(
+    pool,
+    operatorService,
+    "rotated-test-invitation-pepper-0000000000000001",
+  );
+  await assert.rejects(
+    rotatedKeyService.createInvitation(
+      sessionToken,
+      csrfToken,
+      { ...request, metadata: { ...request.metadata, requestId: `request-${randomUUID()}` } },
+    ),
+    (error: unknown) =>
+      error instanceof ProductTransactionError &&
+      error.code === "IDEMPOTENCY_RESULT_EXPIRED",
+  );
 });
 
 test("operator lists invitation progress and revokes with fact-version idempotency", async () => {
@@ -227,6 +249,22 @@ test("operator lists invitation progress and revokes with fact-version idempoten
     },
     { verifiedPhoneVerificationId: verificationId },
   );
+  const installationId = await seedInstallation();
+  const associationSession = await service.createAssociationSession(
+    {
+      deviceLabel: "Progress Device",
+      metadata: metadata("association-progress-create-0001"),
+    },
+    { installationGeneration: 1n, installationId },
+  );
+  await service.confirmAssociation(
+    {
+      associationSessionId: associationSession.associationSessionId,
+      expectedInstallationId: installationId,
+      metadata: metadata("association-progress-confirm-0001"),
+    },
+    { providerId: registered.providerId },
+  );
 
   const listed = await invitationService.listInvitations(sessionToken);
   const invitation = listed.invitations.find(
@@ -238,6 +276,7 @@ test("operator lists invitation progress and revokes with fact-version idempoten
   assert.deepEqual(invitation.registrations.map(({ providerId }) => providerId), [
     registered.providerId,
   ]);
+  assert.equal(invitation.registrations[0]?.associatedDeviceCount, 1);
   assert.equal("access" in invitation, false);
 
   const request = {
@@ -259,6 +298,70 @@ test("operator lists invitation progress and revokes with fact-version idempoten
   assert.equal(revoked.invitation.status, "revoked");
   assert.equal(revoked.invitation.factVersion, 2);
   assert.equal(revoked.invitation.revokedByOperatorId, operatorId);
+});
+
+test("invitation list uses one repeatable-read snapshot across facts and progress", async () => {
+  const { csrfToken, sessionToken } = await seedAuthenticatedOperator();
+  const created = await invitationService.createInvitation(sessionToken, csrfToken, {
+    metadata: metadata("create-invitation-snapshot-0001"),
+    maxUses: 2,
+    expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+  });
+  const verificationId = await seedVerification("+8613800000087");
+  const invitationRead = deferred();
+  const continueList = deferred();
+  const interceptedPool = {
+    async connect() {
+      const client = await pool.connect();
+      return new Proxy(client, {
+        get(target, property, receiver) {
+          if (property === "query") {
+            return async (...arguments_: unknown[]) => {
+              const result = await Reflect.apply(target.query, target, arguments_);
+              const statement = typeof arguments_[0] === "string" ? arguments_[0] : "";
+              if (statement.includes("SELECT * FROM socialgrowth_product.provider_invitations")) {
+                invitationRead.resolve();
+                await continueList.promise;
+              }
+              return result;
+            };
+          }
+          const value = Reflect.get(target, property, receiver);
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      });
+    },
+  } as unknown as Pool;
+  const interceptedService = new InvitationManagementService(
+    interceptedPool,
+    operatorService,
+    "test-only-operator-auth-pepper-0000000000000001",
+  );
+
+  const pendingList = interceptedService.listInvitations(sessionToken);
+  await invitationRead.promise;
+  await service.registerProvider(
+    {
+      displayName: "Snapshot Provider",
+      invitationCode: created.access.code,
+      metadata: metadata("register-invitation-snapshot-0001"),
+      phoneVerificationId: verificationId,
+    },
+    { verifiedPhoneVerificationId: verificationId },
+  );
+  continueList.resolve();
+  const snapshot = await pendingList;
+  const oldView = snapshot.invitations.find(
+    ({ invitationId }) => invitationId === created.invitation.invitationId,
+  );
+  assert.equal(oldView?.consumedUses, 0);
+  assert.deepEqual(oldView?.registrations, []);
+  const current = await invitationService.listInvitations(sessionToken);
+  const currentView = current.invitations.find(
+    ({ invitationId }) => invitationId === created.invitation.invitationId,
+  );
+  assert.equal(currentView?.consumedUses, 1);
+  assert.equal(currentView?.registrations.length, 1);
 });
 
 test("invitation writes require a valid session and matching csrf token", async () => {
@@ -304,7 +407,13 @@ test("registration and revocation serialize on the invitation without losing fac
       expectedFactVersion: 0,
     }),
   ]);
+  const registrationOutcome = outcomes[0];
   const revokeOutcome = outcomes[1];
+  assert.equal(outcomes.filter(({ status }) => status === "fulfilled").length, 1);
+  if (registrationOutcome?.status === "rejected") {
+    assert.ok(registrationOutcome.reason instanceof ProductTransactionError);
+    assert.equal(registrationOutcome.reason.code, "INVITATION_REVOKED");
+  }
   if (revokeOutcome?.status === "rejected") {
     assert.ok(revokeOutcome.reason instanceof ProductTransactionError);
     assert.equal(revokeOutcome.reason.code, "FACT_VERSION_STALE");
@@ -325,6 +434,152 @@ test("registration and revocation serialize on the invitation without losing fac
   assert.ok(row.consumed_uses === 0 || row.consumed_uses === 1);
   assert.equal(Number(row.fact_version), row.consumed_uses + (row.revoked_at ? 1 : 0));
   assert.ok(row.revoked_at !== null || row.consumed_uses === 1);
+});
+
+test("revocation queued first wins the invitation lock and registration is rejected", async () => {
+  const { csrfToken, sessionToken } = await seedAuthenticatedOperator();
+  const created = await invitationService.createInvitation(sessionToken, csrfToken, {
+    metadata: metadata("create-invitation-revoke-first-0001"),
+    maxUses: 1,
+    expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+  });
+  const verificationId = await seedVerification("+8613800000086");
+  const blocker = await pool.connect();
+  try {
+    await blocker.query("BEGIN");
+    await blocker.query(
+      `SELECT invitation_id FROM socialgrowth_product.provider_invitations
+        WHERE invitation_id = $1 FOR UPDATE`,
+      [created.invitation.invitationId],
+    );
+    const revocation = invitationService.revokeInvitation(sessionToken, csrfToken, {
+      metadata: metadata("revoke-invitation-first-0001"),
+      invitationId: created.invitation.invitationId,
+      expectedFactVersion: 0,
+    });
+    await waitForBlockedQuery("WHERE invitation_id = $1 FOR UPDATE");
+    const registration = service.registerProvider(
+      {
+        displayName: "Rejected After Revoke",
+        invitationCode: created.access.code,
+        metadata: metadata("register-after-revoke-0001"),
+        phoneVerificationId: verificationId,
+      },
+      { verifiedPhoneVerificationId: verificationId },
+    );
+    await waitForBlockedQuery("WHERE code_digest = $1");
+    const outcomesPromise = Promise.allSettled([revocation, registration]);
+    await blocker.query("COMMIT");
+    const [revokeOutcome, registrationOutcome] = await outcomesPromise;
+    assert.equal(revokeOutcome?.status, "fulfilled");
+    if (revokeOutcome?.status === "fulfilled") {
+      assert.equal(revokeOutcome.value.invitation.status, "revoked");
+    }
+    assert.equal(registrationOutcome?.status, "rejected");
+    if (registrationOutcome?.status === "rejected") {
+      assert.ok(registrationOutcome.reason instanceof ProductTransactionError);
+      assert.equal(registrationOutcome.reason.code, "INVITATION_REVOKED");
+    }
+  } finally {
+    try { await blocker.query("ROLLBACK"); } catch { /* transaction already closed */ }
+    blocker.release();
+  }
+});
+
+test("registration queued first consumes the fact and stale revocation is rejected", async () => {
+  const { csrfToken, sessionToken } = await seedAuthenticatedOperator();
+  const created = await invitationService.createInvitation(sessionToken, csrfToken, {
+    metadata: metadata("create-invitation-register-first-0001"),
+    maxUses: 1,
+    expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+  });
+  const verificationId = await seedVerification("+8613800000085");
+  const blocker = await pool.connect();
+  try {
+    await blocker.query("BEGIN");
+    await blocker.query(
+      `SELECT invitation_id FROM socialgrowth_product.provider_invitations
+        WHERE invitation_id = $1 FOR UPDATE`,
+      [created.invitation.invitationId],
+    );
+    const registration = service.registerProvider(
+      {
+        displayName: "Registered Before Revoke",
+        invitationCode: created.access.code,
+        metadata: metadata("register-before-revoke-0001"),
+        phoneVerificationId: verificationId,
+      },
+      { verifiedPhoneVerificationId: verificationId },
+    );
+    await waitForBlockedQuery("WHERE code_digest = $1");
+    const revocation = invitationService.revokeInvitation(sessionToken, csrfToken, {
+      metadata: metadata("revoke-after-register-0001"),
+      invitationId: created.invitation.invitationId,
+      expectedFactVersion: 0,
+    });
+    await waitForBlockedQuery("WHERE invitation_id = $1 FOR UPDATE");
+    const outcomesPromise = Promise.allSettled([registration, revocation]);
+    await blocker.query("COMMIT");
+    const [registrationOutcome, revokeOutcome] = await outcomesPromise;
+    assert.equal(registrationOutcome?.status, "fulfilled");
+    assert.equal(revokeOutcome?.status, "rejected");
+    if (revokeOutcome?.status === "rejected") {
+      assert.ok(revokeOutcome.reason instanceof ProductTransactionError);
+      assert.equal(revokeOutcome.reason.code, "FACT_VERSION_STALE");
+    }
+  } finally {
+    try { await blocker.query("ROLLBACK"); } catch { /* transaction already closed */ }
+    blocker.release();
+  }
+});
+
+test("registration waiting past invitation expiry is rejected using lock-time wall clock", async () => {
+  const { csrfToken, sessionToken } = await seedAuthenticatedOperator();
+  const expiresAt = new Date(Date.now() + 750);
+  const created = await invitationService.createInvitation(sessionToken, csrfToken, {
+    metadata: metadata("create-invitation-expiry-wait-0001"),
+    maxUses: 1,
+    expiresAt: expiresAt.toISOString(),
+  });
+  const verificationId = await seedVerification("+8613800000084");
+  const blocker = await pool.connect();
+  try {
+    await blocker.query("BEGIN");
+    await blocker.query(
+      `SELECT invitation_id FROM socialgrowth_product.provider_invitations
+        WHERE invitation_id = $1 FOR UPDATE`,
+      [created.invitation.invitationId],
+    );
+    const registration = service.registerProvider(
+      {
+        displayName: "Expired While Waiting",
+        invitationCode: created.access.code,
+        metadata: metadata("register-expiry-wait-0001"),
+        phoneVerificationId: verificationId,
+      },
+      { verifiedPhoneVerificationId: verificationId },
+    );
+    await waitForBlockedQuery("WHERE code_digest = $1");
+    const outcomePromise = Promise.allSettled([registration]);
+    const remaining = Math.max(0, expiresAt.getTime() - Date.now() + 50);
+    await new Promise((resolve) => setTimeout(resolve, remaining));
+    await blocker.query("COMMIT");
+    const [registrationOutcome] = await outcomePromise;
+    assert.equal(registrationOutcome?.status, "rejected");
+    if (registrationOutcome?.status === "rejected") {
+      assert.ok(registrationOutcome.reason instanceof ProductTransactionError);
+      assert.equal(registrationOutcome.reason.code, "INVITATION_EXPIRED");
+    }
+    const invitation = await pool.query<{ consumed_uses: number; fact_version: string }>(
+      `SELECT consumed_uses, fact_version
+         FROM socialgrowth_product.provider_invitations WHERE invitation_id = $1`,
+      [created.invitation.invitationId],
+    );
+    assert.deepEqual(invitation.rows[0], { consumed_uses: 0, fact_version: "0" });
+  } finally {
+    try { await blocker.query("ROLLBACK"); } catch { /* transaction already closed */ }
+    blocker.release();
+  }
 });
 
 test("last invitation slot is consumed by exactly one concurrent registration", async () => {

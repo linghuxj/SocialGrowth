@@ -72,13 +72,23 @@ async function databaseNow(client: PoolClient): Promise<Date> {
   return now;
 }
 
+async function databaseWallClock(client: PoolClient): Promise<Date> {
+  const result = await client.query<{ database_now: Date }>(
+    "SELECT clock_timestamp() AS database_now",
+  );
+  const now = result.rows[0]?.database_now;
+  if (!now) throw new Error("PostgreSQL did not return its wall-clock timestamp");
+  return now;
+}
+
 async function inTransaction<T>(
   pool: Pool,
   operation: (client: PoolClient) => Promise<T>,
+  isolationLevel: "READ COMMITTED" | "REPEATABLE READ" = "READ COMMITTED",
 ): Promise<T> {
   const client = await pool.connect();
   try {
-    await client.query("BEGIN");
+    await client.query(`BEGIN ISOLATION LEVEL ${isolationLevel}`);
     const result = await operation(client);
     await client.query("COMMIT");
     return result;
@@ -286,9 +296,24 @@ export class InvitationManagementService {
       if (replay) {
         const invitationId = replay.result_object_id;
         if (!invitationId) throw new Error("Invitation replay is missing its result id");
+        const code = this.accessCode(invitationId);
+        const invitation = await client.query<{ code_digest: Buffer }>(
+          `SELECT code_digest FROM ${schema}.provider_invitations
+            WHERE invitation_id = $1`,
+          [invitationId],
+        );
+        const storedDigest = invitation.rows[0]?.code_digest;
+        const derivedDigest = digest(code);
+        if (!storedDigest || storedDigest.length !== derivedDigest.length ||
+            !timingSafeEqual(storedDigest, derivedDigest)) {
+          throw new ProductTransactionError(
+            "IDEMPOTENCY_RESULT_EXPIRED",
+            "The original invitation access code cannot be recovered with the active key",
+          );
+        }
         return createInvitationResponseSchema.parse({
           ...(replay.response_body as Record<string, unknown>),
-          access: { code: this.accessCode(invitationId) },
+          access: { code },
         });
       }
 
@@ -344,7 +369,7 @@ export class InvitationManagementService {
         invitations: invitations.rows.map((row) =>
           invitationView(row, registrations.get(row.invitation_id) ?? [], now)),
       });
-    });
+    }, "REPEATABLE READ");
   }
 
   async revokeInvitation(
@@ -380,18 +405,19 @@ export class InvitationManagementService {
       if (current.revoked_at) {
         throw new ProductTransactionError("INVITATION_REVOKED", "Invitation is already revoked");
       }
+      const mutationNow = await databaseWallClock(client);
       const updated = await client.query<InvitationRow>(
         `UPDATE ${schema}.provider_invitations
             SET revoked_at = $2, revoked_by_operator_id = $3,
                 fact_version = fact_version + 1
           WHERE invitation_id = $1
           RETURNING *`,
-        [parsed.invitationId, now, context.operator.operatorId],
+        [parsed.invitationId, mutationNow, context.operator.operatorId],
       );
       const registrations = await registrationsFor(client, [parsed.invitationId]);
       const response = revokeInvitationResponseSchema.parse({
         invitation: invitationView(
-          updated.rows[0]!, registrations.get(parsed.invitationId) ?? [], now,
+          updated.rows[0]!, registrations.get(parsed.invitationId) ?? [], mutationNow,
         ),
       });
       await writeAudit(
