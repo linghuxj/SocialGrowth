@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -56,7 +57,60 @@ class FirstBatchContracts:
         except KeyError as error:
             raise ContractValidationError(f"unknown contract: {name}") from error
         self._validate_schema(schema, value, name)
+        self._validate_contract_semantics(name, value)
         return value
+
+    def _validate_contract_semantics(self, name: str, value: Any) -> None:
+        if name == "invitationView":
+            self._validate_invitation_view(value, name)
+        elif name in {"createInvitationResponse", "revokeInvitationResponse"}:
+            self._validate_invitation_view(value["invitation"], f"{name}.invitation")
+        elif name == "listInvitationsResponse":
+            for index, invitation in enumerate(value["invitations"]):
+                self._validate_invitation_view(
+                    invitation, f"{name}.invitations[{index}]"
+                )
+
+    @staticmethod
+    def _parse_timestamp(value: str) -> datetime:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+    def _validate_invitation_view(self, invitation: dict[str, Any], path: str) -> None:
+        created_at = self._parse_timestamp(invitation["createdAt"])
+        expires_at = self._parse_timestamp(invitation["expiresAt"])
+        evaluated_at = self._parse_timestamp(invitation["evaluatedAt"])
+        consumed_uses = invitation["consumedUses"]
+        max_uses = invitation["maxUses"]
+        registrations = invitation["registrations"]
+
+        if expires_at <= created_at or evaluated_at < created_at:
+            raise ContractDataError(f"{path}: contradictory invitation time")
+        if consumed_uses > max_uses:
+            raise ContractDataError(f"{path}: invitation consumption exceeds limit")
+        if len(registrations) != consumed_uses:
+            raise ContractDataError(f"{path}: registrations are not the complete set")
+        provider_ids = [item["providerId"] for item in registrations]
+        if len(set(provider_ids)) != len(provider_ids):
+            raise ContractDataError(f"{path}: duplicate registered provider")
+        for registration in registrations:
+            registered_at = self._parse_timestamp(registration["registeredAt"])
+            if registered_at < created_at or registered_at > evaluated_at:
+                raise ContractDataError(f"{path}: registration time outside observation")
+
+        if invitation["status"] == "revoked":
+            if self._parse_timestamp(invitation["revokedAt"]) < created_at:
+                raise ContractDataError(f"{path}: revocation predates invitation")
+            return
+
+        expected_status = (
+            "expired"
+            if expires_at <= evaluated_at
+            else "exhausted"
+            if consumed_uses == max_uses
+            else "active"
+        )
+        if invitation["status"] != expected_status:
+            raise ContractDataError(f"{path}: status contradicts evaluated facts")
 
     def _validate_schema(self, schema: dict[str, Any], value: Any, path: str) -> None:
         self._validate_specification(schema, path)

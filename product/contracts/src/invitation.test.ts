@@ -19,6 +19,7 @@ const activeInvitation = {
   consumedUses: 1,
   expiresAt,
   createdAt,
+  evaluatedAt: "2026-09-29T02:00:00.000Z",
   createdByOperatorId: operatorId,
   factVersion: 1,
   registrations: [{
@@ -36,7 +37,7 @@ test("invitation creation returns access once while list views exclude the code"
   const code = "A".repeat(43);
   const created = createInvitationResponseSchema.parse({
     invitation: activeInvitation,
-    access: { code, registrationPath: `/provider/register?invitation=${code}` },
+    access: { code },
   });
   const listed = listInvitationsResponseSchema.parse({
     invitations: [activeInvitation],
@@ -72,7 +73,25 @@ test("invitation access rejects short or non-url-safe shared codes", () => {
   for (const code of ["too-short", "A".repeat(42), `${"A".repeat(42)}+`]) {
     assert.throws(() => createInvitationResponseSchema.parse({
       invitation: activeInvitation,
-      access: { code, registrationPath: `/provider/register?invitation=${code}` },
+      access: { code },
     }));
+  }
+});
+
+test("invitation views reject contradictory usage, status, time and incomplete progress", () => {
+  const invalidInvitations = [
+    { ...activeInvitation, consumedUses: 6 },
+    { ...activeInvitation, consumedUses: 5, status: "active" },
+    { ...activeInvitation, consumedUses: 0, registrations: [], status: "exhausted" },
+    { ...activeInvitation, expiresAt: "2026-09-28T00:00:00.000Z" },
+    { ...activeInvitation, consumedUses: 1, registrations: [] },
+    {
+      ...activeInvitation,
+      consumedUses: 2,
+      registrations: [activeInvitation.registrations[0], activeInvitation.registrations[0]],
+    },
+  ];
+  for (const invitation of invalidInvitations) {
+    assert.throws(() => invitationViewSchema.parse(invitation));
   }
 });

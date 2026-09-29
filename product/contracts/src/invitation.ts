@@ -34,6 +34,7 @@ const invitationBaseShape = {
   consumedUses: z.int().nonnegative(),
   expiresAt: timestampSchema,
   createdAt: timestampSchema,
+  evaluatedAt: timestampSchema,
   createdByOperatorId: uuidSchema,
   factVersion: z.int().nonnegative(),
   registrations: z.array(invitationRegistrationProgressSchema),
@@ -53,14 +54,59 @@ const revokedInvitationViewSchema = z.strictObject({
   revokedByOperatorId: uuidSchema,
 });
 
-export const invitationViewSchema = z.discriminatedUnion("status", [
+const invitationViewStructureSchema = z.discriminatedUnion("status", [
   availableInvitationViewSchema,
   revokedInvitationViewSchema,
 ]);
 
+export const invitationViewSchema = invitationViewStructureSchema.superRefine(
+  (invitation, context) => {
+    const createdAt = Date.parse(invitation.createdAt);
+    const expiresAt = Date.parse(invitation.expiresAt);
+    const evaluatedAt = Date.parse(invitation.evaluatedAt);
+    const invalid = (message: string, path: Array<string | number>) => {
+      context.addIssue({ code: "custom", message, path });
+    };
+
+    if (expiresAt <= createdAt) invalid("Invitation must expire after creation", ["expiresAt"]);
+    if (evaluatedAt < createdAt) invalid("Invitation cannot be evaluated before creation", ["evaluatedAt"]);
+    if (invitation.consumedUses > invitation.maxUses) {
+      invalid("Invitation consumption exceeds its limit", ["consumedUses"]);
+    }
+    if (invitation.registrations.length !== invitation.consumedUses) {
+      invalid("Invitation registrations must be the complete consumed set", ["registrations"]);
+    }
+    const providerIds = new Set(invitation.registrations.map(({ providerId }) => providerId));
+    if (providerIds.size !== invitation.registrations.length) {
+      invalid("Invitation registrations must contain unique providers", ["registrations"]);
+    }
+    for (const [index, registration] of invitation.registrations.entries()) {
+      const registeredAt = Date.parse(registration.registeredAt);
+      if (registeredAt < createdAt || registeredAt > evaluatedAt) {
+        invalid("Registration time is outside the invitation observation window", ["registrations", index, "registeredAt"]);
+      }
+    }
+
+    if (invitation.status === "revoked") {
+      if (Date.parse(invitation.revokedAt) < createdAt) {
+        invalid("Invitation cannot be revoked before creation", ["revokedAt"]);
+      }
+      return;
+    }
+
+    const expectedStatus = expiresAt <= evaluatedAt
+      ? "expired"
+      : invitation.consumedUses === invitation.maxUses
+        ? "exhausted"
+        : "active";
+    if (invitation.status !== expectedStatus) {
+      invalid("Invitation status contradicts the evaluated facts", ["status"]);
+    }
+  },
+);
+
 export const invitationAccessSchema = z.strictObject({
   code: invitationCodeSchema,
-  registrationPath: z.string().regex(/^\/provider\/register\?invitation=[A-Za-z0-9_-]{43}$/),
 });
 
 export const createInvitationResponseSchema = z.strictObject({
