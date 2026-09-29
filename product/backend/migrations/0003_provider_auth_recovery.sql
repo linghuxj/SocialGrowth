@@ -6,7 +6,7 @@ ALTER TABLE socialgrowth_product.phone_verification_challenges
 
 ALTER TABLE socialgrowth_product.phone_verification_challenges
   ADD CONSTRAINT phone_verification_challenges_verified_proof_pair
-  CHECK ((verified_at IS NULL) = (verification_id IS NULL)) NOT VALID;
+  CHECK (verification_id IS NULL OR verified_at IS NOT NULL) NOT VALID;
 
 ALTER TABLE socialgrowth_product.phone_verification_challenges
   VALIDATE CONSTRAINT phone_verification_challenges_verified_proof_pair;

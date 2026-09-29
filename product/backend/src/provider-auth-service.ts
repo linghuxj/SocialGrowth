@@ -372,11 +372,17 @@ export class ProviderAuthService {
         throw new ProductTransactionError("PHONE_VERIFICATION_RATE_LIMITED", "Verification attempts exhausted");
       }
       if (challenge.verified_at) {
+        if (!challenge.verification_id) {
+          throw new ProductTransactionError(
+            "PHONE_VERIFICATION_INVALID",
+            "Legacy verification result cannot be recovered safely",
+          );
+        }
         const replayDigest = secretDigest(
           this.securityPepper,
           `${challenge.challenge_id}:${request.code}`,
         );
-        if (!timingSafeEqual(challenge.code_digest, replayDigest) || !challenge.verification_id) {
+        if (!timingSafeEqual(challenge.code_digest, replayDigest)) {
           await client.query(
             `UPDATE ${schema}.phone_verification_challenges
                 SET attempt_count = attempt_count + 1 WHERE challenge_id = $1`,

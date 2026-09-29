@@ -105,6 +105,7 @@ before(async () => {
   const legacyProviderId = randomUUID();
   const legacyVerificationId = randomUUID();
   const legacySessionId = randomUUID();
+  const legacyChallengeId = randomUUID();
   await pool.query(
     `INSERT INTO socialgrowth_product.providers (
        provider_id, phone_e164, display_name, status
@@ -126,6 +127,17 @@ before(async () => {
      ) VALUES ($1, $2, $3, transaction_timestamp() + interval '1 hour')`,
     [legacySessionId, legacyProviderId, digest("legacy-random-token")],
   );
+  await pool.query(
+    `INSERT INTO socialgrowth_product.phone_verification_challenges (
+       challenge_id, phone_e164, purpose, provider_id, code_digest,
+       delivery_state, attempt_count, idempotency_key, request_digest,
+       expires_at, resend_available_at, verified_at
+     ) VALUES ($1, '+8613800000998', 'provider_login', $2, $3,
+       'accepted', 0, 'legacy-challenge-key', $4,
+       transaction_timestamp() + interval '1 hour', transaction_timestamp(),
+       transaction_timestamp())`,
+    [legacyChallengeId, legacyProviderId, digest("legacy-code"), digest("legacy-request")],
+  );
   await pool.query(await readFile(migrationUrls[2]!, "utf8"));
   const upgraded = await pool.query<{
     phone_verification_id: string | null;
@@ -135,13 +147,25 @@ before(async () => {
     [legacySessionId],
   );
   legacyUpgradeVerified = upgraded.rows[0]?.phone_verification_id === null;
+  const legacyChallenge = await pool.query<{
+    verification_id: string | null;
+    verified_at: Date | null;
+  }>(
+    `SELECT verification_id, verified_at
+       FROM socialgrowth_product.phone_verification_challenges
+      WHERE challenge_id = $1`,
+    [legacyChallengeId],
+  );
+  legacyUpgradeVerified = legacyUpgradeVerified &&
+    legacyChallenge.rows[0]?.verification_id === null &&
+    legacyChallenge.rows[0]?.verified_at instanceof Date;
   await pool.query("DROP SCHEMA socialgrowth_product CASCADE");
   for (const migrationUrl of migrationUrls) {
     await pool.query(await readFile(migrationUrl, "utf8"));
   }
 });
 
-test("0003 upgrades an existing 0002 database while preserving legacy sessions", () => {
+test("0003 preserves legacy sessions and verified challenges without inventing recovery links", () => {
   assert.equal(legacyUpgradeVerified, true);
 });
 
