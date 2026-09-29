@@ -5,6 +5,7 @@ export * from "./common.js";
 export * from "./errors.js";
 export * from "./identity.js";
 export * from "./invitation.js";
+export * from "./operator.js";
 export * from "./registry.js";
 export * from "./status.js";
 

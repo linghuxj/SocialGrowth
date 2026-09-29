@@ -1,10 +1,11 @@
 # 首批身份与设备权威模型
 
-更新：2026-09-29。该模型只覆盖 WP-01/CT-01～04 的首批身份、邀请、安装、设备、关联和请求记录；任务、项目、队列、媒体、收入等后续域不提前建表。
+更新：2026-09-29。该模型覆盖 WP-01/CT-01～04 的首批身份、邀请、安装、设备、关联和请求记录，以及 WP-02 第一阶段的运营账号、会话与登录限流事实；任务、项目、队列、媒体、收入等后续域不提前建表。
 
 ```mermaid
 erDiagram
   operators ||--o{ operator_sessions : authenticates
+  operators ||--o{ audit_records : acts
   operators ||--o{ provider_invitations : creates
   provider_invitations ||--o{ provider_invitation_consumptions : consumes
   phone_verifications ||--o| provider_invitation_consumptions : proves
@@ -24,6 +25,13 @@ erDiagram
 - 运营、提供者和安装身份分别签发会话；`principal_id`、`providerId`、`installationId` 或 `deviceId` 等请求字段不能替代服务端认证上下文。
 - 邀请和关联码只保存摘要。会话令牌和安装凭据也只保存摘要；审计 `facts` 禁止写入令牌、验证码、邀请原码或手机号全文。
 - 迁移不包含通用开发账号或业务 fixture。首个运营账号只能由部署初始化命令幂等创建，属于 WP-02；不得开放公众初始化入口。
+
+## 运营身份边界
+
+- `operators` 保存规范化登录名、显示名、密码摘要、账号状态、事实版本和凭据版本；密码原文不得写入数据库、审计或日志。停用事实与 `disabled_at` 必须一致。
+- `operator_sessions` 只保存会话 token 与 CSRF token 的摘要和签发时的凭据版本。退出、账号停用或受控凭据重置必须写明撤销时间与原因；账号停用不得删除历史审计、项目、设备或联系人事实。
+- `operator_login_throttles` 以规范化登录名和不可逆客户端范围摘要记失败次数及阻断终点。认证错误对外不得区分账号不存在、密码错误和已停用账号，避免账号枚举。
+- 所有运营账号同权；当前模型不引入角色层级、审批、自动交接或公众注册。至少保留一个有效运营账号以及停用时的会话撤销，须由 WP-02 后端事务和并发测试证明，不能只依赖页面禁用按钮。
 
 ## 事务与竞争边界
 

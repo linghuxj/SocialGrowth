@@ -5,20 +5,51 @@ CREATE SCHEMA IF NOT EXISTS socialgrowth_product;
 CREATE TABLE socialgrowth_product.operators (
   operator_id uuid PRIMARY KEY,
   login_name text NOT NULL UNIQUE,
+  display_name text NOT NULL,
   password_hash text NOT NULL,
   status text NOT NULL CHECK (status IN ('active', 'disabled')),
+  fact_version bigint NOT NULL DEFAULT 0 CHECK (fact_version >= 0),
+  credential_version bigint NOT NULL DEFAULT 1 CHECK (credential_version > 0),
+  password_changed_at timestamptz NOT NULL DEFAULT transaction_timestamp(),
+  disabled_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT transaction_timestamp(),
-  updated_at timestamptz NOT NULL DEFAULT transaction_timestamp()
+  updated_at timestamptz NOT NULL DEFAULT transaction_timestamp(),
+  CHECK (login_name = lower(login_name)),
+  CHECK (login_name ~ '^[a-z][a-z0-9._-]{2,63}$'),
+  CHECK (length(btrim(display_name)) > 0),
+  CHECK ((status = 'disabled') = (disabled_at IS NOT NULL)),
+  CHECK (password_changed_at >= created_at),
+  CHECK (disabled_at IS NULL OR disabled_at >= created_at),
+  CHECK (updated_at >= created_at)
 );
 
 CREATE TABLE socialgrowth_product.operator_sessions (
   session_id uuid PRIMARY KEY,
   operator_id uuid NOT NULL REFERENCES socialgrowth_product.operators(operator_id),
   token_digest bytea NOT NULL UNIQUE,
+  csrf_digest bytea NOT NULL UNIQUE,
+  credential_version bigint NOT NULL CHECK (credential_version > 0),
   expires_at timestamptz NOT NULL,
   revoked_at timestamptz,
+  revoked_reason text CHECK (revoked_reason IN ('logout', 'operator_disabled', 'credential_reset')),
   created_at timestamptz NOT NULL DEFAULT transaction_timestamp(),
-  CHECK (expires_at > created_at)
+  CHECK (expires_at > created_at),
+  CHECK ((revoked_at IS NULL) = (revoked_reason IS NULL)),
+  CHECK (revoked_at IS NULL OR revoked_at >= created_at)
+);
+
+CREATE INDEX operator_sessions_operator_idx
+  ON socialgrowth_product.operator_sessions(operator_id);
+
+CREATE TABLE socialgrowth_product.operator_login_throttles (
+  login_name text NOT NULL,
+  client_scope_digest bytea NOT NULL,
+  failure_count integer NOT NULL DEFAULT 0 CHECK (failure_count >= 0),
+  blocked_until timestamptz,
+  updated_at timestamptz NOT NULL DEFAULT transaction_timestamp(),
+  PRIMARY KEY (login_name, client_scope_digest),
+  CHECK (login_name = lower(login_name)),
+  CHECK (login_name ~ '^[a-z][a-z0-9._-]{2,63}$')
 );
 
 CREATE TABLE socialgrowth_product.provider_invitations (

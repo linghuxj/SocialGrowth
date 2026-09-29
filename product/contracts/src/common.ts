@@ -13,6 +13,11 @@ export const requestMetadataSchema = z.strictObject({
   idempotencyKey: idempotencyKeySchema,
 });
 
+export const requestTraceSchema = z.strictObject({
+  contractVersion: contractVersionSchema,
+  requestId: requestIdSchema,
+});
+
 export const versionedFactSchema = z.strictObject({
   factVersion: z.int().nonnegative(),
   updatedAt: timestampSchema,

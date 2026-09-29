@@ -36,8 +36,8 @@ async function seedOperator(): Promise<string> {
   const operatorId = randomUUID();
   await pool.query(
     `INSERT INTO socialgrowth_product.operators (
-       operator_id, login_name, password_hash, status
-     ) VALUES ($1, $2, 'not-a-real-password-hash', 'active')`,
+       operator_id, login_name, display_name, password_hash, status
+     ) VALUES ($1, $2, 'Integration Operator', 'not-a-real-password-hash', 'active')`,
     [operatorId, `operator-${operatorId}`],
   );
   return operatorId;
