@@ -63,9 +63,9 @@ final result: passed
 ## 比较目标与证据
 
 - source visual truth：`docs/design/android/local-association-code-v1.png` 与 `docs/design/android/device-association-confirm-v1.png`；同时受同名 prompt、`docs/design/android/DESIGN.md`、Android 页面规格和交付流程约束。
-- implementation screenshots：Samsung SM-S9110／Android 16 真机截图 `/tmp/wp05-local-final.png` 与 `/tmp/wp05-confirm-final.png`，原始尺寸 1080 × 2340 px；截图保留真实状态栏和导航栏。
+- implementation screenshots：`artifacts/design-qa/wp05-stage3/local-association-implementation-redacted.png` 与 `device-confirm-implementation.png`，来自 Samsung SM-S9110／Android 16 真机、原始尺寸 1080 × 2340 px；本机页共享证据已遮蔽真实二维码，截图保留真实状态栏和导航栏。
 - combined comparisons：`artifacts/design-qa/wp05-stage3/local-association-comparison.png` 与 `artifacts/design-qa/wp05-stage3/device-confirm-comparison.png`；左侧参考，右侧真机实现，以相同高度归一化后并排检查。
-- actual state：本机页二维码编码真实 `associationQrPayload`，设备名来自 Android 机型，失效时间按设备本地时区显示；确认页来自 Provider Bearer 会话的只读 inspect 结果，姓名、脱敏手机号和设备标签均为后端事实。
+- actual state：受控的临时原始截图曾由本机解码器确认二维码编码真实 `associationQrPayload`，随后共享证据只保留遮蔽版本；设备名来自 Android 机型，失效时间按设备本地时区显示。确认页来自 Provider Bearer 会话的只读 inspect 结果，姓名、脱敏手机号和设备标签均为后端事实。
 
 ## 视觉与语义核对
 
@@ -80,6 +80,7 @@ final result: passed
 - Pass 1：真机实现已覆盖两张设计的页面层级和业务文案；发现失效时间直接显示 UTC，且本机标签位于主卡片外。整改为设备本地 `HH:mm`，并把本机标签、二维码和等待状态收敛到同一主卡片。
 - Pass 2：将顶部品牌栏改为参考方向的原生返回栏；补齐“在管理手机上操作”标题、提供者／验证手机号标签和设备标识核对说明；仅在关联码实际过期后展示刷新动作。
 - Pass 3：真机点击扫码首次暴露 ZXing 的非传递 AndroidX Core 运行时缺类崩溃。显式加入 `androidx.core:core:1.15.0` 后重装复测，系统相机权限对话框及 `CaptureActivity` 取景页正常打开，无新增崩溃。
+- Pass 4：非作者复核指出共享比较图可从真实二维码还原一次性关联码。已将持久化实现截图和并排比较图中的真实二维码区域遮蔽，只在受控临时材料上完成解码断言；后续复核与验收不得传阅未遮蔽二维码。
 - 当前无可执行 P0、P1 或 P2 视觉 finding。相较参考图，真实系统字体、状态栏和机型文本造成的自然换行差异属于平台与真实数据差异，不影响层级、操作或语义。
 
 ## 真机交互核对

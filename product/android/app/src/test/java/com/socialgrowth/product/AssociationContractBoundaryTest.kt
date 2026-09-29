@@ -5,6 +5,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import java.util.UUID
+import java.time.Instant
 
 class AssociationContractBoundaryTest {
     private val installationId = UUID.randomUUID()
@@ -83,5 +84,26 @@ class AssociationContractBoundaryTest {
                 valid.replace("\"displayName\"", "\"installationId\":\"$installationId\",\"displayName\""),
             )
         }
+    }
+
+    @Test
+    fun storedInstallationReusesOnlyAnUnexpiredCompleteAssociationSession() {
+        val associationId = UUID.randomUUID()
+        val stored = StoredInstallationIdentity(
+            credential = "sginst_v1_${"C".repeat(43)}",
+            installationId = installationId.toString(),
+            generation = 1,
+            sessionToken = "D".repeat(43),
+            sessionExpiresAt = "2026-09-30T00:00:00Z",
+            associationSessionId = associationId.toString(),
+            associationCode = "sgassoc_v1_${"E".repeat(43)}",
+            associationExpiresAt = "2026-09-29T00:10:00Z",
+        )
+        assertEquals(
+            associationId,
+            stored.activeAssociation(Instant.parse("2026-09-29T00:09:59Z"))?.associationSessionId,
+        )
+        assertNull(stored.activeAssociation(Instant.parse("2026-09-29T00:10:00Z")))
+        assertNull(stored.copy(associationCode = null).activeAssociation(Instant.parse("2026-09-29T00:00:00Z")))
     }
 }

@@ -361,15 +361,21 @@ class MainActivity : ComponentActivity() {
                 }
                 val state = associationApi.installationState(token)
                 if (state.state == "unassociated") {
-                    val association = associationApi.createAssociationSession(
-                        token,
-                        executionDeviceLabel(),
-                        newIdempotencyKey("association-session"),
-                    )
+                    val existing = stored.activeAssociation()
+                    val association = if (existing != null) {
+                        existing
+                    } else {
+                        associationApi.createAssociationSession(
+                            token,
+                            executionDeviceLabel(),
+                            newIdempotencyKey("association-session"),
+                        ).also { stored = installationStore.saveAssociation(stored, it) }
+                    }
                     mainHandler.post {
                         if (generation == screenGeneration) showInstallationCode(stored, association)
                     }
                 } else {
+                    installationStore.clearAssociation(stored)
                     mainHandler.post {
                         if (generation == screenGeneration) showInstallationAssociated(state)
                     }
@@ -393,7 +399,7 @@ class MainActivity : ComponentActivity() {
             .toString()
         val root = vertical(20).apply { setBackgroundColor(canvas) }
         root.addView(backHeader("") {
-            Toast.makeText(this, "请保留本页，并在管理手机上完成扫码确认。", Toast.LENGTH_LONG).show()
+            showInstallationGuide(identity, association)
         }, matchWrap())
         root.addView(label("关联这台执行手机", 29f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(20) })
         root.addView(label("请用已登录的管理手机扫码", 16f, secondary), matchWrap().apply { topMargin = dp(7) })
@@ -405,19 +411,22 @@ class MainActivity : ComponentActivity() {
         qrCard.addView(label("本机 ${shortDeviceName()}", 18f, ink, Typeface.BOLD).apply {
             gravity = Gravity.CENTER
         }, matchWrap())
-        qrCard.addView(ImageView(this).apply {
+        val qrImage = ImageView(this).apply {
             id = R.id.installation_qr
             contentDescription = "本机关联二维码"
             setImageBitmap(qrBitmap(payload))
-        }, LinearLayout.LayoutParams(dp(208), dp(208)).apply { topMargin = dp(14) })
-        qrCard.addView(label("等待管理手机确认", 16f, ink, Typeface.BOLD).apply {
+        }
+        qrCard.addView(qrImage, LinearLayout.LayoutParams(dp(208), dp(208)).apply { topMargin = dp(14) })
+        val associationStatus = label("等待管理手机确认", 16f, ink, Typeface.BOLD).apply {
             gravity = Gravity.CENTER
             background = rounded(canvas, 8)
             setPadding(dp(14), dp(12), dp(14), dp(12))
-        }, matchWrap().apply { topMargin = dp(14) })
-        qrCard.addView(label("二维码将在 ${formatExpiry(association.expiresAt)} 失效", 13f, secondary).apply {
+        }
+        qrCard.addView(associationStatus, matchWrap().apply { topMargin = dp(14) })
+        val expiryLabel = label("二维码将在 ${formatExpiry(association.expiresAt)} 失效", 13f, secondary).apply {
             gravity = Gravity.CENTER
-        }, matchWrap().apply { topMargin = dp(6) })
+        }
+        qrCard.addView(expiryLabel, matchWrap().apply { topMargin = dp(6) })
         root.addView(qrCard, matchWrap().apply { topMargin = dp(20) })
         val steps = vertical(18).apply { background = rounded(Color.WHITE, 12) }
         steps.addView(label("在管理手机上操作", 17f, ink, Typeface.BOLD))
@@ -429,7 +438,7 @@ class MainActivity : ComponentActivity() {
         root.addView(label("关联只建立设备归属，平台授权与接入检查仍需后续完成。", 13f, secondary), matchWrap().apply { topMargin = dp(14) })
         root.addView(secondaryButton("返回接入说明").apply {
             setOnClickListener {
-                Toast.makeText(this@MainActivity, "请保留本页，并在管理手机上完成扫码确认。", Toast.LENGTH_LONG).show()
+                showInstallationGuide(identity, association)
             }
         }, matchHeight(52).apply { topMargin = dp(18) })
         val refresh = secondaryButton("关联码已失效，刷新").apply {
@@ -447,7 +456,10 @@ class MainActivity : ComponentActivity() {
                             newIdempotencyKey("association-session"),
                         )
                     },
-                    success = { showInstallationCode(identity, it) },
+                    success = { next ->
+                        val updated = installationStore.saveAssociation(identity, next)
+                        showInstallationCode(updated, next)
+                    },
                     failure = { showInstallationFailure(it) },
                 )
             }
@@ -461,9 +473,44 @@ class MainActivity : ComponentActivity() {
         val refreshDelay = (displayInstant(association.expiresAt).toEpochMilli() - System.currentTimeMillis())
             .coerceAtLeast(0L)
         mainHandler.postDelayed({
-            if (generation == screenGeneration) refresh.visibility = View.VISIBLE
+            if (generation == screenGeneration) {
+                qrImage.setImageDrawable(null)
+                qrImage.setBackgroundColor(canvas)
+                qrImage.contentDescription = "关联二维码已失效"
+                associationStatus.text = "关联码已失效"
+                associationStatus.setTextColor(danger)
+                expiryLabel.text = "请刷新后重新扫码"
+                refresh.visibility = View.VISIBLE
+            }
         }, refreshDelay)
         pollInstallationState(generation, identity)
+    }
+
+    private fun showInstallationGuide(
+        identity: StoredInstallationIdentity,
+        association: AssociationSession,
+    ) {
+        ++screenGeneration
+        val root = vertical(20).apply { setBackgroundColor(canvas) }
+        root.addView(backHeader("执行手机接入") { showInstallationCode(identity, association) }, matchWrap())
+        root.addView(label("执行手机接入说明", 29f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(24) })
+        root.addView(label("这台手机将作为专用执行端，不会获得管理身份。", 15f, secondary), matchWrap().apply { topMargin = dp(8) })
+        val card = vertical(18).apply { background = rounded(Color.WHITE, 12) }
+        card.addView(stepRow("1", "本机安全保存独立安装身份，不保存管理账号凭据"))
+        card.addView(divider(), matchHeight(1).apply { topMargin = dp(14); bottomMargin = dp(14) })
+        card.addView(stepRow("2", "管理手机扫码核对并明确确认后，才建立设备归属"))
+        card.addView(divider(), matchHeight(1).apply { topMargin = dp(14); bottomMargin = dp(14) })
+        card.addView(stepRow("3", "清除数据或重装会生成新身份，不会自动认领旧设备"))
+        root.addView(card, matchWrap().apply { topMargin = dp(22) })
+        root.addView(label("完成关联后仍需平台授权和接入检查，才能承担执行任务。", 14f, secondary), matchWrap().apply { topMargin = dp(18) })
+        root.addView(primaryButton("继续显示关联码").apply {
+            setOnClickListener { showInstallationCode(identity, association) }
+        }, matchHeight(54).apply { topMargin = dp(24) })
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            addView(root, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        setContentView(scroll)
     }
 
     private fun pollInstallationState(generation: Int, identity: StoredInstallationIdentity) {
@@ -475,7 +522,10 @@ class MainActivity : ComponentActivity() {
                 success = { state ->
                     if (generation != screenGeneration) return@runNetwork
                     if (state.state == "unassociated") pollInstallationState(generation, identity)
-                    else showInstallationAssociated(state)
+                    else {
+                        installationStore.clearAssociation(identity)
+                        showInstallationAssociated(state)
+                    }
                 },
                 failure = {
                     if (generation == screenGeneration) pollInstallationState(generation, identity)
