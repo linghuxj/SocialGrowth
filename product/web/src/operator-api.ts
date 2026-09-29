@@ -11,7 +11,6 @@ import {
 } from "@socialgrowth/product-contracts";
 
 const csrfStorageKey = "socialgrowth.operator.csrf";
-const pendingMutationKeys = new Map<string, { fingerprint: string; key: string }>();
 
 export class ProductApiError extends Error {
   constructor(readonly response: ProductErrorResponse, readonly status: number) {
@@ -21,13 +20,11 @@ export class ProductApiError extends Error {
 }
 
 function requestId(): string { return `request-${crypto.randomUUID()}`; }
-function mutationMetadata(operation: string, fingerprint: string) {
-  const pending = pendingMutationKeys.get(operation);
-  const key = pending?.fingerprint === fingerprint
-    ? pending.key
-    : `idempotency-${crypto.randomUUID()}`;
-  pendingMutationKeys.set(operation, { fingerprint, key });
-  return { contractVersion, requestId: requestId(), idempotencyKey: key };
+export function newIdempotencyKey(): string {
+  return `idempotency-${crypto.randomUUID()}`;
+}
+function mutationMetadata(idempotencyKey: string) {
+  return { contractVersion, requestId: requestId(), idempotencyKey };
 }
 function csrfToken(): string { return sessionStorage.getItem(csrfStorageKey) ?? ""; }
 export function hasCsrfToken(): boolean { return csrfToken().length > 0; }
@@ -86,36 +83,38 @@ export async function listOperators(): Promise<OperatorView[]> {
   return (await request("/api/operator/accounts", listOperatorsResponseSchema)).operators;
 }
 
-export async function createOperator(input: { displayName: string; initialPassword: string; loginName: string }): Promise<OperatorView> {
+export async function createOperator(
+  input: { displayName: string; initialPassword: string; loginName: string },
+  idempotencyKey: string,
+): Promise<OperatorView> {
   const normalized = {
     loginName: input.loginName.trim().toLowerCase(),
     displayName: input.displayName.trim(),
     initialPassword: input.initialPassword,
   };
-  const fingerprint = JSON.stringify(normalized);
   const response = await request("/api/operator/accounts", createOperatorResponseSchema, {
     method: "POST",
     headers: { "x-csrf-token": csrfToken() },
     body: JSON.stringify({
-      metadata: mutationMetadata("create-operator", fingerprint),
+      metadata: mutationMetadata(idempotencyKey),
       ...normalized,
     }),
   });
-  pendingMutationKeys.delete("create-operator");
   return response.operator;
 }
 
-export async function disableOperator(operator: OperatorView): Promise<OperatorView> {
-  const fingerprint = `${operator.operatorId}:${operator.factVersion}`;
+export async function disableOperator(
+  operator: OperatorView,
+  idempotencyKey: string,
+): Promise<OperatorView> {
   const response = await request(`/api/operator/accounts/${operator.operatorId}/disable`, disableOperatorResponseSchema, {
     method: "POST",
     headers: { "x-csrf-token": csrfToken() },
     body: JSON.stringify({
-      metadata: mutationMetadata("disable-operator", fingerprint),
+      metadata: mutationMetadata(idempotencyKey),
       expectedFactVersion: operator.factVersion,
     }),
   });
-  pendingMutationKeys.delete("disable-operator");
   return response.operator;
 }
 

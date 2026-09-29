@@ -1,6 +1,6 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import type { OperatorView } from "@socialgrowth/product-contracts";
-import { ProductApiError, createOperator, disableOperator, hasCsrfToken, listOperators, login, logout } from "./operator-api.js";
+import { ProductApiError, createOperator, disableOperator, hasCsrfToken, listOperators, login, logout, newIdempotencyKey } from "./operator-api.js";
 
 export const productEnvironment = "product" as const;
 
@@ -26,9 +26,17 @@ export function App() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const createKey = useRef<string | null>(null);
+  const disableKey = useRef<{ operation: string; key: string } | null>(null);
+
+  function clearPendingOperations(): void {
+    createKey.current = null;
+    disableKey.current = null;
+  }
 
   function handleFailure(error: unknown): void {
     if (error instanceof ProductApiError && error.status === 401) {
+      clearPendingOperations();
       setOperators(null);
       setAuthenticated(false);
     }
@@ -62,6 +70,7 @@ export function App() {
     setBusy(true); setMessage("");
     try {
       await login(String(form.get("loginName") ?? ""), String(form.get("password") ?? ""));
+      clearPendingOperations();
       formElement.reset();
       await refresh();
     } catch (error) { handleFailure(error); }
@@ -74,11 +83,13 @@ export function App() {
     const form = new FormData(formElement);
     setBusy(true); setMessage("");
     try {
+      createKey.current ??= newIdempotencyKey();
       await createOperator({
         loginName: String(form.get("loginName") ?? ""),
         displayName: String(form.get("displayName") ?? ""),
         initialPassword: String(form.get("initialPassword") ?? ""),
-      });
+      }, createKey.current);
+      createKey.current = null;
       formElement.reset();
       await refresh();
       setMessage("运营账号已开通");
@@ -90,7 +101,12 @@ export function App() {
     if (!window.confirm(`确认停用 ${operator.displayName}？该账号的会话将立即失效。`)) return;
     setBusy(true); setMessage("");
     try {
-      await disableOperator(operator);
+      const operation = `${operator.operatorId}:${operator.factVersion}`;
+      if (disableKey.current?.operation !== operation) {
+        disableKey.current = { operation, key: newIdempotencyKey() };
+      }
+      await disableOperator(operator, disableKey.current.key);
+      disableKey.current = null;
       await refresh();
       setMessage("账号已停用，会话已撤销");
     } catch (error) { handleFailure(error); }
@@ -101,6 +117,7 @@ export function App() {
     setBusy(true);
     try {
       await logout();
+      clearPendingOperations();
       setAuthenticated(false);
       setOperators(null);
     } catch (error) {
@@ -138,7 +155,7 @@ export function App() {
       {message && <p className="feedback" role="status">{message}</p>}
       <section className="panel" aria-labelledby="create-title">
         <div><h2 id="create-title">开通运营账号</h2><p className="muted">所有运营账号同权。初始密码不少于 12 个字符。</p></div>
-        <form className="create-grid" onSubmit={(event) => void onCreate(event)}>
+        <form className="create-grid" onChange={() => { createKey.current = null; }} onSubmit={(event) => void onCreate(event)}>
           <label>登录名<input name="loginName" placeholder="operator.name" pattern="[a-z][a-z0-9._-]{2,63}" required /></label>
           <label>显示名<input name="displayName" maxLength={100} required /></label>
           <label>初始密码<input name="initialPassword" type="password" minLength={12} autoComplete="new-password" required /></label>

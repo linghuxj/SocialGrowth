@@ -12,7 +12,7 @@ Object.defineProperty(globalThis, "sessionStorage", {
   },
 });
 
-const { ProductApiError, createOperator, hasCsrfToken, login, logout } = await import("./operator-api.js");
+const { ProductApiError, createOperator, hasCsrfToken, login, logout, newIdempotencyKey } = await import("./operator-api.js");
 
 const operator = {
   operatorId: "00000000-0000-4000-8000-000000000001",
@@ -77,13 +77,14 @@ test("a network retry reuses the pending mutation idempotency key", async () => 
     displayName: "Operator One",
     initialPassword: "a-secure-password",
   };
-  await assert.rejects(createOperator(input), TypeError);
-  await createOperator(input);
+  const key = newIdempotencyKey();
+  await assert.rejects(createOperator(input, key), TypeError);
+  await createOperator(input, key);
   assert.equal(bodies.length, 2);
   assert.equal(bodies[0]?.metadata.idempotencyKey, bodies[1]?.metadata.idempotencyKey);
 });
 
-test("a successful mutation retires its idempotency key", async () => {
+test("the caller explicitly changes the key after a confirmed mutation", async () => {
   storage.set("socialgrowth.operator.csrf", "C".repeat(43));
   const keys: string[] = [];
   globalThis.fetch = async (_input, init) => {
@@ -100,8 +101,8 @@ test("a successful mutation retires its idempotency key", async () => {
     displayName: "Operator One",
     initialPassword: "a-secure-password",
   };
-  await createOperator(input);
-  await createOperator(input);
+  await createOperator(input, newIdempotencyKey());
+  await createOperator(input, newIdempotencyKey());
   assert.equal(keys.length, 2);
   assert.notEqual(keys[0], keys[1]);
   assert.equal(contractVersion.length > 0, true);
