@@ -364,6 +364,53 @@ test("invitation list uses one repeatable-read snapshot across facts and progres
   assert.equal(currentView?.registrations.length, 1);
 });
 
+test("invitation list evaluates after its snapshot even when a fact commits after begin", async () => {
+  const { csrfToken, sessionToken } = await seedAuthenticatedOperator();
+  const transactionBegan = deferred();
+  const establishSnapshot = deferred();
+  const interceptedPool = {
+    async connect() {
+      const client = await pool.connect();
+      return new Proxy(client, {
+        get(target, property, receiver) {
+          if (property === "query") {
+            return async (...arguments_: unknown[]) => {
+              const result = await Reflect.apply(target.query, target, arguments_);
+              if (arguments_[0] === "BEGIN ISOLATION LEVEL REPEATABLE READ") {
+                transactionBegan.resolve();
+                await establishSnapshot.promise;
+              }
+              return result;
+            };
+          }
+          const value = Reflect.get(target, property, receiver);
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      });
+    },
+  } as unknown as Pool;
+  const interceptedService = new InvitationManagementService(
+    interceptedPool,
+    operatorService,
+    "test-only-operator-auth-pepper-0000000000000001",
+  );
+
+  const pendingList = interceptedService.listInvitations(sessionToken);
+  await transactionBegan.promise;
+  const created = await invitationService.createInvitation(sessionToken, csrfToken, {
+    metadata: metadata("create-invitation-after-list-begin-0001"),
+    maxUses: 1,
+    expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+  });
+  establishSnapshot.resolve();
+  const listed = await pendingList;
+  const invitation = listed.invitations.find(
+    ({ invitationId }) => invitationId === created.invitation.invitationId,
+  );
+  assert.ok(invitation);
+  assert.ok(Date.parse(invitation.evaluatedAt) >= Date.parse(invitation.createdAt));
+});
+
 test("invitation writes require a valid session and matching csrf token", async () => {
   const { csrfToken, sessionToken } = await seedAuthenticatedOperator();
   const request = {

@@ -356,7 +356,6 @@ export class InvitationManagementService {
   async listInvitations(sessionToken: string): Promise<ListInvitationsResponse> {
     return inTransaction(this.pool, async (client) => {
       await this.operatorAuth.authenticateSessionInTransaction(client, sessionToken);
-      const now = await databaseNow(client);
       const invitations = await client.query<InvitationRow>(
         `SELECT * FROM ${schema}.provider_invitations
           ORDER BY created_at DESC, invitation_id DESC`,
@@ -365,9 +364,10 @@ export class InvitationManagementService {
         client,
         invitations.rows.map((row) => row.invitation_id),
       );
+      const evaluatedAt = await databaseWallClock(client);
       return listInvitationsResponseSchema.parse({
         invitations: invitations.rows.map((row) =>
-          invitationView(row, registrations.get(row.invitation_id) ?? [], now)),
+          invitationView(row, registrations.get(row.invitation_id) ?? [], evaluatedAt)),
       });
     }, "REPEATABLE READ");
   }
