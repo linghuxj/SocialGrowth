@@ -4,6 +4,7 @@ import { HttpException } from "@nestjs/common";
 import { contractVersion, productErrorResponseSchema } from "@socialgrowth/product-contracts";
 
 import type { OperatorAuthService } from "./operator-auth-service.js";
+import type { InvitationManagementService } from "./invitation-management-service.js";
 import { OperatorController } from "./operator.controller.js";
 
 const operator = {
@@ -34,7 +35,10 @@ test("login writes only the internal token to a hardened host cookie", async () 
       };
     },
   } as unknown as OperatorAuthService;
-  const controller = new OperatorController(service);
+  const controller = new OperatorController(
+    service,
+    {} as InvitationManagementService,
+  );
   let cookie = "";
   const response = await controller.login(
     {
@@ -55,7 +59,10 @@ test("login writes only the internal token to a hardened host cookie", async () 
 });
 
 test("HTTP boundary reports an unsupported contract with the product envelope", async () => {
-  const controller = new OperatorController({} as OperatorAuthService);
+  const controller = new OperatorController(
+    {} as OperatorAuthService,
+    {} as InvitationManagementService,
+  );
   await assert.rejects(
     controller.login(
       {
@@ -81,7 +88,10 @@ test("HTTP boundary masks unexpected failures with a retryable product envelope"
   const service = {
     async listOperators() { throw new Error("database-password-must-not-leak"); },
   } as unknown as OperatorAuthService;
-  const controller = new OperatorController(service);
+  const controller = new OperatorController(
+    service,
+    {} as InvitationManagementService,
+  );
 
   await assert.rejects(
     controller.list({ headers: {} }),
@@ -93,4 +103,48 @@ test("HTTP boundary masks unexpected failures with a retryable product envelope"
         && !response.error.message.includes("database-password");
     },
   );
+});
+
+test("invitation HTTP writes use the host session, csrf token, and path identity", async () => {
+  let observed: unknown;
+  const invitationService = {
+    async revokeInvitation(sessionToken: string, csrfToken: string, request: unknown) {
+      observed = { sessionToken, csrfToken, request };
+      return { success: true };
+    },
+  } as unknown as InvitationManagementService;
+  const controller = new OperatorController(
+    {} as OperatorAuthService,
+    invitationService,
+  );
+  const invitationId = "00000000-0000-4000-8000-000000000099";
+  const response = await controller.revokeInvitation(
+    invitationId,
+    {
+      metadata: {
+        contractVersion,
+        idempotencyKey: "revoke-controller-0001",
+        requestId: "request-controller-revoke-0001",
+      },
+      invitationId: "00000000-0000-4000-8000-000000000098",
+      expectedFactVersion: 4,
+    },
+    { headers: { cookie: "other=x; __Host-sg_operator_session=session-token" } },
+    "csrf-token",
+  );
+
+  assert.deepEqual(response, { success: true });
+  assert.deepEqual(observed, {
+    sessionToken: "session-token",
+    csrfToken: "csrf-token",
+    request: {
+      metadata: {
+        contractVersion,
+        idempotencyKey: "revoke-controller-0001",
+        requestId: "request-controller-revoke-0001",
+      },
+      invitationId,
+      expectedFactVersion: 4,
+    },
+  });
 });

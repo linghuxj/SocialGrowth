@@ -794,7 +794,7 @@ export class OperatorAuthService {
     });
   }
 
-  private async authenticateSessionInTransaction(
+  async authenticateSessionInTransaction(
     client: PoolClient,
     sessionToken: string,
     csrfToken?: string,

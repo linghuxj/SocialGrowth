@@ -338,7 +338,7 @@ export class IdentityTransactionService {
       if (invitation.revoked_at) {
         throw new ProductTransactionError("INVITATION_REVOKED", "Invitation was revoked");
       }
-      if (invitation.expires_at.getTime() < now.getTime()) {
+      if (invitation.expires_at.getTime() <= now.getTime()) {
         throw new ProductTransactionError("INVITATION_EXPIRED", "Invitation expired");
       }
       if (invitation.consumed_uses >= invitation.max_uses) {
@@ -377,7 +377,8 @@ export class IdentityTransactionService {
       );
       await client.query(
         `UPDATE ${schema}.provider_invitations
-            SET consumed_uses = consumed_uses + 1
+            SET consumed_uses = consumed_uses + 1,
+                fact_version = fact_version + 1
           WHERE invitation_id = $1`,
         [invitation.invitation_id],
       );

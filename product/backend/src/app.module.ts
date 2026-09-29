@@ -3,6 +3,7 @@ import { Pool } from "pg";
 import { AppController } from "./app.controller.js";
 import { readOperatorRuntimeConfig } from "./config.js";
 import { DatabaseLifecycle } from "./database-lifecycle.js";
+import { InvitationManagementService } from "./invitation-management-service.js";
 import { OperatorAuthService } from "./operator-auth-service.js";
 import { OperatorController } from "./operator.controller.js";
 
@@ -23,8 +24,26 @@ const operatorAuthProvider = {
   },
 };
 
+const invitationManagementProvider = {
+  provide: InvitationManagementService,
+  inject: [Pool, OperatorAuthService],
+  useFactory: (pool: Pool, operatorAuth: OperatorAuthService) => {
+    const config = readOperatorRuntimeConfig();
+    return new InvitationManagementService(
+      pool,
+      operatorAuth,
+      config.SG_PRODUCT_AUTH_PEPPER,
+    );
+  },
+};
+
 @Module({
   controllers: [AppController, OperatorController],
-  providers: [poolProvider, operatorAuthProvider, DatabaseLifecycle],
+  providers: [
+    poolProvider,
+    operatorAuthProvider,
+    invitationManagementProvider,
+    DatabaseLifecycle,
+  ],
 })
 export class AppModule {}

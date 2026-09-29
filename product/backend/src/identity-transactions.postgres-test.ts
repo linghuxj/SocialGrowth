@@ -7,6 +7,7 @@ import { contractVersion } from "@socialgrowth/product-contracts";
 import { Pool } from "pg";
 
 import { IdentityTransactionService } from "./identity-transactions.js";
+import { InvitationManagementService } from "./invitation-management-service.js";
 import {
   OperatorAuthService,
   hashOperatorPassword,
@@ -25,6 +26,11 @@ const pool = new Pool({ connectionString: databaseUrl, max: 8 });
 const service = new IdentityTransactionService(pool);
 const operatorService = new OperatorAuthService(
   pool,
+  "test-only-operator-auth-pepper-0000000000000001",
+);
+const invitationService = new InvitationManagementService(
+  pool,
+  operatorService,
   "test-only-operator-auth-pepper-0000000000000001",
 );
 const migrationUrl = new URL("../migrations/0001_identity_and_device.sql", import.meta.url);
@@ -58,6 +64,26 @@ async function seedOperator(): Promise<string> {
     [operatorId, `operator-${operatorId}`],
   );
   return operatorId;
+}
+
+async function seedAuthenticatedOperator(): Promise<{
+  csrfToken: string;
+  operatorId: string;
+  sessionToken: string;
+}> {
+  const operatorId = await seedOperator();
+  const sessionToken = Buffer.from(randomUUID().replaceAll("-", "").padEnd(32, "0"))
+    .toString("base64url");
+  const csrfToken = Buffer.from(randomUUID().replaceAll("-", "").padEnd(32, "1"))
+    .toString("base64url");
+  await pool.query(
+    `INSERT INTO socialgrowth_product.operator_sessions (
+       session_id, operator_id, token_digest, csrf_digest, credential_version,
+       expires_at
+     ) VALUES ($1, $2, $3, $4, 1, transaction_timestamp() + interval '1 day')`,
+    [randomUUID(), operatorId, digest(sessionToken), digest(csrfToken)],
+  );
+  return { csrfToken, operatorId, sessionToken };
 }
 
 async function seedInvitation(
@@ -140,6 +166,165 @@ after(async () => {
   } finally {
     await pool.end();
   }
+});
+
+test("operator creates and safely replays an invitation without storing its bearer code", async () => {
+  const { csrfToken, operatorId, sessionToken } = await seedAuthenticatedOperator();
+  const request = {
+    metadata: metadata("create-invitation-replay-0001"),
+    maxUses: 3,
+    expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+  };
+
+  const created = await invitationService.createInvitation(sessionToken, csrfToken, request);
+  const replayed = await invitationService.createInvitation(
+    sessionToken,
+    csrfToken,
+    { ...request, metadata: { ...request.metadata, requestId: `request-${randomUUID()}` } },
+  );
+
+  assert.deepEqual(replayed, created);
+  assert.match(created.access.code, /^[A-Za-z0-9_-]{43}$/);
+  assert.equal(created.invitation.createdByOperatorId, operatorId);
+  const stored = await pool.query<{
+    code_digest: Buffer;
+    response_body: { access?: unknown; invitation?: unknown };
+  }>(
+    `SELECT i.code_digest, r.response_body
+       FROM socialgrowth_product.provider_invitations i
+       JOIN socialgrowth_product.idempotency_requests r
+         ON r.result_object_id = i.invitation_id
+      WHERE i.invitation_id = $1`,
+    [created.invitation.invitationId],
+  );
+  assert.deepEqual(stored.rows[0]?.code_digest, digest(created.access.code));
+  assert.equal(stored.rows[0]?.response_body.access, undefined);
+  assert.ok(stored.rows[0]?.response_body.invitation);
+  const audit = await pool.query<{ actor_id: string; action: string }>(
+    `SELECT actor_id, action FROM socialgrowth_product.audit_records
+      WHERE object_id = $1`,
+    [created.invitation.invitationId],
+  );
+  assert.deepEqual(audit.rows, [
+    { actor_id: operatorId, action: "provider_invitation.created" },
+  ]);
+});
+
+test("operator lists invitation progress and revokes with fact-version idempotency", async () => {
+  const { csrfToken, operatorId, sessionToken } = await seedAuthenticatedOperator();
+  const created = await invitationService.createInvitation(sessionToken, csrfToken, {
+    metadata: metadata("create-invitation-list-0001"),
+    maxUses: 2,
+    expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+  });
+  const verificationId = await seedVerification("+8613800000088");
+  const registered = await service.registerProvider(
+    {
+      displayName: "Progress Provider",
+      invitationCode: created.access.code,
+      metadata: metadata("register-invitation-list-0001"),
+      phoneVerificationId: verificationId,
+    },
+    { verifiedPhoneVerificationId: verificationId },
+  );
+
+  const listed = await invitationService.listInvitations(sessionToken);
+  const invitation = listed.invitations.find(
+    ({ invitationId }) => invitationId === created.invitation.invitationId,
+  );
+  assert.ok(invitation);
+  assert.equal(invitation.consumedUses, 1);
+  assert.equal(invitation.factVersion, 1);
+  assert.deepEqual(invitation.registrations.map(({ providerId }) => providerId), [
+    registered.providerId,
+  ]);
+  assert.equal("access" in invitation, false);
+
+  const request = {
+    metadata: metadata("revoke-invitation-replay-0001"),
+    invitationId: invitation.invitationId,
+    expectedFactVersion: invitation.factVersion,
+  };
+  const revoked = await invitationService.revokeInvitation(
+    sessionToken,
+    csrfToken,
+    request,
+  );
+  const replayed = await invitationService.revokeInvitation(
+    sessionToken,
+    csrfToken,
+    { ...request, metadata: { ...request.metadata, requestId: `request-${randomUUID()}` } },
+  );
+  assert.deepEqual(replayed, revoked);
+  assert.equal(revoked.invitation.status, "revoked");
+  assert.equal(revoked.invitation.factVersion, 2);
+  assert.equal(revoked.invitation.revokedByOperatorId, operatorId);
+});
+
+test("invitation writes require a valid session and matching csrf token", async () => {
+  const { csrfToken, sessionToken } = await seedAuthenticatedOperator();
+  const request = {
+    metadata: metadata("create-invitation-csrf-0001"),
+    maxUses: 1,
+    expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+  };
+  await assert.rejects(
+    invitationService.createInvitation(sessionToken, `${csrfToken}x`, request),
+    (error: unknown) =>
+      error instanceof ProductTransactionError && error.code === "AUTHENTICATION_REQUIRED",
+  );
+  await assert.rejects(
+    invitationService.createInvitation("", csrfToken, request),
+    (error: unknown) =>
+      error instanceof ProductTransactionError && error.code === "AUTHENTICATION_REQUIRED",
+  );
+});
+
+test("registration and revocation serialize on the invitation without losing facts", async () => {
+  const { csrfToken, sessionToken } = await seedAuthenticatedOperator();
+  const created = await invitationService.createInvitation(sessionToken, csrfToken, {
+    metadata: metadata("create-invitation-race-0001"),
+    maxUses: 1,
+    expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+  });
+  const verificationId = await seedVerification("+8613800000089");
+  const outcomes = await Promise.allSettled([
+    service.registerProvider(
+      {
+        displayName: "Race Provider",
+        invitationCode: created.access.code,
+        metadata: metadata("register-invitation-race-0001"),
+        phoneVerificationId: verificationId,
+      },
+      { verifiedPhoneVerificationId: verificationId },
+    ),
+    invitationService.revokeInvitation(sessionToken, csrfToken, {
+      metadata: metadata("revoke-invitation-race-0001"),
+      invitationId: created.invitation.invitationId,
+      expectedFactVersion: 0,
+    }),
+  ]);
+  const revokeOutcome = outcomes[1];
+  if (revokeOutcome?.status === "rejected") {
+    assert.ok(revokeOutcome.reason instanceof ProductTransactionError);
+    assert.equal(revokeOutcome.reason.code, "FACT_VERSION_STALE");
+  } else {
+    assert.equal(revokeOutcome?.value.invitation.status, "revoked");
+  }
+  const final = await pool.query<{
+    consumed_uses: number;
+    fact_version: string;
+    revoked_at: Date | null;
+  }>(
+    `SELECT consumed_uses, fact_version, revoked_at
+       FROM socialgrowth_product.provider_invitations
+      WHERE invitation_id = $1`,
+    [created.invitation.invitationId],
+  );
+  const row = final.rows[0]!;
+  assert.ok(row.consumed_uses === 0 || row.consumed_uses === 1);
+  assert.equal(Number(row.fact_version), row.consumed_uses + (row.revoked_at ? 1 : 0));
+  assert.ok(row.revoked_at !== null || row.consumed_uses === 1);
 });
 
 test("last invitation slot is consumed by exactly one concurrent registration", async () => {

@@ -13,16 +13,19 @@ import {
 } from "@nestjs/common";
 import {
   contractVersion,
+  createInvitationRequestSchema,
   createOperatorRequestSchema,
   disableOperatorRequestSchema,
   operatorLoginRequestSchema,
   productErrorResponseSchema,
   requestTraceSchema,
+  revokeInvitationRequestSchema,
 } from "@socialgrowth/product-contracts";
 import { randomUUID } from "node:crypto";
 import { ZodError } from "zod";
 
 import { OperatorAuthService } from "./operator-auth-service.js";
+import { InvitationManagementService } from "./invitation-management-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
 
 const sessionCookieName = "__Host-sg_operator_session";
@@ -90,6 +93,7 @@ function statusFor(error: ProductTransactionError): number {
     error.code === "LAST_ACTIVE_OPERATOR" ||
     error.code === "OPERATOR_ALREADY_EXISTS" ||
     error.code === "OPERATOR_DISABLED" ||
+    error.code === "INVITATION_REVOKED" ||
     error.code.startsWith("IDEMPOTENCY_")
   ) {
     return 409;
@@ -128,7 +132,11 @@ function sessionCookie(token: string, maxAge: number): string {
 
 @Controller("api/operator")
 export class OperatorController {
-  constructor(@Inject(OperatorAuthService) private readonly service: OperatorAuthService) {}
+  constructor(
+    @Inject(OperatorAuthService) private readonly service: OperatorAuthService,
+    @Inject(InvitationManagementService)
+    private readonly invitationService: InvitationManagementService,
+  ) {}
 
   @Post("login")
   @Header("Cache-Control", "no-store")
@@ -159,6 +167,63 @@ export class OperatorController {
     try {
       return await this.service.listOperators(
         cookieValue(request, sessionCookieName) ?? "",
+      );
+    } catch (error) {
+      rethrowHttp(error, requestId);
+    }
+  }
+
+  @Get("invitations")
+  @Header("Cache-Control", "no-store")
+  async listInvitations(@Req() request: HttpRequest) {
+    const requestId = `request-${randomUUID()}`;
+    try {
+      return await this.invitationService.listInvitations(
+        cookieValue(request, sessionCookieName) ?? "",
+      );
+    } catch (error) {
+      rethrowHttp(error, requestId);
+    }
+  }
+
+  @Post("invitations")
+  @Header("Cache-Control", "no-store")
+  async createInvitation(
+    @Body() body: unknown,
+    @Req() request: HttpRequest,
+    @Headers("x-csrf-token") csrfToken: string | undefined,
+  ) {
+    const requestId = requestIdFrom(body);
+    try {
+      requireSupportedContract(body);
+      return await this.invitationService.createInvitation(
+        cookieValue(request, sessionCookieName) ?? "",
+        csrfToken ?? "",
+        createInvitationRequestSchema.parse(body),
+      );
+    } catch (error) {
+      rethrowHttp(error, requestId);
+    }
+  }
+
+  @Post("invitations/:invitationId/revoke")
+  @Header("Cache-Control", "no-store")
+  async revokeInvitation(
+    @Param("invitationId") invitationId: string,
+    @Body() body: unknown,
+    @Req() request: HttpRequest,
+    @Headers("x-csrf-token") csrfToken: string | undefined,
+  ) {
+    const requestId = requestIdFrom(body);
+    try {
+      requireSupportedContract(body);
+      const input = typeof body === "object" && body !== null
+        ? { ...body, invitationId }
+        : body;
+      return await this.invitationService.revokeInvitation(
+        cookieValue(request, sessionCookieName) ?? "",
+        csrfToken ?? "",
+        revokeInvitationRequestSchema.parse(input),
       );
     } catch (error) {
       rethrowHttp(error, requestId);
