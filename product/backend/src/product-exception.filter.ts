@@ -12,8 +12,22 @@ import {
 import { randomUUID } from "node:crypto";
 
 interface FilterResponse {
+  headersSent?: boolean;
+  writableEnded?: boolean;
   setHeader(name: string, value: string): void;
   status(code: number): { json(body: ProductErrorResponse): void };
+}
+
+function statusFrom(exception: unknown): number {
+  if (exception instanceof HttpException) return exception.getStatus();
+  if (typeof exception !== "object" || exception === null) return 500;
+  for (const property of ["status", "statusCode"] as const) {
+    const value = exception[property as keyof typeof exception];
+    if (typeof value === "number" && Number.isInteger(value) && value >= 400 && value <= 499) {
+      return value;
+    }
+  }
+  return 500;
 }
 
 export function mapProductException(exception: unknown): {
@@ -27,7 +41,7 @@ export function mapProductException(exception: unknown): {
     }
   }
 
-  const frameworkStatus = exception instanceof HttpException ? exception.getStatus() : 500;
+  const frameworkStatus = statusFrom(exception);
   const internal = frameworkStatus >= 500;
   return {
     status: frameworkStatus,
@@ -49,6 +63,7 @@ export function mapProductException(exception: unknown): {
 export class ProductExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<FilterResponse>();
+    if (response.headersSent || response.writableEnded) return;
     const mapped = mapProductException(exception);
     response.setHeader("Cache-Control", "no-store");
     response.status(mapped.status).json(mapped.body);
