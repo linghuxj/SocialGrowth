@@ -1,0 +1,13 @@
+Use case: ui-mockup. Produce ONE realistic high-fidelity Chinese SocialGrowth Android execution-phone onboarding screen, continuing the user's selected existing style, not an alternative redesign. Portrait logical viewport 390 x 844. Input image is a style reference only. Pale gray #F4F6FA background, white surfaces, navy #172B4D headings, muted #526176 text, solid blue #2459C4 buttons. Use calm neutral status panels, amber only when user action or actual missing condition needs attention. No gradients. 16dp side margins, readable 16sp main copy and 14sp secondary, 28sp title, generous spacing, line icons. Flat app screenshot, no phone frame, no cropping, no bottom management navigation since this is the dedicated EXECUTION phone with local identity only. Today 2026-09-28. All statuses are mock examples, never real claims. Show no project strategy, company passwords, invite tokens, actual pairing keys, payments, remote screen controls, arbitrary IP or port. This is phone SG-035 unless specified. No new business functionality. Small footer “示例页面 · 2026-09-28”.
+Page top back “本机接入”; heading “检查接入条件”; subtitle “SG-035”.
+Amber concise notice “还需完成调试授权” with “当前不能接日常任务”.
+One white list labeled “检查结果 · 今天 10:32”, separate rows:
+“现场 Wi-Fi” / green small check “已通过”
+“管理连接” / green small check “已通过”
+“调试授权与中心连接” / amber waiting “待确认”
+“业务网络” / gray open circle “尚未检查”
+Rows are individual facts not a completed overall progress indicator. No overall green ready card.
+Under list neutral short explanation “连接在线，不代表中心已获操作授权。”
+Primary blue button “查看授权步骤”, secondary outlined button “重新检查”.
+Small line “完成本机准备后，仍需运营分配与初始化核验。”
+No actual credentials or technical ports, no unsupported guarantee a single switch is enough. Never “已全部就绪”. No local pause controls because screen purpose is pre-execution missing condition.

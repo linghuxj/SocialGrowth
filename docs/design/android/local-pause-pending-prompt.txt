@@ -1,0 +1,12 @@
+Use case: ui-mockup. Produce ONE realistic high-fidelity Chinese SocialGrowth Android execution-phone onboarding screen, continuing the user's selected existing style, not an alternative redesign. Portrait logical viewport 390 x 844. Input image is a style reference only. Pale gray #F4F6FA background, white surfaces, navy #172B4D headings, muted #526176 text, solid blue #2459C4 buttons. Use calm neutral status panels, amber only when user action or actual missing condition needs attention. No gradients. 16dp side margins, readable 16sp main copy and 14sp secondary, 28sp title, generous spacing, line icons. Flat app screenshot, no phone frame, no cropping, no bottom management navigation since this is the dedicated EXECUTION phone with local identity only. Today 2026-09-28. All statuses are mock examples, never real claims. Show no project strategy, company passwords, invite tokens, actual pairing keys, payments, remote screen controls, arbitrary IP or port. This is phone SG-035 unless specified. No new business functionality. Small footer “示例页面 · 2026-09-28”.
+Page top back “本机状态”; heading “本机暂停进展”; subtitle “SG-035 · 仅影响这台手机”.
+Amber prominent panel “暂停请求尚未确认送达” with “当前无法连接中心”.
+White progress section with three facts:
+blue small check “本机已记录暂停请求”
+neutral open circle “中心受理” / “尚未确认”
+neutral open circle “手机操作停止” / “尚未确认”
+Below key explanation “本机记录不代表已经停止，请等待确认。” in readable body text.
+Footer note separated from progress “恢复或永久退出，请在已登录的管理手机操作。”
+One outline button “返回本机状态”.
+This is an OFFLINE request pending confirmation after an authorized device-local pause, requiring no new management login. Must not show “已停止新任务派发”, “已安全停止”, green completion, resume button, exit button, OTP, password, full management navigation or other-device data. No guaranteed stop countdown or stop success when unknown. Leaving page does not cancel: supporting text “返回不撤销已记录的暂停请求。”
+No fake center acknowledgment. Keep natural hierarchy and ample space.

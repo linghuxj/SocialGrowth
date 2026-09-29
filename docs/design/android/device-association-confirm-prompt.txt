@@ -1,0 +1,20 @@
+Use case: ui-mockup. Design the SCAN BINDING CONFIRMATION screen for the SocialGrowth Android provider app in the attached selected visual style. One new screen, not a visual alternative. App content only, 390x844 logical portrait, natural ratio. No device bezel, OS status bar, notch, battery, home indicator or external captions. Current date anchor 2026-09-28; all data illustrative.
+Style reference is attached home screen. Continue #F4F6FA canvas, #FFFFFF grouped content, #172B4D text, #526176 secondary, #DCE2EA thin dividers, solid #2459C4 blue, pale #FFF4DF information panel if necessary. Chinese system sans body16, spacious touch targets at least 48 logical px, restrained 12px cards and 8px buttons, no gradients, no fake phone photo.
+Context: provider is on DAILY MANAGEMENT PHONE, has scanned a NEW dedicated execution phone's device-association code. Scan recognized it, but user has NOT confirmed binding. Scanning must not automatically grant ADB, join VPN, allocate projects, enable work, or copy full management login to the execution phone. No existing device ownership is overwritten.
+Exact concise visible hierarchy:
+Back chevron and top title 添加执行手机.
+Large heading 核对关联设备.
+Subheading 已识别关联码，请核对目标手机.
+A white group with outlined phone icon and large SG-035, subtitle 待关联的执行手机.
+Rows:
+当前提供者 — 用户 001（示例）
+验证手机号 — 138****0021
+目标设备 — SG-035
+A calm paragraph 请核对执行手机上显示的设备标识.
+Below separate simple heading 关联后还需要 and 3 concise bullet/row lines:
+在执行手机完成必要授权
+等待设备检查与运营准备
+核验通过后才能接任务
+No green checkmarks on future steps, no percentage, no completed success, no Android version or project names.
+Bottom primary button 确认关联. Secondary text 重新扫码. Supporting note 关联不会把当前管理手机接入执行.
+Small footer 示例数据 · 2026-09-28. No bottom tab navigation on this drilldown screen. Do not draw QR or camera frame here since it is already the confirmation step. No invitation code, no commission, no username input, no task approval. Match visual hierarchy of selected home, leave breathing room and avoid oversized duplicate cards; all key text and actions within viewport.

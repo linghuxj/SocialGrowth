@@ -1,0 +1,20 @@
+Use case: ui-mockup. Create the INVITED REGISTRATION screen for SocialGrowth Android provider app, matching the attached selected home style. One new focused screen, logical390x844 portrait, app content only. No phone bezel, OS status bar, notch, battery, home indicator or browser chrome. Date anchor2026-09-28, static example.
+Continue #F4F6FA light canvas, white clean form, #172B4D Chinese typography, #526176 secondary, #DCE2EA dividers, solid #2459C4 blue. Clear mobile16 logical body, touch targets48minimum, spacing16, restrained corners, no gradient or decorative illustration. Attached image provides style only; do not copy its device list.
+Business: first-time provider is individually invited via single-use link/code. Invitation is validated at this stage, but provider phone verification and registration NOT yet completed. Login uses phone+SMS code. Invitation alone is not registration and registration does not onboard this current daily phone as execution phone. No open public signup, payment, rewards, company account access, social login or email login. Do not show actual invitation token, OTP or real personal data.
+Exact screen content:
+Top back arrow and wordmark SocialGrowth.
+Large title 受邀加入.
+Subtitle 完成手机号验证，管理你的执行手机.
+Small green-tinted simple status row 邀请已校验, supporting 完成验证后才能注册.
+White form area, visible labels:
+手机号
+empty input placeholder 请输入手机号
+短信验证码
+empty input placeholder 请输入短信验证码
+a clearly separate compact action 获取验证码 at right of code field.
+Below form full-width primary 注册并进入管理.
+Neutral supporting message 注册不会将本机接入执行.
+Secondary text action 已有账号？手机号登录.
+Near lower part a short plain explanation 加入后，可逐台扫码关联专用执行手机.
+Footer 示例页面 · 2026-09-28.
+No checked boxes, legal agreement invention, avatar, name field, numeric countdown or assumed code length. No +86 or specific country support assumption; don't invent recipient details. Invitation has passed only, no full-screen success check. No bottom navigation before login. Generous whitespace, all inputs and primary button comfortably visible, exact legible Chinese text.

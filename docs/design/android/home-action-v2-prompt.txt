@@ -1,0 +1,8 @@
+Use case: precise-object-edit. Edit the attached SocialGrowth Android home mockup. This is the user-selected visual direction; preserve its overall layout, light gray canvas, white grouped device list, amber assistance region, large Chinese title, spacious 3-device list and 3-item bottom navigation. Do not redesign or add features. Logical frame 390x844 portrait, same natural aspect ratio as reference, app content only, no bezel/status bar/home indicator. Date anchor 2026-09-28, all mock data.
+Only make these focused corrections:
+1. Subtitle under 我的设备 becomes exactly “查看设备状态与待处理事项”, removing the guarantee that phones run normally.
+2. In the amber assistance region preserve title 需要你配合, problem 设备 SG-021 需要重新授权, primary button 查看处理步骤. Replace instruction with “先查看处理步骤，再操作执行手机”. Replace footer note with “现场处理前需先确认停止”.
+3. All buttons use solid flat blue #2459C4, not a gradient; white text. Canvas #F4F6FA, surface #FFFFFF, text #172B4D, muted #526176, amber surface #FFF4DF and #8A4B08 text, dividers #DCE2EA.
+4. Bottom nav 分佣 uses a simple outline receipt/document icon, NOT a people/group icon and not a wallet or payment button. Keep 设备 and 我的 icons recognizable and consistent.
+5. Preserve rows exactly: SG-012 可接任务 最近确认 10:20; SG-021 待本人配合 调试授权待恢复; SG-028 已暂停 连接在线. Footer 示例数据 · 2026-09-28.
+Keep 添加设备 secondary at top. No project name, Android version claims, revenue amount, publish controls, remote phone screenshot, toggle, additional menus or invented text. No fake success changes. Readable Chinese type, 15-16 logical body, minimum 48 logical touch targets. Produce one polished full app viewport with all content and bottom navigation visible.

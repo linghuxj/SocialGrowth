@@ -1,6 +1,6 @@
 # 分散手机接入：VPN 与 mDNS 可行性核查
 
-初次核查：2026-09-25；补充：2026-09-27。本文研究未部署 VPN 或运行实机测试；用户按 R-109 确认既有远程执行此前已经验证，应复用其证据，不视为全未验证。当前按 R-124 允许自有 App 配套官方 Tailscale，重点是单一 VPN 承担管理与业务上网，以及客户端端点通知和恢复。除该分工外，技术候选不等于已选实现。
+初次核查：2026-09-25；补充：2026-09-28。本文研究未部署 VPN 或运行实机测试；用户按 R-109 确认既有远程执行此前已经验证，应复用其证据，不视为全未验证。当前按 R-124 允许自有 App 配套官方 Tailscale，重点是单一 VPN 承担管理与业务上网，以及客户端端点通知和恢复。除该分工外，技术候选不等于已选实现。
 
 ## 配套客户端的验证安排
 
@@ -38,6 +38,8 @@
 - **注册不等于首次调试授权**：官方无线调试流程包含用户在系统设置启用功能和配对。故首次接入必须在“现场只有手机”的条件下证明中心如何取得授权，不能把现场 USB 电脑作为未说明的前提；发现端口或完成 App 注册均不能替代这一步。[Android ADB](https://developer.android.com/tools/adb)
 - **Wi-Fi 状态可能决定无线调试是否存在**：核查 `android16-release` 的 `AdbDebuggingManager`，其 Wi-Fi 接收器在 Wi-Fi 关闭或断开时将 `ADB_WIFI_ENABLED` 设为 0（核查时约 645–665 行）。这是所查分支的行为，不是对全部厂商及版本的结论；但足以说明“蜂窝网络上 VPN 在线”不能推定“无线 ADB 仍可用”。Android 17/ADB 37 的新连接机制也不能直接外推到较早支持机型。[Android 16 源码](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/android16-release/services/core/java/com/android/server/adb/AdbDebuggingManager.java)；[当前 ADB 文档](https://developer.android.com/tools/adb)
 
+R-150 已确认正常端口变化只更新状态和记录，恢复失败或需人工才提醒。具体上报关联、受理回执、乱序及失效处理、多机重连与待办路由见[端点上报契约](../technical-design.md#adb-端点上报重连与提醒契约2026-09-28)；该契约为实施草案，不代表原生客户端已验证。
+
 ### 要证明的接续路径
 
 用户完成必要系统授权 → App 识别本机当前连接端点并认证上报 → 中心验证实际路径可达及自身 ADB 授权 → 核验目标设备和业务条件 → Artemis 承接获准任务。
@@ -56,7 +58,7 @@
 
 ## Tailscale 入网身份、访问范围与退出核查（2026-09-27）
 
-本节为 R-123、R-126 至 R-129 的技术验证准备，不新增用户审批步骤或锁定入网实现；未登录管理后台、生成密钥或修改网络策略。
+本节为 R-123、R-126 至 R-129 的技术验证准备；后续 R-148 已确认系统核验通过后自动准入、异常交运营，正常接入不逐台人工审批。以下网络身份、凭据及绑定方式仍为技术候选；未登录管理后台、生成密钥或修改网络策略。
 
 ### 官方能力与限制
 
@@ -65,6 +67,12 @@
 - Grants 可按来源、目标和协议/端口定义访问范围；但新建 tailnet 的初始策略允许设备互通，不能把规则机制的默认拒绝误解成实际网络已隔离。Tailscale 访问规则不控制手机直接使用本地局域网的流量。[Grants](https://tailscale.com/docs/features/access-control/grants)；[ACL 行为与初始策略](https://tailscale.com/docs/features/access-control/acls)
 - Exit Node 的互联网访问许可与手机间访问分别配置；`autogroup:internet` 表达经出口访问互联网，不等于允许访问所有内部节点。[Grants 语法](https://tailscale.com/docs/reference/syntax/grants)
 - 标签身份不能与用户身份同时存在，官方主要将其用于服务设备，并提示不适合一般用户终端。我们的专用执行手机是否采用标签身份仍需评估，不能因为是 Android 就直接套服务端示例；业务提供者、实体设备与网络身份仍须分别关联。[Tags](https://tailscale.com/docs/features/tags)
+
+### 自动准入确认与技术依据（2026-09-28）
+
+用户按 R-148 选择系统核验后自动准入，首次项目和账号分配仍由运营确认。再次核对官方文档：设备批准支持收到待批准事件后核验条件，再调用授权 API；Android 官方 App 可使用 auth key 入网。[设备自动批准](https://tailscale.com/docs/features/access-control/device-management/device-approval#automate-device-approval)、[移动设备 auth key](https://tailscale.com/docs/features/access-control/auth-keys#register-a-mobile-device-with-the-auth-key)。这些能力不证明自有 App 已能可信绑定实体手机与网络节点，也不确定凭据发放方式；自动化的管理凭据只应由受控中心使用。
+
+先完成不依赖 tailnet 的注册及关联，再核实实际节点，自动开放限定访问；待批准节点无法访问 tailnet 时仍须有受认证的接入材料传递路径。核验不明或失败转 R-143，不能把超时直接当作批准失败后重复建节点。暂停、退出及归属变化与迟到批准结果的冲突需在准入实施中处理并实测。
 
 ### 建议验证的最小连接范围
 
@@ -88,6 +96,10 @@
 
 还需落实实际网络身份方案、凭据发放与节点关联方式、服务端鉴权、动态端口访问策略及退出清理顺序。当前不建设完整身份管理平台，不将候选配置当作用户新增确认；使用哪个 Tailscale 套餐及实际可用权限在部署前核实。
 
+### 2026-09-28 实施深化的接入顺序缺口
+
+再次只读核对官方设备批准说明：待批准设备不能收发 tailnet 流量；官方 LocalAPI 客户端的 WhoIs 可根据实际连接来源查询节点。因此，依赖内网来源核验的设计不能放在网络批准之前而没有任何可达路径。推荐的先行受限核验连接、设备签名挑战与动态端口授权见[实施草案](../device-connectivity-implementation.md)；该权限顺序后续已按 R-151 确认，补充 R-148：先核实受邀资格与归属，再开放仅用于核验的连接，节点绑定核验通过后正式准入；失败或失效时回收并核实实际结果。其余接口及参数已细化为联调候选，未部署或实测。来源：[设备批准](https://tailscale.com/docs/features/access-control/device-management/device-approval)、[LocalAPI 官方客户端](https://github.com/tailscale/tailscale/blob/main/client/local/local.go)。
+
 ## 其他候选与 Android 运行边界
 
 当前按 R-124 优先验证官方 Tailscale 配合 Exit Node，按 R-129 使用稳定现有 Wi-Fi。以下保留此前研究的替代思路及限制，不作为并行建设要求：
@@ -104,7 +116,39 @@ mDNS 是本地链路发现，Exit Node 不使它自动跨地点传播。建议 A
 
 网络重连、App 服务恢复、开机后恢复和整机重启须分别验证。普通安装不自动取得整机重启权限；已授权 ADB 能发起重启，也不代表重启后能自行重建连接。锁屏、省电、后台回收、用户强制停止和撤权需记录实际表现，不承诺进程常驻或静默重新授权。[PowerManager](https://developer.android.com/reference/android/os/PowerManager#reboot(java.lang.String))；[DevicePolicyManager](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#reboot(android.content.ComponentName))；[前台服务启动限制](https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start)
 
+## Android 接入引导的资料核查（2026-09-28）
+
+本次为 Android 接入页面补查官方资料，未改变支持机型清单或选定具体中心配对接法，也未部署或连接设备。
+
+- Android 官方无线 ADB 指南把系统开启、工作站配对及连接验证列为不同步骤，并以同一无线网络为标准流程条件。因此将远程中心接入改造成“现场仅手机”的产品流程，仍需证明实际可达与授权；管理手机扫码关联不能代替这项证据。当前官方文档还区分新版无线调试行为，不能据此承诺所有候选机型自动恢复。[Android ADB](https://developer.android.com/tools/adb#connect-to-a-device-over-wi-fi)
+- Tailscale Android 安装说明包含官方 App 安装与系统 VPN 配置确认；这不证明自有 App 可静默代替这些操作。产品引导先解释用途，再跳转可验证的官方流程；未选择要求提供者持有公司网络管理账号的方案。[Tailscale Android 安装](https://tailscale.com/docs/install/android)
+- Exit Node 文档将提供出口、允许使用出口与设备选择出口分开；Android 使用指定出口不等于把这台执行手机设为出口。提供者页面仅表达已分配方案及当前验证事实，不新增让提供者发布出口节点或任意变更路由的入口。[Tailscale Exit Node](https://tailscale.com/docs/features/exit-nodes)
+- Android VPN 文档说明同一用户／资料只有一个活动 VPN 服务，新服务会停止已有服务。故页面不引导同时开启 Tailscale 与另一套系统 VPN；发现连接冲突时按事实处理，不能显示“两项授权都已通过”便推定共存。[Android VPN](https://developer.android.com/develop/connectivity/vpn)
+
+设计推论：本机引导采用“显示关联码 → 配套与授权 → 分项检查 → 运营准备 → 初始化核验”，同时保留明确暂停意愿。资料不证明本机断网时能立即中断所有远程操作；R-139 本机暂停入口须补验设备身份权限、离线记录同步、实际停止及旧恢复回执冲突，不能仅测 UI 提示。具体页面和异常见[Android 接入规格](../android-app-page-spec.md#3-扫码关联与本机接入)。
+
 ## 既有证据与资源准备
+
+### 首轮连接路径收敛（2026-09-28）
+
+本轮再次核对官方资料，只收敛验证路径，不新增客户端网络引擎或现场设备：
+
+- AOSP 将配对定义为手机信任实际 ADB 主机密钥；配对服务和 TLS 连接服务不同，连接端口动态分配。因此应由实际中心 ADB 身份完成配对，不能以 App 自身配对或 App 业务关联成功替代。[AOSP ADB Wi-Fi 架构](https://android.googlesource.com/platform/packages/modules/adb/+/HEAD/docs/dev/adb_wifi.md)
+- Android 同一用户／资料只允许一个活动 VPN 服务，维持自有 App 配套官方 Tailscale 的既定方向。[Android VPN](https://developer.android.com/develop/connectivity/vpn)
+- Tailscale 使用 Exit Node 时默认不允许访问本地网络；Android 客户端可设置 Allow LAN access。**验证推论**：本地发现与访问不能只在未启用出口时测通；需要对照选定出口下的本地发现、实际中心连接和平台网络结果。不是要求默认开放全部局域网，也不保证打开该选项即可解决 ADB 连接。[Tailscale Exit Node](https://tailscale.com/docs/features/exit-nodes#local-network-access)
+
+首选验证顺序：先复用已通过的中心连接接法，证明选定手机上经 tailnet 可到达实际配对／连接服务，再用中心自身 ADB 密钥完成配对，最后验证选定 Exit Node 下两类网络同时可用。不能只把本地发现的 Wi-Fi 地址替换成 tailnet 地址就判成功；目的地址、端口监听、身份及连接结果都要核实。直接路径不成立时记录实际失败层，暂停定型该接法，不自动加现场网关、Root、第二 VPN 或通用转发服务。
+
+R-149 已确认在已登录管理手机对应设备页手动输入执行手机系统配对码，并支持多台同时配对；凭据仅走绑定设备、中心身份及本次会话的受控通路，不进入普通反馈、截图、日志或模型输入。各设备端点、会话、输入和结果独立；同机请求互斥，迟到回执不覆盖新会话，实际目标核验及短期凭据传递仍须实测。具体并发契约见[技术设计](../technical-design.md#首次配对与多机并发契约2026-09-28)。无需在本轮新增完整配对设置中心。人工确认系统授权与业务扫码关联仍是不同步骤。
+
+| 沿用验证项 | 本轮收敛后的最小判据 | 当前状态 |
+| --- | --- | --- |
+| V-02 管理与上网 | 相同配置下分别证明中心访问、实际 ADB 连接、FB/YT 网络可用；记录出口和本地访问配置对结果的影响 | 资料核查完成，实际样机结果未验证 |
+| V-03 首次配对 | R-149 手动配对码、多机独立会话并发，现场无电脑；实际中心密钥获授权并连到正确手机，迟到结果不串会话 | 交互及并发要求已确认，远程路径、凭据通路与并发行为未验证 |
+| V-04 App 端点 | 配对与连接端点分开、来源绑定本机；端口变化使旧连接事实失效，中心核验新端点 | 原生客户端行为未验证 |
+| V-05 重连与重启 | 分别记录网络、调试授权及 App 进程恢复结果；需现场协助时如实提示，不自动解除暂停 | 未验证，沿用既有故障场景，不承诺静默恢复 |
+
+以上状态不覆盖 R-109 的原远程执行证据，也不代表本轮运行了检测命令。实际步骤与证据规则沿用[首轮验证安排](../verification-readiness.md#首轮验证步骤)。
 
 用户按 R-109 确认既有远程执行已验证。首先整理原机型、系统、中心接法、ADB/Artemis 版本及任务证据；只补查新网络、新客户端及未覆盖的恢复，不重新要求证明未受影响的基础能力。
 

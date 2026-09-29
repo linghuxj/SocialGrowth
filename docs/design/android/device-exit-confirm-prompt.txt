@@ -1,0 +1,11 @@
+Use case: ui-mockup. Create one production-quality SocialGrowth Android provider app screen in Chinese, a new page continuing the user's already-selected visual direction, NOT a new alternative. Target logical dimensions 390 x 844, portrait ratio, flat UI screenshot no phone frame, readable Chinese, realistic generous spacing, no clipped content. Today is 2026-09-28; all displayed data is fictional design example. Input image is a style reference only, retain its pale gray #F4F6FA background, white content, dark #172B4D text, secondary #526176 text, blue #2459C4 actions, light amber #FFF4DF notices, sparse line icons. Use solid colors not gradients. 16dp side spacing; 28sp page titles,16sp body,14sp secondary; avoid tiny text. Respect bottom safety space. Focus on current task; no project strategy, materials, individual publication tasks, remote screens, other providers, withdrawals, bank linking, automatic payout. Do not invent any extra actions or business facts. Match the existing visual language, not duplicate its page content. Footer small but readable: “示例数据 · 2026-09-28”.
+Page: 永久退出 confirmation for ONE execution phone, top back to device details, no bottom nav. Large target identifier “SG-028”, small context “当前已暂停 · 管理连接在线”. Core question “永久退出这台手机？”
+Light amber consequence notice “退出后，不能通过普通恢复重新启用。”
+White content section “确认后会怎样”, three readable stacked simple rows without checkmarks or chevrons:
+“停止使用” / “停止新任务派发，手机停止仍需确认。”
+“后续清理” / “由运营处理账号交接与登录清理。”
+“保留历史” / “历史记录与分佣依据保留。”
+Separate clear note “仅影响 SG-028，不影响你的其他设备。”
+Additional muted but readable note “退出不删除公司媒体账号或已发布内容。”
+Bottom explicit red #B42318 button white label “确认永久退出”, secondary neutral outlined “返回设备详情”.
+This is BEFORE confirmation. No success ticks, no exit request already accepted, no countdown, no mandatory reason/OTP/approval/checkbox invented. Primary irreversible action clearly scoped. No claim cleanup instantly complete or all authorizations automatically revoked. No cancellation of confirmed exit, no delete account or payout action.

@@ -1,0 +1,14 @@
+Use case: ui-mockup. Create the ONSITE ASSISTANCE page in the same Android visual system as attached SocialGrowth homepage. Attached image is style reference only. This is a new workflow detail page, not another alternative home. Logical 390x844 portrait, app content only, NO bezel, OS status bar, battery, clock, notch, home indicator, browser chrome or exterior shadow. Date anchor 2026-09-28, static illustrative facts.
+User scenario: device owner already tapped 暂停并开始现场处理 for phone SG-021. Center accepted request and stopped NEW task dispatch, but execution device STOP is still unconfirmed. The page must make this distinction unmistakable. It must not instruct the user to operate the phone yet, and must not display a completed stop, granted remote control, ready-to-operate action, auto recovery, platform task details or remote screenshot.
+Match reference: #F4F6FA light canvas, white grouped content, #172B4D text, #526176 supporting, #DCE2EA dividers, #2459C4 blue, pale amber #FFF4DF. Chinese system sans, body16, intentional mobile spacing and 48 logical min touch targets. No gradients, no ornate imagery, no invented values.
+Top back chevron with title 现场协助. Strong large device label SG-021. Smaller subtitle 恢复调试授权.
+Prominent pale amber status block heading 等待停止确认 and sentence 请先等待确认，再操作执行手机. No CTA inside this status.
+Main white section 暂停进展 with a vertical 3-step factual timeline:
+1 请求已受理 — 今天 10:21 (completed small blue check)
+2 已停止新任务派发 — 今天 10:21 (completed small blue check)
+3 手机停止尚未确认 — 正在等待设备回执 (current neutral/amber outlined dot, no completed check)
+Do not add progress percent or estimated completion time.
+Under timeline a simple divider, section 接下来 and sentence 确认停止后，才能进行现场处理. Smaller helper 处理完成后仍需主动请求恢复. These future steps must not look completed.
+Near bottom a neutral information line 离开页面不会撤销暂停请求.
+One outlined secondary button 返回设备详情 near bottom. No big disabled “开始处理” button, no “取消暂停”, no “请求恢复” yet. No bottom nav on this drilldown screen. Small footer 示例数据 · 2026-09-28.
+Use one clear hierarchy, readable all Chinese content, no clipping. Show waiting state calmly without red failure alarm. Preserve exact business semantics and labels, add nothing beyond requested content.

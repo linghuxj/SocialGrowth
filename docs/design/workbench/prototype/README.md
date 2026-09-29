@@ -41,4 +41,4 @@ pnpm exec tsx docs/design/workbench/prototype/verify-prototype.mts
 - [首页](checks/home.png) / [独占控制状态](checks/device-control.png) / [结束收尾](checks/ended.png) / [手机只读](checks/mobile-read-only.png)：全部为原型截图。
 - 实际 Web 业务验收、新实机、发布、付款：本轮均未运行。既有远程执行证据继续按 R-109 复用，本轮结果不增加或推翻其覆盖范围。
 
-下一步以此原型补齐批量素材操作及加载、局部失败、并发变化等尚未覆盖分支，形成组件与状态交付清单；真实业务验证继续遵守仓库的 Web / Playwright / Artemis 规则。
+2026-09-29 交接校准：批量素材操作及加载、局部失败、并发变化等尚未覆盖分支，随对应模块形成组件状态并实现、验证；补齐全部设计原型不作为正式开发的前置。当前首批见[身份与设备归属契约](../../../first-delivery-flow.md)，真实业务验证继续遵守仓库的 Web / Playwright / Artemis 规则。

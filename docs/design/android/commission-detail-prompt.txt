@@ -1,0 +1,14 @@
+Use case: ui-mockup. Create one production-quality SocialGrowth Android provider app screen in Chinese, a new page continuing the user's already-selected visual direction, NOT a new alternative. Target logical dimensions 390 x 844, portrait ratio, flat UI screenshot no phone frame, readable Chinese, realistic generous spacing, no clipped content. Today is 2026-09-28; all displayed data is fictional design example. Input image is a style reference only, retain its pale gray #F4F6FA background, white content, dark #172B4D text, secondary #526176 text, blue #2459C4 actions, light amber #FFF4DF notices, sparse line icons. Use solid colors not gradients. 16dp side spacing; 28sp page titles,16sp body,14sp secondary; avoid tiny text. Respect bottom safety space. Focus on current task; no project strategy, materials, individual publication tasks, remote screens, other providers, withdrawals, bank linking, automatic payout. Do not invent any extra actions or business facts. Match the existing visual language, not duplicate its page content. Footer small but readable: “示例数据 · 2026-09-28”.
+Page: 分佣详情, top back, no bottom main nav. This is the detailed view of one example commission, no pay/withdraw/mark-paid buttons.
+Title “FB Page · 021”; small “设备 SG-021”.
+Hero amount “USD 30.00”, status “可结算 · 未付款”.
+A quiet visible line “以下金额及比例均为示例”.
+Content group “核对依据”, four compact readable label/value rows:
+“收益所属期间” / “2026-08-01 至 08-31”
+“本人承接期间” / “2026-08-01 起，持续中”
+“可归属到账广告收益” / “USD 300.00”
+“收入到账日期” / “2026-09-20”
+Second small group “佣金计算”, “适用比例 10%（示例）”, equation “USD 300.00 × 10% = USD 30.00”, note “按收益产生期间适用的比例计算，不另扣运营成本。”
+Final neutral notice: “尚无付款完成记录” and “可结算不代表已经付款。”
+Bottom supporting outline action “返回分佣列表”.
+Must not imply the illustrative 10% is the chosen real business rate, not current-date rate, no full company income, no reference to other providers. No auto conversion. Formula and dates exactly correct. Avoid dense nested cards; keep plenty of breathing room.
