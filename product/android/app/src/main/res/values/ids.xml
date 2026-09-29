@@ -7,4 +7,11 @@
     <item name="provider_switch_mode" type="id" />
     <item name="provider_error" type="id" />
     <item name="provider_logout" type="id" />
+    <item name="installation_mode" type="id" />
+    <item name="installation_qr" type="id" />
+    <item name="installation_refresh" type="id" />
+    <item name="provider_add_device" type="id" />
+    <item name="provider_device_list" type="id" />
+    <item name="association_confirm" type="id" />
+    <item name="association_rescan" type="id" />
 </resources>

@@ -1,9 +1,10 @@
 package com.socialgrowth.product
 
-import android.app.Activity
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -16,14 +17,24 @@ import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.ComponentActivity
+import com.google.zxing.BarcodeFormat
+import com.journeyapps.barcodescanner.BarcodeEncoder
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
+import org.json.JSONObject
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 import java.util.concurrent.Executors
 
-class MainActivity : Activity() {
+class MainActivity : ComponentActivity() {
     private val blue = Color.rgb(36, 89, 196)
     private val canvas = Color.rgb(244, 246, 250)
     private val ink = Color.rgb(23, 43, 77)
@@ -33,7 +44,9 @@ class MainActivity : Activity() {
     private val executor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
     private lateinit var api: ProviderApiClient
+    private lateinit var associationApi: AssociationApiClient
     private lateinit var sessionStore: ProviderSessionStore
+    private lateinit var installationStore: InstallationIdentityStore
     private var registrationMode = true
     private var invitationCode: String? = null
     private var challenge: PhoneVerificationChallenge? = null
@@ -41,16 +54,27 @@ class MainActivity : Activity() {
     private var verifyKey = newIdempotencyKey("verify")
     private var authKey = newIdempotencyKey("auth")
     private var lastCode = ""
+    private var screenGeneration = 0
+    private var associationConfirmKey = newIdempotencyKey("association-confirm")
+    private val barcodeLauncher = registerForActivityResult(ScanContract()) { result ->
+        result.contents?.let(::handleAssociationPayload)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         api = ProviderApiClient(BuildConfig.API_BASE_URL)
+        associationApi = AssociationApiClient(api)
         sessionStore = ProviderSessionStore(this)
+        installationStore = InstallationIdentityStore(this)
         invitationCode = intent?.data?.getQueryParameter("invitation")
             ?: intent?.data?.getQueryParameter("code")
             ?: intent?.getStringExtra("invitation")
-        sessionStore.load()?.let {
-            showManagement(it)
+        if (installationStore.exists()) {
+            showInstallationLoading()
+            return
+        }
+        sessionStore.load()?.let { session ->
+            showManagement(session)
             return
         }
         showAuthForm()
@@ -181,6 +205,18 @@ class MainActivity : Activity() {
         root.addView(label("加入后，可逐台扫码关联专用执行手机。", 14f, secondary).apply { gravity = Gravity.CENTER }, matchWrap().apply {
             topMargin = dp(24)
         })
+        root.addView(secondaryButton("将这台手机作为执行手机接入").apply {
+            id = R.id.installation_mode
+            contentDescription = "将这台手机作为执行手机接入"
+            setOnClickListener {
+                try {
+                    installationStore.ensureCredential()
+                    showInstallationLoading()
+                } catch (_: Exception) {
+                    Toast.makeText(this@MainActivity, "无法安全建立本机身份，请重试。", Toast.LENGTH_LONG).show()
+                }
+            }
+        }, matchHeight(54).apply { topMargin = dp(16) })
         root.addView(View(this), LinearLayout.LayoutParams(1, 0, 1f))
 
         requestCode.setOnClickListener {
@@ -254,19 +290,24 @@ class MainActivity : Activity() {
     }
 
     private fun showManagement(session: StoredProviderSession) {
-        val content = vertical(24).apply {
-            setBackgroundColor(canvas)
-            gravity = Gravity.CENTER_HORIZONTAL
+        val generation = ++screenGeneration
+        val content = vertical(20).apply { setBackgroundColor(canvas) }
+        content.addView(appHeader("设备管理"), matchWrap())
+        content.addView(label("执行手机", 30f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(22) })
+        content.addView(label("${session.displayName} · ${session.phoneHint}", 14f, secondary), matchWrap().apply { topMargin = dp(7) })
+        val add = primaryButton("添加执行手机").apply {
+            id = R.id.provider_add_device
+            contentDescription = "扫码添加执行手机"
+            setOnClickListener { startAssociationScan() }
         }
-        content.addView(label("SocialGrowth", 20f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(28) })
-        content.addView(label("已进入管理", 30f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(60) })
-        content.addView(label(session.displayName, 18f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(20) })
-        content.addView(label(session.phoneHint, 15f, secondary), matchWrap().apply { topMargin = dp(6) })
-        val notice = vertical(18).apply { background = rounded(Color.WHITE, 12) }
-        notice.addView(label("管理身份已验证", 16f, Color.rgb(20, 108, 67), Typeface.BOLD))
-        notice.addView(label("登录不会将这台手机接入执行，也不会改变已有执行手机状态。", 14f, secondary), matchWrap().apply { topMargin = dp(8) })
-        notice.addView(label("设备关联将在下一阶段从管理入口逐台确认。", 14f, secondary), matchWrap().apply { topMargin = dp(8) })
-        content.addView(notice, matchWrap().apply { topMargin = dp(32) })
+        content.addView(add, matchHeight(54).apply { topMargin = dp(22) })
+        content.addView(label("扫码只用于核对设备；确认前不会建立归属。", 13f, secondary).apply {
+            gravity = Gravity.CENTER
+        }, matchWrap().apply { topMargin = dp(9) })
+        content.addView(label("我的设备", 18f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(28) })
+        val devices = vertical(0).apply { id = R.id.provider_device_list }
+        devices.addView(label("正在读取设备…", 14f, secondary), matchWrap().apply { topMargin = dp(12) })
+        content.addView(devices, matchWrap())
         val logout = secondaryButton("退出管理登录").apply {
             id = R.id.provider_logout
             setOnClickListener {
@@ -287,8 +328,393 @@ class MainActivity : Activity() {
                 )
             }
         }
-        content.addView(logout, matchHeight(54).apply { topMargin = dp(34) })
-        setContentView(content)
+        content.addView(logout, matchHeight(54).apply { topMargin = dp(30) })
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            addView(content, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        setContentView(scroll)
+        runNetwork(
+            action = { associationApi.devices(session.sessionToken) },
+            success = { list -> if (generation == screenGeneration) renderDevices(devices, list) },
+            failure = { message -> if (generation == screenGeneration) renderDeviceError(devices, message) },
+        )
+    }
+
+    private fun showInstallationLoading() {
+        val generation = ++screenGeneration
+        val root = vertical(20).apply {
+            setBackgroundColor(canvas)
+            gravity = Gravity.CENTER_HORIZONTAL
+        }
+        root.addView(label("正在准备本机安全身份…", 18f, ink, Typeface.BOLD), wrapWrap().apply { topMargin = dp(160) })
+        root.addView(label("根凭据只保存在本机安全存储中。", 14f, secondary), wrapWrap().apply { topMargin = dp(12) })
+        setContentView(root)
+        executor.execute {
+            try {
+                var stored = installationStore.ensureCredential()
+                var token = stored.activeSessionToken()
+                if (token == null) {
+                    val auth = associationApi.bootstrap(stored.credential, newIdempotencyKey("installation-bootstrap"))
+                    stored = installationStore.saveAuth(stored, auth)
+                    token = stored.activeSessionToken() ?: error("inactive installation session")
+                }
+                val state = associationApi.installationState(token)
+                if (state.state == "unassociated") {
+                    val association = associationApi.createAssociationSession(
+                        token,
+                        executionDeviceLabel(),
+                        newIdempotencyKey("association-session"),
+                    )
+                    mainHandler.post {
+                        if (generation == screenGeneration) showInstallationCode(stored, association)
+                    }
+                } else {
+                    mainHandler.post {
+                        if (generation == screenGeneration) showInstallationAssociated(state)
+                    }
+                }
+            } catch (error: ProviderApiException) {
+                mainHandler.post { if (generation == screenGeneration) showInstallationFailure(error.message) }
+            } catch (_: Exception) {
+                mainHandler.post { if (generation == screenGeneration) showInstallationFailure("无法连接服务，请检查网络后重试。") }
+            }
+        }
+    }
+
+    private fun showInstallationCode(
+        identity: StoredInstallationIdentity,
+        association: AssociationSession,
+    ) {
+        val generation = ++screenGeneration
+        val payload = JSONObject()
+            .put("contractVersion", ProviderApiClient.CONTRACT_VERSION)
+            .put("associationCode", association.associationCode)
+            .toString()
+        val root = vertical(20).apply { setBackgroundColor(canvas) }
+        root.addView(backHeader("") {
+            Toast.makeText(this, "请保留本页，并在管理手机上完成扫码确认。", Toast.LENGTH_LONG).show()
+        }, matchWrap())
+        root.addView(label("关联这台执行手机", 29f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(20) })
+        root.addView(label("请用已登录的管理手机扫码", 16f, secondary), matchWrap().apply { topMargin = dp(7) })
+        val qrCard = vertical(18).apply {
+            background = rounded(Color.WHITE, 12)
+            gravity = Gravity.CENTER_HORIZONTAL
+            elevation = dp(2).toFloat()
+        }
+        qrCard.addView(label("本机 ${shortDeviceName()}", 18f, ink, Typeface.BOLD).apply {
+            gravity = Gravity.CENTER
+        }, matchWrap())
+        qrCard.addView(ImageView(this).apply {
+            id = R.id.installation_qr
+            contentDescription = "本机关联二维码"
+            setImageBitmap(qrBitmap(payload))
+        }, LinearLayout.LayoutParams(dp(208), dp(208)).apply { topMargin = dp(14) })
+        qrCard.addView(label("等待管理手机确认", 16f, ink, Typeface.BOLD).apply {
+            gravity = Gravity.CENTER
+            background = rounded(canvas, 8)
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+        }, matchWrap().apply { topMargin = dp(14) })
+        qrCard.addView(label("二维码将在 ${formatExpiry(association.expiresAt)} 失效", 13f, secondary).apply {
+            gravity = Gravity.CENTER
+        }, matchWrap().apply { topMargin = dp(6) })
+        root.addView(qrCard, matchWrap().apply { topMargin = dp(20) })
+        val steps = vertical(18).apply { background = rounded(Color.WHITE, 12) }
+        steps.addView(label("在管理手机上操作", 17f, ink, Typeface.BOLD))
+        steps.addView(stepRow("1", "在管理手机进入“设备管理”并点击“添加执行手机”"))
+        steps.getChildAt(1).layoutParams = matchWrap().apply { topMargin = dp(14) }
+        steps.addView(divider(), matchHeight(1).apply { topMargin = dp(14); bottomMargin = dp(14) })
+        steps.addView(stepRow("2", "核对设备信息后明确确认关联"))
+        root.addView(steps, matchWrap().apply { topMargin = dp(16) })
+        root.addView(label("关联只建立设备归属，平台授权与接入检查仍需后续完成。", 13f, secondary), matchWrap().apply { topMargin = dp(14) })
+        root.addView(secondaryButton("返回接入说明").apply {
+            setOnClickListener {
+                Toast.makeText(this@MainActivity, "请保留本页，并在管理手机上完成扫码确认。", Toast.LENGTH_LONG).show()
+            }
+        }, matchHeight(52).apply { topMargin = dp(18) })
+        val refresh = secondaryButton("关联码已失效，刷新").apply {
+            id = R.id.installation_refresh
+            visibility = View.GONE
+            setOnClickListener {
+                isEnabled = false
+                val token = identity.activeSessionToken()
+                if (token == null) showInstallationLoading()
+                else runNetwork(
+                    action = {
+                        associationApi.createAssociationSession(
+                            token,
+                            executionDeviceLabel(),
+                            newIdempotencyKey("association-session"),
+                        )
+                    },
+                    success = { showInstallationCode(identity, it) },
+                    failure = { showInstallationFailure(it) },
+                )
+            }
+        }
+        root.addView(refresh, matchHeight(52).apply { topMargin = dp(10) })
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            addView(root, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        setContentView(scroll)
+        val refreshDelay = (displayInstant(association.expiresAt).toEpochMilli() - System.currentTimeMillis())
+            .coerceAtLeast(0L)
+        mainHandler.postDelayed({
+            if (generation == screenGeneration) refresh.visibility = View.VISIBLE
+        }, refreshDelay)
+        pollInstallationState(generation, identity)
+    }
+
+    private fun pollInstallationState(generation: Int, identity: StoredInstallationIdentity) {
+        mainHandler.postDelayed({
+            if (generation != screenGeneration) return@postDelayed
+            val token = identity.activeSessionToken() ?: return@postDelayed showInstallationLoading()
+            runNetwork(
+                action = { associationApi.installationState(token) },
+                success = { state ->
+                    if (generation != screenGeneration) return@runNetwork
+                    if (state.state == "unassociated") pollInstallationState(generation, identity)
+                    else showInstallationAssociated(state)
+                },
+                failure = {
+                    if (generation == screenGeneration) pollInstallationState(generation, identity)
+                },
+            )
+        }, 3_000)
+    }
+
+    private fun showInstallationAssociated(state: InstallationSelfView) {
+        ++screenGeneration
+        val root = vertical(24).apply {
+            setBackgroundColor(canvas)
+            gravity = Gravity.CENTER_HORIZONTAL
+        }
+        root.addView(label("✓", 54f, Color.rgb(20, 108, 67), Typeface.BOLD), wrapWrap().apply { topMargin = dp(96) })
+        root.addView(label("执行手机已关联", 28f, ink, Typeface.BOLD), wrapWrap().apply { topMargin = dp(18) })
+        root.addView(label("本机 ${shortDeviceName()}", 16f, secondary), wrapWrap().apply { topMargin = dp(8) })
+        root.addView(label("下一步仍需完成平台授权和接入检查。", 14f, secondary).apply {
+            gravity = Gravity.CENTER
+        }, matchWrap().apply { topMargin = dp(22) })
+        root.addView(label("设备状态：${localizedDeviceState(state.state)}", 14f, ink, Typeface.BOLD), wrapWrap().apply { topMargin = dp(18) })
+        root.addView(secondaryButton("刷新状态").apply { setOnClickListener { showInstallationLoading() } }, matchHeight(54).apply { topMargin = dp(28) })
+        setContentView(root)
+    }
+
+    private fun showInstallationFailure(message: String) {
+        ++screenGeneration
+        val root = vertical(24).apply {
+            setBackgroundColor(canvas)
+            gravity = Gravity.CENTER_HORIZONTAL
+        }
+        root.addView(label("暂时无法准备关联码", 24f, ink, Typeface.BOLD), wrapWrap().apply { topMargin = dp(120) })
+        root.addView(label(message, 14f, danger).apply { gravity = Gravity.CENTER }, matchWrap().apply { topMargin = dp(14) })
+        root.addView(primaryButton("重试").apply { setOnClickListener { showInstallationLoading() } }, matchHeight(54).apply { topMargin = dp(24) })
+        setContentView(root)
+    }
+
+    private fun startAssociationScan() {
+        barcodeLauncher.launch(
+            ScanOptions()
+            .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+            .setPrompt("扫描执行手机上的关联二维码")
+            .setBeepEnabled(false)
+            .setOrientationLocked(false)
+        )
+    }
+
+    private fun handleAssociationPayload(raw: String) {
+        val session = sessionStore.load()
+        if (session == null) {
+            Toast.makeText(this, "管理登录已失效，请重新登录。", Toast.LENGTH_LONG).show()
+            showAuthForm()
+            return
+        }
+        val qr = try {
+            FirstBatchContractBoundary.parseAssociationQrPayload(raw)
+        } catch (_: Exception) {
+            Toast.makeText(this, "这不是有效的 SocialGrowth 设备关联码。", Toast.LENGTH_LONG).show()
+            return
+        }
+        val loading = vertical(24).apply {
+            setBackgroundColor(canvas)
+            gravity = Gravity.CENTER_HORIZONTAL
+            addView(label("正在安全核对设备…", 18f, ink, Typeface.BOLD), wrapWrap().apply { topMargin = dp(160) })
+        }
+        setContentView(loading)
+        runNetwork(
+            action = { associationApi.inspect(session.sessionToken, qr.associationCode) },
+            success = { showAssociationConfirmation(session, it) },
+            failure = {
+                Toast.makeText(this, it, Toast.LENGTH_LONG).show()
+                showManagement(session)
+            },
+        )
+    }
+
+    private fun showAssociationConfirmation(
+        session: StoredProviderSession,
+        inspection: AssociationInspection,
+    ) {
+        ++screenGeneration
+        associationConfirmKey = newIdempotencyKey("association-confirm")
+        val root = vertical(20).apply { setBackgroundColor(canvas) }
+        root.addView(backHeader("添加执行手机") { showManagement(session) }, matchWrap())
+        root.addView(label("核对关联设备", 29f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(20) })
+        root.addView(label("已识别关联码，请核对目标手机。", 15f, secondary), matchWrap().apply { topMargin = dp(7) })
+        val device = vertical(18).apply { background = rounded(Color.WHITE, 12); elevation = dp(2).toFloat() }
+        device.addView(label(inspection.deviceLabel, 20f, ink, Typeface.BOLD))
+        device.addView(detailRow("当前提供者", session.displayName), matchWrap().apply { topMargin = dp(18) })
+        device.addView(detailRow("验证手机号", session.phoneHint), matchWrap().apply { topMargin = dp(12) })
+        device.addView(detailRow("目标设备", inspection.deviceLabel), matchWrap().apply { topMargin = dp(12) })
+        device.addView(divider(), matchHeight(1).apply { topMargin = dp(14); bottomMargin = dp(14) })
+        device.addView(label("请核对执行手机上显示的设备标识。", 13f, secondary))
+        root.addView(device, matchWrap().apply { topMargin = dp(20) })
+        root.addView(label("关联后还需要", 18f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(24) })
+        val next = vertical(18).apply { background = rounded(Color.WHITE, 12) }
+        next.addView(explanationRow("1", "完成平台账号授权"))
+        next.addView(explanationRow("2", "检查目标主页或频道权限"), matchWrap().apply { topMargin = dp(14) })
+        next.addView(explanationRow("3", "通过接入准备检查后才能执行"), matchWrap().apply { topMargin = dp(14) })
+        root.addView(next, matchWrap().apply { topMargin = dp(12) })
+        val error = label("", 13f, danger).apply { visibility = View.GONE }
+        root.addView(error, matchWrap().apply { topMargin = dp(12) })
+        val confirm = primaryButton("确认关联这台执行手机").apply {
+            id = R.id.association_confirm
+            setOnClickListener {
+                isEnabled = false
+                text = "正在确认…"
+                error.visibility = View.GONE
+                runNetwork(
+                    action = {
+                        associationApi.result(session.sessionToken, inspection)
+                            ?: associationApi.confirm(session.sessionToken, inspection, associationConfirmKey)
+                    },
+                    success = { receipt -> showAssociationSuccess(session, receipt) },
+                    failure = { message ->
+                        isEnabled = true
+                        text = "确认关联这台执行手机"
+                        showError(error, message)
+                    },
+                )
+            }
+        }
+        root.addView(confirm, matchHeight(54).apply { topMargin = dp(18) })
+        root.addView(secondaryButton("重新扫码").apply {
+            id = R.id.association_rescan
+            setOnClickListener { startAssociationScan() }
+        }, matchHeight(52).apply { topMargin = dp(10) })
+        root.addView(label("关联不会把当前管理手机接入执行。", 13f, secondary).apply {
+            gravity = Gravity.CENTER
+        }, matchWrap().apply { topMargin = dp(13) })
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            addView(root, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        setContentView(scroll)
+    }
+
+    private fun showAssociationSuccess(session: StoredProviderSession, receipt: AssociationReceipt) {
+        ++screenGeneration
+        val root = vertical(24).apply { setBackgroundColor(canvas); gravity = Gravity.CENTER_HORIZONTAL }
+        root.addView(label("✓", 54f, Color.rgb(20, 108, 67), Typeface.BOLD), wrapWrap().apply { topMargin = dp(92) })
+        root.addView(label("设备关联成功", 28f, ink, Typeface.BOLD), wrapWrap().apply { topMargin = dp(16) })
+        root.addView(label("设备已进入待授权状态。", 15f, secondary), wrapWrap().apply { topMargin = dp(9) })
+        root.addView(label("后续仍需完成平台授权与接入检查。", 14f, secondary), wrapWrap().apply { topMargin = dp(16) })
+        root.addView(primaryButton("返回设备管理").apply { setOnClickListener { showManagement(session) } }, matchHeight(54).apply { topMargin = dp(28) })
+        setContentView(root)
+    }
+
+    private fun renderDevices(container: LinearLayout, devices: List<ProviderDevice>) {
+        container.removeAllViews()
+        if (devices.isEmpty()) {
+            container.addView(label("还没有关联的执行手机。", 14f, secondary), matchWrap().apply { topMargin = dp(12) })
+            return
+        }
+        devices.forEach { device ->
+            val card = vertical(16).apply { background = rounded(Color.WHITE, 12) }
+            card.addView(label(device.displayName, 17f, ink, Typeface.BOLD))
+            card.addView(label(localizedDeviceState(device.state), 13f, secondary), matchWrap().apply { topMargin = dp(7) })
+            container.addView(card, matchWrap().apply { topMargin = dp(12) })
+        }
+    }
+
+    private fun renderDeviceError(container: LinearLayout, message: String) {
+        container.removeAllViews()
+        container.addView(label(message, 14f, danger), matchWrap().apply { topMargin = dp(12) })
+    }
+
+    private fun appHeader(title: String) = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        addView(label("SocialGrowth", 19f, ink, Typeface.BOLD), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        addView(label(title, 14f, secondary), wrapWrap())
+    }
+
+    private fun backHeader(title: String, onBack: () -> Unit) = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        addView(ImageButton(this@MainActivity).apply {
+            val up = TypedValue()
+            if (theme.resolveAttribute(android.R.attr.homeAsUpIndicator, up, true)) {
+                setImageResource(up.resourceId)
+            } else {
+                setImageResource(android.R.drawable.ic_menu_revert)
+            }
+            setColorFilter(ink)
+            background = null
+            contentDescription = "返回"
+            setOnClickListener { onBack() }
+        }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        if (title.isNotEmpty()) {
+            addView(label(title, 17f, ink, Typeface.BOLD), wrapWrap().apply { marginStart = dp(4) })
+        }
+    }
+
+    private fun stepRow(number: String, value: String) = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        addView(label(number, 15f, Color.WHITE, Typeface.BOLD).apply {
+            gravity = Gravity.CENTER
+            background = rounded(blue, 18)
+        }, LinearLayout.LayoutParams(dp(34), dp(34)))
+        addView(label(value, 14f, ink), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(12) })
+    }
+
+    private fun detailRow(key: String, value: String) = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        addView(label(key, 14f, secondary), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        addView(label(value, 14f, ink, Typeface.BOLD), wrapWrap())
+    }
+
+    private fun explanationRow(number: String, value: String) = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        addView(label(number, 13f, blue, Typeface.BOLD).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(dp(28), dp(28)))
+        addView(label(value, 14f, ink), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(8) })
+    }
+
+    private fun qrBitmap(payload: String): Bitmap = BarcodeEncoder().encodeBitmap(
+        payload,
+        BarcodeFormat.QR_CODE,
+        720,
+        720,
+    )
+
+    private fun shortDeviceName(): String = Build.MODEL.take(24).ifBlank { "Android" }
+    private fun executionDeviceLabel(): String = "执行手机 ${shortDeviceName()}".take(100)
+    private fun formatExpiry(value: String): String = DateTimeFormatter.ofPattern("HH:mm")
+        .withZone(ZoneId.systemDefault())
+        .format(displayInstant(value))
+    private fun displayInstant(value: String): Instant = Instant.parse(
+        value.replace(Regex("(\\.\\d{9})\\d+(?=Z|[+-]\\d{2}:\\d{2}$)"), "$1"),
+    )
+    private fun localizedDeviceState(value: String): String = when (value) {
+        "associated_pending_access" -> "已关联 · 待授权"
+        "access_ready" -> "已就绪"
+        "paused" -> "已暂停"
+        "exit_pending" -> "退出处理中"
+        "exited" -> "已退出"
+        else -> "未关联"
     }
 
     private fun ProviderAuthResult.toStored() = StoredProviderSession(

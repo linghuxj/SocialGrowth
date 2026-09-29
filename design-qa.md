@@ -56,6 +56,42 @@ final result: passed
 
 ---
 
+# WP-05 第三阶段 Android 设备关联设计 QA
+
+日期：2026-09-29。范围为 Kotlin 原生 Android 的执行手机本机关联码与管理手机核对确认两张页面；参考图的示例设备、示例用户、示例时间和假二维码均替换为真机与后端实际事实。
+
+## 比较目标与证据
+
+- source visual truth：`docs/design/android/local-association-code-v1.png` 与 `docs/design/android/device-association-confirm-v1.png`；同时受同名 prompt、`docs/design/android/DESIGN.md`、Android 页面规格和交付流程约束。
+- implementation screenshots：Samsung SM-S9110／Android 16 真机截图 `/tmp/wp05-local-final.png` 与 `/tmp/wp05-confirm-final.png`，原始尺寸 1080 × 2340 px；截图保留真实状态栏和导航栏。
+- combined comparisons：`artifacts/design-qa/wp05-stage3/local-association-comparison.png` 与 `artifacts/design-qa/wp05-stage3/device-confirm-comparison.png`；左侧参考，右侧真机实现，以相同高度归一化后并排检查。
+- actual state：本机页二维码编码真实 `associationQrPayload`，设备名来自 Android 机型，失效时间按设备本地时区显示；确认页来自 Provider Bearer 会话的只读 inspect 结果，姓名、脱敏手机号和设备标签均为后端事实。
+
+## 视觉与语义核对
+
+- 两页保持 `#F4F6FA` 浅灰画布、白色 12dp 卡片、`#172B4D` 深蓝正文、`#2459C4` 主按钮、`#DCE2EA` 分隔线及 16–20dp 主边距，没有参考规范禁止的渐变。
+- 本机页保留返回箭头、标题／说明、设备标识、二维码主视觉、等待状态、两步说明、后续授权提示和返回接入说明；静态示意码替换为真实可解码二维码，原始关联码不以正文或复制控件暴露。
+- 确认页保留添加设备返回入口、核对标题、提供者、验证手机号、目标设备、三项后续说明、明确确认、重新扫码及“不会把管理手机接入执行”的边界说明。三项后续说明为解释文本，不伪装成尚未实现的导航入口。
+- 触控目标为 48–54dp；纵向内容可滚动，无横向溢出。关联码刷新入口在码实际过期前隐藏，避免静态稿没有依据的提前刷新动作。
+- 参考图中的装饰手机图标和说明行图标未以字符、手绘 SVG 或占位图仿造；返回箭头使用 Android 主题资源，二维码使用 ZXing 从真实载荷生成。
+
+## Findings 与迭代
+
+- Pass 1：真机实现已覆盖两张设计的页面层级和业务文案；发现失效时间直接显示 UTC，且本机标签位于主卡片外。整改为设备本地 `HH:mm`，并把本机标签、二维码和等待状态收敛到同一主卡片。
+- Pass 2：将顶部品牌栏改为参考方向的原生返回栏；补齐“在管理手机上操作”标题、提供者／验证手机号标签和设备标识核对说明；仅在关联码实际过期后展示刷新动作。
+- Pass 3：真机点击扫码首次暴露 ZXing 的非传递 AndroidX Core 运行时缺类崩溃。显式加入 `androidx.core:core:1.15.0` 后重装复测，系统相机权限对话框及 `CaptureActivity` 取景页正常打开，无新增崩溃。
+- 当前无可执行 P0、P1 或 P2 视觉 finding。相较参考图，真实系统字体、状态栏和机型文本造成的自然换行差异属于平台与真实数据差异，不影响层级、操作或语义。
+
+## 真机交互核对
+
+- 已验证本机根凭据落盘后 bootstrap、创建真实关联码、重启恢复、状态轮询、码失效时间和清数据后生成全新 installation；新身份未认领旧 device 或 association。
+- 已验证管理身份经受保护开发读码通道登录、设备列表、关联载荷严格解析、只读 inspect、确认前核对页、显式确认、成功状态、返回列表及重启恢复。
+- 已验证系统相机权限请求和真实扫码取景器能够打开；当前只有一台物理手机，因此二维码由同机生成时无法完成“第二台真机对准屏幕”的光学识别动作，该覆盖项留给正式双机验收，不以深链核对替代声明扫码已完成。
+
+final result: passed
+
+---
+
 # WP-04 第三阶段 Android 注册／登录设计 QA
 
 日期：2026-09-29。范围为选定的受邀注册视觉在 Kotlin 原生 Android 管理模式中的实现；业务成功态、登录态和退出态另以真机流程验证，不把参考图的示例状态当作后端事实。

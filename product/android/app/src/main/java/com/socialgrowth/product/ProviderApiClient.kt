@@ -84,12 +84,12 @@ class ProviderApiClient(private val baseUrl: String) {
         )
     }
 
-    private fun metadata(idempotencyKey: String): JSONObject = JSONObject()
+    internal fun metadata(idempotencyKey: String): JSONObject = JSONObject()
         .put("contractVersion", CONTRACT_VERSION)
         .put("requestId", "android-${UUID.randomUUID()}")
         .put("idempotencyKey", idempotencyKey)
 
-    private fun post(path: String, body: JSONObject, bearerToken: String? = null): String {
+    internal fun post(path: String, body: JSONObject, bearerToken: String? = null): String {
         val connection = (URL(baseUrl.trimEnd('/') + path).openConnection() as HttpURLConnection)
         try {
             connection.requestMethod = "POST"
@@ -135,6 +135,12 @@ class ProviderApiClient(private val baseUrl: String) {
         "SMS_DELIVERY_UNAVAILABLE" -> "验证码服务暂时不可用，请稍后重试。"
         "PROVIDER_DISABLED" -> "账号当前不可用，请联系运营处理。"
         "AUTHENTICATION_REQUIRED" -> "登录状态已失效，请重新登录。"
+        "AUTHORIZATION_DENIED" -> "当前管理身份无权操作这台执行手机。"
+        "ASSOCIATION_SESSION_EXPIRED" -> "关联码已失效，请在执行手机上刷新后重试。"
+        "ASSOCIATION_SESSION_CONSUMED" -> "该关联码已经完成或失效，请刷新设备列表。"
+        "ASSOCIATION_TARGET_CHANGED" -> "关联目标已变化，请重新扫码核对。"
+        "DEVICE_ALREADY_ASSOCIATED" -> "这台执行手机已经关联，无需重复操作。"
+        "INSTALLATION_BOOTSTRAP_RATE_LIMITED" -> "设备接入请求过于频繁，请稍后重试。"
         else -> "操作未完成，请核对信息后重试。"
     }
 }

@@ -47,6 +47,9 @@ kotlin {
 }
 
 dependencies {
+    implementation("androidx.activity:activity:1.10.1")
+    implementation("androidx.core:core:1.15.0")
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
     testImplementation(kotlin("test"))
     testImplementation("org.json:json:20250517")
 }
