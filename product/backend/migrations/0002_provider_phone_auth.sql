@@ -5,6 +5,7 @@ CREATE TABLE socialgrowth_product.phone_verification_challenges (
   phone_e164 text NOT NULL,
   purpose text NOT NULL CHECK (purpose IN ('provider_registration', 'provider_login')),
   provider_id uuid REFERENCES socialgrowth_product.providers(provider_id),
+  verification_id uuid UNIQUE REFERENCES socialgrowth_product.phone_verifications(verification_id),
   code_digest bytea NOT NULL,
   delivery_state text NOT NULL CHECK (delivery_state IN ('pending', 'accepted', 'failed')),
   attempt_count integer NOT NULL DEFAULT 0 CHECK (attempt_count BETWEEN 0 AND 5),
@@ -19,6 +20,7 @@ CREATE TABLE socialgrowth_product.phone_verification_challenges (
   CHECK (expires_at > created_at),
   CHECK (resend_available_at >= created_at),
   CHECK (resend_available_at <= expires_at),
+  CHECK ((verified_at IS NULL) = (verification_id IS NULL)),
   CHECK (verified_at IS NULL OR delivery_state = 'accepted'),
   CHECK (verified_at IS NULL OR verified_at >= created_at),
   CHECK (verified_at IS NULL OR verified_at <= expires_at),
@@ -30,5 +32,9 @@ CREATE TABLE socialgrowth_product.phone_verification_challenges (
 
 CREATE INDEX phone_verification_challenges_rate_limit_idx
   ON socialgrowth_product.phone_verification_challenges(phone_e164, created_at DESC);
+
+ALTER TABLE socialgrowth_product.provider_sessions
+  ADD COLUMN phone_verification_id uuid UNIQUE
+  REFERENCES socialgrowth_product.phone_verifications(verification_id);
 
 COMMIT;

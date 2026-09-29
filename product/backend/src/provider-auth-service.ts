@@ -1,7 +1,6 @@
 import {
   createHash,
   createHmac,
-  randomBytes,
   randomInt,
   randomUUID,
   timingSafeEqual,
@@ -65,6 +64,14 @@ interface ChallengeRow {
   resend_available_at: Date;
   attempt_count: number;
   verified_at: Date | null;
+  verification_id: string | null;
+}
+
+interface ProviderSessionRow {
+  created_at: Date;
+  expires_at: Date;
+  revoked_at: Date | null;
+  session_id: string;
 }
 
 interface ProviderRow {
@@ -91,6 +98,12 @@ function digest(value: string): Buffer {
 
 function secretDigest(pepper: string, value: string): Buffer {
   return createHmac("sha256", pepper).update(value, "utf8").digest();
+}
+
+function providerSessionToken(pepper: string, verificationId: string): string {
+  return createHmac("sha256", pepper)
+    .update(`provider-session:${verificationId}`, "utf8")
+    .digest("base64url");
 }
 
 function requestDigest(value: unknown): Buffer {
@@ -286,12 +299,27 @@ export class ProviderAuthService {
         purpose: reservation.row.purpose,
       });
     } catch (error) {
-      await this.pool.query(
-        `UPDATE ${schema}.phone_verification_challenges
-            SET delivery_state = 'failed'
-          WHERE challenge_id = $1 AND delivery_state = 'pending'`,
-        [reservation.row.challenge_id],
-      );
+      await inTransaction(this.pool, async (client) => {
+        const failed = await client.query(
+          `UPDATE ${schema}.phone_verification_challenges
+              SET delivery_state = 'failed'
+            WHERE challenge_id = $1 AND delivery_state = 'pending'
+            RETURNING challenge_id`,
+          [reservation.row.challenge_id],
+        );
+        if (failed.rowCount) {
+          await client.query(
+            `INSERT INTO ${schema}.audit_records (
+               audit_record_id, actor_type, action, object_type, object_id,
+               request_id, facts
+             ) VALUES ($1, 'system', 'sms.delivery_failed',
+               'phone_verification_challenge', $2, $3,
+               jsonb_build_object('purpose', $4::text))`,
+            [randomUUID(), reservation.row.challenge_id,
+              request.metadata.requestId, reservation.row.purpose],
+          );
+        }
+      });
       if (error instanceof ProductTransactionError) throw error;
       throw new ProductTransactionError(
         "SMS_DELIVERY_UNAVAILABLE",
@@ -299,14 +327,29 @@ export class ProviderAuthService {
         true,
       );
     }
-    const accepted = await this.pool.query<ChallengeRow>(
-      `UPDATE ${schema}.phone_verification_challenges
-          SET delivery_state = 'accepted'
-        WHERE challenge_id = $1 AND delivery_state = 'pending'
-        RETURNING *`,
-      [reservation.row.challenge_id],
-    );
-    const row = accepted.rows[0];
+    const row = await inTransaction(this.pool, async (client) => {
+      const accepted = await client.query<ChallengeRow>(
+        `UPDATE ${schema}.phone_verification_challenges
+            SET delivery_state = 'accepted'
+          WHERE challenge_id = $1 AND delivery_state = 'pending'
+          RETURNING *`,
+        [reservation.row.challenge_id],
+      );
+      const acceptedRow = accepted.rows[0];
+      if (acceptedRow) {
+        await client.query(
+          `INSERT INTO ${schema}.audit_records (
+             audit_record_id, actor_type, action, object_type, object_id,
+             request_id, facts
+           ) VALUES ($1, 'system', 'sms.delivery_accepted',
+             'phone_verification_challenge', $2, $3,
+             jsonb_build_object('purpose', $4::text))`,
+          [randomUUID(), acceptedRow.challenge_id,
+            request.metadata.requestId, acceptedRow.purpose],
+        );
+      }
+      return acceptedRow;
+    });
     if (!row) throw new Error("Verification challenge did not transition to accepted");
     return challengeResponse(row);
   }
@@ -324,11 +367,46 @@ export class ProviderAuthService {
         throw new ProductTransactionError("PHONE_VERIFICATION_INVALID", "Verification challenge is unavailable");
       }
       const now = await databaseNow(client);
+      if (challenge.verified_at) {
+        const replayDigest = secretDigest(
+          this.securityPepper,
+          `${challenge.challenge_id}:${request.code}`,
+        );
+        if (!timingSafeEqual(challenge.code_digest, replayDigest) || !challenge.verification_id) {
+          throw new ProductTransactionError(
+            "PHONE_VERIFICATION_CODE_INVALID",
+            "Verification code is invalid",
+          );
+        }
+        const replay = await client.query<{
+          expires_at: Date;
+          verified_at: Date;
+        }>(
+          `SELECT verified_at, expires_at FROM ${schema}.phone_verifications
+            WHERE verification_id = $1`,
+          [challenge.verification_id],
+        );
+        const proof = replay.rows[0];
+        if (!proof) throw new Error("Verified challenge lost its proof");
+        if (proof.expires_at <= now) {
+          throw new ProductTransactionError(
+            "PHONE_VERIFICATION_EXPIRED",
+            "Verification proof expired",
+          );
+        }
+        return {
+          error: null,
+          response: phoneVerificationResponseSchema.parse({
+            phoneVerificationId: challenge.verification_id,
+            purpose: challenge.purpose,
+            phoneHint: maskPhone(challenge.phone_e164),
+            verifiedAt: proof.verified_at.toISOString(),
+            expiresAt: proof.expires_at.toISOString(),
+          }),
+        };
+      }
       if (challenge.expires_at <= now) {
         throw new ProductTransactionError("PHONE_VERIFICATION_EXPIRED", "Verification challenge expired");
-      }
-      if (challenge.verified_at) {
-        throw new ProductTransactionError("PHONE_VERIFICATION_INVALID", "Verification challenge was already used");
       }
       if (challenge.attempt_count >= 5) {
         throw new ProductTransactionError("PHONE_VERIFICATION_RATE_LIMITED", "Verification attempts exhausted");
@@ -360,8 +438,16 @@ export class ProviderAuthService {
       );
       await client.query(
         `UPDATE ${schema}.phone_verification_challenges
-            SET verified_at = $2 WHERE challenge_id = $1`,
-        [challenge.challenge_id, now],
+            SET verified_at = $2, verification_id = $3 WHERE challenge_id = $1`,
+        [challenge.challenge_id, now, verificationId],
+      );
+      await client.query(
+        `INSERT INTO ${schema}.audit_records (
+           audit_record_id, actor_type, action, object_type, object_id,
+           request_id, facts
+         ) VALUES ($1, 'system', 'phone.verified', 'phone_verification', $2, $3,
+           jsonb_build_object('purpose', $4::text))`,
+        [randomUUID(), verificationId, request.metadata.requestId, challenge.purpose],
       );
       return {
         error: null,
@@ -388,7 +474,7 @@ export class ProviderAuthService {
       );
       const proof = proofResult.rows[0];
       if (!proof || proof.purpose !== "provider_login" || !proof.provider_id ||
-          !proof.verified_at || proof.consumed_at) {
+          !proof.verified_at) {
         throw new ProductTransactionError("PHONE_VERIFICATION_INVALID", "Login proof is unavailable");
       }
       const providerResult = await client.query<ProviderRow>(
@@ -406,18 +492,56 @@ export class ProviderAuthService {
           "Login proof expired or no longer matches the provider phone",
         );
       }
-      const token = randomBytes(32).toString("base64url");
+      const token = providerSessionToken(this.securityPepper, request.phoneVerificationId);
+      if (proof.consumed_at) {
+        const replay = await client.query<ProviderSessionRow>(
+          `SELECT session_id, created_at, expires_at, revoked_at
+             FROM ${schema}.provider_sessions
+            WHERE phone_verification_id = $1`,
+          [request.phoneVerificationId],
+        );
+        const session = replay.rows[0];
+        if (!session || session.revoked_at || session.expires_at <= now) {
+          throw new ProductTransactionError("PHONE_VERIFICATION_INVALID", "Login proof was already consumed");
+        }
+        return providerAuthResponseSchema.parse({
+          provider: {
+            providerId: provider.provider_id,
+            displayName: provider.display_name,
+            phoneHint: maskPhone(provider.phone_e164),
+            status: provider.status,
+            createdAt: provider.created_at.toISOString(),
+            updatedAt: provider.updated_at.toISOString(),
+          },
+          session: {
+            sessionId: session.session_id,
+            createdAt: session.created_at.toISOString(),
+            expiresAt: session.expires_at.toISOString(),
+          },
+          sessionToken: token,
+        });
+      }
       const sessionId = randomUUID();
       const expiresAt = new Date(now.getTime() + sessionLifetimeMilliseconds);
       await client.query(
         `INSERT INTO ${schema}.provider_sessions (
-           session_id, provider_id, token_digest, expires_at, created_at
-         ) VALUES ($1, $2, $3, $4, $5)`,
-        [sessionId, provider.provider_id, secretDigest(this.securityPepper, token), expiresAt, now],
+           session_id, provider_id, token_digest, expires_at, created_at,
+           phone_verification_id
+         ) VALUES ($1, $2, $3, $4, $5, $6)`,
+        [sessionId, provider.provider_id, secretDigest(this.securityPepper, token),
+          expiresAt, now, request.phoneVerificationId],
       );
       await client.query(
         `UPDATE ${schema}.phone_verifications SET consumed_at = $2 WHERE verification_id = $1`,
         [request.phoneVerificationId, now],
+      );
+      await client.query(
+        `INSERT INTO ${schema}.audit_records (
+           audit_record_id, actor_type, actor_id, action, object_type,
+           object_id, request_id, facts
+         ) VALUES ($1, 'provider', $2, 'provider.logged_in', 'provider_session',
+           $3, $4, '{}'::jsonb)`,
+        [randomUUID(), provider.provider_id, sessionId, request.metadata.requestId],
       );
       return providerAuthResponseSchema.parse({
         provider: {

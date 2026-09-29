@@ -187,6 +187,18 @@ test("wrong code persists attempts while correct code creates a purpose-bound pr
   });
   assert.equal(proof.purpose, "provider_registration");
   assert.match(proof.phoneHint, /\*/);
+  const replay = await service.verifyCode({
+    metadata: metadata("registration-correct-code-replay-0001"),
+    challengeId: challenge.challengeId,
+    code: sms.deliveries.at(-1)!.code,
+  });
+  assert.deepEqual(replay, proof);
+  const proofCount = await pool.query<{ count: string }>(
+    `SELECT count(*)::text AS count FROM socialgrowth_product.phone_verifications
+      WHERE verification_id = $1`,
+    [proof.phoneVerificationId],
+  );
+  assert.equal(proofCount.rows[0]?.count, "1");
 });
 
 test("concurrent challenge requests for one phone send exactly one SMS", async () => {
@@ -216,7 +228,7 @@ test("concurrent challenge requests for one phone send exactly one SMS", async (
   assert.equal(sms.deliveries.filter(({ phoneE164 }) => phoneE164 === "+8613800000105").length, 1);
 });
 
-test("registered provider verifies login, receives a stored-digest session, and cannot replay proof", async () => {
+test("registered provider login replays one stored-digest session without duplicating it", async () => {
   const invitationCode = `invite-${randomUUID()}`;
   const phone = "+8613800000103";
   await seedInvitation(invitationCode);
@@ -286,15 +298,27 @@ test("registered provider verifies login, receives a stored-digest session, and 
     [response.session.sessionId],
   );
   assert.equal(session.rows[0]?.token_digest.includes(Buffer.from(response.sessionToken)), false);
-  await assert.rejects(
-    auth.login({
-      metadata: metadata("provider-login-replay-0001"),
-      phoneVerificationId: loginProof.phoneVerificationId,
-    }),
-    (error: unknown) =>
-      error instanceof ProductTransactionError &&
-      error.code === "PHONE_VERIFICATION_INVALID",
+  const replay = await auth.login({
+    metadata: metadata("provider-login-replay-0001"),
+    phoneVerificationId: loginProof.phoneVerificationId,
+  });
+  assert.deepEqual(replay, response);
+  const sessionCount = await pool.query<{ count: string }>(
+    `SELECT count(*)::text AS count FROM socialgrowth_product.provider_sessions
+      WHERE phone_verification_id = $1`,
+    [loginProof.phoneVerificationId],
   );
+  assert.equal(sessionCount.rows[0]?.count, "1");
+  const audit = await pool.query<{ action: string }>(
+    `SELECT action FROM socialgrowth_product.audit_records
+      WHERE object_id IN ($1, $2, $3) ORDER BY action`,
+    [loginChallenge.challengeId, loginProof.phoneVerificationId, response.session.sessionId],
+  );
+  assert.deepEqual(audit.rows.map(({ action }) => action), [
+    "phone.verified",
+    "provider.logged_in",
+    "sms.delivery_accepted",
+  ]);
 });
 
 test("SMS provider failure is truthful and leaves no accepted challenge", async () => {
