@@ -1,0 +1,51 @@
+name: socialgrowth-product-local
+
+services:
+  postgres:
+    image: ${SG_PRODUCT_POSTGRES_IMAGE:?copy .env.product.example to .env.product}
+    environment:
+      POSTGRES_DB: ${SG_PRODUCT_POSTGRES_DATABASE:?required}
+      POSTGRES_USER: ${SG_PRODUCT_POSTGRES_USER:?required}
+      POSTGRES_PASSWORD: ${SG_PRODUCT_POSTGRES_PASSWORD:?required}
+    ports:
+      - "127.0.0.1:${SG_PRODUCT_POSTGRES_PORT:?required}:5432"
+    volumes:
+      - product-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: ${SG_PRODUCT_REDIS_IMAGE:?required}
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:${SG_PRODUCT_REDIS_PORT:?required}:6379"
+    volumes:
+      - product-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: ${SG_PRODUCT_MINIO_IMAGE:?required}
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${SG_PRODUCT_MINIO_ROOT_USER:?required}
+      MINIO_ROOT_PASSWORD: ${SG_PRODUCT_MINIO_ROOT_PASSWORD:?required}
+    ports:
+      - "127.0.0.1:${SG_PRODUCT_MINIO_API_PORT:?required}:9000"
+      - "127.0.0.1:${SG_PRODUCT_MINIO_CONSOLE_PORT:?required}:9001"
+    volumes:
+      - product-minio:/data
+
+volumes:
+  product-postgres:
+    name: socialgrowth-product-postgres
+  product-redis:
+    name: socialgrowth-product-redis
+  product-minio:
+    name: socialgrowth-product-minio

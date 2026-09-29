@@ -12,6 +12,9 @@
     "dev:runtime": "pnpm run runtime:start",
     "build": "pnpm --filter @socialgrowth/web-console run build",
     "build:runtime": "pnpm --filter @socialgrowth/execution-runtime run build",
+    "build:product": "pnpm --filter './product/**' --if-present --workspace-concurrency=1 run build",
+    "check:product": "pnpm --filter './product/**' --if-present --workspace-concurrency=1 run check",
+    "test:product": "pnpm --filter './product/**' --if-present --workspace-concurrency=1 run test",
     "lint": "pnpm --filter @socialgrowth/web-console run lint",
     "test": "pnpm run test:all",
     "test:first-loop": "tsx --test tests/first-loop-integration.test.ts",
@@ -25,7 +28,9 @@
     "runtime:worker": "node --env-file=.env.agent --import tsx services/execution-runtime/src/worker-cli.ts",
     "runtime:check-artemis": "node --env-file=.env.agent --import tsx services/execution-runtime/src/check-artemis.ts",
     "runtime:check-apps": "node --env-file=.env.agent --import tsx services/execution-runtime/src/check-apps.ts",
-    "test:playwright": "tsx scripts/verify-web-publication-readiness.mts"
+    "test:playwright": "node scripts/run-playwright-target.mjs",
+    "test:playwright:demo": "SG_WEB_TARGET=demo node scripts/run-playwright-target.mjs",
+    "test:playwright:product": "SG_WEB_TARGET=product node scripts/run-playwright-target.mjs"
   },
   "devDependencies": {
     "@types/node": "22.20.4",

@@ -1,0 +1,49 @@
+name: Product checks
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/product-checks.yml"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "product/**"
+      - "scripts/run-playwright-target.mjs"
+      - "scripts/verify-product-web-readiness.mts"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/product-checks.yml"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "product/**"
+
+jobs:
+  typescript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.14.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.16.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check:product
+      - run: pnpm test:product
+      - run: pnpm build:product
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Require the checked-in Gradle wrapper
+        run: test -x product/android/gradlew
+      - run: product/android/gradlew -p product/android assembleDebug

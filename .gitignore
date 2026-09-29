@@ -26,6 +26,10 @@ yarn-error.log*
 .runtime/
 .env.runtime
 .env.agent
+product/deploy/.env.product
+product/android/.gradle/
+product/android/local.properties
+product/android/app/build/
 
 # Local Artemis extension/test cache and private login acceptance screenshots
 integrations/artemis/__pycache__/
