@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { healthResponseSchema } from "./index.js";
+import { livenessResponseSchema } from "./index.js";
 
-test("health response rejects a Demo environment", () => {
-  const result = healthResponseSchema.safeParse({
+test("liveness response rejects a Demo environment", () => {
+  const result = livenessResponseSchema.safeParse({
     environment: "demo",
     service: "backend",
-    status: "ok",
+    status: "alive",
   });
 
   assert.equal(result.success, false);

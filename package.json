@@ -12,9 +12,10 @@
     "dev:runtime": "pnpm run runtime:start",
     "build": "pnpm --filter @socialgrowth/web-console run build",
     "build:runtime": "pnpm --filter @socialgrowth/execution-runtime run build",
-    "build:product": "pnpm --filter './product/**' --if-present --workspace-concurrency=1 run build",
-    "check:product": "pnpm --filter './product/**' --if-present --workspace-concurrency=1 run check",
-    "test:product": "pnpm --filter './product/**' --if-present --workspace-concurrency=1 run test",
+    "build:product": "pnpm --filter './product/**' --workspace-concurrency=1 run build",
+    "check:product": "pnpm --filter @socialgrowth/product-contracts run build && pnpm --filter './product/**' --workspace-concurrency=1 run check",
+    "lint:product": "pnpm --filter './product/**' --workspace-concurrency=1 run lint",
+    "test:product": "pnpm --filter @socialgrowth/product-contracts run build && pnpm --filter './product/**' --workspace-concurrency=1 run test",
     "lint": "pnpm --filter @socialgrowth/web-console run lint",
     "test": "pnpm run test:all",
     "test:first-loop": "tsx --test tests/first-loop-integration.test.ts",
@@ -34,8 +35,9 @@
   },
   "devDependencies": {
     "@types/node": "22.20.4",
-    "playwright": "^1.63.0",
     "concurrently": "9.2.1",
+    "oxlint": "1.76.0",
+    "playwright": "^1.63.0",
     "tsx": "4.23.13"
   }
 }

@@ -4,10 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "prebuild": "pnpm --filter @socialgrowth/product-contracts build",
     "build": "tsc -b && vite build",
+    "precheck": "pnpm --filter @socialgrowth/product-contracts build",
     "check": "tsc -b --pretty false",
     "dev": "vite --host 127.0.0.1 --port 3100",
-    "test": "tsx --test src/*.test.ts"
+    "lint": "oxlint src vite.config.ts",
+    "pretest": "pnpm --filter @socialgrowth/product-contracts build",
+    "test": "tsx --test src/*.test.ts src/*.test.tsx"
   },
   "dependencies": {
     "@socialgrowth/product-contracts": "workspace:*",

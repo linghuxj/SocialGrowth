@@ -1,14 +1,14 @@
 import { Controller, Get } from "@nestjs/common";
-import type { HealthResponse } from "@socialgrowth/product-contracts";
+import type { LivenessResponse } from "@socialgrowth/product-contracts";
 
 @Controller()
 export class AppController {
-  @Get("health")
-  health(): HealthResponse {
+  @Get("health/live")
+  liveness(): LivenessResponse {
     return {
       environment: "product",
       service: "backend",
-      status: "ok",
+      status: "alive",
     };
   }
 }

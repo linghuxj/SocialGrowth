@@ -1,6 +1,8 @@
 # Android 正式客户端
 
-这是与 Demo 隔离的原生 Kotlin 工程边界。WP-00 固定 JDK 17、compile/target SDK 36、min SDK 27、AGP 8.9.2 和 Kotlin 2.1.20；业务页面、身份和设备能力由后续工作包实现。
+这是与 Demo 隔离的原生 Kotlin 工程边界。WP-00 固定 JDK 17、compile/target SDK 36、AGP 8.10.0、Gradle 8.11.1 和 Kotlin 2.1.20；AGP 8.10 支持 API 36。业务页面、身份和设备能力由后续工作包实现。
+
+`minSdk 27` 是为了让空壳能在当前本地已安装 SDK 范围内构建的临时工程下限，不代表已确认首期支持设备矩阵；Android 业务开发前由 TL/AND/QA 根据真实设备资源固定支持范围并记录兼容证据。
 
 已检入 Gradle 8.11.1 Wrapper。为避免开发机全局 Gradle 初始化脚本改变构建，干净验证可使用独立缓存目录：
 

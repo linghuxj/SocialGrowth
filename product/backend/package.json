@@ -4,10 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "prebuild": "pnpm --filter @socialgrowth/product-contracts build",
     "build": "tsc -p tsconfig.json",
+    "precheck": "pnpm --filter @socialgrowth/product-contracts build",
     "check": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint src",
     "start": "node dist/main.js",
     "dev": "tsx watch src/main.ts",
+    "pretest": "pnpm --filter @socialgrowth/product-contracts build",
     "test": "tsx --test src/*.test.ts"
   },
   "dependencies": {
