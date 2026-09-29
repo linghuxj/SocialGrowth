@@ -39,8 +39,24 @@ const operatorRuntimeConfigSchema = z.object({
   SG_PRODUCT_SMS_CODE_LENGTH: z.coerce.number().int().min(4).max(8).default(6),
 });
 
+const smsRuntimeConfigSchema = backendConfigSchema
+  .and(z.object({ SG_PRODUCT_AUTH_PEPPER: z.string().min(32) }))
+  .superRefine((config, context) => {
+    if (
+      config.SG_PRODUCT_SMS_MODE === "development_capture" &&
+      config.SG_PRODUCT_DEVELOPMENT_SMS_TOKEN === config.SG_PRODUCT_AUTH_PEPPER
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Development SMS token must differ from the authentication pepper",
+        path: ["SG_PRODUCT_DEVELOPMENT_SMS_TOKEN"],
+      });
+    }
+  });
+
 export type BackendConfig = z.infer<typeof backendConfigSchema>;
 export type OperatorRuntimeConfig = z.infer<typeof operatorRuntimeConfigSchema>;
+export type SmsRuntimeConfig = z.infer<typeof smsRuntimeConfigSchema>;
 
 export function readBackendConfig(
   environment: NodeJS.ProcessEnv = process.env,
@@ -52,4 +68,10 @@ export function readOperatorRuntimeConfig(
   environment: NodeJS.ProcessEnv = process.env,
 ): OperatorRuntimeConfig {
   return operatorRuntimeConfigSchema.parse(environment);
+}
+
+export function readSmsRuntimeConfig(
+  environment: NodeJS.ProcessEnv = process.env,
+): SmsRuntimeConfig {
+  return smsRuntimeConfigSchema.parse(environment);
 }

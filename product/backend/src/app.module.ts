@@ -1,7 +1,7 @@
 import { Module } from "@nestjs/common";
 import { Pool } from "pg";
 import { AppController } from "./app.controller.js";
-import { readBackendConfig, readOperatorRuntimeConfig } from "./config.js";
+import { readOperatorRuntimeConfig, readSmsRuntimeConfig } from "./config.js";
 import { DatabaseLifecycle } from "./database-lifecycle.js";
 import { DevelopmentProviderSmsController } from "./development-provider-sms.controller.js";
 import { InvitationManagementService } from "./invitation-management-service.js";
@@ -57,7 +57,7 @@ const identityTransactionProvider = {
 const smsRuntimeProvider = {
   provide: SMS_RUNTIME,
   useFactory: (): SmsRuntime => {
-    const config = readBackendConfig();
+    const config = readSmsRuntimeConfig();
     if (config.SG_PRODUCT_SMS_MODE === "development_capture") {
       const capture = new DevelopmentSmsCapturePort(
         config.SG_PRODUCT_DEVELOPMENT_SMS_TOKEN!,
