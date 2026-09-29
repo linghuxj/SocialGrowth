@@ -164,11 +164,11 @@ export class ProviderAuthService {
     const request = requestPhoneVerificationSchema.parse(input);
     const requestHash = requestDigest(request);
     const reservation = await inTransaction(this.pool, async (client) => {
-      const now = await databaseNow(client);
       await client.query(
         "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
         [`${request.purpose}:${request.phoneE164}`],
       );
+      const now = await databaseNow(client);
       const existing = await client.query<ChallengeRow>(
         `SELECT * FROM ${schema}.phone_verification_challenges
           WHERE purpose = $1 AND phone_e164 = $2 AND idempotency_key = $3
@@ -234,7 +234,7 @@ export class ProviderAuthService {
         `SELECT count(*)::text AS count
            FROM ${schema}.phone_verification_challenges
           WHERE phone_e164 = $1 AND created_at > $2
-            AND delivery_state IN ('pending', 'accepted')`,
+          `,
         [request.phoneE164, new Date(now.getTime() - rateLimitWindowMilliseconds)],
       );
       if (Number(recent.rows[0]?.count ?? 0) >= rateLimitCount) {
@@ -248,7 +248,6 @@ export class ProviderAuthService {
         `SELECT resend_available_at
            FROM ${schema}.phone_verification_challenges
           WHERE phone_e164 = $1 AND purpose = $2
-            AND delivery_state IN ('pending', 'accepted')
           ORDER BY created_at DESC LIMIT 1`,
         [request.phoneE164, request.purpose],
       );
@@ -315,7 +314,6 @@ export class ProviderAuthService {
   async verifyCode(input: VerifyPhoneCodeRequest): Promise<PhoneVerificationResponse> {
     const request = verifyPhoneCodeRequestSchema.parse(input);
     const outcome = await inTransaction(this.pool, async (client) => {
-      const now = await databaseNow(client);
       const result = await client.query<ChallengeRow>(
         `SELECT * FROM ${schema}.phone_verification_challenges
           WHERE challenge_id = $1 FOR UPDATE`,
@@ -325,6 +323,7 @@ export class ProviderAuthService {
       if (!challenge || challenge.delivery_state !== "accepted") {
         throw new ProductTransactionError("PHONE_VERIFICATION_INVALID", "Verification challenge is unavailable");
       }
+      const now = await databaseNow(client);
       if (challenge.expires_at <= now) {
         throw new ProductTransactionError("PHONE_VERIFICATION_EXPIRED", "Verification challenge expired");
       }
@@ -382,7 +381,6 @@ export class ProviderAuthService {
   async login(input: ProviderLoginRequest): Promise<ProviderAuthResponse> {
     const request = providerLoginRequestSchema.parse(input);
     return inTransaction(this.pool, async (client) => {
-      const now = await databaseNow(client);
       const proofResult = await client.query<VerificationRow>(
         `SELECT phone_e164, purpose, provider_id, verified_at, expires_at, consumed_at
            FROM ${schema}.phone_verifications WHERE verification_id = $1 FOR UPDATE`,
@@ -390,7 +388,7 @@ export class ProviderAuthService {
       );
       const proof = proofResult.rows[0];
       if (!proof || proof.purpose !== "provider_login" || !proof.provider_id ||
-          !proof.verified_at || proof.expires_at <= now || proof.consumed_at) {
+          !proof.verified_at || proof.consumed_at) {
         throw new ProductTransactionError("PHONE_VERIFICATION_INVALID", "Login proof is unavailable");
       }
       const providerResult = await client.query<ProviderRow>(
@@ -401,6 +399,13 @@ export class ProviderAuthService {
       const provider = providerResult.rows[0];
       if (!provider) throw new ProductTransactionError("PHONE_NOT_REGISTERED", "Provider was not found");
       if (provider.status !== "active") throw new ProductTransactionError("PROVIDER_DISABLED", "Provider is disabled");
+      const now = await databaseNow(client);
+      if (proof.expires_at <= now || proof.phone_e164 !== provider.phone_e164) {
+        throw new ProductTransactionError(
+          "PHONE_VERIFICATION_INVALID",
+          "Login proof expired or no longer matches the provider phone",
+        );
+      }
       const token = randomBytes(32).toString("base64url");
       const sessionId = randomUUID();
       const expiresAt = new Date(now.getTime() + sessionLifetimeMilliseconds);

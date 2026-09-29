@@ -61,6 +61,23 @@ function metadata(key: string) {
   };
 }
 
+async function waitForBlockedQuery(fragment: string): Promise<void> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const result = await pool.query<{ count: string }>(
+      `SELECT count(*)::text AS count
+         FROM pg_stat_activity
+        WHERE datname = current_database()
+          AND state = 'active'
+          AND wait_event_type = 'Lock'
+          AND query LIKE $1`,
+      [`%${fragment}%`],
+    );
+    if (result.rows[0]?.count !== "0") return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(`Timed out waiting for blocked PostgreSQL query: ${fragment}`);
+}
+
 async function seedInvitation(code: string): Promise<void> {
   const operatorId = randomUUID();
   await pool.query(
@@ -235,6 +252,27 @@ test("registered provider verifies login, receives a stored-digest session, and 
     challengeId: loginChallenge.challengeId,
     code: sms.deliveries.at(-1)!.code,
   });
+  const providerId = await pool.query<{ provider_id: string }>(
+    "SELECT provider_id FROM socialgrowth_product.providers WHERE phone_e164 = $1",
+    [phone],
+  );
+  await pool.query(
+    "UPDATE socialgrowth_product.providers SET phone_e164 = '+8613800000999' WHERE provider_id = $1",
+    [providerId.rows[0]!.provider_id],
+  );
+  await assert.rejects(
+    auth.login({
+      metadata: metadata("provider-login-old-phone-0001"),
+      phoneVerificationId: loginProof.phoneVerificationId,
+    }),
+    (error: unknown) =>
+      error instanceof ProductTransactionError &&
+      error.code === "PHONE_VERIFICATION_INVALID",
+  );
+  await pool.query(
+    "UPDATE socialgrowth_product.providers SET phone_e164 = $2 WHERE provider_id = $1",
+    [providerId.rows[0]!.provider_id, phone],
+  );
   const response = await auth.login({
     metadata: metadata("provider-login-0001"),
     phoneVerificationId: loginProof.phoneVerificationId,
@@ -284,4 +322,103 @@ test("SMS provider failure is truthful and leaves no accepted challenge", async 
       WHERE phone_e164 = '+8613800000104'`,
   );
   assert.equal(state.rows[0]?.delivery_state, "failed");
+  await assert.rejects(
+    service.requestVerification({
+      metadata: metadata("sms-failure-new-key-0001"),
+      purpose: "provider_registration",
+      phoneE164: "+8613800000104",
+      invitationCode,
+    }),
+    (error: unknown) =>
+      error instanceof ProductTransactionError &&
+      error.code === "PHONE_VERIFICATION_RATE_LIMITED",
+  );
+});
+
+test("challenge expiry is rechecked after waiting for its row lock", async () => {
+  const invitationCode = `invite-${randomUUID()}`;
+  await seedInvitation(invitationCode);
+  const sms = new RecordingSmsPort();
+  const service = new ProviderAuthService(pool, pepper, sms);
+  const challenge = await service.requestVerification({
+    metadata: metadata("challenge-lock-expiry-0001"),
+    purpose: "provider_registration",
+    phoneE164: "+8613800000106",
+    invitationCode,
+  });
+  await pool.query(
+    `UPDATE socialgrowth_product.phone_verification_challenges
+        SET expires_at = clock_timestamp() + interval '500 milliseconds',
+            resend_available_at = LEAST(resend_available_at, clock_timestamp() + interval '400 milliseconds')
+      WHERE challenge_id = $1`,
+    [challenge.challengeId],
+  );
+  const blocker = await pool.connect();
+  try {
+    await blocker.query("BEGIN");
+    await blocker.query(
+      "SELECT challenge_id FROM socialgrowth_product.phone_verification_challenges WHERE challenge_id = $1 FOR UPDATE",
+      [challenge.challengeId],
+    );
+    const verification = service.verifyCode({
+      metadata: metadata("challenge-lock-expiry-verify-0001"),
+      challengeId: challenge.challengeId,
+      code: sms.deliveries.at(-1)!.code,
+    });
+    await waitForBlockedQuery("WHERE challenge_id = $1 FOR UPDATE");
+    await new Promise((resolve) => setTimeout(resolve, 650));
+    await blocker.query("COMMIT");
+    await assert.rejects(
+      verification,
+      (error: unknown) =>
+        error instanceof ProductTransactionError &&
+        error.code === "PHONE_VERIFICATION_EXPIRED",
+    );
+  } finally {
+    try { await blocker.query("ROLLBACK"); } catch { /* transaction already closed */ }
+    blocker.release();
+  }
+});
+
+test("login proof expiry is rechecked after waiting for provider locks", async () => {
+  const providerId = randomUUID();
+  const verificationId = randomUUID();
+  const phone = "+8613800000107";
+  await pool.query(
+    `INSERT INTO socialgrowth_product.providers (
+       provider_id, phone_e164, display_name, status
+     ) VALUES ($1, $2, 'Lock Wait Provider', 'active')`,
+    [providerId, phone],
+  );
+  await pool.query(
+    `INSERT INTO socialgrowth_product.phone_verifications (
+       verification_id, phone_e164, purpose, provider_id, verified_at, expires_at
+     ) VALUES ($1, $2, 'provider_login', $3, transaction_timestamp(),
+       clock_timestamp() + interval '500 milliseconds')`,
+    [verificationId, phone, providerId],
+  );
+  const blocker = await pool.connect();
+  try {
+    await blocker.query("BEGIN");
+    await blocker.query(
+      "SELECT verification_id FROM socialgrowth_product.phone_verifications WHERE verification_id = $1 FOR UPDATE",
+      [verificationId],
+    );
+    const login = new ProviderAuthService(pool, pepper, new RecordingSmsPort()).login({
+      metadata: metadata("login-lock-expiry-0001"),
+      phoneVerificationId: verificationId,
+    });
+    await waitForBlockedQuery("WHERE verification_id = $1 FOR UPDATE");
+    await new Promise((resolve) => setTimeout(resolve, 650));
+    await blocker.query("COMMIT");
+    await assert.rejects(
+      login,
+      (error: unknown) =>
+        error instanceof ProductTransactionError &&
+        error.code === "PHONE_VERIFICATION_INVALID",
+    );
+  } finally {
+    try { await blocker.query("ROLLBACK"); } catch { /* transaction already closed */ }
+    blocker.release();
+  }
 });
