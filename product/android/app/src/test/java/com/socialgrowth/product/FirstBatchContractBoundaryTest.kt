@@ -18,6 +18,12 @@ class FirstBatchContractBoundaryTest {
             """{"factVersion":1,"updatedAt":"2026-09-29T00:00:00Z","installationId":"$id","state":"unassociated","deviceId":null}""",
         )
         assertEquals("unassociated", view.state)
+
+        val preciseView = FirstBatchContractBoundary.parseInstallationSelfView(
+            """{"factVersion":1.0,"updatedAt":"2026-09-29T00:00:00.1234567890Z","installationId":"$id","state":"unassociated","deviceId":null}""",
+        )
+        assertEquals(1L, preciseView.factVersion)
+        assertEquals("2026-09-29T00:00:00.1234567890Z", preciseView.updatedAt)
     }
 
     @Test

@@ -7,10 +7,19 @@ internal object GeneratedFirstBatchContractSpec {
     const val UUID_PATTERN = "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)\$"
     const val TIMESTAMP_PATTERN = "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))\$"
     const val FACT_VERSION_MAX = 9007199254740991L
+    const val REQUEST_ID_MIN_LENGTH = 8
+    const val REQUEST_ID_MAX_LENGTH = 128
+    const val ERROR_MESSAGE_MIN_LENGTH = 1
+    const val ERROR_FIELD_MIN_LENGTH = 1
     val ASSOCIATION_QR_KEYS = setOf("contractVersion", "associationCode")
+    val ASSOCIATION_QR_REQUIRED_KEYS = setOf("contractVersion", "associationCode")
     val INSTALLATION_SELF_KEYS = setOf("factVersion", "updatedAt", "installationId", "state", "deviceId")
-    val INSTALLATION_STATES = setOf("unassociated", "associated_pending_access", "access_ready", "paused", "exit_pending", "exited")
+    val INSTALLATION_SELF_REQUIRED_KEYS = setOf("factVersion", "updatedAt", "installationId", "state", "deviceId")
+    val NULL_DEVICE_STATES = setOf("unassociated")
+    val IDENTIFIED_DEVICE_STATES = setOf("associated_pending_access", "access_ready", "paused", "exit_pending", "exited")
     val ERROR_RESPONSE_KEYS = setOf("contractVersion", "requestId", "error")
-    val ERROR_DETAIL_KEYS = setOf("code", "message", "retryable")
+    val ERROR_RESPONSE_REQUIRED_KEYS = setOf("contractVersion", "requestId", "error")
+    val ERROR_DETAIL_KEYS = setOf("code", "message", "retryable", "field")
+    val ERROR_DETAIL_REQUIRED_KEYS = setOf("code", "message", "retryable")
     val ERROR_CODES = setOf("AUTHENTICATION_REQUIRED", "AUTHORIZATION_DENIED", "CONTRACT_VERSION_UNSUPPORTED", "IDEMPOTENCY_KEY_REUSED", "IDEMPOTENCY_RESULT_EXPIRED", "INPUT_INVALID", "INVITATION_EXPIRED", "INVITATION_EXHAUSTED", "INVITATION_REVOKED", "PHONE_ALREADY_REGISTERED", "PHONE_VERIFICATION_INVALID", "ASSOCIATION_SESSION_EXPIRED", "ASSOCIATION_SESSION_CONSUMED", "ASSOCIATION_TARGET_CHANGED", "DEVICE_ALREADY_ASSOCIATED", "FACT_VERSION_STALE")
 }

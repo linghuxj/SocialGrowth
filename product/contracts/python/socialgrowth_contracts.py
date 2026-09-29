@@ -13,6 +13,24 @@ class ContractValidationError(ValueError):
 
 
 class FirstBatchContracts:
+    _SUPPORTED_KEYWORDS = {
+        "$schema",
+        "additionalProperties",
+        "anyOf",
+        "const",
+        "enum",
+        "format",
+        "maxLength",
+        "maximum",
+        "minLength",
+        "minimum",
+        "oneOf",
+        "pattern",
+        "properties",
+        "required",
+        "type",
+    }
+
     def __init__(self, schema_path: Path | None = None) -> None:
         path = schema_path or (
             Path(__file__).resolve().parents[1]
@@ -32,6 +50,11 @@ class FirstBatchContracts:
         return value
 
     def _validate_schema(self, schema: dict[str, Any], value: Any, path: str) -> None:
+        unsupported = schema.keys() - self._SUPPORTED_KEYWORDS
+        if unsupported:
+            raise ContractValidationError(
+                f"{path}: unsupported schema keywords {sorted(unsupported)}"
+            )
         for keyword in ("oneOf", "anyOf"):
             if keyword in schema:
                 matches = 0
@@ -44,14 +67,19 @@ class FirstBatchContracts:
                 expected = 1 if keyword == "oneOf" else None
                 if matches == 0 or (expected is not None and matches != expected):
                     raise ContractValidationError(f"{path}: {keyword} did not match")
-                return
 
         expected_type = schema.get("type")
+        is_integer = (
+            isinstance(value, int)
+            and not isinstance(value, bool)
+            or isinstance(value, float)
+            and value.is_integer()
+        )
         type_matches = {
             "object": isinstance(value, dict),
             "string": isinstance(value, str),
             "boolean": isinstance(value, bool),
-            "integer": isinstance(value, int) and not isinstance(value, bool),
+            "integer": is_integer,
             "null": value is None,
         }
         if expected_type is not None and not type_matches.get(expected_type, False):
@@ -81,11 +109,17 @@ class FirstBatchContracts:
             if maximum is not None and len(value) > maximum:
                 raise ContractValidationError(f"{path}: string is too long")
             pattern = schema.get("pattern")
-            if pattern is not None and re.fullmatch(pattern, value) is None:
+            if pattern is not None and re.fullmatch(pattern, value, flags=re.ASCII) is None:
                 raise ContractValidationError(f"{path}: pattern mismatch")
+            schema_format = schema.get("format")
+            if schema_format is not None and pattern is None:
+                raise ContractValidationError(
+                    f"{path}: format {schema_format} requires an explicit generated pattern"
+                )
 
-        if isinstance(value, int) and not isinstance(value, bool):
-            if value < schema.get("minimum", value):
+        if is_integer:
+            numeric_value = int(value)
+            if numeric_value < schema.get("minimum", numeric_value):
                 raise ContractValidationError(f"{path}: integer below minimum")
-            if value > schema.get("maximum", value):
+            if numeric_value > schema.get("maximum", numeric_value):
                 raise ContractValidationError(f"{path}: integer above maximum")

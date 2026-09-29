@@ -1,7 +1,7 @@
 package com.socialgrowth.product
 
 import org.json.JSONObject
-import java.time.Instant
+import java.math.BigDecimal
 import java.util.UUID
 
 data class AssociationQrPayload(
@@ -11,7 +11,7 @@ data class AssociationQrPayload(
 
 data class InstallationSelfView(
     val factVersion: Long,
-    val updatedAt: Instant,
+    val updatedAt: String,
     val installationId: UUID,
     val state: String,
     val deviceId: UUID?,
@@ -36,7 +36,11 @@ object FirstBatchContractBoundary {
 
     fun parseAssociationQrPayload(raw: String): AssociationQrPayload = wrap {
         val json = JSONObject(raw)
-        requireExactKeys(json, GeneratedFirstBatchContractSpec.ASSOCIATION_QR_KEYS)
+        requireExactKeys(
+            json,
+            GeneratedFirstBatchContractSpec.ASSOCIATION_QR_KEYS,
+            GeneratedFirstBatchContractSpec.ASSOCIATION_QR_REQUIRED_KEYS,
+        )
         val version = requireString(json, "contractVersion")
         require(version == GeneratedFirstBatchContractSpec.CONTRACT_VERSION) {
             "unsupported contractVersion"
@@ -48,7 +52,11 @@ object FirstBatchContractBoundary {
 
     fun parseInstallationSelfView(raw: String): InstallationSelfView = wrap {
         val json = JSONObject(raw)
-        requireExactKeys(json, GeneratedFirstBatchContractSpec.INSTALLATION_SELF_KEYS)
+        requireExactKeys(
+            json,
+            GeneratedFirstBatchContractSpec.INSTALLATION_SELF_KEYS,
+            GeneratedFirstBatchContractSpec.INSTALLATION_SELF_REQUIRED_KEYS,
+        )
         val factVersion = requireLong(json, "factVersion")
         require(factVersion in 0..GeneratedFirstBatchContractSpec.FACT_VERSION_MAX) {
             "factVersion is outside the supported range"
@@ -56,9 +64,14 @@ object FirstBatchContractBoundary {
         val updatedAt = requireTimestamp(json, "updatedAt")
         val installationId = requireUuid(json, "installationId")
         val state = requireString(json, "state")
-        require(state in GeneratedFirstBatchContractSpec.INSTALLATION_STATES) { "unknown state" }
+        require(
+            state in GeneratedFirstBatchContractSpec.NULL_DEVICE_STATES ||
+                state in GeneratedFirstBatchContractSpec.IDENTIFIED_DEVICE_STATES,
+        ) { "unknown state" }
         val deviceId = if (json.isNull("deviceId")) null else requireUuid(json, "deviceId")
-        require((state == "unassociated") == (deviceId == null)) {
+        require(
+            (state in GeneratedFirstBatchContractSpec.NULL_DEVICE_STATES) == (deviceId == null),
+        ) {
             "state and deviceId contradict each other"
         }
         InstallationSelfView(factVersion, updatedAt, installationId, state, deviceId)
@@ -66,34 +79,49 @@ object FirstBatchContractBoundary {
 
     fun parseProductError(raw: String): ProductError = wrap {
         val json = JSONObject(raw)
-        requireExactKeys(json, GeneratedFirstBatchContractSpec.ERROR_RESPONSE_KEYS)
+        requireExactKeys(
+            json,
+            GeneratedFirstBatchContractSpec.ERROR_RESPONSE_KEYS,
+            GeneratedFirstBatchContractSpec.ERROR_RESPONSE_REQUIRED_KEYS,
+        )
         val version = requireString(json, "contractVersion")
         require(version == GeneratedFirstBatchContractSpec.CONTRACT_VERSION) {
             "unsupported contractVersion"
         }
         val requestId = requireString(json, "requestId")
-        require(requestId.length in 8..128) { "invalid requestId" }
+        require(
+            requestId.length in
+                GeneratedFirstBatchContractSpec.REQUEST_ID_MIN_LENGTH..
+                GeneratedFirstBatchContractSpec.REQUEST_ID_MAX_LENGTH,
+        ) { "invalid requestId" }
         val error = json.get("error")
         require(error is JSONObject) { "error must be an object" }
-        val errorKeys = GeneratedFirstBatchContractSpec.ERROR_DETAIL_KEYS + setOf("field")
-        requireExactKeys(error, errorKeys, optional = setOf("field"))
+        requireExactKeys(
+            error,
+            GeneratedFirstBatchContractSpec.ERROR_DETAIL_KEYS,
+            GeneratedFirstBatchContractSpec.ERROR_DETAIL_REQUIRED_KEYS,
+        )
         val code = requireString(error, "code")
         require(code in GeneratedFirstBatchContractSpec.ERROR_CODES) { "unknown error code" }
         val message = requireString(error, "message")
-        require(message.isNotEmpty()) { "empty error message" }
+        require(message.length >= GeneratedFirstBatchContractSpec.ERROR_MESSAGE_MIN_LENGTH) {
+            "empty error message"
+        }
         val field = if (error.has("field")) requireString(error, "field") else null
-        require(field == null || field.isNotEmpty()) { "empty error field" }
+        require(
+            field == null || field.length >= GeneratedFirstBatchContractSpec.ERROR_FIELD_MIN_LENGTH,
+        ) { "empty error field" }
         ProductError(version, requestId, code, message, requireBoolean(error, "retryable"), field)
     }
 
     private fun requireExactKeys(
         json: JSONObject,
         allowed: Set<String>,
-        optional: Set<String> = emptySet(),
+        required: Set<String>,
     ) {
         val actual = buildSet { json.keys().forEachRemaining(::add) }
         require(actual.all { it in allowed }) { "unknown fields: ${actual - allowed}" }
-        require(actual.containsAll(allowed - optional)) { "missing fields: ${(allowed - optional) - actual}" }
+        require(actual.containsAll(required)) { "missing fields: ${required - actual}" }
     }
 
     private fun requireString(json: JSONObject, key: String): String {
@@ -110,8 +138,10 @@ object FirstBatchContractBoundary {
 
     private fun requireLong(json: JSONObject, key: String): Long {
         val value = json.get(key)
-        require(value is Int || value is Long) { "$key must be an integer" }
-        return (value as Number).toLong()
+        require(value is Number) { "$key must be a number" }
+        val decimal = BigDecimal(value.toString())
+        require(decimal.stripTrailingZeros().scale() <= 0) { "$key must be an integer" }
+        return decimal.longValueExact()
     }
 
     private fun requireUuid(json: JSONObject, key: String): UUID {
@@ -120,10 +150,10 @@ object FirstBatchContractBoundary {
         return UUID.fromString(value)
     }
 
-    private fun requireTimestamp(json: JSONObject, key: String): Instant {
+    private fun requireTimestamp(json: JSONObject, key: String): String {
         val value = requireString(json, key)
         require(timestampRegex.matches(value)) { "$key must be an RFC 3339 timestamp" }
-        return Instant.parse(value)
+        return value
     }
 
     private inline fun <T> wrap(block: () -> T): T = try {

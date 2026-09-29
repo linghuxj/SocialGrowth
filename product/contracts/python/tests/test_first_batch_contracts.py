@@ -63,6 +63,41 @@ class FirstBatchContractsTest(unittest.TestCase):
             with self.subTest(name=name), self.assertRaises(ContractValidationError):
                 self.contracts.validate(name, value)
 
+    def test_matches_json_integer_and_ascii_pattern_semantics(self) -> None:
+        accepted = {
+            "factVersion": 1.0,
+            "updatedAt": "2026-09-29T00:00:00.1234567890Z",
+            "installationId": self.installation_id,
+            "state": "unassociated",
+            "deviceId": None,
+        }
+        self.assertIs(
+            self.contracts.validate("installationSelfView", accepted),
+            accepted,
+        )
+        with self.assertRaises(ContractValidationError):
+            self.contracts.validate(
+                "installationSelfView",
+                {
+                    **accepted,
+                    "updatedAt": "２０２６-09-29T00:00:00Z",
+                },
+            )
+
+    def test_composition_does_not_skip_sibling_constraints(self) -> None:
+        with self.assertRaises(ContractValidationError):
+            self.contracts._validate_schema(
+                {"anyOf": [{"type": "string"}], "maxLength": 1},
+                "bad",
+                "probe",
+            )
+        with self.assertRaises(ContractValidationError):
+            self.contracts._validate_schema(
+                {"type": "string", "futureKeyword": True},
+                "value",
+                "probe",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
