@@ -15,6 +15,7 @@ out/
 
 # 缓存与调试
 .cache/
+__pycache__/
 npm-debug.log*
 pnpm-debug.log*
 package-lock.json

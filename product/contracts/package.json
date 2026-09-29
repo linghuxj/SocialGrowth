@@ -15,7 +15,7 @@
     "generate": "tsx src/generate-contracts.ts",
     "generate:check": "tsx src/generate-contracts.ts --check",
     "lint": "oxlint src",
-    "test": "tsx --test src/*.test.ts"
+    "test": "tsx --test src/*.test.ts && python3 -m unittest discover -s python/tests -p 'test_*.py'"
   },
   "dependencies": {
     "zod": "4.6.5"

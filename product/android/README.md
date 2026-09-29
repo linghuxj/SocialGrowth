@@ -10,4 +10,10 @@
 GRADLE_USER_HOME=/tmp/socialgrowth-product-gradle product/android/gradlew -p product/android assembleDebug --no-daemon
 ```
 
-这只证明 WP-00 Android 空壳可构建，不证明原生业务、安装升级、签名或真机流程通过。
+WP-01 增加 `FirstBatchContractBoundary`：其版本、码制、状态及错误码规格由 `product/contracts` 的 Zod 源生成，Kotlin 边界严格拒绝旧版本、未知字段和矛盾状态。可用下列命令执行 JVM 契约消费检查：
+
+```sh
+GRADLE_USER_HOME=/tmp/socialgrowth-product-gradle product/android/gradlew -p product/android testDebugUnitTest --no-daemon
+```
+
+构建和单元检查只证明 Android 契约消费层，不证明原生业务、安装升级、签名、扫码或真机流程通过。

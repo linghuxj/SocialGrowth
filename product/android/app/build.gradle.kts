@@ -24,3 +24,8 @@ android {
 kotlin {
     jvmToolchain(17)
 }
+
+dependencies {
+    testImplementation(kotlin("test"))
+    testImplementation("org.json:json:20250517")
+}

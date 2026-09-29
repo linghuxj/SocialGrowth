@@ -1,6 +1,6 @@
 # 首批跨端契约
 
-`src/` 中的 Zod schema 是 TypeScript 运行时校验源；`generated/first-batch-contracts.v1.json` 是构建时生成的 JSON Schema 2020-12 等价格式，供 Kotlin、Python 和接口评审消费。消费端仍须实际执行运行时校验，不能只依赖静态类型。
+`src/` 中的 Zod schema 是 TypeScript 运行时校验源；`generated/first-batch-contracts.v1.json` 是构建时生成的 JSON Schema 2020-12 等价格式，供 Kotlin、Python 和接口评审消费。生成步骤同时产出 Android 使用的 `GeneratedFirstBatchContractSpec.kt`，并在 `generate:check` 中对两种产物做字节级防漂移检查。消费端仍须实际执行运行时校验，不能只依赖静态类型或生成常量。
 
 ## CT-01～04 覆盖
 
@@ -44,4 +44,4 @@ pnpm --filter @socialgrowth/product-contracts test
 pnpm --filter @socialgrowth/product-contracts build
 ```
 
-`generate` 显式更新 JSON Schema；`check` 和 `build` 使用 `generate:check` 字节比较源 schema 与已提交文件，发现漂移直接失败且不重写文件。真实 PostgreSQL 并发、跨语言消费端、旧客户端、短信和真机业务流程需要在对应工作包单独验收。
+`generate` 显式更新 JSON Schema 与 Android 规格文件；`check` 和 `build` 使用 `generate:check` 字节比较源 schema 与已提交文件，发现漂移直接失败且不重写文件。Web 和 executor 通过 Zod 边界适配器消费；Android 使用生成规格执行 Kotlin 运行时解析；`python/socialgrowth_contracts.py` 从提交的 JSON Schema 执行严格参考校验。跨语言补充检查不替代旧客户端组合、短信、页面、扫码或真机业务流程验收。
