@@ -57,9 +57,15 @@ class MainActivity : ComponentActivity() {
     private var lastCode = ""
     private var screenGeneration = 0
     private var backAction: (() -> Unit)? = null
+    private var managementSessionToken: String? = null
+    private var pendingScanGeneration: Int? = null
     private var associationConfirmKey = newIdempotencyKey("association-confirm")
     private val barcodeLauncher = registerForActivityResult(ScanContract()) { result ->
+        if (pendingScanGeneration != screenGeneration) return@registerForActivityResult
+        pendingScanGeneration = null
         result.contents?.let(::handleAssociationPayload)
+            ?: sessionStore.load()?.let(::showManagement)
+            ?: showAuthForm()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -92,9 +98,17 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
+    override fun onResume() {
+        super.onResume()
+        val token = managementSessionToken ?: return
+        if (::sessionStore.isInitialized && sessionStore.load()?.sessionToken != token) showAuthForm()
+    }
+
     private fun showAuthForm() {
         ++screenGeneration
         backAction = null
+        managementSessionToken = null
+        pendingScanGeneration = null
         val root = vertical(20).apply {
             setBackgroundColor(canvas)
             setPadding(dp(20), dp(20), dp(20), dp(72))
@@ -301,6 +315,7 @@ class MainActivity : ComponentActivity() {
     private fun showManagement(session: StoredProviderSession) {
         val generation = ++screenGeneration
         backAction = null
+        managementSessionToken = session.sessionToken
         val content = vertical(20).apply { setBackgroundColor(canvas) }
         content.addView(appHeader("仅管理"), matchWrap())
         val titleRow = LinearLayout(this).apply {
@@ -375,6 +390,7 @@ class MainActivity : ComponentActivity() {
     private fun showInstallationLoading() {
         val generation = ++screenGeneration
         backAction = null
+        managementSessionToken = null
         val root = vertical(20).apply {
             setBackgroundColor(canvas)
             gravity = Gravity.CENTER_HORIZONTAL
@@ -611,6 +627,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startAssociationScan() {
+        val session = sessionStore.load()
+        if (session == null) {
+            showAuthForm()
+            return
+        }
+        pendingScanGeneration = ++screenGeneration
+        backAction = { showManagement(session) }
         barcodeLauncher.launch(
             ScanOptions()
             .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
@@ -630,20 +653,24 @@ class MainActivity : ComponentActivity() {
         val qr = try {
             FirstBatchContractBoundary.parseAssociationQrPayload(raw)
         } catch (_: Exception) {
+            showManagement(session)
             Toast.makeText(this, "这不是有效的 SocialGrowth 设备关联码。", Toast.LENGTH_LONG).show()
             return
         }
+        val generation = ++screenGeneration
+        backAction = { showManagement(session) }
         val loading = vertical(24).apply {
             setBackgroundColor(canvas)
             gravity = Gravity.CENTER_HORIZONTAL
             addView(label("正在安全核对设备…", 18f, ink, Typeface.BOLD), wrapWrap().apply { topMargin = dp(160) })
         }
         setContentView(loading)
-        runNetwork(
+        guardManagementExpiry(session, generation)
+        runManagementNetwork(session, generation,
             action = { associationApi.inspect(session.sessionToken, qr.associationCode) },
             success = { showAssociationConfirmation(session, it) },
-            failure = {
-                Toast.makeText(this, it, Toast.LENGTH_LONG).show()
+            failure = { message ->
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
                 showManagement(session)
             },
         )
@@ -653,11 +680,18 @@ class MainActivity : ComponentActivity() {
         session: StoredProviderSession,
         inspection: AssociationInspection,
     ) {
-        ++screenGeneration
-        backAction = { showManagement(session) }
+        val generation = ++screenGeneration
+        var confirmationSubmitted = false
+        val leaveConfirmation = {
+            if (confirmationSubmitted) {
+                Toast.makeText(this, "确认请求可能仍在处理中，请在设备页刷新核对最终归属。", Toast.LENGTH_LONG).show()
+            }
+            showManagement(session)
+        }
+        backAction = leaveConfirmation
         associationConfirmKey = newIdempotencyKey("association-confirm")
         val root = vertical(20).apply { setBackgroundColor(canvas) }
-        root.addView(backHeader("添加执行手机") { showManagement(session) }, matchWrap())
+        root.addView(backHeader("添加执行手机", leaveConfirmation), matchWrap())
         root.addView(label("核对关联设备", 29f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(20) })
         root.addView(label("已识别关联码，请核对目标手机。", 15f, secondary), matchWrap().apply { topMargin = dp(7) })
         val device = vertical(18).apply { background = rounded(Color.WHITE, 12); elevation = dp(2).toFloat() }
@@ -681,8 +715,9 @@ class MainActivity : ComponentActivity() {
             setOnClickListener {
                 isEnabled = false
                 text = "正在确认…"
+                confirmationSubmitted = true
                 error.visibility = View.GONE
-                runNetwork(
+                runManagementNetwork(session, generation,
                     action = {
                         associationApi.result(session.sessionToken, inspection)
                             ?: associationApi.confirm(session.sessionToken, inspection, associationConfirmKey)
@@ -699,7 +734,12 @@ class MainActivity : ComponentActivity() {
         root.addView(confirm, matchHeight(54).apply { topMargin = dp(18) })
         root.addView(secondaryButton("重新扫码").apply {
             id = R.id.association_rescan
-            setOnClickListener { startAssociationScan() }
+            setOnClickListener {
+                if (confirmationSubmitted) {
+                    Toast.makeText(this@MainActivity, "上次确认可能仍在处理中，稍后到设备页刷新核对。", Toast.LENGTH_LONG).show()
+                }
+                startAssociationScan()
+            }
         }, matchHeight(52).apply { topMargin = dp(10) })
         root.addView(label("关联不会把当前管理手机接入执行。", 13f, secondary).apply {
             gravity = Gravity.CENTER
@@ -709,10 +749,11 @@ class MainActivity : ComponentActivity() {
             addView(root, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
         setContentView(scroll)
+        guardManagementExpiry(session, generation)
     }
 
     private fun showAssociationSuccess(session: StoredProviderSession, receipt: AssociationReceipt) {
-        ++screenGeneration
+        val generation = ++screenGeneration
         backAction = { showManagement(session) }
         val root = vertical(24).apply { setBackgroundColor(canvas); gravity = Gravity.CENTER_HORIZONTAL }
         root.addView(label("✓", 54f, Color.rgb(20, 108, 67), Typeface.BOLD), wrapWrap().apply { topMargin = dp(92) })
@@ -721,6 +762,7 @@ class MainActivity : ComponentActivity() {
         root.addView(label("后续仍需完成平台授权与接入检查。", 14f, secondary), wrapWrap().apply { topMargin = dp(16) })
         root.addView(primaryButton("返回设备管理").apply { setOnClickListener { showManagement(session) } }, matchHeight(54).apply { topMargin = dp(28) })
         setContentView(root)
+        guardManagementExpiry(session, generation)
     }
 
     private fun renderDevices(container: LinearLayout, devices: List<ProviderDevice>, session: StoredProviderSession) {
@@ -821,6 +863,10 @@ class MainActivity : ComponentActivity() {
             id = R.id.provider_account_help
             setOnClickListener { showAccountHelp(session) }
         }, matchHeight(54).apply { topMargin = dp(18) })
+        root.addView(secondaryButton("设备接入说明").apply {
+            id = R.id.provider_association_help
+            setOnClickListener { showManagementAssociationGuide(session) }
+        }, matchHeight(54).apply { topMargin = dp(10) })
         root.addView(secondaryButton("返回我的设备").apply {
             setOnClickListener { showManagement(session) }
         }, matchHeight(52).apply { topMargin = dp(10) })
@@ -861,6 +907,29 @@ class MainActivity : ComponentActivity() {
         guardManagementExpiry(session, generation)
     }
 
+    private fun showManagementAssociationGuide(session: StoredProviderSession) {
+        val generation = ++screenGeneration
+        backAction = { showProviderProfile(session) }
+        val root = vertical(20).apply { setBackgroundColor(canvas) }
+        root.addView(backHeader("设备接入说明") { showProviderProfile(session) }, matchWrap())
+        root.addView(label("逐台接入执行手机", 29f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(22) })
+        root.addView(label("管理手机只用于核对，不会因扫码变成执行手机。", 15f, secondary), matchWrap().apply { topMargin = dp(7) })
+        val steps = vertical(16).apply { background = rounded(Color.WHITE, 12) }
+        steps.addView(label("1. 在独立执行手机上打开接入码", 15f, ink))
+        steps.addView(label("2. 用管理手机扫描并核对目标设备", 15f, ink), matchWrap().apply { topMargin = dp(14) })
+        steps.addView(label("3. 明确确认后再查看本人设备列表", 15f, ink), matchWrap().apply { topMargin = dp(14) })
+        root.addView(steps, matchWrap().apply { topMargin = dp(24) })
+        root.addView(label("关联成功只表示进入待完成接入状态；平台授权、连接确认和可接任务仍须另行验证。不要用同一台管理手机替代独立执行手机。", 14f, secondary), matchWrap().apply { topMargin = dp(18) })
+        root.addView(secondaryButton("返回我的").apply {
+            setOnClickListener { showProviderProfile(session) }
+        }, matchHeight(52).apply { topMargin = dp(28) })
+        setContentView(ScrollView(this).apply {
+            isFillViewport = true
+            addView(root, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        })
+        guardManagementExpiry(session, generation)
+    }
+
     private fun logoutManagement(session: StoredProviderSession, button: Button) {
         button.isEnabled = false
         button.text = "正在退出…"
@@ -888,7 +957,9 @@ class MainActivity : ComponentActivity() {
         executor.execute {
             try {
                 val devices = associationApi.devices(session.sessionToken)
-                mainHandler.post { if (generation == screenGeneration) success(devices) }
+                mainHandler.post {
+                    if (generation == screenGeneration && managementSessionValid(session)) success(devices)
+                }
             } catch (error: ProviderApiException) {
                 mainHandler.post {
                     if (generation != screenGeneration) return@post
@@ -896,19 +967,62 @@ class MainActivity : ComponentActivity() {
                         sessionStore.clear()
                         showAuthForm()
                         Toast.makeText(this, error.message, Toast.LENGTH_LONG).show()
-                    } else failure(error.message)
+                    } else if (managementSessionValid(session)) failure(error.message)
                 }
             } catch (_: Exception) {
-                mainHandler.post { if (generation == screenGeneration) failure("无法连接服务，请检查网络后重试。") }
+                mainHandler.post {
+                    if (generation == screenGeneration && managementSessionValid(session)) {
+                        failure("无法连接服务，请检查网络后重试。")
+                    }
+                }
             }
         }
+    }
+
+    private fun <T> runManagementNetwork(
+        session: StoredProviderSession,
+        generation: Int,
+        action: () -> T,
+        success: (T) -> Unit,
+        failure: (String) -> Unit,
+    ) {
+        executor.execute {
+            try {
+                val result = action()
+                mainHandler.post {
+                    if (generation != screenGeneration || !managementSessionValid(session)) return@post
+                    success(result)
+                }
+            } catch (error: ProviderApiException) {
+                mainHandler.post {
+                    if (generation != screenGeneration) return@post
+                    if (error.code == "AUTHENTICATION_REQUIRED" || error.code == "PROVIDER_DISABLED") {
+                        sessionStore.clear()
+                        showAuthForm()
+                        Toast.makeText(this, error.message, Toast.LENGTH_LONG).show()
+                    } else if (managementSessionValid(session)) failure(error.message)
+                }
+            } catch (_: Exception) {
+                mainHandler.post {
+                    if (generation == screenGeneration && managementSessionValid(session)) {
+                        failure("无法连接服务，请检查网络后重试。")
+                    }
+                }
+            }
+        }
+    }
+
+    private fun managementSessionValid(session: StoredProviderSession): Boolean {
+        if (sessionStore.load()?.sessionToken == session.sessionToken) return true
+        showAuthForm()
+        return false
     }
 
     private fun guardManagementExpiry(session: StoredProviderSession, generation: Int) {
         val delay = (displayInstant(session.expiresAt).toEpochMilli() - System.currentTimeMillis())
             .coerceAtLeast(0L)
         mainHandler.postDelayed({
-            if (generation == screenGeneration && sessionStore.load() == null) showAuthForm()
+            if (generation == screenGeneration) managementSessionValid(session)
         }, delay)
     }
 
