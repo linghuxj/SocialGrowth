@@ -95,3 +95,31 @@ test("invitation views reject contradictory usage, status, time and incomplete p
     assert.throws(() => invitationViewSchema.parse(invitation));
   }
 });
+
+test("invitation time comparison preserves sub-millisecond precision", () => {
+  assert.doesNotThrow(() => invitationViewSchema.parse({
+    ...activeInvitation,
+    createdAt: "2026-09-29T00:00:00.000000Z",
+    evaluatedAt: "2026-10-06T00:00:00.000100Z",
+    expiresAt: "2026-10-06T00:00:00.000900Z",
+    registrations: [{
+      ...activeInvitation.registrations[0],
+      registeredAt: "2026-10-06T00:00:00.000050Z",
+    }],
+  }));
+});
+
+test("revoke responses apply the full invitation semantics", () => {
+  const revoked = {
+    ...activeInvitation,
+    status: "revoked" as const,
+    revokedAt: "2026-09-29T01:30:00.000Z",
+    revokedByOperatorId: operatorId,
+  };
+  assert.throws(() => revokeInvitationResponseSchema.parse({
+    invitation: { ...revoked, consumedUses: 6 },
+  }));
+  assert.throws(() => revokeInvitationResponseSchema.parse({
+    invitation: { ...revoked, revokedAt: "2026-09-30T00:00:00.000Z" },
+  }));
+});

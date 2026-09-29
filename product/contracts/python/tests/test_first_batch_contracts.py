@@ -205,6 +205,12 @@ class FirstBatchContractsTest(unittest.TestCase):
             {**invitation, "consumedUses": 5, "status": "active"},
             {**invitation, "consumedUses": 1, "registrations": []},
             {**invitation, "expiresAt": "2026-09-28T00:00:00Z"},
+            {
+                **invitation,
+                "status": "revoked",
+                "revokedAt": "2026-09-30T00:00:00Z",
+                "revokedByOperatorId": "00000000-0000-4000-8000-000000000002",
+            },
         ]
         for contradiction in semantic_contradictions:
             with self.subTest(invitation=contradiction), self.assertRaises(
@@ -213,6 +219,39 @@ class FirstBatchContractsTest(unittest.TestCase):
                 self.contracts.validate(
                     "listInvitationsResponse", {"invitations": [contradiction]}
                 )
+
+        with self.assertRaises(ContractValidationError):
+            self.contracts.validate(
+                "revokeInvitationResponse",
+                {
+                    "invitation": {
+                        **invitation,
+                        "consumedUses": 6,
+                        "status": "revoked",
+                        "revokedAt": "2026-09-29T01:30:00Z",
+                        "revokedByOperatorId": "00000000-0000-4000-8000-000000000002",
+                    }
+                },
+            )
+
+        precise = {
+            **invitation,
+            "createdAt": "2026-09-29T00:00:00.000000Z",
+            "evaluatedAt": "2026-10-06T00:00:00.000100Z",
+            "expiresAt": "2026-10-06T00:00:00.000900Z",
+            "registrations": [
+                {
+                    **invitation["registrations"][0],
+                    "registeredAt": "2026-10-06T00:00:00.000050Z",
+                }
+            ],
+        }
+        self.assertIs(
+            self.contracts.validate(
+                "listInvitationsResponse", {"invitations": [precise]}
+            )["invitations"][0],
+            precise,
+        )
 
 
 if __name__ == "__main__":

@@ -59,17 +59,51 @@ const invitationViewStructureSchema = z.discriminatedUnion("status", [
   revokedInvitationViewSchema,
 ]);
 
-export const invitationViewSchema = invitationViewStructureSchema.superRefine(
-  (invitation, context) => {
-    const createdAt = Date.parse(invitation.createdAt);
-    const expiresAt = Date.parse(invitation.expiresAt);
-    const evaluatedAt = Date.parse(invitation.evaluatedAt);
+type InvitationViewStructure = z.infer<typeof invitationViewStructureSchema>;
+
+function exactTimestampParts(timestamp: string): { fraction: string; seconds: bigint } {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|([+-])(\d{2}):(\d{2}))$/.exec(timestamp);
+  if (!match?.[1] || !match[2] || !match[3] || !match[4] || !match[5] || !match[6] || !match[8]) {
+    throw new Error("Timestamp was not structurally validated");
+  }
+  const date = new Date(0);
+  date.setUTCFullYear(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  date.setUTCHours(Number(match[4]), Number(match[5]), Number(match[6]), 0);
+  const offsetMinutes = match[8] === "Z"
+    ? 0
+    : (match[9] === "+" ? 1 : -1) * (Number(match[10]) * 60 + Number(match[11]));
+  return {
+    seconds: BigInt(date.getTime() / 1000 - offsetMinutes * 60),
+    fraction: match[7] ?? "",
+  };
+}
+
+function compareTimestamps(left: string, right: string): number {
+  const leftParts = exactTimestampParts(left);
+  const rightParts = exactTimestampParts(right);
+  if (leftParts.seconds !== rightParts.seconds) {
+    return leftParts.seconds < rightParts.seconds ? -1 : 1;
+  }
+  const width = Math.max(leftParts.fraction.length, rightParts.fraction.length);
+  return leftParts.fraction.padEnd(width, "0").localeCompare(
+    rightParts.fraction.padEnd(width, "0"),
+  );
+}
+
+function validateInvitationSemantics(
+  invitation: InvitationViewStructure,
+  context: z.RefinementCtx,
+): void {
     const invalid = (message: string, path: Array<string | number>) => {
       context.addIssue({ code: "custom", message, path });
     };
 
-    if (expiresAt <= createdAt) invalid("Invitation must expire after creation", ["expiresAt"]);
-    if (evaluatedAt < createdAt) invalid("Invitation cannot be evaluated before creation", ["evaluatedAt"]);
+    if (compareTimestamps(invitation.expiresAt, invitation.createdAt) <= 0) {
+      invalid("Invitation must expire after creation", ["expiresAt"]);
+    }
+    if (compareTimestamps(invitation.evaluatedAt, invitation.createdAt) < 0) {
+      invalid("Invitation cannot be evaluated before creation", ["evaluatedAt"]);
+    }
     if (invitation.consumedUses > invitation.maxUses) {
       invalid("Invitation consumption exceeds its limit", ["consumedUses"]);
     }
@@ -81,20 +115,25 @@ export const invitationViewSchema = invitationViewStructureSchema.superRefine(
       invalid("Invitation registrations must contain unique providers", ["registrations"]);
     }
     for (const [index, registration] of invitation.registrations.entries()) {
-      const registeredAt = Date.parse(registration.registeredAt);
-      if (registeredAt < createdAt || registeredAt > evaluatedAt) {
+      if (
+        compareTimestamps(registration.registeredAt, invitation.createdAt) < 0
+        || compareTimestamps(registration.registeredAt, invitation.evaluatedAt) > 0
+      ) {
         invalid("Registration time is outside the invitation observation window", ["registrations", index, "registeredAt"]);
       }
     }
 
     if (invitation.status === "revoked") {
-      if (Date.parse(invitation.revokedAt) < createdAt) {
+      if (compareTimestamps(invitation.revokedAt, invitation.createdAt) < 0) {
         invalid("Invitation cannot be revoked before creation", ["revokedAt"]);
+      }
+      if (compareTimestamps(invitation.revokedAt, invitation.evaluatedAt) > 0) {
+        invalid("Invitation revocation is outside the observation window", ["revokedAt"]);
       }
       return;
     }
 
-    const expectedStatus = expiresAt <= evaluatedAt
+    const expectedStatus = compareTimestamps(invitation.expiresAt, invitation.evaluatedAt) <= 0
       ? "expired"
       : invitation.consumedUses === invitation.maxUses
         ? "exhausted"
@@ -102,7 +141,10 @@ export const invitationViewSchema = invitationViewStructureSchema.superRefine(
     if (invitation.status !== expectedStatus) {
       invalid("Invitation status contradicts the evaluated facts", ["status"]);
     }
-  },
+}
+
+export const invitationViewSchema = invitationViewStructureSchema.superRefine(
+  validateInvitationSemantics,
 );
 
 export const invitationAccessSchema = z.strictObject({
@@ -125,7 +167,7 @@ export const revokeInvitationRequestSchema = z.strictObject({
 });
 
 export const revokeInvitationResponseSchema = z.strictObject({
-  invitation: revokedInvitationViewSchema,
+  invitation: revokedInvitationViewSchema.superRefine(validateInvitationSemantics),
 });
 
 export const registerProviderRequestSchema = z.strictObject({

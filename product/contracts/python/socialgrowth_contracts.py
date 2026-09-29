@@ -72,18 +72,41 @@ class FirstBatchContracts:
                 )
 
     @staticmethod
-    def _parse_timestamp(value: str) -> datetime:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    def _timestamp_parts(value: str) -> tuple[datetime, str]:
+        match = re.fullmatch(
+            r"(.*:\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})", value, flags=re.ASCII
+        )
+        if match is None:
+            raise ContractDataError("timestamp was not structurally validated")
+        whole_seconds = datetime.fromisoformat(
+            f"{match.group(1)}{match.group(3)}".replace("Z", "+00:00")
+        )
+        return whole_seconds, match.group(2) or ""
+
+    @classmethod
+    def _compare_timestamps(cls, left: str, right: str) -> int:
+        left_seconds, left_fraction = cls._timestamp_parts(left)
+        right_seconds, right_fraction = cls._timestamp_parts(right)
+        if left_seconds != right_seconds:
+            return -1 if left_seconds < right_seconds else 1
+        width = max(len(left_fraction), len(right_fraction))
+        left_padded = left_fraction.ljust(width, "0")
+        right_padded = right_fraction.ljust(width, "0")
+        return (left_padded > right_padded) - (left_padded < right_padded)
 
     def _validate_invitation_view(self, invitation: dict[str, Any], path: str) -> None:
-        created_at = self._parse_timestamp(invitation["createdAt"])
-        expires_at = self._parse_timestamp(invitation["expiresAt"])
-        evaluated_at = self._parse_timestamp(invitation["evaluatedAt"])
         consumed_uses = invitation["consumedUses"]
         max_uses = invitation["maxUses"]
         registrations = invitation["registrations"]
 
-        if expires_at <= created_at or evaluated_at < created_at:
+        if (
+            self._compare_timestamps(invitation["expiresAt"], invitation["createdAt"])
+            <= 0
+            or self._compare_timestamps(
+                invitation["evaluatedAt"], invitation["createdAt"]
+            )
+            < 0
+        ):
             raise ContractDataError(f"{path}: contradictory invitation time")
         if consumed_uses > max_uses:
             raise ContractDataError(f"{path}: invitation consumption exceeds limit")
@@ -93,18 +116,41 @@ class FirstBatchContracts:
         if len(set(provider_ids)) != len(provider_ids):
             raise ContractDataError(f"{path}: duplicate registered provider")
         for registration in registrations:
-            registered_at = self._parse_timestamp(registration["registeredAt"])
-            if registered_at < created_at or registered_at > evaluated_at:
+            if (
+                self._compare_timestamps(
+                    registration["registeredAt"], invitation["createdAt"]
+                )
+                < 0
+                or self._compare_timestamps(
+                    registration["registeredAt"], invitation["evaluatedAt"]
+                )
+                > 0
+            ):
                 raise ContractDataError(f"{path}: registration time outside observation")
 
         if invitation["status"] == "revoked":
-            if self._parse_timestamp(invitation["revokedAt"]) < created_at:
+            if (
+                self._compare_timestamps(
+                    invitation["revokedAt"], invitation["createdAt"]
+                )
+                < 0
+            ):
                 raise ContractDataError(f"{path}: revocation predates invitation")
+            if (
+                self._compare_timestamps(
+                    invitation["revokedAt"], invitation["evaluatedAt"]
+                )
+                > 0
+            ):
+                raise ContractDataError(f"{path}: revocation outside observation")
             return
 
         expected_status = (
             "expired"
-            if expires_at <= evaluated_at
+            if self._compare_timestamps(
+                invitation["expiresAt"], invitation["evaluatedAt"]
+            )
+            <= 0
             else "exhausted"
             if consumed_uses == max_uses
             else "active"
