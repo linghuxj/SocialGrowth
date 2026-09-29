@@ -6,6 +6,7 @@ import { DatabaseLifecycle } from "./database-lifecycle.js";
 import { DevelopmentProviderSmsController } from "./development-provider-sms.controller.js";
 import { InvitationManagementService } from "./invitation-management-service.js";
 import { IdentityTransactionService } from "./identity-transactions.js";
+import { InstallationAuthService } from "./installation-auth-service.js";
 import { OperatorAuthService } from "./operator-auth-service.js";
 import { OperatorController } from "./operator.controller.js";
 import { ProviderAuthService } from "./provider-auth-service.js";
@@ -54,6 +55,15 @@ const identityTransactionProvider = {
   useFactory: (pool: Pool) => new IdentityTransactionService(pool),
 };
 
+const installationAuthProvider = {
+  provide: InstallationAuthService,
+  inject: [Pool],
+  useFactory: (pool: Pool) => {
+    const config = readOperatorRuntimeConfig();
+    return new InstallationAuthService(pool, config.SG_PRODUCT_AUTH_PEPPER);
+  },
+};
+
 const smsRuntimeProvider = {
   provide: SMS_RUNTIME,
   useFactory: (): SmsRuntime => {
@@ -97,6 +107,7 @@ const providerAuthProvider = {
     operatorAuthProvider,
     invitationManagementProvider,
     identityTransactionProvider,
+    installationAuthProvider,
     smsRuntimeProvider,
     providerAuthProvider,
     DatabaseLifecycle,

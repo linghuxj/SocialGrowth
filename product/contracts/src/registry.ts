@@ -15,6 +15,11 @@ import {
   sessionSummarySchema,
 } from "./identity.js";
 import {
+  bootstrapInstallationRequestSchema,
+  installationAuthResponseSchema,
+  installationIdentitySchema,
+} from "./installation-auth.js";
+import {
   createInvitationRequestSchema,
   createInvitationResponseSchema,
   invitationViewSchema,
@@ -56,6 +61,7 @@ export const firstBatchContractRegistry = {
   associationQrPayload: associationQrPayloadSchema,
   associationSessionView: associationSessionViewSchema,
   authenticatedPrincipal: authenticatedPrincipalSchema,
+  bootstrapInstallationRequest: bootstrapInstallationRequestSchema,
   confirmAssociationRequest: confirmAssociationRequestSchema,
   confirmAssociationResponse: confirmAssociationResponseSchema,
   createAssociationSessionRequest: createAssociationSessionRequestSchema,
@@ -67,6 +73,8 @@ export const firstBatchContractRegistry = {
   disableOperatorRequest: disableOperatorRequestSchema,
   disableOperatorResponse: disableOperatorResponseSchema,
   installationSelfView: installationSelfViewSchema,
+  installationAuthResponse: installationAuthResponseSchema,
+  installationIdentity: installationIdentitySchema,
   invitationView: invitationViewSchema,
   inspectAssociationCodeRequest: inspectAssociationCodeRequestSchema,
   listOperatorsResponse: listOperatorsResponseSchema,

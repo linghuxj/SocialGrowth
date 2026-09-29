@@ -8,6 +8,10 @@ import {
 } from "./association.js";
 import { registerProviderRequestSchema } from "./invitation.js";
 import {
+  bootstrapInstallationRequestSchema,
+  installationAuthResponseSchema,
+} from "./installation-auth.js";
+import {
   createOperatorRequestSchema,
   disableOperatorResponseSchema,
   operatorLoginResponseSchema,
@@ -24,6 +28,68 @@ const metadata = {
   requestId: "request-00000001",
   idempotencyKey: "idempotency-key-00000001",
 };
+
+test("installation bootstrap accepts only a versioned high-entropy credential", () => {
+  const accepted = bootstrapInstallationRequestSchema.safeParse({
+    metadata,
+    installationCredential: `sginst_v1_${"A".repeat(43)}`,
+  });
+  const rejected = bootstrapInstallationRequestSchema.safeParse({
+    metadata,
+    installationCredential: "device-name-or-hardware-id",
+  });
+
+  assert.equal(accepted.success, true);
+  assert.equal(rejected.success, false);
+});
+
+test("installation auth response never returns the root credential", () => {
+  const response = {
+    installation: {
+      installationId: "018f47ac-7a69-7db4-a572-8c62f3650194",
+      generation: 1,
+      status: "active",
+      createdAt: "2026-09-29T10:00:00+08:00",
+      updatedAt: "2026-09-29T10:00:00+08:00",
+    },
+    session: {
+      sessionId: "018f47ac-7a69-7db4-a572-8c62f3650195",
+      createdAt: "2026-09-29T10:00:00+08:00",
+      expiresAt: "2026-10-29T10:00:00+08:00",
+    },
+    sessionToken: "S".repeat(43),
+    createdNewInstallation: true,
+  };
+
+  assert.equal(installationAuthResponseSchema.safeParse(response).success, true);
+  assert.equal(
+    installationAuthResponseSchema.safeParse({
+      ...response,
+      installationCredential: `sginst_v1_${"A".repeat(43)}`,
+    }).success,
+    false,
+  );
+  assert.equal(
+    installationAuthResponseSchema.safeParse({
+      ...response,
+      session: {
+        ...response.session,
+        expiresAt: response.session.createdAt,
+      },
+    }).success,
+    false,
+  );
+  assert.equal(
+    installationAuthResponseSchema.safeParse({
+      ...response,
+      installation: {
+        ...response.installation,
+        updatedAt: "2026-09-29T09:59:59+08:00",
+      },
+    }).success,
+    false,
+  );
+});
 
 test("registration accepts verification proof but rejects client-owned identity", () => {
   const accepted = registerProviderRequestSchema.safeParse({
