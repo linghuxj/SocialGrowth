@@ -16,6 +16,11 @@ import {
 } from "./association.js";
 import { productErrorResponseSchema } from "./errors.js";
 import {
+  listOperatorDeviceFactsResponseSchema,
+  operatorDeviceFactSchema,
+  operatorProviderFactSchema,
+} from "./device-facts.js";
+import {
   authenticatedPrincipalSchema,
   sessionSummarySchema,
 } from "./identity.js";
@@ -85,10 +90,13 @@ export const firstBatchContractRegistry = {
   inspectAssociationCodeRequest: inspectAssociationCodeRequestSchema,
   installationStateRequest: installationStateRequestSchema,
   listOperatorsResponse: listOperatorsResponseSchema,
+  listOperatorDeviceFactsResponse: listOperatorDeviceFactsResponseSchema,
   listProviderDevicesRequest: listProviderDevicesRequestSchema,
   listProviderDevicesResponse: listProviderDevicesResponseSchema,
   listInvitationsResponse: listInvitationsResponseSchema,
   operatorDeviceView: operatorDeviceViewSchema,
+  operatorDeviceFact: operatorDeviceFactSchema,
+  operatorProviderFact: operatorProviderFactSchema,
   operatorLoginRequest: operatorLoginRequestSchema,
   operatorLoginResponse: operatorLoginResponseSchema,
   operatorView: operatorViewSchema,

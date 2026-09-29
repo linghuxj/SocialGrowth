@@ -108,6 +108,19 @@ export class OperatorController {
     }
   }
 
+  @Get("device-facts")
+  @Header("Cache-Control", "no-store")
+  async listDeviceFacts(@Req() request: HttpRequest) {
+    const requestId = `request-${randomUUID()}`;
+    try {
+      return await this.service.listDeviceFacts(
+        cookieValue(request, sessionCookieName) ?? "",
+      );
+    } catch (error) {
+      rethrowHttp(error, requestId);
+    }
+  }
+
   @Post("invitations")
   @Header("Cache-Control", "no-store")
   async createInvitation(

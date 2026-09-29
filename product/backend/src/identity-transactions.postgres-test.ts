@@ -3,7 +3,10 @@ import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { after, before, test } from "node:test";
 
-import { contractVersion } from "@socialgrowth/product-contracts";
+import {
+  contractVersion,
+  listOperatorDeviceFactsResponseSchema,
+} from "@socialgrowth/product-contracts";
 import { Pool } from "pg";
 
 import { IdentityTransactionService } from "./identity-transactions.js";
@@ -1444,4 +1447,63 @@ test("operator authentication enforces throttling, revocation and last-account p
     [`%${firstLogin.sessionToken}%`, `%${firstLogin.response.csrfToken}%`],
   );
   assert.equal(sensitiveAudit.rows[0]?.count, "0");
+});
+
+test("operator device facts group current ownership without inventing connection evidence", async () => {
+  await pool.query("DROP SCHEMA IF EXISTS socialgrowth_product CASCADE");
+  await pool.query(await readFile(migrationUrl, "utf8"));
+  const { csrfToken, sessionToken } = await seedAuthenticatedOperator();
+  const firstProvider = await seedProvider("+8613800000021");
+  const secondProvider = await seedProvider("+8613800000022");
+  const firstInstallation = await seedInstallation();
+  const secondInstallation = await seedInstallation();
+  for (const [index, installationId] of [firstInstallation, secondInstallation].entries()) {
+    const deviceId = randomUUID();
+    const associationSessionId = randomUUID();
+    await pool.query(
+      `INSERT INTO socialgrowth_product.devices (
+         device_id, display_name, state, fact_version
+       ) VALUES ($1, $2, 'associated_pending_access', 1)`,
+      [deviceId, `SG-0${index + 1}`],
+    );
+    await pool.query(
+      `INSERT INTO socialgrowth_product.association_sessions (
+         association_session_id, installation_id, expected_installation_generation,
+         device_label, code_digest, expires_at, consumed_at, consumed_by_provider_id
+       ) VALUES (
+         $1, $2, 1, $3, $4,
+         transaction_timestamp() + interval '1 hour',
+         transaction_timestamp(), $5
+       )`,
+      [associationSessionId, installationId, `SG-0${index + 1}`,
+        digest(`code-${associationSessionId}`), firstProvider],
+    );
+    await pool.query(
+      `INSERT INTO socialgrowth_product.device_associations (
+         association_id, device_id, installation_id, provider_id, association_session_id
+       ) VALUES ($1, $2, $3, $4, $5)`,
+      [randomUUID(), deviceId, installationId, firstProvider, associationSessionId],
+    );
+  }
+
+  const facts = listOperatorDeviceFactsResponseSchema.parse(
+    await operatorService.listDeviceFacts(sessionToken),
+  );
+  assert.equal(facts.providers.length, 2);
+  assert.equal(facts.devices.length, 2);
+  assert.deepEqual(facts.providers.map((provider) => provider.phoneLastFour), ["0021", "0022"]);
+  assert.ok(facts.devices.every((device) => device.providerId === firstProvider));
+  assert.ok(facts.devices.every((device) => device.connectionState === "unknown"));
+  assert.ok(facts.devices.every((device) => device.lastConfirmedAt === null));
+  assert.ok(Date.parse(facts.readAt) >= Date.parse(facts.devices[0]!.updatedAt));
+  assert.equal(JSON.stringify(facts).includes("+8613800000021"), false);
+  assert.equal(JSON.stringify(facts).includes(firstInstallation), false);
+  assert.ok(facts.providers.some((provider) => provider.providerId === secondProvider));
+
+  await operatorService.logout(sessionToken, csrfToken, "request-device-facts-logout-0001");
+  await assert.rejects(
+    operatorService.listDeviceFacts(sessionToken),
+    (error: unknown) => error instanceof ProductTransactionError
+      && error.code === "AUTHENTICATION_REQUIRED",
+  );
 });

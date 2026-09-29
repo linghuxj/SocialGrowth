@@ -13,6 +13,7 @@ import {
   disableOperatorRequestSchema,
   disableOperatorResponseSchema,
   listOperatorsResponseSchema,
+  listOperatorDeviceFactsResponseSchema,
   operatorDisplayNameSchema,
   operatorLoginNameSchema,
   operatorLoginRequestSchema,
@@ -26,6 +27,7 @@ import {
   type DisableOperatorRequest,
   type DisableOperatorResponse,
   type ListOperatorsResponse,
+  type ListOperatorDeviceFactsResponse,
   type OperatorLoginRequest,
   type OperatorLoginResponse,
   type OperatorView,
@@ -87,6 +89,19 @@ interface DatabaseTimeRow {
 
 interface CountRow {
   count: string;
+}
+
+interface OperatorDeviceFactsRow {
+  read_at: Date;
+  provider_id: string | null;
+  provider_display_name: string | null;
+  phone_e164: string | null;
+  provider_status: "active" | "disabled" | null;
+  device_id: string | null;
+  device_display_name: string | null;
+  device_state: string | null;
+  fact_version: string | null;
+  device_updated_at: Date | null;
 }
 
 export interface OperatorSessionContext {
@@ -565,6 +580,78 @@ export class OperatorAuthService {
         `SELECT * FROM ${schema}.operators ORDER BY created_at, operator_id`,
       );
       return listOperatorsResponseSchema.parse({ operators: rows.rows.map(operatorView) });
+    });
+  }
+
+  async listDeviceFacts(sessionToken: string): Promise<ListOperatorDeviceFactsResponse> {
+    return inTransaction(this.pool, async (client) => {
+      await this.authenticateSessionInTransaction(client, sessionToken);
+      const result = await client.query<OperatorDeviceFactsRow>(
+        `SELECT statement_timestamp() AS read_at,
+                p.provider_id, p.display_name AS provider_display_name,
+                p.phone_e164, p.status AS provider_status,
+                d.device_id, d.display_name AS device_display_name,
+                d.state AS device_state, d.fact_version::text AS fact_version,
+                d.updated_at AS device_updated_at
+           FROM (SELECT 1) AS anchor
+           LEFT JOIN ${schema}.providers p ON TRUE
+           LEFT JOIN ${schema}.device_associations a
+             ON a.provider_id = p.provider_id AND a.ended_at IS NULL
+           LEFT JOIN ${schema}.devices d ON d.device_id = a.device_id
+          ORDER BY p.created_at NULLS LAST, p.provider_id,
+                   a.confirmed_at NULLS LAST, a.association_id`,
+      );
+      const readAt = result.rows[0]?.read_at;
+      if (!readAt) throw new Error("PostgreSQL did not return a device facts read time");
+      const providers = new Map<string, {
+        providerId: string;
+        displayName: string;
+        phoneLastFour: string;
+        status: "active" | "disabled";
+      }>();
+      const devices: Array<{
+        deviceId: string;
+        providerId: string;
+        displayName: string;
+        state: string;
+        connectionState: "unknown";
+        lastConfirmedAt: null;
+        factVersion: number;
+        updatedAt: string;
+      }> = [];
+      for (const row of result.rows) {
+        if (!row.provider_id) continue;
+        if (!row.provider_display_name || !row.phone_e164 || !row.provider_status) {
+          throw new Error("Provider facts row is incomplete");
+        }
+        if (!providers.has(row.provider_id)) {
+          providers.set(row.provider_id, {
+            providerId: row.provider_id,
+            displayName: row.provider_display_name,
+            phoneLastFour: row.phone_e164.slice(-4),
+            status: row.provider_status,
+          });
+        }
+        if (!row.device_id) continue;
+        if (!row.device_display_name || !row.device_state || !row.fact_version || !row.device_updated_at) {
+          throw new Error("Device facts row is incomplete");
+        }
+        devices.push({
+          deviceId: row.device_id,
+          providerId: row.provider_id,
+          displayName: row.device_display_name,
+          state: row.device_state,
+          connectionState: "unknown",
+          lastConfirmedAt: null,
+          factVersion: Number(row.fact_version),
+          updatedAt: row.device_updated_at.toISOString(),
+        });
+      }
+      return listOperatorDeviceFactsResponseSchema.parse({
+        readAt: readAt.toISOString(),
+        providers: [...providers.values()],
+        devices,
+      });
     });
   }
 

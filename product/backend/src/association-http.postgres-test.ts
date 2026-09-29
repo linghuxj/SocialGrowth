@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHmac, randomBytes, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { after, before, test } from "node:test";
 
@@ -12,6 +12,7 @@ import {
   createAssociationSessionResponseSchema,
   installationAuthResponseSchema,
   installationSelfViewSchema,
+  listOperatorDeviceFactsResponseSchema,
   listProviderDevicesResponseSchema,
   productErrorResponseSchema,
 } from "@socialgrowth/product-contracts";
@@ -431,6 +432,40 @@ test("real HTTP keeps scan read-only and supports confirmation recovery and mult
     installations: "2",
     sessions: "2",
   });
+
+  const unauthenticatedFacts = await fetch(`${baseUrl}/api/operator/device-facts`);
+  assert.equal(unauthenticatedFacts.status, 401);
+  const operatorId = randomUUID();
+  const operatorToken = randomBytes(32).toString("base64url");
+  await pool.query(
+    `INSERT INTO socialgrowth_product.operators (
+       operator_id, login_name, display_name, password_hash, status
+     ) VALUES ($1, $2, 'Facts Operator', 'test-only-hash', 'active')`,
+    [operatorId, `operator-${operatorId}`],
+  );
+  await pool.query(
+    `INSERT INTO socialgrowth_product.operator_sessions (
+       session_id, operator_id, token_digest, csrf_digest,
+       credential_version, expires_at
+     ) VALUES ($1, $2, $3, $4, 1, clock_timestamp() + interval '1 day')`,
+    [randomUUID(), operatorId,
+      createHash("sha256").update(operatorToken).digest(),
+      createHash("sha256").update(randomBytes(32)).digest()],
+  );
+  const operatorFactsResponse = await fetch(`${baseUrl}/api/operator/device-facts`, {
+    headers: { cookie: `__Host-sg_operator_session=${operatorToken}` },
+  });
+  assert.equal(operatorFactsResponse.status, 200);
+  assert.equal(operatorFactsResponse.headers.get("cache-control"), "no-store");
+  const operatorFacts = listOperatorDeviceFactsResponseSchema.parse(
+    await operatorFactsResponse.json(),
+  );
+  assert.equal(operatorFacts.providers.length, 2);
+  assert.equal(operatorFacts.devices.length, 2);
+  assert.ok(operatorFacts.devices.every((device) => device.providerId === owner.providerId));
+  assert.ok(operatorFacts.devices.every((device) => device.connectionState === "unknown"));
+  assert.ok(operatorFacts.devices.every((device) => device.lastConfirmedAt === null));
+  assert.equal(JSON.stringify(operatorFacts).includes(installation.installation.installationId), false);
 });
 
 test("public bootstrap is bounded by a database-backed source admission limit", async () => {

@@ -105,6 +105,22 @@ test("HTTP boundary masks unexpected failures with a retryable product envelope"
   );
 });
 
+test("device facts route uses the operator host session cookie", async () => {
+  let receivedToken = "";
+  const service = {
+    async listDeviceFacts(sessionToken: string) {
+      receivedToken = sessionToken;
+      return { readAt: "2026-09-29T10:00:00Z", providers: [], devices: [] };
+    },
+  } as unknown as OperatorAuthService;
+  const controller = new OperatorController(service, {} as InvitationManagementService);
+  const result = await controller.listDeviceFacts({
+    headers: { cookie: "other=x; __Host-sg_operator_session=operator-session" },
+  });
+  assert.equal(receivedToken, "operator-session");
+  assert.deepEqual(result, { readAt: "2026-09-29T10:00:00Z", providers: [], devices: [] });
+});
+
 test("invitation HTTP writes use the host session, csrf token, and path identity", async () => {
   let observed: unknown;
   const invitationService = {
