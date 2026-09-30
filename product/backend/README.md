@@ -30,6 +30,8 @@ WP-14 第一阶段新增运营会话入口`GET/POST /api/operator/projects`及`P
 
 WP-15 `MaterialObjectStorage`为内部S3/MinIO字节适配器，未接Nest/HTTP/Web/素材登记/消费者；显式受控配置及凭据，无环境默认凭据链。固定UUID对象/条件防覆盖、完整下载哈希/长度验证、配置位置绑定，不产生公开URL/批准/名额或执行许可。`test:storage`只运行明确隔离回环32900新fixture，不是项目E2E或UI验收；适用范围、128MiB缓冲上限、正式S3/上传准入/手机缺口见[素材任务卡](../../docs/engineering/delivery/records/WP-15.md)。
 
+WP-22 `metric-snapshot-core`仅内部效果快照与显式更正规则：精确非负数值、零/缺失/延迟、原来源/定义/粒度/时区/截止、当前前驱连续更正及历史归属不变；不加累计值，不按采集时间冒充新截止，不硬拆账号指标。不连接真实渠道、数据库/每日调度、可比性判定、手机或AI模型，UUID不是权限或发布证明，见[效果数据任务卡](../../docs/engineering/delivery/records/WP-22.md)。
+
 WP-20 `GET /api/operator/assistance-todos`仅以当前Host运营会话读取无项目来源事项的全局摘要，`afterTodoId`及`pageSize`严格分页，默认20/上限50、no-store。初始联系人不隔离访问，originScope不是当前项目分配状态；不返回说明正文/秘密，见[认证分页任务卡](../../docs/engineering/delivery/records/WP-20-stage2.md)。新增`POST /api/operator/assistance-todos/:todoId/notes`需同会话＋CSRF、严格metadata/路径对象/版本CAS/kind/text；reported_processed仅等待复核，不关闭或恢复；同键返回当前摘要，已提交未知响应保留原键核实。摘要共同支持0001～9999年。没有故障创建、详情分页、真实复核/恢复HTTP或实际事件/邮件/跨端UI接线，不能从测试入库或空页自报完整业务完成，见[说明命令与日历修复](../../docs/engineering/delivery/records/WP-20-stage3.md)。
 
 `IdentityTransactionService` 实现当前首批后端事务基础：
