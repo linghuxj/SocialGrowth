@@ -25,6 +25,8 @@
 
 ## 2026-09-30 工程检查点
 
+2026-10-01上传接续：WP25 ab2原QA完整报告20260930T215222Z-wp25-projection-ab2bc2b已全文读取，固定18446..ab23文件/指定3BE3TS2Python31PG及原11＋新7 guard-only通过，原P1实际清零/新增0/remaining0；原QA无新独立oracle、不认领作者329/239，实际PG17.11 Debian与非作者17.10 Alpine分开。父来源pending1/Developeraf14保持。WP15原747完整非作者报告已读，5unit/14PG/8MinIO＋新9增量0，已交原QA同12文件。当前feature/wp-15-authenticated-object-upload-stage4，作者338产品/253全PG/11真实自有PG＋MinIO联合补充；固定票据/条件字节上传/失ACK原ID恢复/保护DB resolver，尚无runtime注册/HTTP/共享契约/UI/准入/Task/手机。声明或verified_bytes均非业务许可；原三窗口/读取既有报告不重发及发送新固定阶段模式不变。默认隔离服务/已连接Samsung授权、人工配置阻断记录继续、管理员浏览器/父源限制/保护发布脚本只路径状态不变，阶段凝聚提交后原门禁，不报全部开发完成。
+
 2026-10-01最新素材阶段：ab2bc2b原非作者完整报告已全文读取，WP25原P1实际连续10/1000/1001清零、新增0/remaining0，31指定/原11 guard-only/新7等检查通过；已交原QA固定18446..ab的23文件，不包含未来0019，父WP10来源pending1/Developeraf14另保持。当前feature/wp-15-material-registry-stage3作者334产品/253PG/8实际MinIO，认证人工unit/source/语言variant、冻结有序对象/修订、逐项batch失败接续及实际byte verifier；没有HTTP/上传resolver/UI/批准准入/名额/Task或手机消费者。所有保存pending_validation非业务通过，真实资源与人工作业按WP15卡继续，原模式/默认隔离服务与Samsung授权不变；原保护发布脚本只路径/状态、浏览器及平台限制不绕过，阶段凝聚提交后仍原非作者门禁，不报全部开发完成。
 
 2026-10-01最新接续：18446ea原非作者与原QA完整报告已全文读取，19指定＋原7pure/静态双有限纯增量0。7cf8878原报告全文已读新增WP25-7CF-01/P1，连续第10版按文本排序卡住，独立9通过/2 RED为同一缺陷；不抵消/降级、不提旧固定QA。当前feature/wp-25-provider-projection-stage3显式数值列排序并实际连续1～12及1000/1001补充、本人会话最小只读GET/旧归属归档/完整cursor与overscan校对，作者329/全PG239通过。两个新fixture失败日志保留，真实income/ownership/rate producer、付款记录和UI仍缺，作者不清P1。原发送/读取窗口及模式不变：新固定整改交原非作者，再清零后原QA；已有报告仅读不重发。默认隔离服务/已连接Samsung授权持续，人工/环境/策略缺口记录继续独立工程。Developer仍af14，父来源pending1、浏览器RES-WP14-03/SEC-WP14-01、保护用户发布脚本限制均不变，未宣称全部开发完成。

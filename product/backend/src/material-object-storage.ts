@@ -45,6 +45,9 @@ export class MaterialObjectStorage {
       credentials: { accessKeyId: c.accessKeyId, secretAccessKey: c.secretAccessKey, ...(c.sessionToken ? { sessionToken: c.sessionToken } : {}) } });
   }
   close(): void { this.#client.destroy(); }
+  binding(): { storageLocationId: string; storageBindingDigest: string; maxObjectBytes: number } {
+    return { storageLocationId: this.#config.storageLocationId, storageBindingDigest: this.#binding, maxObjectBytes: this.#config.maxObjectBytes };
+  }
   private validate(reference: unknown): MaterialObjectReference {
     const parsed = refSchema.safeParse(reference);
     if (!parsed.success) throw new MaterialStorageError("INPUT_INVALID");

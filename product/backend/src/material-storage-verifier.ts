@@ -13,7 +13,8 @@ export class MaterialStorageVerifier implements MaterialObjectVerifier {
         if (signal.aborted) throw new MaterialRegistryError("VERIFIER_UNAVAILABLE");
         const ref = materialObjectReferenceSchema.parse(structuredClone(await this.lookup(input.projectId, objectId)));
         if (ref.projectId !== input.projectId || ref.objectId !== objectId) throw new MaterialRegistryError("INVALID_OBJECTS");
-        await this.storage.readVerified(ref); // Actual full SHA/size/type, not manifest existence.
+        if (signal.aborted) throw new MaterialRegistryError("VERIFIER_UNAVAILABLE");
+        await this.storage.readVerified(structuredClone(ref)); // Actual full SHA/size/type, not manifest existence.
         if (signal.aborted) throw new MaterialRegistryError("VERIFIER_UNAVAILABLE");
         references.push(ref);
       }

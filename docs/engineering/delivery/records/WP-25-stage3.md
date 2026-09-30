@@ -1,5 +1,7 @@
 # WP-25 第三阶段：本人最小只读核对投影
 
+2026-10-01后续双有限门禁：原非作者`artifacts/review/wp25-projection-ab2bc2b.md`及原QA`artifacts/acceptance/product/B4/20260930T215222Z-wp25-projection-ab2bc2b/acceptance-report.md`均已全文读取，原WP25-7CF-01/P1实际清零、新增0/remaining0。QA固定18446..ab23文件，指定3BE/3TS/2Python/31PG＋原11与新7 guard-only复跑通过，不新增独立oracle、不认领作者329/239；实际PG17.11 Debian与非作者17.10 Alpine分开。原RED保留，1000为合成边界非连续1000业务写入。父WP10来源pending1/Developeraf14及真实收入/本人UI/付款资源不被本有限通过解除。
+
 2026-10-01；基线7cf8878，feature/wp-25-provider-projection-stage3。BE实施代理Codex；原非作者/原QA，AND/WEB/BIZ真人未签。[基础规则](WP-25.md)、[内部账本](WP-25-stage2.md)、R-126/144～147、AC-51及[质量手册](../quality-gates.md)。
 
 领取Provider真实Bearer会话只读分页接口，范围只取冻结核对结果中的本人，不接受caller providerId。每收入历史修订保留，但已被更正的旧修订明确非当前，不能累计为多个应付；公司空档、他人、未能确认归属的数据不公开给本人。最小账号核对标识/期间/收入/历史比例/内部计算和未记录付款分开，无总余额、提现、写入或账号管理能力。
