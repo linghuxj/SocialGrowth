@@ -145,6 +145,8 @@ pnpm --filter @socialgrowth/product-backend admission:reconcile -- --limit 100
 
 ## WP-11 内部调用日志（未开放执行）
 
+WP-10 新增内部 `endpoint-report-core` 只校验签名完整双用途快照、来源epoch/BigInt序号及回执账本。缓存观察的新序号不刷新端点观察计时，旧ID恢复原回执不回退当前状态；配对过期只留回执、不再返回配对候选。重新载入须重建与验签；全历史数组不是已完成生产持久化/容量方案。authority/serverNow 只能由可信内部生产者提供，没有HTTP/数据库/Android上报注册，不授动作许可或解除暂停/退出，源码时间字段不证明当前NSD或来源。真实职责和后续持久/认证/目标/恢复缺口见[WP10任务卡](../../docs/engineering/delivery/records/WP-10.md)。
+
 `PhoneControlJournal`仅保存控制记录和调用／停止历史，不注册HTTP、Nest provider或消费者；新记录默认`stop_requested`，没有持有者取得／重新启用接口。`initialize`、`apply`与审计原子提交；锁序设备→journal，旧版本／同键异载荷拒绝，重复请求返回当前记录及`replayed=true`，绝不能重新执行手机调用。未知调用及原持有者在重启后保留；停止三类证据仅供可信内部适配。
 
 它**不是完整动作授权服务**：`trustedFacts`不得来自客户端，实时权威对象加载／共同锁序、当前本机意愿、真实目标fence和全部Artemis/ADB路径尚未接线；`replayed=false`也不是手机许可。实际executor继续关闭。SQL0006须在0001～0005后消费，非UI事务测试仅使用独立可销毁库；没有新增迁移历史组件或自动部署。详见[阶段记录](../../docs/engineering/delivery/records/WP-11-stage2.md)。

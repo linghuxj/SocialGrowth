@@ -25,6 +25,8 @@
 
 ## 2026-09-30 工程检查点
 
+2026-10-01接续：feature/wp-10-endpoint-ordering-stage1正常合并独立WP23 d253837与原生整改b9b1983，形成605af22；只有一处WP20台账旧/新状态冲突按原QA已通过的较新事实解决，没有混入用户脏文件。新WP10内部签名顺序账本作者15定向及240产品通过，尚无持久/HTTP/真实独立上报或连接许可；新缓存报告不刷新端点观察计时。原复核正在固定b9b1983，不重发旧报告读取；父门禁通过前不合Developer，仍@fad821c。
+
 最新检查点：fad821c 原非作者与原 QA 完整报告均已读，0 findings、原微秒 P3 实际清零；QA实际209/151及17 SQL/Nest组65 HTTP通过。核对工作树/祖先/旧tip CAS 后 Developer 从6fc8c30快进fad821c。da06e9f 原非作者报告另有原生 IPv4 link-local 误拒绝1P3；fix/wp-09-ipv4-link-local抽出地址比较并补3测试，作者Debug/Release各31、未改原探针2400转换/8地址由两个RED变GREEN，待原固定门禁，不自签清零。WP-23独立d253837及未提交WP-10核心不混入本整改。原发送/读取窗口模式与授权不变；人工资源与浏览器策略缺口继续记录，不绕过或虚报业务通过。
 
 窗口模式仍按上表，不新建复核或验收对话。WP-14时区整改28276f2原P2清零，正确报告为artifacts/review/wp14-stage3-remediation-28276f2.md，原QA正在独立复验；WP-15存储65d5928原复核/QA增量工程G1通过，不自行关闭父分支或G3。名额纯规则523a610、无项目待办持久基础67f2352是已提交作者阶段，仍需原门禁。feature/b2-b3-foundation-integration组合两支，不改变实际副作用/消费者未接线边界；Developer更新前再次核对原报告、工作树及祖先/旧tip。具体组合、自检、职责/下一步与真实缺口见docs/engineering/delivery/records/B2-B3-foundation-integration.md；不得把任务卡的工程职责当真人已签收，或把全部WP工作标完成。
