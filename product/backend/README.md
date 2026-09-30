@@ -43,6 +43,8 @@ WP-20 `GET /api/operator/assistance-todos`仅以当前Host运营会话读取无�
 
 `GET /api/operator/assistance-todos/:todoId/notes`以当前Host运营会话分页读取实际保存的说明/作者及当前摘要，默认20/上限50/no-store，游标仅同事项且取DB完整微秒。记录时间不越过事项创建/更新时间；末页或人工reported_processed不是复核通过或恢复。正文不向provider/模型/日志自动传递，后续UI须纯文本显示；原内部load全部说明的性能不据此关闭。没有UI消费或真实业务验收，见[说明历史任务卡](../../docs/engineering/delivery/records/WP-20-stage5.md)。
 
+说明时间在PG原始精度先检查全事项，包含页外坏记录；±1微秒不会因Date显示同毫秒被接受，正常inclusive/DB微秒分页不变。检查会扫描关联说明，不能据分页上限宣称全部路径性能已达标。原P3/RED及新固定自检见[精度整改](../../docs/engineering/delivery/records/WP-20-stage5-precision.md)，作者不能自签清零。
+
 `IdentityTransactionService` 实现当前首批后端事务基础：
 
 - 邀请注册锁定验证与邀请行，在同一事务内复核有效性、创建提供者、扣减名额、消费验证并保存幂等结果。

@@ -5,7 +5,7 @@ import { OperatorAuthService } from "./operator-auth-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
 const query = z.strictObject({ afterNoteId: uuidSchema.nullable(), pageSize: z.int().min(1).max(50) });
 const schema = "socialgrowth_product";
-interface TodoRow { todo_id: string; occurrence_id: string; provider_id: string; initial_responsible_operator_id: string; kind: string; status: string; fact_version: string; impact_count: string; note_count: string; notification_status: string; created_at: Date; updated_at: Date }
+interface TodoRow { todo_id: string; occurrence_id: string; provider_id: string; initial_responsible_operator_id: string; kind: string; status: string; fact_version: string; impact_count: string; note_count: string; notification_status: string; note_times_valid: boolean; created_at: Date; updated_at: Date }
 interface NoteRow { note_id: string; actor_id: string; kind: string; text: string; recorded_at: Date }
 export class DeviceAssistanceNotesService {
   constructor(private readonly pool: Pool, private readonly auth: OperatorAuthService) {}
@@ -22,9 +22,15 @@ export class DeviceAssistanceNotesService {
       const row = (await client.query<TodoRow>(`SELECT t.*,
         (SELECT count(*) FROM ${schema}.device_assistance_impacts i WHERE i.todo_id=t.todo_id)::text AS impact_count,
         (SELECT count(*) FROM ${schema}.device_assistance_notes n WHERE n.todo_id=t.todo_id)::text AS note_count,
-        (SELECT status FROM ${schema}.device_assistance_notification_intents i WHERE i.todo_id=t.todo_id) AS notification_status
+        (SELECT status FROM ${schema}.device_assistance_notification_intents i WHERE i.todo_id=t.todo_id) AS notification_status,
+        (t.updated_at>=t.created_at AND NOT EXISTS(SELECT 1 FROM ${schema}.device_assistance_notes n
+          WHERE n.todo_id=t.todo_id AND (n.recorded_at<t.created_at OR n.recorded_at>t.updated_at))) AS note_times_valid
         FROM ${schema}.device_assistance_todos t WHERE t.todo_id=$1 FOR SHARE OF t`, [id])).rows[0];
       if (!row) throw new ProductTransactionError("FACT_VERSION_STALE", "Assistance item is unavailable");
+      // Validate raw PostgreSQL instants before the driver Date projection loses
+      // sub-millisecond precision. Check the whole item's history, not just a
+      // displayed page, so an off-page corrupt note cannot masquerade as valid.
+      if (row.note_times_valid !== true) throw new ProductTransactionError("INTERNAL_ERROR", "Assistance notes unavailable", true);
       const summary = deviceAssistanceTodoSummarySchema.parse({ todoId: row.todo_id, occurrenceId: row.occurrence_id, providerId: row.provider_id, initialResponsibleOperatorId: row.initial_responsible_operator_id,
         originScope: "unassigned_device", kind: row.kind, status: row.status, factVersion: Number(row.fact_version), impactCount: Number(row.impact_count), noteCount: Number(row.note_count), notificationStatus: row.notification_status, createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString() });
       if (r.afterNoteId && !(await client.query(`SELECT 1 FROM ${schema}.device_assistance_notes WHERE note_id=$1 AND todo_id=$2`, [r.afterNoteId, id])).rowCount) throw new ProductTransactionError("FACT_VERSION_STALE", "Assistance notes cursor is unavailable");
