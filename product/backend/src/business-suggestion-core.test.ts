@@ -141,3 +141,12 @@ test("UUID normalization precedes references; future observation, invalid years 
   assert.throws(() => checkBusinessSuggestion(f.context, f.proposal, "0000-10-01T00:00:00Z"), code("INPUT_INVALID"));
   assert.throws(() => checkBusinessSuggestion({ ...f.context, approvedWindow: { startsAt: "2026-10-02T00:00:00Z", endsAt: now } }, f.proposal, now), code("FACTS_INVALID"));
 });
+test("partial task projection cannot relabel an old reserved/unknown/published slot as a new schedule", () => {
+  for (const state of ["reserved", "submission_unknown", "published_verified"] as const) {
+    const f = fixture(), { taskId, contentUnitId, variantId, identityId } = f.publication;
+    const quota = reserveContentQuota(f.quota, { taskId, contentUnitId, variantId, identityId, platform: "facebook" }).snapshot;
+    quota.slots[0]!.state = state; quota.slots[0]!.evidenceId = state === "published_verified" ? randomUUID() : null; f.context.quota = quota;
+    assert.equal(f.context.tasks.length, 0); const before = structuredClone(f.context);
+    assert.throws(() => checkBusinessSuggestion(f.context, f.proposal, now), code("QUOTA_CONFLICT")); assert.deepEqual(f.context, before);
+  }
+});

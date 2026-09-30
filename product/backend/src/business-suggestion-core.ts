@@ -42,22 +42,11 @@ function unique<T>(values: T[], key: (v: T) => string, code: BusinessSuggestionE
   if (new Set(values.map(key)).size !== values.length) fail(code);
 }
 const platformOf = (value: z.infer<typeof form>) => value.startsWith("facebook_") ? "facebook" as const : "youtube" as const;
-// INTERNAL pure suggestion check ONLY. No model call, approved-fact producer,
-// persistence, task dispatch or execution permit. Inputs must later be resolved
-// centrally and rechecked atomically when revisions become effective.
-export function checkBusinessSuggestion(contextInput: unknown, suggestionInput: unknown, evaluatedAt: string) {
-  const c = contextSchema.safeParse(contextInput), p = businessSuggestionSchema.safeParse(suggestionInput), clock = time.safeParse(evaluatedAt);
-  if (!c.success) return fail("FACTS_INVALID"); if (!p.success || !clock.success) return fail("INPUT_INVALID");
-  const context = c.data, suggestion = p.data;
+export function parseBusinessSuggestionContext(input: unknown): BusinessSuggestionContext {
+  const c = contextSchema.safeParse(input); if (!c.success) return fail("FACTS_INVALID");
+  const context = c.data;
   unique(context.facts, v => v.factId, "FACTS_INVALID"); unique(context.materials, v => v.variantId, "FACTS_INVALID");
   unique(context.tasks, v => v.taskId, "FACTS_INVALID"); unique(context.approvedForms, v => v, "FACTS_INVALID"); unique(context.approvedLanguages, v => v, "FACTS_INVALID");
-  unique(suggestion.basis, v => v.factId, "INPUT_INVALID");
-  if (compareTimestamps(context.observedAt, clock.data)! > 0 || suggestion.projectId !== context.projectId
-    || suggestion.factSetId !== context.factSetId || suggestion.factSetVersion !== context.factSetVersion) return fail("FACTS_STALE");
-  if (JSON.stringify(suggestion.approval) !== JSON.stringify(context.approval)) return fail("FACTS_STALE");
-  for (const ref of suggestion.basis) {
-    if (!context.facts.some(v => v.factId === ref.factId && v.version === ref.version)) return fail("FACTS_STALE");
-  }
   let quota;
   try { quota = parseContentQuota(context.quota); } catch { return fail("FACTS_INVALID"); }
   if (quota.units.some(u => u.projectId !== context.projectId) || quota.identities.some(i => i.projectId !== context.projectId)) return fail("FACTS_INVALID");
@@ -68,6 +57,22 @@ export function checkBusinessSuggestion(contextInput: unknown, suggestionInput: 
       && v.identityId === task.identityId && v.platform === platformOf(task.form))) return fail("FACTS_INVALID");
   }
   if (context.approvedWindow && compareTimestamps(context.approvedWindow.startsAt, context.approvedWindow.endsAt)! >= 0) return fail("FACTS_INVALID");
+  return { ...context, quota };
+}
+// INTERNAL pure suggestion check ONLY. No model call, approved-fact producer,
+// persistence, task dispatch or execution permit. Inputs must later be resolved
+// centrally and rechecked atomically when revisions become effective.
+export function checkBusinessSuggestion(contextInput: unknown, suggestionInput: unknown, evaluatedAt: string) {
+  const context = parseBusinessSuggestionContext(contextInput), p = businessSuggestionSchema.safeParse(suggestionInput), clock = time.safeParse(evaluatedAt);
+  if (!p.success || !clock.success) return fail("INPUT_INVALID"); const suggestion = p.data;
+  unique(suggestion.basis, v => v.factId, "INPUT_INVALID");
+  if (compareTimestamps(context.observedAt, clock.data)! > 0 || suggestion.projectId !== context.projectId
+    || suggestion.factSetId !== context.factSetId || suggestion.factSetVersion !== context.factSetVersion) return fail("FACTS_STALE");
+  if (JSON.stringify(suggestion.approval) !== JSON.stringify(context.approval)) return fail("FACTS_STALE");
+  for (const ref of suggestion.basis) {
+    if (!context.facts.some(v => v.factId === ref.factId && v.version === ref.version)) return fail("FACTS_STALE");
+  }
+  let quota = parseContentQuota(context.quota);
   const checkTasks = (ids: string[]) => { unique(ids, v => v, "INPUT_INVALID"); if (ids.some(taskId => !context.tasks.some(t => t.taskId === taskId))) fail("FACTS_STALE"); };
   if (suggestion.decision === "maintain" || suggestion.decision === "insufficient_data") checkTasks(suggestion.taskIds);
   if (suggestion.decision === "insufficient_data") {
@@ -103,7 +108,11 @@ export function checkBusinessSuggestion(contextInput: unknown, suggestionInput: 
         const unit = quota.units.find(u => u.contentUnitId === v.contentUnitId);
         if (!unit || (unit.mediaKind === "image_text") !== (v.form === "facebook_image_text")) return fail("OUT_OF_SCOPE");
         inWindow(v.scheduledAt);
-        try { quota = reserveContentQuota(quota, { contentUnitId: v.contentUnitId, variantId: v.variantId, identityId: v.identityId, taskId: v.taskId, platform: platformOf(v.form) }).snapshot; }
+        try {
+          const reservation = reserveContentQuota(quota, { contentUnitId: v.contentUnitId, variantId: v.variantId, identityId: v.identityId, taskId: v.taskId, platform: platformOf(v.form) });
+          if (!reservation.changed) return fail("QUOTA_CONFLICT"); // An old slot is never a newly planned task, even if omitted from task projection.
+          quota = reservation.snapshot;
+        }
         catch (e) { if (e instanceof ContentQuotaError) return fail("QUOTA_CONFLICT"); throw e; }
       }
     }
