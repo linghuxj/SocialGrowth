@@ -127,11 +127,13 @@ export class EndpointReportJournal {
       const abort = new AbortController(); let timeout: ReturnType<typeof setTimeout> | undefined;
       let evidence: EndpointReportSourceEvidence | null;
       try {
-        evidence = await Promise.race([this.verifier.observe(transport, structuredClone(target), abort.signal),
+        const returned = await Promise.race([this.verifier.observe(transport, structuredClone(target), abort.signal),
           new Promise<never>((_, reject) => { timeout = setTimeout(() => { abort.abort(); reject(new EndpointJournalError("SOURCE_UNAVAILABLE")); }, 3000); })]);
+        // Cancellation listeners run synchronously. Snapshot the winning value
+        // BEFORE finally aborts, so cleanup cannot refresh time or repair scope.
+        evidence = returned === null ? null : structuredClone(returned);
       } catch { return fail("SOURCE_UNAVAILABLE"); } finally { clearTimeout(timeout); abort.abort(); }
       if (!evidence) return fail("SOURCE_UNAVAILABLE");
-      evidence = structuredClone(evidence);
       await c.query("BEGIN"); await c.query("SET LOCAL lock_timeout='5s'"); await c.query("SET LOCAL statement_timeout='10s'");
       const { session, authority } = await lockBinding(c, token, enrollmentId), state = await load(c, authority);
       if (JSON.stringify(evidence.scope) !== JSON.stringify(authority.scope)) return fail("SOURCE_MISMATCH");
