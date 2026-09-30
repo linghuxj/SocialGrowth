@@ -125,7 +125,7 @@ test("single-phone reads and actions are mutually exclusive and an action ID can
   const running = beginPhoneCall(f.record, f.facts, f.request, now);
   const currentFacts = { ...f.facts, controlVersion: running.version };
   denies(() => beginPhoneCall(running, currentFacts, { ...f.request, actionId: randomUUID() }, now), "BUSY");
-  const ended = recordPhoneCallResult(running, { actionId: f.request.actionId, holderId: f.request.holderId,
+  const ended = recordPhoneCallResult(running, { deviceId: f.record.deviceId, actionId: f.request.actionId, holderId: f.request.holderId,
     controlGeneration: f.request.controlGeneration, status: "ended" }, at(1));
   const nextFacts = { ...f.facts, controlVersion: ended.version };
   denies(() => beginPhoneCall(ended, nextFacts, f.request, at(1)), "AUTHORITY_CHANGED");
@@ -148,7 +148,7 @@ test("pause is accepted during an in-flight action and old control cannot start 
 test("late original call completion is historical only; fresh fencing and target stop are both required", () => {
   const f = fixture();
   const stopping = requestPhoneStop(beginPhoneCall(f.record, f.facts, f.request, now), randomUUID());
-  const receipt = { actionId: f.request.actionId, holderId: f.request.holderId, controlGeneration: f.request.controlGeneration, status: "ended" as const };
+  const receipt = { deviceId: f.record.deviceId, actionId: f.request.actionId, holderId: f.request.holderId, controlGeneration: f.request.controlGeneration, status: "ended" as const };
   const ended = recordPhoneCallResult(stopping, receipt, at(1));
   assert.equal(ended.disposition, "stop_requested");
   for (const patch of [{ allPathsFenced: false }, { controllerReleased: false }, { targetQuiescent: false }, { checkedAt: at(-8) }]) {
@@ -162,7 +162,7 @@ test("late original call completion is historical only; fresh fencing and target
 test("disconnect, unknown call result and stale receipt do not release phone exclusivity or imply stop", () => {
   const f = fixture();
   const running = beginPhoneCall(f.record, f.facts, f.request, now);
-  const receipt = { actionId: f.request.actionId, holderId: f.request.holderId, controlGeneration: f.request.controlGeneration, status: "unknown" as const };
+  const receipt = { deviceId: f.record.deviceId, actionId: f.request.actionId, holderId: f.request.holderId, controlGeneration: f.request.controlGeneration, status: "unknown" as const };
   const unknown = recordPhoneCallResult(running, receipt, at(1));
   denies(() => beginPhoneCall(unknown, { ...f.facts, controlVersion: unknown.version }, { ...f.request, actionId: randomUUID() }, at(1)), "BUSY");
   const stopping = requestPhoneStop(unknown, randomUUID());
@@ -191,6 +191,23 @@ test("malformed stored control and untrusted stop or completion flags fail witho
   const invalidFlag: unknown = { ...stopEvidence(stopping), allPathsFenced: "true" };
   // JSON-like external values may only enter after this same runtime boundary.
   denies(() => confirmPhoneStopped(stopping, invalidFlag as Parameters<typeof confirmPhoneStopped>[1], at(2)), "INVALID_BOUNDARY");
-  const invalidReceipt: unknown = { actionId: f.request.actionId, holderId: f.request.holderId, controlGeneration: f.request.controlGeneration, status: "cancelled", secret: "marker" };
+  const invalidReceipt: unknown = { deviceId: f.record.deviceId, actionId: f.request.actionId, holderId: f.request.holderId, controlGeneration: f.request.controlGeneration, status: "cancelled", secret: "marker" };
   denies(() => recordPhoneCallResult(stopping, invalidReceipt as Parameters<typeof recordPhoneCallResult>[1], at(1)), "INVALID_BOUNDARY");
+});
+
+test("cross-device completion cannot release a call even when holder, action and generation are reused", () => {
+  const f = fixture(), deviceB = randomUUID();
+  const first = beginPhoneCall(f.record, f.facts, f.request, now);
+  const secondFacts = { ...f.facts, deviceId: deviceB };
+  const second = beginPhoneCall({ ...f.record, deviceId: deviceB }, secondFacts, { ...f.request, deviceId: deviceB }, now);
+  const receiptA = { deviceId: first.deviceId, actionId: f.request.actionId, holderId: f.request.holderId,
+    controlGeneration: f.request.controlGeneration, status: "ended" as const };
+  for (const status of ["ended", "unknown"] as const) {
+    denies(() => recordPhoneCallResult(second, { ...receiptA, status }, at(1)), "STALE_RECEIPT");
+  }
+  const missingDevice: unknown = { actionId: f.request.actionId, holderId: f.request.holderId, controlGeneration: f.request.controlGeneration, status: "ended" };
+  denies(() => recordPhoneCallResult(second, missingDevice as Parameters<typeof recordPhoneCallResult>[1], at(1)), "INVALID_BOUNDARY");
+  denies(() => beginPhoneCall(second, { ...secondFacts, controlVersion: second.version }, { ...f.request, deviceId: deviceB, actionId: randomUUID() }, at(1)), "BUSY");
+  assert.equal(second.calls[0]?.status, "running");
+  assert.equal(recordPhoneCallResult(second, { ...receiptA, deviceId: deviceB }, at(1)).calls[0]?.status, "ended");
 });

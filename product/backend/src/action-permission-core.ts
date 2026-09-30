@@ -114,6 +114,14 @@ function validateRecord(record: PhoneControlRecord): void {
       || (call.endedAt !== null && before(call.endedAt, call.startedAt)))) fail("INVALID_BOUNDARY");
 }
 
+// Persisted JSON is untrusted too. Never propagate Zod issues containing input.
+export function parsePhoneControlRecord(input: unknown): PhoneControlRecord {
+  const parsed = controlRecordSchema.safeParse(input);
+  if (!parsed.success) fail("INVALID_BOUNDARY");
+  validateRecord(parsed.data);
+  return parsed.data;
+}
+
 function nextVersion(record: PhoneControlRecord): number {
   if (!Number.isSafeInteger(record.version) || record.version < 0 || record.version >= Number.MAX_SAFE_INTEGER) fail("INVALID_BOUNDARY");
   return record.version + 1;
@@ -148,12 +156,15 @@ export function requestPhoneStop(record: PhoneControlRecord, requestId: string):
 }
 
 export function recordPhoneCallResult(record: PhoneControlRecord, receipt: {
-  actionId: string; holderId: string; controlGeneration: string; status: "ended" | "unknown";
+  deviceId: string; actionId: string; holderId: string; controlGeneration: string; status: "ended" | "unknown";
 }, now: string): PhoneControlRecord {
   validateRecord(record);
-  if (!z.strictObject({ actionId: uuidSchema, holderId: uuidSchema, controlGeneration: admissionGenerationSchema,
+  if (!z.strictObject({ deviceId: uuidSchema, actionId: uuidSchema, holderId: uuidSchema, controlGeneration: admissionGenerationSchema,
     status: z.enum(["ended", "unknown"]), }).safeParse(receipt).success) fail("INVALID_BOUNDARY");
   if (!timestampSchema.safeParse(now).success) fail("INVALID_BOUNDARY");
+  // Identity must be captured by the trusted adapter at dispatch, never filled
+  // in from the receiving route. A holder/action tuple alone is not device scope.
+  if (receipt.deviceId !== record.deviceId) fail("STALE_RECEIPT");
   const call = record.calls.find(item => item.actionId === receipt.actionId);
   if (!call || call.holderId !== receipt.holderId || call.controlGeneration !== receipt.controlGeneration
     || before(now, call.startedAt)) fail("STALE_RECEIPT");

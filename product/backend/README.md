@@ -12,6 +12,7 @@ WP-01 开始建立正式权威数据模型：
 - [`0003_provider_auth_recovery.sql`](migrations/0003_provider_auth_recovery.sql)：为已发布 0002 增加 proof/session 响应恢复关联；保留既有行并允许旧会话关联为空。
 - [`0004_installation_bootstrap_admission.sql`](migrations/0004_installation_bootstrap_admission.sql)：记录不含原始地址的安装引导准入事实，为来源和全局数据库限流提供并发一致的计数。
 - [`0005_network_admission.sql`](migrations/0005_network_admission.sql)：新增网络接入、幂等命令与外部意图，候选节点／当前设备唯一占用；撤权意图绑定回收ID并分别确认。未开放网络接口或 worker。
+- [`0006_phone_control_journal.sql`](migrations/0006_phone_control_journal.sql)：设备调用／停止日志、严格记录和幂等命令；默认停止待确认，无持有者取得／重新启用或实际执行调用方。
 
 迁移当前是待后端迁移执行器消费的前向 SQL；未在真实 PostgreSQL 执行前，不得将其记为迁移或并发验收通过。
 
@@ -111,3 +112,9 @@ pnpm --filter @socialgrowth/product-backend admission:reconcile -- --limit 100
 `SG_PRODUCT_DATABASE_URL` 从受控环境提供，不放入命令参数、报告或普通日志。输出单批统计、失败接入ID／固定错误码及`nextCursor`；有失败退出1，成功退出0，没有后台守护。存在游标则用 `--cursor <nextCursor>` 接续，直到null；下一完整扫描从无cursor开始。每行事务锁等待候选保护为5秒，超时失败记录，不跳过为成功；不是生产延迟承诺。失败行保留原事实和唯一节点占用，继续其他行并在后续轮次重试／人工排障。
 
 此命令**不执行实际网络撤权，不建立业务就绪、不解除暂停或退出**；两类真实回收结果均核对后才允许释放候选。定期调度、外部原对象查询／串行策略投递、异常待办与通知分别待后续实现和真实资源验证。当前根`pnpm dev`、Nest启动和设备worker都不自动运行该命令。
+
+## WP-11 内部调用日志（未开放执行）
+
+`PhoneControlJournal`仅保存控制记录和调用／停止历史，不注册HTTP、Nest provider或消费者；新记录默认`stop_requested`，没有持有者取得／重新启用接口。`initialize`、`apply`与审计原子提交；锁序设备→journal，旧版本／同键异载荷拒绝，重复请求返回当前记录及`replayed=true`，绝不能重新执行手机调用。未知调用及原持有者在重启后保留；停止三类证据仅供可信内部适配。
+
+它**不是完整动作授权服务**：`trustedFacts`不得来自客户端，实时权威对象加载／共同锁序、当前本机意愿、真实目标fence和全部Artemis/ADB路径尚未接线；`replayed=false`也不是手机许可。实际executor继续关闭。SQL0006须在0001～0005后消费，非UI事务测试仅使用独立可销毁库；没有新增迁移历史组件或自动部署。详见[阶段记录](../../docs/engineering/delivery/records/WP-11-stage2.md)。
