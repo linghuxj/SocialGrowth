@@ -33,6 +33,8 @@ python3 docs/engineering/delivery/check_consistency.py
 
 阶段四固定`ab3d6bf`原非作者`artifacts/review/wp08-stage4-ab3d6bf.md`已完整读取：remaining=0、100/100、PG56/56、此前六组及本次四组探针通过，包括真实双CLI、锁超时失败隔离与重试、锁后已准入／代次恢复。G1非作者复核通过；已交同一原QA固定快照复验，尚未合入阶段四或宣称真实撤权完成。
 
+后续独立验收闭合：[原QA报告](../../../../artifacts/acceptance/product/B2/20260930T050217Z-wp08-stage4-ab3d6bf/acceptance-report.md)完整读取，同范围100/100＋PG56/56＋两组探针通过，G1建议合入，专库schema0/容器清理。核对祖先和Developer未被其他worktree检出，以旧tip7f95e5e的CAS快进到ab3d6bf；此为工程合入，不改变实际撤权／AC11/12或B2G3未通过状态。
+
 RES-WP08-01～03仍缺实际tailnet／独立核验服务／叠加策略／多手机／支持矩阵和原节点回收证据。此次仅从数据库登记回收需求，凭据及节点许可是否实际消失仍未验证，AC-11/12和B2G3未通过。人工输入、责任职责、解除条件及最晚时点沿用任务卡，不能因缺资源伪造副作用或停止可独立工程。
 
 下一工程切片继续WP-08可信来源和受控外部意图边界；WP-11统一许可与真实停止、WP-14最小项目、WP-20无项目待办可按编码依赖推进，实际执行仍需全部许可及资源条件齐备。
