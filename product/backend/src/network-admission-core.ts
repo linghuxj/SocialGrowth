@@ -43,7 +43,14 @@ export interface AdmissionAuthority {
   eligible: boolean;
 }
 
-export interface RestrictionEvidence {
+export interface AdmissionEvidenceScope {
+  enrollmentId: string;
+  deviceId: string;
+  installationId: string;
+  enrollmentGeneration: string;
+}
+
+export interface RestrictionEvidence extends AdmissionEvidenceScope {
   evidenceId: string;
   policyRevision: number;
   networkRevision: number;
@@ -54,6 +61,24 @@ export interface RestrictionEvidence {
   operatorServicesDenied: boolean;
   businessEgressDenied: boolean;
   additiveRulesChecked: boolean;
+}
+
+export interface FormalPermissionEvidence extends AdmissionEvidenceScope {
+  node: NodeIdentity;
+  evidenceId: string;
+  policyRevision: number;
+  checkedAt: string;
+  requiredPathsVerified: boolean;
+  forbiddenPathsDenied: boolean;
+}
+
+export interface ReclamationEvidence extends AdmissionEvidenceScope {
+  reclamationId: string;
+  node: NodeIdentity | null;
+  evidenceId: string;
+  checkedAt: string;
+  credentialRevoked: boolean;
+  nodeAccessRevoked: boolean;
 }
 
 export interface AdmissionRecord {
@@ -72,6 +97,7 @@ export interface AdmissionRecord {
   formalPolicyRevision: number | null;
   formalEvidenceId: string | null;
   reclaimReason: string | null;
+  reclamationId: string | null;
   credentialRevoked: boolean;
   nodeAccessRevoked: boolean;
 }
@@ -118,6 +144,12 @@ function sameNode(left: NodeIdentity, right: NodeIdentity): boolean {
     && left.networkRevision === right.networkRevision;
 }
 
+function evidenceScope(record: AdmissionRecord, scope: AdmissionEvidenceScope): void {
+  if (scope.enrollmentId !== record.enrollmentId || scope.deviceId !== record.authority.deviceId
+    || scope.installationId !== record.authority.installationId
+    || scope.enrollmentGeneration !== record.authority.enrollmentGeneration) throw new AdmissionError("INVALID_EVIDENCE");
+}
+
 function guard(record: AdmissionRecord, expectedVersion: number, authority: AdmissionAuthority, now: string): void {
   if (expectedVersion !== record.version) throw new AdmissionError("STALE_FACT");
   if (!authority.eligible || !record.authority.eligible
@@ -153,7 +185,7 @@ export function createAdmissionRecord(
     createdAt: now, expiresAt: new Date(instant(now) + enrollmentLifetimeMs).toISOString(),
     publicKeySpki, phase: "awaiting_restriction", restriction: null,
     challenge: null, proofDigest: null, node: null, formalPolicyRevision: null,
-    formalEvidenceId: null, reclaimReason: null,
+    formalEvidenceId: null, reclaimReason: null, reclamationId: null,
     credentialRevoked: false, nodeAccessRevoked: false,
   };
 }
@@ -164,6 +196,7 @@ export function confirmRestriction(
 ): AdmissionRecord {
   guard(record, expectedVersion, authority, now);
   if (record.phase !== "awaiting_restriction") throw new AdmissionError("INVALID_PHASE");
+  evidenceScope(record, evidence);
   if (!evidence.evidenceId || !Number.isSafeInteger(evidence.policyRevision) || evidence.policyRevision <= 0
     || !Number.isSafeInteger(evidence.networkRevision) || evidence.networkRevision <= 0
     || !evidence.independentVerifierReachable || !evidence.adbDenied
@@ -197,6 +230,9 @@ export function issueChallenge(
   recent(source.observedAt, now, 10_000);
   const node = nodeIdentitySchema.parse(source.node);
   if (node.networkRevision !== record.restriction.networkRevision) throw new AdmissionError("SOURCE_MISMATCH");
+  // An expired challenge does not erase the old node's real restricted access.
+  // A different candidate requires confirmed reclamation and a new enrollment.
+  if (record.challenge && !sameNode(record.challenge.node, node)) throw new AdmissionError("SOURCE_MISMATCH");
   if (record.challenge && instant(now) < instant(record.challenge.expiresAt)) {
     if (!sameNode(record.challenge.node, node)) throw new AdmissionError("SOURCE_MISMATCH");
     // Query/retry of the current challenge does not mint a second valid challenge.
@@ -224,6 +260,7 @@ export function consumeProof(
   const parsed = enrollmentProofSchema.safeParse(input);
   if (!parsed.success || parsed.data.challengeId !== challenge.challengeId) throw new AdmissionError("INVALID_PROOF");
   if (instant(now) >= instant(challenge.expiresAt)) throw new AdmissionError("EXPIRED");
+  if (instant(now) < instant(challenge.issuedAt)) throw new AdmissionError("INVALID_EVIDENCE");
   recent(source.observedAt, now, 10_000);
   if (!sameNode(challenge.node, nodeIdentitySchema.parse(source.node))) throw new AdmissionError("SOURCE_MISMATCH");
   const bytes = challengeSigningBytes(challenge);
@@ -254,14 +291,16 @@ export function requestFormalPermission(
 export function confirmFormalPermission(
   record: AdmissionRecord, expectedVersion: number, authority: AdmissionAuthority,
   source: ObservedSource,
-  evidence: { evidenceId: string; policyRevision: number; checkedAt: string; requiredPathsVerified: boolean; forbiddenPathsDenied: boolean },
+  evidence: FormalPermissionEvidence,
   now: string,
 ): AdmissionRecord {
   guard(record, expectedVersion, authority, now);
   if (record.phase !== "permission_pending" || !record.node) throw new AdmissionError("INVALID_PHASE");
+  evidenceScope(record, evidence);
   recent(source.observedAt, now, 10_000);
   recent(evidence.checkedAt, now, 60_000);
   if (!sameNode(record.node, nodeIdentitySchema.parse(source.node))) throw new AdmissionError("SOURCE_MISMATCH");
+  if (!sameNode(record.node, nodeIdentitySchema.parse(evidence.node))) throw new AdmissionError("INVALID_EVIDENCE");
   if (!evidence.evidenceId || evidence.policyRevision !== record.formalPolicyRevision
     || !evidence.requiredPathsVerified || !evidence.forbiddenPathsDenied) throw new AdmissionError("INVALID_EVIDENCE");
   // Network admission is NOT ADB authorization, action permission or business readiness.
@@ -277,16 +316,23 @@ export function requestReclamation(record: AdmissionRecord, expectedVersion: num
     ...record, version: record.version + 1, phase: "reclaim_pending", challenge: null,
     // A failed/unconsumed proof still has a real restricted candidate to remove.
     node: record.node ?? (record.challenge ? { ...record.challenge.node } : null),
-    reclaimReason: reason,
+    reclaimReason: reason, reclamationId: randomUUID(),
   };
 }
 
 export function confirmReclamation(
   record: AdmissionRecord, expectedVersion: number,
-  evidence: { credentialRevoked: boolean; nodeAccessRevoked: boolean },
+  evidence: ReclamationEvidence,
+  now: string,
 ): AdmissionRecord {
   if (expectedVersion !== record.version) throw new AdmissionError("STALE_FACT");
   if (record.phase !== "reclaim_pending") throw new AdmissionError("INVALID_PHASE");
+  evidenceScope(record, evidence);
+  recent(evidence.checkedAt, now, 60_000);
+  if (!evidence.evidenceId || evidence.reclamationId !== record.reclamationId
+    || (record.node ? !evidence.node || !sameNode(record.node, nodeIdentitySchema.parse(evidence.node)) : evidence.node !== null)) {
+    throw new AdmissionError("INVALID_EVIDENCE");
+  }
   const credentialRevoked = record.credentialRevoked || evidence.credentialRevoked;
   const nodeAccessRevoked = record.nodeAccessRevoked || evidence.nodeAccessRevoked;
   return {

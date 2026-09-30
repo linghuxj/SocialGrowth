@@ -5,9 +5,9 @@ import test from "node:test";
 import {
   AdmissionError,
   challengeSigningBytes,
-  confirmFormalPermission,
-  confirmReclamation,
-  confirmRestriction,
+  confirmFormalPermission as confirmFormalPermissionCore,
+  confirmReclamation as confirmReclamationCore,
+  confirmRestriction as confirmRestrictionCore,
   consumeProof,
   createAdmissionRecord,
   issueChallenge,
@@ -17,6 +17,7 @@ import {
   type AdmissionRecord,
   type ObservedSource,
   type RestrictionEvidence,
+  type AdmissionEvidenceScope,
 } from "./network-admission-core.js";
 
 const now = "2026-09-30T10:00:00.000Z";
@@ -28,7 +29,7 @@ const authority: AdmissionAuthority = {
 const source: ObservedSource = {
   node: { nodeId: "node-A", nodeKey: "node-key-A", networkRevision: 1 }, observedAt: now,
 };
-const restriction: RestrictionEvidence = {
+const restriction: Omit<RestrictionEvidence, keyof AdmissionEvidenceScope> = {
   evidenceId: "restriction-probe-1", policyRevision: 1, networkRevision: 1, checkedAt: now,
   independentVerifierReachable: true, adbDenied: true, otherPhonesDenied: true,
   operatorServicesDenied: true, businessEgressDenied: true, additiveRulesChecked: true,
@@ -37,6 +38,24 @@ const formal = {
   evidenceId: "formal-probe-2", policyRevision: 2, checkedAt: now,
   requiredPathsVerified: true, forbiddenPathsDenied: true,
 };
+
+function scope(record: AdmissionRecord): AdmissionEvidenceScope {
+  return {
+    enrollmentId: record.enrollmentId, deviceId: record.authority.deviceId,
+    installationId: record.authority.installationId, enrollmentGeneration: record.authority.enrollmentGeneration,
+  };
+}
+function confirmRestriction(r: AdmissionRecord, v: number, a: AdmissionAuthority, e: typeof restriction, time: string) {
+  return confirmRestrictionCore(r, v, a, { ...scope(r), ...e }, time);
+}
+function confirmFormalPermission(r: AdmissionRecord, v: number, a: AdmissionAuthority, s: ObservedSource, e: typeof formal, time: string) {
+  return confirmFormalPermissionCore(r, v, a, s, { ...scope(r), node: r.node!, ...e }, time);
+}
+function confirmReclamation(r: AdmissionRecord, v: number, e: { credentialRevoked: boolean; nodeAccessRevoked: boolean }) {
+  return confirmReclamationCore(r, v, {
+    ...scope(r), node: r.node, reclamationId: r.reclamationId!, evidenceId: "reclamation-probe-1", checkedAt: now, ...e,
+  }, now);
+}
 
 function fixture() {
   const keys = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
@@ -147,10 +166,51 @@ test("stale/future source observations and exact expiry boundary are not accepte
 test("expiry permits a new challenge but old signatures cannot consume it", () => {
   const { challenged, proof } = fixture();
   // Fresh restriction is required; normally obtained by the trusted policy worker.
-  const refreshed = { ...challenged, restriction: { ...restriction, checkedAt: later(60_000) } };
+  const refreshed = { ...challenged, restriction: { ...scope(challenged), ...restriction, checkedAt: later(60_000) } };
   const next = issueChallenge(refreshed, refreshed.version, authority, { ...source, observedAt: later(60_000) }, later(60_000));
   assert.notEqual(next.challenge!.challengeId, proof.challengeId);
   rejects(() => consumeProof(next, next.version, authority, { ...source, observedAt: later(60_000) }, proof, later(60_000)), "INVALID_PROOF");
+  rejects(() => issueChallenge(refreshed, refreshed.version, authority, {
+    node: { ...source.node, nodeId: "node-B" }, observedAt: later(60_000),
+  }, later(60_000)), "SOURCE_MISMATCH");
+  assert.deepEqual(requestReclamation(refreshed, refreshed.version, "expired").node, source.node);
+});
+
+test("a proof cannot be consumed before the challenge issuance time", () => {
+  const f = fixture();
+  const challenged = issueChallenge(f.restricted, f.restricted.version, authority, {
+    ...source, observedAt: later(1000),
+  }, later(1000));
+  const proof = {
+    challengeId: challenged.challenge!.challengeId,
+    signature: sign("sha256", challengeSigningBytes(challenged.challenge!), {
+      key: f.keys.privateKey, dsaEncoding: "ieee-p1363",
+    }).toString("base64url"),
+  };
+  rejects(() => consumeProof(challenged, challenged.version, authority, source, proof, now), "INVALID_EVIDENCE");
+});
+
+test("restriction, formal and reclamation receipts cannot be reused across enrollments or nodes", () => {
+  const f = fixture(), other = fixture();
+  rejects(() => confirmRestrictionCore(f.record, 0, authority, { ...scope(other.record), ...restriction }, now), "INVALID_EVIDENCE");
+  const verified = consumeProof(f.challenged, f.challenged.version, authority, source, f.proof, now);
+  const pending = requestFormalPermission(verified, verified.version, authority, source, 2, now);
+  const evidence = { ...scope(pending), ...formal, node: source.node };
+  rejects(() => confirmFormalPermissionCore(pending, pending.version, authority, source, { ...evidence, enrollmentId: other.record.enrollmentId }, now), "INVALID_EVIDENCE");
+  rejects(() => confirmFormalPermissionCore(pending, pending.version, authority, source, { ...evidence, node: { ...source.node, nodeKey: "wrong-key" } }, now), "INVALID_EVIDENCE");
+  const reclaiming = requestReclamation(pending, pending.version, "exited");
+  const receipt = {
+    ...scope(reclaiming), node: reclaiming.node, reclamationId: reclaiming.reclamationId!,
+    evidenceId: "reclaim-probe", checkedAt: now, credentialRevoked: true, nodeAccessRevoked: true,
+  };
+  for (const patch of [
+    { enrollmentId: other.record.enrollmentId }, { deviceId: randomUUID() },
+    { installationId: randomUUID() }, { enrollmentGeneration: "2" },
+    { reclamationId: randomUUID() }, { node: null }, { checkedAt: later(-60_000) },
+  ]) {
+    rejects(() => confirmReclamationCore(reclaiming, reclaiming.version, { ...receipt, ...patch }, now), "INVALID_EVIDENCE");
+  }
+  assert.equal(confirmReclamationCore(reclaiming, reclaiming.version, receipt, now).phase, "reclaimed");
 });
 
 test("API acknowledgement alone or wrong policy revision never establishes admission", () => {
