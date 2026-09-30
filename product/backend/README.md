@@ -24,6 +24,7 @@ WP-01 开始建立正式权威数据模型：
 - [`0015_endpoint_report_journal.sql`](migrations/0015_endpoint_report_journal.sql)：内部已准入绑定的端点快照/回执；可信来源缺省关闭，无实际上报或连接消费者。
 - [`0016_connection_maintenance_budget.sql`](migrations/0016_connection_maintenance_budget.sql)：独立维护预算/命令；无任务生产者、HTTP或实际恢复消费者。
 - [`0017_joint_recovery_reservations.sql`](migrations/0017_joint_recovery_reservations.sql)：共同恢复关联不可重绑，同事务双方占位/结果未知不释放；不证明真实任务或物理调用结束。
+- [`0018_commission_income_journal.sql`](migrations/0018_commission_income_journal.sql)：内部稳定收入源/连续修订/冻结计算与命令，实际收款和承接producer缺省关闭；没有应付余额或支付。
 
 迁移当前是待后端迁移执行器消费的前向 SQL；未在真实 PostgreSQL 执行前，不得将其记为迁移或并发验收通过。
 
@@ -169,6 +170,8 @@ WP-10 新增内部 `endpoint-report-core` 只校验签名完整双用途快照�
 ## WP-25 内部分佣核对（无实际收入或付款）
 
 `commission-core`只对明确到账/产生期间/承接及历史统一比例作BigInt精确核对；跨承接/比例不能可靠拆分、配置未定或未知保持pending。确认空档归公司不是缺记录默认，不公开到本人；币种/精度/舍入显式无生产默认。internal_calculation_only没有真实producer、持久去重、本人API或支付，不能将重复纯计算累计为新应付。78位金额/0～12位精度/18位比例只是技术边界，图稿数字不是配置，详见[分佣任务卡](../../docs/engineering/delivery/records/WP-25.md)。
+
+`CommissionIncomeJournal`/0018另提供内部operator会话＋CSRF的稳定源去重、连续修订和冻结原依据；缺省producer在connect前关闭。旧key读当前不重算，换actor/key相同收入不重复计数或用新context自动改历史。修订/源/命令/最小audit同事务，完整历史按原context/DB微秒钟重算校对，损坏拒绝；没有实际到账/承接producer、本人feed/HTTP/UI或付款。DB-only port需同guard保护，未来共享锁顺序须先对齐，不在guard后擅自锁provider/device或外部网络；详见[收入账本](../../docs/engineering/delivery/records/WP-25-stage2.md)。
 
 ## WP-11 内部调用日志（未开放执行）
 
