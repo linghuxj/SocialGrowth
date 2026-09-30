@@ -17,6 +17,8 @@ WP-01 开始建立正式权威数据模型：
 - [`0008_project_basics.sql`](migrations/0008_project_basics.sql)：筹备项目识别信息与同事务幂等命令；不产生批准、资源分配、周期或执行事实。
 - [`0009_resource_reservations.sql`](migrations/0009_resource_reservations.sql)：内部初始资源预留、不可变中央引用、组合FK及唯一约束；无真实登记生产者/资源验收或释放。
 - [`0010_project_planning_drafts.sql`](migrations/0010_project_planning_drafts.sql)：筹备规划输入及幂等记录；只存未批准草案，不开启周期/切换资格/派发任务。
+- [`0011_unassigned_device_todos.sql`](migrations/0011_unassigned_device_todos.sql)：无项目设备协助内部日志、逐设备影响/原关联、初始邀请责任、人工说明与单个通知意图；没有真实故障或发送/复核消费者。
+- [`0012_device_assistance_feed_index.sql`](migrations/0012_device_assistance_feed_index.sql)：认证只读全局摘要的DB微秒游标索引，不改写历史状态或产生权限。
 
 迁移当前是待后端迁移执行器消费的前向 SQL；未在真实 PostgreSQL 执行前，不得将其记为迁移或并发验收通过。
 
@@ -27,6 +29,8 @@ WP-14 第一阶段新增运营会话入口`GET/POST /api/operator/projects`及`P
 第三阶段新增`GET/POST /api/operator/projects/:projectId/planning-draft`，运营Host会话读、CSRF写。严格contract/body路径及project/draft版本，空项保留未配置，保存永远unapproved_draft；同事务草案及project版本/审计/命令，无改动不加版本，同键读取当前草案。只支持筹备项目，未连Web；人工国家语言标签和内容说明不是可执行批准边界，不能据此启动周期或任务。完整字段、迁移/测试及真实缺口见[规划输入任务卡](../../docs/engineering/delivery/records/WP-14-stage3.md)。
 
 WP-15 `MaterialObjectStorage`为内部S3/MinIO字节适配器，未接Nest/HTTP/Web/素材登记/消费者；显式受控配置及凭据，无环境默认凭据链。固定UUID对象/条件防覆盖、完整下载哈希/长度验证、配置位置绑定，不产生公开URL/批准/名额或执行许可。`test:storage`只运行明确隔离回环32900新fixture，不是项目E2E或UI验收；适用范围、128MiB缓冲上限、正式S3/上传准入/手机缺口见[素材任务卡](../../docs/engineering/delivery/records/WP-15.md)。
+
+WP-20 `GET /api/operator/assistance-todos`仅以当前Host运营会话读取无项目来源事项的全局摘要，`afterTodoId`及`pageSize`严格分页，默认20/上限50、no-store。初始联系人不隔离访问，originScope不是当前项目分配状态；不返回说明正文/秘密，没有故障创建、人工说明提交、复核或恢复HTTP。实际事件/邮件/跨端UI未接线，不能从测试入库或接口空页自报完整待办业务完成，见[认证分页任务卡](../../docs/engineering/delivery/records/WP-20-stage2.md)。
 
 `IdentityTransactionService` 实现当前首批后端事务基础：
 

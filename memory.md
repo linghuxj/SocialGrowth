@@ -26,3 +26,5 @@
 ## 2026-09-30 工程检查点
 
 窗口模式仍按上表，不新建复核或验收对话。WP-14时区整改28276f2原P2清零，正确报告为artifacts/review/wp14-stage3-remediation-28276f2.md，原QA正在独立复验；WP-15存储65d5928原复核/QA增量工程G1通过，不自行关闭父分支或G3。名额纯规则523a610、无项目待办持久基础67f2352是已提交作者阶段，仍需原门禁。feature/b2-b3-foundation-integration组合两支，不改变实际副作用/消费者未接线边界；Developer更新前再次核对原报告、工作树及祖先/旧tip。具体组合、自检、职责/下一步与真实缺口见docs/engineering/delivery/records/B2-B3-foundation-integration.md；不得把任务卡的工程职责当真人已签收，或把全部WP工作标完成。
+
+后续原QA28276f2完整报告已读取（20260930T104233Z-wp14-stage3-28276f2），工程G1通过；Developer经工作树/祖先/旧tip核对已从5227127快进28276f2，不包含未过门禁的组合447eda5。继续在feature/wp-20-authenticated-feed-stage2做只读认证分页HTTP工程，无新UI或公开副作用。某次wait_threads状态读取未返回、只终止本窗口等待脚本，未重发或停止原复核/QA任务；按实际文件读取原QA报告并继续工程，不因窗口状态接口阻停。

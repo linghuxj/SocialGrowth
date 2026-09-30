@@ -101,6 +101,19 @@ class FirstBatchContractsTest(unittest.TestCase):
                         with self.assertRaises(ContractValidationError):
                             self.contracts.validate(name, value)
 
+    def test_assistance_feed_has_strict_history_and_cursor_semantics_without_permission(self) -> None:
+        value = {"todoId": self.installation_id, "occurrenceId": self.installation_id, "providerId": self.installation_id,
+                 "initialResponsibleOperatorId": self.installation_id, "originScope": "unassigned_device", "kind": "network_access_help", "status": "awaiting_recheck",
+                 "factVersion": 1, "impactCount": 1, "noteCount": 1, "notificationStatus": "awaiting_configuration", "createdAt": "2026-09-30T00:00:00Z", "updatedAt": "2026-09-30T00:00:00Z"}
+        self.contracts.validate("deviceAssistanceTodoSummary", value)
+        self.contracts.validate("listDeviceAssistanceTodosResponse", {"todos": [value], "nextAfterTodoId": self.installation_id})
+        for patch in ({"permissionGranted": True}, {"status": "resolved"}, {"notificationStatus": "sent"}, {"impactCount": 0}, {"noteCount": -1}, {"noteCount": 0}, {"updatedAt": "2026-09-29T00:00:00Z"}):
+            with self.assertRaises(ContractValidationError):
+                self.contracts.validate("deviceAssistanceTodoSummary", {**value, **patch})
+        for todos, cursor in (([], self.installation_id), ([value, value], None), ([value], "00000000-0000-4000-8000-000000000002")):
+            with self.assertRaises(ContractValidationError):
+                self.contracts.validate("listDeviceAssistanceTodosResponse", {"todos": todos, "nextAfterTodoId": cursor})
+
     def test_control_action_is_strict_independent_and_never_grants_permission(self) -> None:
         action = {
             "protocolVersion": "2026-09-30.control-v1", "deviceId": self.installation_id,

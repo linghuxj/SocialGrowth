@@ -16,6 +16,8 @@ import { ProjectService } from "./project-service.js";
 import { ProjectController } from "./project.controller.js";
 import { ProjectPlanningController } from "./project-planning.controller.js";
 import { ProjectPlanningService } from "./project-planning-service.js";
+import { DeviceAssistanceFeedService } from "./device-assistance-feed-service.js";
+import { DeviceAssistanceFeedController } from "./device-assistance-feed.controller.js";
 import {
   DevelopmentSmsCapturePort,
   DisabledDevelopmentSmsCodeReader,
@@ -109,6 +111,7 @@ const providerAuthProvider = {
     ProviderController,
     ProjectController,
     ProjectPlanningController,
+    DeviceAssistanceFeedController,
   ],
   providers: [
     poolProvider,
@@ -120,6 +123,7 @@ const providerAuthProvider = {
     providerAuthProvider,
     { provide: ProjectService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ProjectService(pool, auth) },
     { provide: ProjectPlanningService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ProjectPlanningService(pool, auth) },
+    { provide: DeviceAssistanceFeedService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new DeviceAssistanceFeedService(pool, auth) },
     DatabaseLifecycle,
   ],
 })
