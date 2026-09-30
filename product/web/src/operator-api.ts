@@ -47,9 +47,21 @@ function fallbackError(status: number): ProductErrorResponse {
       message: status >= 500
         ? "服务暂时不可用，请稍后重试"
         : "服务返回了无法识别的响应",
-      retryable: status >= 500,
+      // An HTTP status without a valid product error proves nothing about the
+      // mutation outcome (e.g. a gateway changed the response after commit).
+      // Callers must keep the original input/key and resolve that request.
+      retryable: true,
     },
   };
+}
+
+export function isDefinitiveProjectRejection(error: unknown): boolean {
+  // Only these recognized pre-write business rejections allow changing input.
+  // Internal errors, malformed envelopes and key reuse remain unresolved even
+  // if a server/proxy happens to supply retryable=false.
+  return error instanceof ProductApiError && !error.response.error.retryable
+    && ((error.status === 400 && error.response.error.code === "INPUT_INVALID")
+      || (error.status === 409 && error.response.error.code === "FACT_VERSION_STALE"));
 }
 
 async function responseError(response: Response): Promise<ProductApiError> {

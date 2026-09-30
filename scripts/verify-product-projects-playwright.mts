@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { chromium, type Page } from "playwright";
+import { fetchCapturedBrowserRequest } from "./product-playwright-safe-fetch.mjs";
 const required = (name: string) => { const value = process.env[name]; if (!value) throw new Error(`${name} is required`); return value; };
 const baseUrl = process.env.SG_PRODUCT_WEB_URL ?? "http://127.0.0.1:3100", loginName = required("SG_PRODUCT_TEST_LOGIN_NAME"), password = required("SG_PRODUCT_TEST_PASSWORD");
 const secondLogin = required("SG_PRODUCT_TEST_SECOND_LOGIN_NAME"), secondPassword = required("SG_PRODUCT_TEST_SECOND_PASSWORD");
 const output = required("SG_PRODUCT_PROJECT_SCREENSHOT_DIR"); await mkdir(output, { recursive: true });
+const transportFault = process.env.SG_PRODUCT_PROJECT_TRANSPORT_FAULT ?? "abort";
+if (!/^(abort|unknown-(400|408|429)|invalid-json-(400|408|429))$/.test(transportFault)) throw new Error("Unsupported transport fault");
 const browser = await chromium.launch({ headless: true }), errors: string[] = [];
 async function signIn(page: Page, name: string, secret: string) {
   page.on("pageerror", e => errors.push(e.message));
@@ -25,11 +28,23 @@ try {
   await a.route("**/api/operator/projects", async route => {
     if (route.request().method() !== "POST") { await route.continue(); return; }
     keys.push((route.request().postDataJSON() as { metadata: { idempotencyKey: string } }).metadata.idempotencyKey);
-    const response = await route.fetch(); assert.ok(response.ok()); await route.abort("failed");
+    const response = await fetchCapturedBrowserRequest(route, await route.request().allHeaders()); assert.ok(response.ok());
+    if (transportFault === "abort") await route.abort("failed");
+    else {
+      // Fault ONLY the transport after the actual UI POST committed. No fake
+      // business success/error contract, project, database state or API shortcut.
+      const status = Number(transportFault.split("-").at(-1));
+      await route.fulfill({ status, contentType: "text/plain", body: transportFault.startsWith("invalid-json") ? JSON.stringify({ unexpected: true }) : "gateway response unavailable" });
+    }
   });
   await panel(a).getByRole("button", { name: "创建筹备项目" }).click(); await panel(a).getByText("服务暂时不可用，输入已保留，请重试。", { exact: true }).waitFor();
   assert.equal(await panel(a).getByLabel("项目名称").inputValue(), "验收筹备项目A");
   assert.equal(await panel(a).getByLabel("项目名称").isDisabled(), true, "Unknown creation must not silently switch to a different request");
+  assert.equal(await panel(a).getByRole("button", { name: "放弃本次输入" }).count(), 0);
+  await panel(a).getByRole("button", { name: "返回项目列表" }).click();
+  await panel(a).getByRole("button", { name: "继续未保存的新建项目" }).click();
+  assert.equal(await panel(a).getByLabel("项目名称").inputValue(), "验收筹备项目A");
+  assert.equal(await panel(a).getByLabel("项目名称").isDisabled(), true);
   await a.unroute("**/api/operator/projects");
   const retry = a.waitForRequest(r => r.method() === "POST" && new URL(r.url()).pathname === "/api/operator/projects");
   await panel(a).getByRole("button", { name: "创建筹备项目" }).click(); keys.push(((await retry).postDataJSON() as { metadata: { idempotencyKey: string } }).metadata.idempotencyKey);
@@ -72,5 +87,15 @@ try {
   await panel(a).getByRole("button", { name: "新建项目" }).click(); await panel(a).getByLabel("项目名称").fill("客户验收筹备项目"); await panel(a).getByLabel("项目类型").selectOption("client_managed");
   await panel(a).getByRole("button", { name: "创建筹备项目" }).click(); assert.equal(await panel(a).getByRole("heading", { name: "新建筹备项目" }).count(), 1);
   await panel(a).getByLabel("关联客户").fill("隔离验收客户"); await panel(a).getByRole("button", { name: "创建筹备项目" }).click(); await panel(a).getByText(/基本信息已保存；仍在筹备/).waitFor();
-  assert.deepEqual(errors, []); console.log(JSON.stringify({ passed: true, scope: "real project metadata UI only", responseLossReplay: true, peerConflict: true, draftsPreserved: true, reloadPersistence: true, readOnlyWidths: [700,390], autoExecution: "not created or accepted", browserErrors: 0 }));
+  // A REAL recognized pre-write rejection must still allow correcting input.
+  await panel(a).getByLabel("项目名称").fill(" 无效首尾空白 ");
+  const invalidRequest = a.waitForRequest(r => r.method() === "POST" && new URL(r.url()).pathname.endsWith("/basics"));
+  await panel(a).getByRole("button", { name: "保存基本信息" }).click(); const badKey = ((await invalidRequest).postDataJSON() as { metadata: { idempotencyKey: string } }).metadata.idempotencyKey;
+  await panel(a).getByText(/基本信息不符合要求/).waitFor(); assert.equal(await panel(a).getByLabel("项目名称").isDisabled(), false);
+  await panel(a).getByRole("button", { name: "放弃本次输入" }).waitFor();
+  await panel(a).getByLabel("项目名称").fill("客户验收筹备项目");
+  const correctedRequest = a.waitForRequest(r => r.method() === "POST" && new URL(r.url()).pathname.endsWith("/basics"));
+  await panel(a).getByRole("button", { name: "保存基本信息" }).click(); assert.notEqual(((await correctedRequest).postDataJSON() as { metadata: { idempotencyKey: string } }).metadata.idempotencyKey, badKey);
+  await panel(a).getByText(/基本信息已保存；仍在筹备/).waitFor();
+  assert.deepEqual(errors, []); console.log(JSON.stringify({ passed: true, scope: "real project metadata UI only", transportFault, responseLossReplay: true, definitiveInputRejection: true, peerConflict: true, draftsPreserved: true, reloadPersistence: true, readOnlyWidths: [700,390], autoExecution: "not created or accepted", browserErrors: 0 }));
 } finally { await browser.close(); }

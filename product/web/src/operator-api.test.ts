@@ -23,6 +23,8 @@ const {
   logout,
   newIdempotencyKey,
   revokeInvitation,
+  saveProject,
+  isDefinitiveProjectRejection,
 } = await import("./operator-api.js");
 
 const operator = {
@@ -108,6 +110,30 @@ test("a network retry reuses the pending mutation idempotency key", async () => 
   await createOperator(input, key);
   assert.equal(bodies.length, 2);
   assert.equal(bodies[0]?.metadata.idempotencyKey, bodies[1]?.metadata.idempotencyKey);
+});
+
+test("unrecognized 4xx/5xx project mutation results remain unknown for original-key retry", async () => {
+  const basics = { name: "项目传输分类探针", kind: "company_owned" as const, customerName: null, ownerOperatorId: null, notificationEmail: null };
+  const key = newIdempotencyKey();
+  for (const status of [400, 408, 429, 502]) {
+    for (const body of ["gateway result is not JSON", JSON.stringify({ unexpected: true })]) {
+      globalThis.fetch = async (_input, init) => {
+        assert.equal((JSON.parse(String(init?.body)) as { metadata: { idempotencyKey: string } }).metadata.idempotencyKey, key);
+        return new Response(body, { status });
+      };
+      await assert.rejects(saveProject(basics, key), (error: unknown) => error instanceof ProductApiError
+        && error.response.error.code === "INTERNAL_ERROR" && error.response.error.retryable === true);
+    }
+  }
+});
+
+test("only recognized pre-write project rejections can release unknown-input freeze", () => {
+  const error = (code: "INPUT_INVALID" | "FACT_VERSION_STALE" | "INTERNAL_ERROR" | "IDEMPOTENCY_KEY_REUSED", status: number, retryable = false) =>
+    new ProductApiError({ contractVersion, requestId: "project-probe-request", error: { code, message: "safe fixture", retryable } }, status);
+  assert.equal(isDefinitiveProjectRejection(error("INPUT_INVALID", 400)), true);
+  assert.equal(isDefinitiveProjectRejection(error("FACT_VERSION_STALE", 409)), true);
+  for (const e of [error("INPUT_INVALID", 502), error("INPUT_INVALID", 400, true), error("INTERNAL_ERROR", 400),
+    error("IDEMPOTENCY_KEY_REUSED", 409), new TypeError("response lost")]) assert.equal(isDefinitiveProjectRejection(e), false);
 });
 
 test("the caller explicitly changes the key after a confirmed mutation", async () => {

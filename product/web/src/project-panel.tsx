@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { OperatorView, ProjectBasics, ProjectView } from "@socialgrowth/product-contracts";
 import { ArrowLeft, CalendarBlank, DeviceMobile, FileText, Folder, Info, Link, Plus, Target, UsersThree } from "@phosphor-icons/react";
-import { listProjects, newIdempotencyKey, ProductApiError, saveProject } from "./operator-api.js";
+import { isDefinitiveProjectRejection, listProjects, newIdempotencyKey, ProductApiError, saveProject } from "./operator-api.js";
 
 interface Draft { basics: ProjectBasics; base?: ProjectView; key: string | null; uncertain?: boolean }
 const empty = (): ProjectBasics => ({ name: "", kind: "company_owned", customerName: null, ownerOperatorId: null, notificationEmail: null });
@@ -61,7 +61,7 @@ export function ProjectPanel({ active, refreshVersion, operators, readOnly, onEx
       if (!alive.current) return;
       if (error instanceof ProductApiError && error.status === 401) onExpired(error);
       else {
-        if (error instanceof ProductApiError && !error.response.error.retryable) {
+        if (isDefinitiveProjectRejection(error)) {
           setDrafts(prev => ({ ...prev, [id]: { ...draft, key, uncertain: false } }));
         }
         setMessage(failures(error));
