@@ -15,6 +15,7 @@ WP-01 开始建立正式权威数据模型：
 - [`0006_phone_control_journal.sql`](migrations/0006_phone_control_journal.sql)：设备调用／停止日志、严格记录和幂等命令；默认停止待确认，无持有者取得／重新启用或实际执行调用方。
 - [`0007_task_recovery_budget.sql`](migrations/0007_task_recovery_budget.sql)：内部任务尝试恢复预算、一attempt一round及幂等命令；无真实任务生产者／人工新轮、队列或手机消费者。
 - [`0008_project_basics.sql`](migrations/0008_project_basics.sql)：筹备项目识别信息与同事务幂等命令；不产生批准、资源分配、周期或执行事实。
+- [`0009_resource_reservations.sql`](migrations/0009_resource_reservations.sql)：内部初始资源预留、不可变中央引用、组合FK及唯一约束；无真实登记生产者/资源验收或释放。
 
 迁移当前是待后端迁移执行器消费的前向 SQL；未在真实 PostgreSQL 执行前，不得将其记为迁移或并发验收通过。
 
@@ -128,3 +129,9 @@ pnpm --filter @socialgrowth/product-backend admission:reconcile -- --limit 100
 `TaskRecoveryStore`保存同一task/attempt/device/round下默认2次、累计300000ms恢复预算，锁后数据库微秒墙钟，开始前占次数，在途未知不释放，重启不清零。不同故障不重置，单轮配置不能由命令提高。可能提交未知只转核验，5分钟不是结果核验期限；帐号验证/身份/权限问题直接人工。available和replayed=false均不是动作许可。
 
 没有正式任务表/授权FK、人工新轮、HTTP、真实队列或Artemis调用方，不能将内部输入当当前事实。SQL0007在0001～0006后消费；详见[WP16任务与计时](../../docs/engineering/delivery/records/WP-16.md)。
+
+## WP-14 内部初始资源预留（未开放真实分配）
+
+`ResourceReservationStore`尚无登记生产者/HTTP/UI/任务消费者。中央账号/发布身份来源引用不可变；组合FK、唯一约束与短事务guard保证账号/手机同期一项目、同机同平台一身份、同身份一当前手机。operator会话/CSRF及资源/project/device版本检查、同键当前读取、原子审计与最后锁后会话到期回滚；返回一律pending_initialization。
+
+不能将预留当作真实身份已核验、承接生效或动作许可，也没有释放/换机/跨项目转移。登记生产者须持同guard并提供正确canonical source ID，WP-13还须读取新鲜实际授权/连接/控制事实。SQL0009在0001～0008后消费，阶段证据与缺口见[资源任务卡](../../docs/engineering/delivery/records/WP-14-stage2.md)。
