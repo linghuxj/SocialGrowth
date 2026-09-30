@@ -21,6 +21,9 @@ WP-01 开始建立正式权威数据模型：
 - [`0012_device_assistance_feed_index.sql`](migrations/0012_device_assistance_feed_index.sql)：认证只读全局摘要的DB微秒游标索引，不改写历史状态或产生权限。
 - [`0013_device_assistance_notes_index.sql`](migrations/0013_device_assistance_notes_index.sql)：运营说明历史的逐事项DB微秒游标索引，保留已有说明及命令行。
 - [`0014_tracking_link_requests.sql`](migrations/0014_tracking_link_requests.sql)：不可重绑定的配置链接及原记录ID去重请求日志；配置关联不是实际来源，未提供正式政策时公开路由关闭。
+- [`0015_endpoint_report_journal.sql`](migrations/0015_endpoint_report_journal.sql)：内部已准入绑定的端点快照/回执；可信来源缺省关闭，无实际上报或连接消费者。
+- [`0016_connection_maintenance_budget.sql`](migrations/0016_connection_maintenance_budget.sql)：独立维护预算/命令；无任务生产者、HTTP或实际恢复消费者。
+- [`0017_joint_recovery_reservations.sql`](migrations/0017_joint_recovery_reservations.sql)：共同恢复关联不可重绑，同事务双方占位/结果未知不释放；不证明真实任务或物理调用结束。
 
 迁移当前是待后端迁移执行器消费的前向 SQL；未在真实 PostgreSQL 执行前，不得将其记为迁移或并发验收通过。
 
@@ -151,7 +154,17 @@ WP-10 新增内部 `endpoint-report-core` 只校验签名完整双用途快照�
 
 阶段三 `connection-maintenance-budget` 是独立纯预算：明确内部限额，无假任务、不采用草案生产默认；次数/耗时跨端点、重载及成功不清零，未知调用继续占位、人工门禁不由迟到成功清除。有任务必须同时满足真实任务预算，无任务null只由权威内部来源提供。返回budgetsAvailable不是动作许可，两份观察副本须共同持久后才可进入未来执行；没有持久/当前任务resolver/HTTP或消费者。详见[维护预算阶段](../../docs/engineering/delivery/records/WP-10-stage3.md)。
 
-阶段四 `ConnectionMaintenanceStore`/0016增内部持久维护round和command；当前DB-only context resolver缺省关闭，不冒充实际来源/任务生产者。旧键只返回当前state与joint=null；有任务明确禁止maintenance-only begin，联合分配尚未实现。共同观察在device→maintenance→task锁后按DB钟计双方账本，双方command/audit同事务且检查真实影响行数；不授动作或解除pause/exit。详见[持久维护阶段](../../docs/engineering/delivery/records/WP-10-stage4.md)。
+阶段四 `ConnectionMaintenanceStore`/0016增内部持久维护round和command；当前DB-only context resolver缺省关闭，不冒充实际来源/任务生产者。旧键只返回当前state与joint=null；有任务明确禁止maintenance-only begin，阶段四提交时联合分配未实现。共同观察在device→maintenance→task锁后按DB钟计双方账本，双方command/audit同事务且检查真实影响行数；不授动作或解除pause/exit。详见[持久维护阶段](../../docs/engineering/delivery/records/WP-10-stage4.md)。
+
+阶段五/0017在任一未来实际恢复开始前同事务占双方次数与不可变关联，完成只对应原任务/原attempt，未知继续占双方位，迟到结束不自动清人工门禁。旧任务结果可能提交只转核验；缺关联关闭、无历史回填。DB context与物理结束生产者未实现，成功返回仍不是动作许可；父来源复核pending1不能由本有限增量通过替代。详见[共同占位](../../docs/engineering/delivery/records/WP-10-stage5.md)。
+
+## WP-17 内部业务建议与模型协调（无真实模型接入）
+
+`business-suggestion-core`严格四结论、当前引用和名额，只形成checked_advisory_only；旧task占位即使部分任务投影遗漏也不得作为新schedule，取消不释放名额。`business-model-coordinator`缺省facts/model/policy关闭；显式port时严格JSON及大小、私有副本、三段共同deadline和最终await后事实/clock核对，无模板/旧成功兜底。provider/model/response标签或modelRequested不证明真实网络/费用/AI；没有生产事实reader、Task writer、HTTP/UI/队列/执行许可。详见[边界](../../docs/engineering/delivery/records/WP-17.md)及[协调](../../docs/engineering/delivery/records/WP-17-stage2.md)。
+
+## WP-21 内部任务影响分类（无变更执行）
+
+`task-impact-core`按完整任务/名额与版本区分更正、撤回、暂停、结束及恢复；未知只核实原提交，编辑中只建议安全停止与检查。更正按显式材料variant谱系，不扩大到另一语言/平台；原任务窗口/材料/名额及成功/取消历史保持，结束无普通恢复。impact_advisory_only不修改任务、不能删除或释放资源，无生产writer/outbox、物理停止或迁移实现，详见[变更任务卡](../../docs/engineering/delivery/records/WP-21.md)。
 
 ## WP-11 内部调用日志（未开放执行）
 
