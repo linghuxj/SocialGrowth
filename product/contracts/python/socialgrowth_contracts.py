@@ -63,11 +63,12 @@ class FirstBatchContracts:
         return value
 
     def _validate_contract_semantics(self, name: str, value: Any) -> None:
-        if name in ("materialUploadTicketView", "prepareMaterialUploadResponse"):
+        if name in ("materialUploadTicketView", "prepareMaterialUploadResponse", "uploadMaterialBytesResponse"):
             verified = value["verifiedAt"]
             if ((value["status"] == "verified_bytes") != (verified is not None)
                 or (verified is not None and self._compare_timestamps(value["preparedAt"], verified) > 0)
-                or (name == "prepareMaterialUploadResponse" and value["changed"] and value["replayed"])):
+                or (name in ("prepareMaterialUploadResponse", "uploadMaterialBytesResponse") and value["changed"] and value["replayed"])
+                or (name == "uploadMaterialBytesResponse" and value["status"] != "verified_bytes")):
                 raise ContractDataError(f"{name}: inconsistent byte verification state")
         elif name in ("providerCommissionRecord", "listProviderCommissionsResponse"):
             records = value["records"] if name == "listProviderCommissionsResponse" else [value]

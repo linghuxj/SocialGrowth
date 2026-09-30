@@ -120,6 +120,16 @@ export class MaterialUploadStore {
       const current = await this.load(c, r.objectId); if (!current) return corrupt(); return { ...current, changed, replayed: Boolean(old) };
     });
   }
+  async inspectForByteUpload(token: string, csrf: string, input: unknown) {
+    const p = materialUploadCommandSchema.safeParse(input);
+    if (!p.success) throw new ProductTransactionError("INPUT_INVALID", "Invalid upload command");
+    const storage = this.configured(), r = p.data;
+    return this.tx(token, csrf, async c => {
+      await this.project(c, r.projectId); const saved = await this.load(c, r.objectId);
+      if (!saved || saved.projectId !== r.projectId) throw stale();
+      this.bindingMatches(saved.descriptor, storage); return saved;
+    }); // No body/storage IO under auth or material/project locks.
+  }
   objectVerifier() {
     const storage = this.configured();
     return new MaterialStorageVerifier(storage, async (projectId, objectId) => {

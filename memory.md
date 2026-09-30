@@ -25,6 +25,8 @@
 
 ## 2026-09-30 工程检查点
 
+2026-10-01字节接续：be02原QA完整20260930T224743Z报告已读，4/11＋原8 guard-only增量0、新oracle0、实际PG17.11与复核17.10区分、reset前cluster/完整实例归属及自身清理，父pending1不清。1486原复核中已确认Cookie后缀截断1P3/独立7过1RED，未全文报告前不自报清零。feature/wp-15-authenticated-byte-transport-stage6作者354/253全PG/13实际AppModule＋自有PG/MinIO，auth/原ticket前置、锁外16MiB/15秒读取、真实断开/超量/超时/并发/撤销和原ID重试。局部Cookie完整保留并精确校验，原P3同窗复验待做，旧其他消费者需下一统一。只byte PUT/票据API，登记/UI/准入/Task/手机仍缺；自有fa47df PG32870/c724cc MinIO32904及唯一卷已核验清理、0|0|0/after空，源码/首次诊断/最终保留。默认服务/Samsung授权、人工/配置需求记录继续、原三窗口模式及发送固定/仅读报告不重发、父af14/浏览器/保护脚本限制不变，未报全部完成。
+
 2026-10-01最新配置/API：原747 QA完整20260930T221923Z报告已读，5/14/8＋原9 guard-only增量0，无新oracle，QA17.11/原复核17.10区分；be02原完整复核已读4unit/11真实联合＋新8增量0，已交原QA，未来stage5不入旧固定门禁。当前feature/wp-15-authenticated-material-api-stage5作者347/253全PG/6实际AppModule＋PG/MinIO、旧74JSON不变/新3strict TS/Python，只注册受控runtime和当前operator票据POST/GET；真实配置、byte传输/登记HTTP/UI/准入/Task/手机仍缺。两次6组各5过1失败分别fixture撤销漏原因/错误403预期，依据未改原auth统一401修fixture并精确断言0写，全部日志保留。自有82dca9 PG32869/83c7e4 MinIO32903及唯一卷已核验清理，0|0|0/after空，原服务/资料未动。父来源pending1/Developeraf14、管理员浏览器/保护发布脚本只路径状态不变；默认服务/Samsung授权/人工需求记录继续/原三窗口发送新固定和只读已有报告模式不变，不报全部开发或AC/G3完成。
 
 2026-10-01上传接续：WP25 ab2原QA完整报告20260930T215222Z-wp25-projection-ab2bc2b已全文读取，固定18446..ab23文件/指定3BE3TS2Python31PG及原11＋新7 guard-only通过，原P1实际清零/新增0/remaining0；原QA无新独立oracle、不认领作者329/239，实际PG17.11 Debian与非作者17.10 Alpine分开。父来源pending1/Developeraf14保持。WP15原747完整非作者报告已读，5unit/14PG/8MinIO＋新9增量0，已交原QA同12文件。当前feature/wp-15-authenticated-object-upload-stage4，作者338产品/253全PG/11真实自有PG＋MinIO联合补充；固定票据/条件字节上传/失ACK原ID恢复/保护DB resolver，尚无runtime注册/HTTP/共享契约/UI/准入/Task/手机。声明或verified_bytes均非业务许可；原三窗口/读取既有报告不重发及发送新固定阶段模式不变。默认隔离服务/已连接Samsung授权、人工配置阻断记录继续、管理员浏览器/父源限制/保护发布脚本只路径状态不变，阶段凝聚提交后原门禁，不报全部开发完成。

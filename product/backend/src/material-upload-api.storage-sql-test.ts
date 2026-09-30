@@ -1,19 +1,20 @@
 import "reflect-metadata";
 import assert from "node:assert/strict";
 import { randomUUID, randomBytes, createHash } from "node:crypto";
+import { request as httpRequest } from "node:http";
 import { readdir, readFile } from "node:fs/promises";
 import { before, after, test } from "node:test";
 import { NestFactory } from "@nestjs/core";
 import type { INestApplication } from "@nestjs/common";
 import { Pool } from "pg";
 import { S3Client, CreateBucketCommand } from "@aws-sdk/client-s3";
-import { contractVersion, materialUploadTicketViewSchema, prepareMaterialUploadResponseSchema, productErrorResponseSchema } from "@socialgrowth/product-contracts";
+import { contractVersion, materialUploadTicketViewSchema, prepareMaterialUploadResponseSchema, productErrorResponseSchema, uploadMaterialBytesResponseSchema } from "@socialgrowth/product-contracts";
 import { AppModule } from "./app.module.js";
 import { MaterialRuntime } from "./material-runtime.js";
 import { ProductExceptionFilter } from "./product-exception.filter.js";
 const url = process.env.SG_PRODUCT_TEST_DATABASE_URL, endpoint = process.env.SG_PRODUCT_TEST_STORAGE_ENDPOINT;
-if (!url || process.env.SG_PRODUCT_TEST_ALLOW_RESET !== "1" || new URL(url).hostname !== "127.0.0.1" || new URL(url).pathname !== "/sg_upload_api"
-  || endpoint !== "http://127.0.0.1:32903" || process.env.SG_PRODUCT_TEST_STORAGE_ISOLATED !== "1") throw new Error("Material API supplementary tests require owned isolated database and storage fixtures");
+if (!url || process.env.SG_PRODUCT_TEST_ALLOW_RESET !== "1" || new URL(url).hostname !== "127.0.0.1" || new URL(url).port !== "32870" || new URL(url).pathname !== "/sg_byte_api"
+  || endpoint !== "http://127.0.0.1:32904" || process.env.SG_PRODUCT_TEST_STORAGE_ISOLATED !== "1") throw new Error("Material API supplementary tests require owned isolated database and storage fixtures");
 const accessKeyId = process.env.SG_PRODUCT_TEST_STORAGE_ACCESS_KEY, secretAccessKey = process.env.SG_PRODUCT_TEST_STORAGE_SECRET_KEY;
 if (!accessKeyId || !secretAccessKey) throw new Error("Explicit synthetic storage credentials required");
 const pool = new Pool({ connectionString: url, max: 4 }), s = "socialgrowth_product";
@@ -44,6 +45,28 @@ const counts = async (objectId: string) => (await pool.query(`SELECT
   (SELECT count(*)::int FROM ${s}.material_upload_tickets WHERE object_id=$1) tickets,
   (SELECT count(*)::int FROM ${s}.material_upload_commands WHERE object_id=$1) commands,
   (SELECT count(*)::int FROM ${s}.audit_records WHERE object_type='material_object' AND object_id=$1) audits`, [objectId])).rows[0];
+async function putBytes(f: Awaited<ReturnType<typeof fixture>>, metadata = meta(), body = f.bytes, extra: Record<string, string> = {}) {
+  const response = await fetch(`${base}${f.path}/${f.input.objectId}/bytes`, { method: "PUT", body: new Uint8Array(body), headers: {
+    cookie: `__Host-sg_operator_session=${f.token}`, "x-csrf-token": f.csrf, "content-type": "application/octet-stream",
+    "x-sg-contract-version": metadata.contractVersion, "x-request-id": metadata.requestId, "x-idempotency-key": metadata.idempotencyKey, ...extra } });
+  assert.equal(response.headers.get("cache-control"), "no-store"); return { status: response.status, value: await response.json() as unknown };
+}
+function rawPut(f: Awaited<ReturnType<typeof fixture>>, metadata = meta(), chunked = false) {
+  let finish!: (value: { status: number; value: unknown }) => void, fail!: (error: Error) => void;
+  const result = new Promise<{ status: number; value: unknown }>((resolve, reject) => { finish = resolve; fail = reject; });
+  // A deliberately aborted transport is expected; retain a handler until the
+  // test awaits the same original result so no transient unhandled rejection.
+  void result.catch(() => {});
+  const req = httpRequest(`${base}${f.path}/${f.input.objectId}/bytes`, { method: "PUT", headers: {
+    cookie: `__Host-sg_operator_session=${f.token}`, "x-csrf-token": f.csrf, "content-type": "application/octet-stream",
+    "x-sg-contract-version": metadata.contractVersion, "x-request-id": metadata.requestId, "x-idempotency-key": metadata.idempotencyKey,
+    ...(chunked ? {} : { "content-length": f.bytes.length }) } }, response => {
+    const chunks: Buffer[] = []; response.on("data", chunk => chunks.push(Buffer.from(chunk)));
+    response.on("error", fail); response.on("end", () => { try { finish({ status: response.statusCode!, value: JSON.parse(Buffer.concat(chunks).toString()) as unknown }); } catch { fail(new Error("Invalid synthetic API response")); } });
+  });
+  req.on("error", fail); req.setTimeout(20000, () => req.destroy(new Error("Synthetic client deadline")));
+  return { req, result };
+}
 before(async () => {
   await pool.query(`DROP SCHEMA IF EXISTS ${s} CASCADE`);
   const dir = new URL("../migrations/", import.meta.url);
@@ -74,6 +97,7 @@ test("actual HTTP rejects caller secrets/status, conflicting path/body and unsup
 test("actual HTTP authentication cannot use claimed bearer, duplicate cookie, stale CSRF, revoked session or disabled operator", async () => {
   const f = await fixture();
   const invalidHeaders: Record<string, string>[] = [{ cookie: "", authorization: `Bearer ${f.token}` }, { cookie: `__Host-sg_operator_session=${f.token}; __Host-sg_operator_session=${f.token}` }, { "x-csrf-token": "wrong" }];
+  invalidHeaders.push({ cookie: `__Host-sg_operator_session=${f.token}=extra` }, { cookie: `__Host-sg_operator_session=${f.token}=` });
   for (const headers of invalidHeaders) assert.equal((await send(f, "POST", f.path, f.input, headers)).status, 401);
   await pool.query(`UPDATE ${s}.operator_sessions SET revoked_at=clock_timestamp(),revoked_reason='logout' WHERE session_id=$1`, [f.sessionId]);
   assert.equal((await send(f, "POST")).status, 401);
@@ -119,4 +143,83 @@ test("HTTP reads persisted actual byte result after internal upload and rejects 
   finally { await pool.query(`ALTER TABLE ${s}.material_object_manifests ENABLE TRIGGER material_object_immutable`); }
   const corrupt = await send(f, "GET", `${f.path}/${f.input.objectId}`); assert.equal(corrupt.status, 500); assert.equal(productErrorResponseSchema.parse(corrupt.value).error.code, "INTERNAL_ERROR");
   assert.ok(!JSON.stringify(corrupt.value).includes("reference"));
+});
+test("actual HTTP prepare then binary PUT fully verifies private bytes and old-key replay never republishes or creates a new ID", async () => {
+  const f = await fixture(); await send(f, "POST"); const metadata = meta(), uploaded = await putBytes(f, metadata);
+  assert.equal(uploaded.status, 200); const view = uploadMaterialBytesResponseSchema.parse(uploaded.value);
+  assert.equal(view.status, "verified_bytes"); assert.equal(view.publicationAllowed, false); assert.equal(view.objectId, f.input.objectId);
+  const replay = await putBytes(f, metadata); assert.equal(replay.status, 200); assert.equal(uploadMaterialBytesResponseSchema.parse(replay.value).replayed, true);
+  const read = await send(f, "GET", `${f.path}/${f.input.objectId}`); assert.equal(materialUploadTicketViewSchema.parse(read.value).status, "verified_bytes");
+  assert.deepEqual(await counts(f.input.objectId), { tickets: 1, commands: 2, audits: 2 });
+});
+test("binary HTTP auth, original header metadata, content type/encoding and exact length reject before upload service", async () => {
+  const f = await fixture(); await send(f, "POST"); const original = runtime.uploads().upload; let calls = 0;
+  runtime.uploads().upload = async () => { calls++; throw new Error("must-not-reach-storage"); };
+  try {
+    const cases: { headers: Record<string, string>; status: number; code: string }[] = [
+      { headers: { cookie: "" }, status: 401, code: "AUTHENTICATION_REQUIRED" }, { headers: { "x-csrf-token": "wrong" }, status: 401, code: "AUTHENTICATION_REQUIRED" },
+      { headers: { cookie: `__Host-sg_operator_session=${f.token}=extra` }, status: 401, code: "AUTHENTICATION_REQUIRED" },
+      { headers: { "content-type": "application/json" }, status: 400, code: "INPUT_INVALID" }, { headers: { "content-encoding": "gzip" }, status: 400, code: "INPUT_INVALID" },
+      { headers: { "x-sg-contract-version": "unsupported" }, status: 400, code: "CONTRACT_VERSION_UNSUPPORTED" }];
+    for (const c of cases) { const result = await putBytes(f, meta(), f.bytes, c.headers); assert.equal(result.status, c.status); assert.equal(productErrorResponseSchema.parse(result.value).error.code, c.code); }
+    const wrongLength = await putBytes(f, meta(), Buffer.from("a")); assert.equal(wrongLength.status, 400);
+    assert.equal(calls, 0); assert.deepEqual(await counts(f.input.objectId), { tickets: 1, commands: 1, audits: 1 });
+  } finally { runtime.uploads().upload = original; }
+});
+test("actual binary HTTP SHA mismatch, old key reuse and concurrent original bytes retain original ticket semantics", async () => {
+  const f = await fixture(); await send(f, "POST"); const metadata = meta();
+  const [a, b] = await Promise.all([putBytes(f, metadata), putBytes(f, metadata)]);
+  assert.equal([a, b].filter(r => uploadMaterialBytesResponseSchema.parse(r.value).changed).length, 1);
+  const changed = await putBytes(f, metadata, Buffer.alloc(f.bytes.length, 120)); assert.equal(changed.status, 409);
+  assert.equal(productErrorResponseSchema.parse(changed.value).error.code, "IDEMPOTENCY_KEY_REUSED");
+  const wrong = await putBytes(f, meta(), Buffer.alloc(f.bytes.length, 120)); assert.equal(wrong.status, 400);
+  assert.deepEqual(await counts(f.input.objectId), { tickets: 1, commands: 2, audits: 2 });
+});
+test("actual partial HTTP stream waits with auth and material guard released, then original byte completion succeeds", async () => {
+  const f = await fixture(); await send(f, "POST"); const service = runtime.uploads(), original = service.inspectForByteUpload;
+  let ready!: () => void; const inspected = new Promise<void>(resolve => { ready = resolve; });
+  service.inspectForByteUpload = async (...args) => { const saved = await original.apply(service, args); ready(); return saved; };
+  const client = rawPut(f); client.req.write(f.bytes.subarray(0, 1));
+  try {
+    await inspected; const c = await pool.connect();
+    try { await c.query("BEGIN"); await c.query("SET LOCAL lock_timeout='100ms'"); await c.query(`LOCK TABLE ${s}.operators IN SHARE ROW EXCLUSIVE MODE`); await c.query(`SELECT 1 FROM ${s}.material_registry_guard FOR UPDATE`); }
+    finally { await c.query("ROLLBACK"); c.release(); }
+    client.req.end(f.bytes.subarray(1)); const result = await client.result; assert.equal(result.status, 200); uploadMaterialBytesResponseSchema.parse(result.value);
+  } finally { service.inspectForByteUpload = original; client.req.destroy(); }
+});
+test("actual session revoked while raw body is waiting cannot start storage or complete ticket after remaining bytes arrive", async () => {
+  const f = await fixture(); await send(f, "POST"); const service = runtime.uploads(), original = service.inspectForByteUpload;
+  let ready!: () => void; const inspected = new Promise<void>(resolve => { ready = resolve; });
+  service.inspectForByteUpload = async (...args) => { const saved = await original.apply(service, args); ready(); return saved; };
+  const client = rawPut(f); client.req.write(f.bytes.subarray(0, 1));
+  try {
+    await inspected; await pool.query(`UPDATE ${s}.operator_sessions SET revoked_at=clock_timestamp(),revoked_reason='logout' WHERE session_id=$1`, [f.sessionId]);
+    client.req.end(f.bytes.subarray(1)); const result = await client.result; assert.equal(result.status, 401);
+    assert.deepEqual(await counts(f.input.objectId), { tickets: 1, commands: 1, audits: 1 });
+  } finally { service.inspectForByteUpload = original; client.req.destroy(); }
+});
+test("actual caller disconnect and chunked excess cannot turn incomplete request into verified bytes", async () => {
+  for (const kind of ["disconnect", "excess"] as const) {
+    const f = await fixture(); await send(f, "POST"); const service = runtime.uploads(), original = service.inspectForByteUpload;
+    let ready!: () => void; const inspected = new Promise<void>(resolve => { ready = resolve; });
+    service.inspectForByteUpload = async (...args) => { const saved = await original.apply(service, args); ready(); return saved; };
+    const client = rawPut(f, meta(), kind === "excess"); client.req.write(f.bytes.subarray(0, 1));
+    try {
+      await inspected;
+      if (kind === "disconnect") client.req.destroy(); else client.req.end(Buffer.concat([f.bytes.subarray(1), Buffer.from("x")]));
+      const outcome = await client.result.then(r => ({ response: r }), () => ({ response: null }));
+      assert.ok(outcome.response === null || outcome.response.status >= 400);
+      assert.equal((await runtime.uploads().read(f.token, f.input.projectId, f.input.objectId)).status, "pending_bytes");
+      assert.deepEqual(await counts(f.input.objectId), { tickets: 1, commands: 1, audits: 1 });
+    } finally { service.inspectForByteUpload = original; client.req.destroy(); }
+  }
+});
+test("actual stalled binary HTTP hits the production 15-second total deadline, remains pending and can retry original ID", async () => {
+  const f = await fixture(); await send(f, "POST"); const metadata = meta(), client = rawPut(f, metadata); client.req.write(f.bytes.subarray(0, 1));
+  try {
+    const started = performance.now(), outcome = await client.result.then(r => ({ response: r }), () => ({ response: null }));
+    assert.ok(performance.now() - started >= 14000 && performance.now() - started < 18000); assert.ok(outcome.response === null || outcome.response.status === 408);
+    assert.deepEqual(await counts(f.input.objectId), { tickets: 1, commands: 1, audits: 1 });
+    const recovered = await putBytes(f, metadata); assert.equal(recovered.status, 200); assert.equal(uploadMaterialBytesResponseSchema.parse(recovered.value).objectId, f.input.objectId);
+  } finally { client.req.destroy(); }
 });

@@ -175,6 +175,8 @@ WP-10 新增内部 `endpoint-report-core` 只校验签名完整双用途快照�
 
 第五阶段已实际注册MaterialRuntime及`POST /api/operator/projects/:projectId/material-uploads`/`GET .../:objectId`认证票据API。当前Cookie/CSRF/DB钟、最小共享TS/JSON/Python契约；只返必要bytes/status/时间与false许可，不返descriptor/位置/key/凭据。默认无配置新写503、历史read不重新证明当前bytes。显式SG_PRODUCT_MATERIAL_MODE=configured及所有受保护server字段才构造SDK，详见[配置/字段/实际测试及缺口](../../docs/engineering/delivery/records/WP-15-stage5.md)。shutdown关闭自有SDK，不自动发现/创建生产bucket。字节HTTP、素材登记HTTP、UI/准入/Task/手机仍未实现，不能把票据API当整个上传或媒体链路通过。
 
+第六阶段提供同object的`PUT .../material-uploads/:objectId/bytes`，raw application/octet-stream＋x-sg-contract-version/x-request-id/x-idempotency-key、Cookie/CSRF；先实际认证/票据binding，再锁外有界读取与原upload二次认证。HTTP prepare/PUT技术上限16MiB/总读15秒，内部128MiB不等HTTP支持；断开/超时/超量可能关闭连接，必须原ID/key查当前/重试，不自动删除或换ID。成功仅verified历史，两许可false，无下载/登记API/UI/媒体准入或手机Task。新Cookie保留完整值再精确校验，不截断`=`后缀；原P3仍待原窗清零，其他旧消费者统一另接续。见[真实测试/原失败/规模与人工缺口](../../docs/engineering/delivery/records/WP-15-stage6.md)。
+
 ## WP-25 内部分佣核对（无实际收入或付款）
 
 `commission-core`只对明确到账/产生期间/承接及历史统一比例作BigInt精确核对；跨承接/比例不能可靠拆分、配置未定或未知保持pending。确认空档归公司不是缺记录默认，不公开到本人；币种/精度/舍入显式无生产默认。internal_calculation_only没有真实producer、持久去重、本人API或支付，不能将重复纯计算累计为新应付。78位金额/0～12位精度/18位比例只是技术边界，图稿数字不是配置，详见[分佣任务卡](../../docs/engineering/delivery/records/WP-25.md)。

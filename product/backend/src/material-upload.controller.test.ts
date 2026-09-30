@@ -25,6 +25,10 @@ test("upload errors and ambiguous cookies fail without raw configuration or desc
   const controller = new MaterialUploadController({ uploads: () => ({ prepare: async (token: string) => { seen = token; throw new MaterialUploadError("CONFIGURATION_REQUIRED"); }, read: async () => { throw new Error("secret-storage-response"); } }) } as unknown as MaterialRuntime);
   await assert.rejects(controller.prepare(id, input, { headers: { cookie: `__Host-sg_operator_session=${session}; __Host-sg_operator_session=${session}` } }, ""), e => e instanceof HttpException && e.getStatus() === 503 && productErrorResponseSchema.parse(e.getResponse()).error.code === "INTERNAL_ERROR");
   assert.equal(seen, "");
+  for (const suffix of ["=extra", "=", "==", "/extra"]) {
+    await assert.rejects(controller.prepare(id, input, { headers: { cookie: `__Host-sg_operator_session=${session}${suffix}` } }, ""), e => e instanceof HttpException && e.getStatus() === 503);
+    assert.equal(seen, "");
+  }
   await assert.rejects(controller.read(id, id, request), e => e instanceof HttpException && e.getStatus() === 500 && !JSON.stringify(e.getResponse()).includes("secret-storage"));
   const invalidResult = new MaterialUploadController({ uploads: () => ({ read: async () => ({ ...saved, status: "verified_bytes" }) }) } as unknown as MaterialRuntime);
   await assert.rejects(invalidResult.read(id, id, request), e => e instanceof HttpException && e.getStatus() === 500 && productErrorResponseSchema.parse(e.getResponse()).error.code === "INTERNAL_ERROR");

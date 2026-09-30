@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { prepareMaterialUploadRequestSchema, materialUploadTicketViewSchema, prepareMaterialUploadResponseSchema } from "./material-upload.js";
+import { prepareMaterialUploadRequestSchema, materialUploadTicketViewSchema, prepareMaterialUploadResponseSchema, uploadMaterialBytesCommandSchema, uploadMaterialBytesResponseSchema } from "./material-upload.js";
 import { commissionCursorSchema, providerCommissionRecordSchema, listProviderCommissionsResponseSchema } from "./commission.js";
 import { deviceAssistanceTodoSummarySchema, listDeviceAssistanceTodosResponseSchema, recordDeviceAssistanceNoteRequestSchema, recordDeviceAssistanceNoteResponseSchema, providerDeviceAssistanceTodoSummarySchema, listProviderDeviceAssistanceTodosResponseSchema, deviceAssistanceNoteViewSchema, listDeviceAssistanceNotesResponseSchema } from "./device-assistance.js";
 import { phoneActionRequestSchema } from "./action-permission.js";
@@ -82,6 +82,8 @@ export const firstBatchContractRegistry = {
   prepareMaterialUploadRequest: prepareMaterialUploadRequestSchema,
   materialUploadTicketView: materialUploadTicketViewSchema,
   prepareMaterialUploadResponse: prepareMaterialUploadResponseSchema,
+  uploadMaterialBytesCommand: uploadMaterialBytesCommandSchema,
+  uploadMaterialBytesResponse: uploadMaterialBytesResponseSchema,
   commissionCursor: commissionCursorSchema,
   providerCommissionRecord: providerCommissionRecordSchema,
   listProviderCommissionsResponse: listProviderCommissionsResponseSchema,

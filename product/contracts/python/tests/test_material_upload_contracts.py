@@ -31,3 +31,11 @@ class MaterialUploadContractsTest(unittest.TestCase):
         contracts.validate("prepareMaterialUploadResponse", {**row, "changed": False, "replayed": True})
         with self.assertRaises(ContractValidationError):
             contracts.validate("prepareMaterialUploadResponse", {**row, "changed": True, "replayed": True})
+
+    def test_byte_transport_acknowledgement_is_not_pending_or_permission(self):
+        contracts = FirstBatchContracts()
+        row = {**self.row(), "status": "verified_bytes", "verifiedAt": "2026-10-01T00:00:01Z", "changed": True, "replayed": False}
+        contracts.validate("uploadMaterialBytesResponse", row)
+        for patch in ({"status": "pending_bytes", "verifiedAt": None}, {"publicationAllowed": True}, {"replayed": True}):
+            with self.assertRaises(ContractValidationError):
+                contracts.validate("uploadMaterialBytesResponse", {**row, **patch})
