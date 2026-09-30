@@ -147,19 +147,20 @@ export function acceptEndpointReport(input: unknown, authority: unknown, signedI
   const accepted = { reportId: r.reportId, sourceEpoch: r.sourceEpoch, sequence: r.sequence, payloadDigest: digest, endpointRevision: s.endpointRevision, receivedAt: t, signed: { report: r, signature: parsed.data.signature } };
   s.receipts.push(accepted); return { state: parseEndpointReportState(s), disposition: "accepted" as const, receipt: accepted };
 }
-export function readEndpointCandidates(input: unknown, authority: unknown, now: string, maximumAgeMs: number) {
-  const s = parseEndpointReportState(input), a = check(s, authority), t = clock(s, now);
-  if (!Number.isSafeInteger(maximumAgeMs) || maximumAgeMs < 1) return fail("INPUT_INVALID");
+export function endpointReportTimeIsFresh(observedAt: string, now: string, maximumAgeMs: number): boolean {
+  if (!time.safeParse(observedAt).success || !time.safeParse(now).success || !Number.isSafeInteger(maximumAgeMs) || maximumAgeMs < 1) return false;
   const parts = (v: string) => {
     const m = /^(.*:\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})$/.exec(v)!;
     return { seconds: BigInt(Date.parse(`${m[1]}${m[3]}`) / 1000), fraction: m[2] ?? "" };
   };
-  let fresh = false;
-  if (s.lastObservationReceivedAt && s.sequence !== null) {
-    const n = parts(t), r = parts(s.lastObservationReceivedAt), width = Math.max(3, n.fraction.length, r.fraction.length), unit = 10n ** BigInt(width);
-    const age = (n.seconds - r.seconds) * unit + BigInt(n.fraction.padEnd(width, "0")) - BigInt(r.fraction.padEnd(width, "0"));
-    fresh = age >= 0n && age < BigInt(maximumAgeMs) * unit / 1000n;
-  }
+  const n = parts(now), r = parts(observedAt), width = Math.max(3, n.fraction.length, r.fraction.length), unit = 10n ** BigInt(width);
+  const age = (n.seconds - r.seconds) * unit + BigInt(n.fraction.padEnd(width, "0")) - BigInt(r.fraction.padEnd(width, "0"));
+  return age >= 0n && age < BigInt(maximumAgeMs) * unit / 1000n;
+}
+export function readEndpointCandidates(input: unknown, authority: unknown, now: string, maximumAgeMs: number) {
+  const s = parseEndpointReportState(input), a = check(s, authority), t = clock(s, now);
+  if (!Number.isSafeInteger(maximumAgeMs) || maximumAgeMs < 1) return fail("INPUT_INVALID");
+  const fresh = s.lastObservationReceivedAt !== null && s.sequence !== null && endpointReportTimeIsFresh(s.lastObservationReceivedAt, t, maximumAgeMs);
   return s.endpoints.map(e => {
     const pairingCurrent = e.purpose !== "pairing" || (e.pairingSessionId === a.pairingSessionId && a.pairingExpiresAt !== null && compareTimestamps(t, a.pairingExpiresAt)! < 0);
     return fresh && pairingCurrent ? e : { purpose: e.purpose, status: "unknown" as const, port: null, pairingSessionId: null };

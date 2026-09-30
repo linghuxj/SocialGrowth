@@ -1,5 +1,7 @@
 # WP-09 原生发现 P3 整改：IPv4 链路本地地址
 
+2026-10-01后续：b9b1983原非作者75行及原QA93行报告完整读取，原P3实际清零、新增/remaining0，有限组合工程G1通过；原QA新221产品、两变体各31、独立Samsung6生命周期通过但两端点UNKNOWN，原APK/UID恢复，PG151/17组65HTTP明确仅复用。工作树/祖先/旧tip CAS后Developer已从fad快进b9，不包含WP23/WP10。以下保留作者提交时历史，不改写原RED或把UNKNOWN改为发现成功。
+
 2026-09-30；固定基线 da06e9f，fix/wp-09-ipv4-link-local。AND 实施代理 Codex；沿用原只读非作者及原 QA 窗口，EX/BE/OPS/BIZ 协作职责见[任务卡](WP-09.md)。实际人员签收仍待落实。原 b2-b4-next-da06e9f.md 报告完整读取：新增 1 P3；不自行宣布门禁清零。
 
 ## 修复及边界

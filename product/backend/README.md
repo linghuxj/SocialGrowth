@@ -143,9 +143,13 @@ pnpm --filter @socialgrowth/product-backend admission:reconcile -- --limit 100
 
 此命令**不执行实际网络撤权，不建立业务就绪、不解除暂停或退出**；两类真实回收结果均核对后才允许释放候选。定期调度、外部原对象查询／串行策略投递、异常待办与通知分别待后续实现和真实资源验证。当前根`pnpm dev`、Nest启动和设备worker都不自动运行该命令。
 
-## WP-11 内部调用日志（未开放执行）
+## WP-10 内部端点报告（未开放真实上报）
 
 WP-10 新增内部 `endpoint-report-core` 只校验签名完整双用途快照、来源epoch/BigInt序号及回执账本。缓存观察的新序号不刷新端点观察计时，旧ID恢复原回执不回退当前状态；配对过期只留回执、不再返回配对候选。重新载入须重建与验签；全历史数组不是已完成生产持久化/容量方案。authority/serverNow 只能由可信内部生产者提供，没有HTTP/数据库/Android上报注册，不授动作许可或解除暂停/退出，源码时间字段不证明当前NSD或来源。真实职责和后续持久/认证/目标/恢复缺口见[WP10任务卡](../../docs/engineering/delivery/records/WP-10.md)。
+
+阶段二 `EndpointReportJournal` 增加0015持久快照/回执，真实安装bearer与当前归属/已准入绑定在同事务内重查；来源接口缺省null在连库前关闭。可信来源观察在事务/锁前完成，有3秒技术超时与AbortSignal；锁后及提交前以实际DB微秒钟再校验来源和会话，不在长事务等外部网络。该接口没有实际LocalAPI实现、Nest/HTTP或Android发送接线；测试来源是合成非UI seam，不是已验证独立来源。配对session未持久接线，本层只允许pairing未知/撤销，不允许真实配对候选。保存、回执、最小审计同事务，行数核验，默认不派动作/队列或新网络许可。完整记录及后续范围见[持久阶段](../../docs/engineering/delivery/records/WP-10-stage2.md)。
+
+## WP-11 内部调用日志（未开放执行）
 
 `PhoneControlJournal`仅保存控制记录和调用／停止历史，不注册HTTP、Nest provider或消费者；新记录默认`stop_requested`，没有持有者取得／重新启用接口。`initialize`、`apply`与审计原子提交；锁序设备→journal，旧版本／同键异载荷拒绝，重复请求返回当前记录及`replayed=true`，绝不能重新执行手机调用。未知调用及原持有者在重启后保留；停止三类证据仅供可信内部适配。
 
