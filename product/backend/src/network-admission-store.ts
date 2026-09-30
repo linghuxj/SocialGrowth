@@ -115,8 +115,118 @@ async function audit(client: PoolClient, r: AdmissionRecord, requestKey: string,
   );
 }
 
+async function saveRecord(client: PoolClient, next: AdmissionRecord): Promise<void> {
+  parseAdmissionRecord(next);
+  await client.query(
+    `UPDATE ${schema}.network_enrollments SET version=$2,phase=$3,record=$4,candidate_node_id=$5 WHERE enrollment_id=$1`,
+    [next.enrollmentId, next.version, next.phase, next, next.node?.nodeId ?? next.challenge?.node.nodeId ?? null],
+  );
+}
+
+async function scheduleReclamation(client: PoolClient, next: AdmissionRecord): Promise<void> {
+  await client.query(
+    `UPDATE ${schema}.network_operation_intents SET status='cancelled' WHERE enrollment_id=$1 AND status='pending'
+       AND kind IN ('apply_restricted_policy','issue_restricted_credential','apply_formal_policy')`, [next.enrollmentId],
+  );
+  await intent(client, next, "revoke_credential");
+  await intent(client, next, "revoke_node_access");
+}
+
+function currentAuthority(row: EnrollmentRow, record: AdmissionRecord, current: CurrentAssociation | null): AdmissionAuthority {
+  return {
+    ...record.authority, installationGeneration: current?.generation ?? record.authority.installationGeneration,
+    ownershipVersion: current?.fact_version ?? record.authority.ownershipVersion,
+    eligible: !!current?.eligible && current.association_id === row.association_id && current.provider_id === row.provider_id
+      && current.device_id === row.device_id,
+  };
+}
+
+export interface AdmissionReconciliationBatch {
+  examined: number;
+  reclamationRequested: number;
+  unchanged: number;
+  failures: { enrollmentId: string; code: string }[];
+  nextCursor: string | null;
+}
+
 export class NetworkAdmissionStore {
   constructor(private readonly pool: Pool) {}
+
+  // Single bounded pass, no worker/HTTP or external effects. The scheduler must
+  // resume nextCursor until null, then start a new sweep. Failed rows do not
+  // silently stop other devices, and never lose their actual remaining access.
+  async reconcileBatch(limit = 100, afterEnrollmentId: string | null = null): Promise<AdmissionReconciliationBatch> {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000
+      || (afterEnrollmentId !== null && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(afterEnrollmentId))) {
+      throw new Error("Invalid admission reconciliation scope");
+    }
+    let candidates: { enrollment_id: string }[];
+    try {
+      const result = await this.pool.query<{ enrollment_id: string }>(
+        `SELECT e.enrollment_id FROM ${schema}.network_enrollments e
+         LEFT JOIN ${schema}.installations i ON i.installation_id=e.installation_id
+         LEFT JOIN ${schema}.device_associations a ON a.association_id=e.association_id
+         LEFT JOIN ${schema}.providers p ON p.provider_id=e.provider_id
+         LEFT JOIN ${schema}.devices d ON d.device_id=e.device_id
+         WHERE e.phase NOT IN ('reclaim_pending','reclaimed') AND ($2::uuid IS NULL OR e.enrollment_id>$2::uuid)
+           AND ((e.phase<>'admitted' AND e.expires_at<=clock_timestamp())
+             OR i.status<>'active' OR p.status<>'active' OR a.ended_at IS NOT NULL
+             OR d.state IN ('unassociated','exit_pending','exited')
+             OR i.generation::text<>e.record->'authority'->>'installationGeneration'
+             OR d.fact_version::text<>e.record->'authority'->>'ownershipVersion')
+         ORDER BY e.enrollment_id LIMIT $1`, [limit, afterEnrollmentId],
+      );
+      candidates = result.rows;
+    } catch { throw new Error("Admission reconciliation scan unavailable"); }
+    const batch: AdmissionReconciliationBatch = {
+      examined: candidates.length, reclamationRequested: 0, unchanged: 0, failures: [],
+      nextCursor: candidates.length === limit ? candidates.at(-1)!.enrollment_id : null,
+    };
+    for (const candidate of candidates) {
+      try {
+        const changed = await transact(this.pool, async (client) => {
+          await client.query("SET LOCAL lock_timeout='5s'");
+          const locator = await client.query<{ installation_id: string }>(
+            `SELECT installation_id FROM ${schema}.network_enrollments WHERE enrollment_id=$1`, [candidate.enrollment_id],
+          );
+          if (!locator.rows[0]) return false;
+          const current = await lockAuthority(client, locator.rows[0].installation_id);
+          const result = await client.query<EnrollmentRow>(
+            `SELECT * FROM ${schema}.network_enrollments WHERE enrollment_id=$1 FOR UPDATE`, [candidate.enrollment_id],
+          );
+          const row = result.rows[0];
+          if (!row) return false;
+          const record = parseAdmissionRecord(row.record);
+          if (record.phase === "reclaim_pending" || record.phase === "reclaimed") return false;
+          const authority = currentAuthority(row, record, current);
+          // Re-evaluate under the same provider->installation->association/device
+          // locks as upgrades. A scan observation cannot revoke a later success.
+          const now = await dbNow(client);
+          const invalid = !authority.eligible || authority.installationGeneration !== record.authority.installationGeneration
+            || authority.ownershipVersion !== record.authority.ownershipVersion;
+          const expired = record.phase !== "admitted" && Date.parse(now) >= Date.parse(record.expiresAt);
+          if (!invalid && !expired) return false;
+          const reason = invalid ? "authority_changed" : "enrollment_expired";
+          const next = requestReclamation(record, record.version, reason);
+          const requestKey = `maintenance_${randomUUID().replaceAll("-", "")}`;
+          await saveRecord(client, next);
+          await client.query(
+            `INSERT INTO ${schema}.network_enrollment_commands(enrollment_id,request_key,payload_digest,applied_version,command_kind)
+               VALUES($1,$2,$3,$4,'request_reclamation')`,
+            [next.enrollmentId, requestKey, digest(canonical({ expectedVersion: record.version, command: { kind: "request_reclamation", reason } })), next.version],
+          );
+          await scheduleReclamation(client, next);
+          await audit(client, next, requestKey, "network_enrollment.reconciled_reclamation");
+          return true;
+        });
+        if (changed) batch.reclamationRequested++; else batch.unchanged++;
+      } catch (error) {
+        batch.failures.push({ enrollmentId: candidate.enrollment_id,
+          code: error instanceof AdmissionError ? error.code : "RECONCILIATION_FAILED" });
+      }
+    }
+    return batch;
+  }
 
   async begin(context: AuthenticatedInstallation, publicKeySpki: string, requestKey: string): Promise<AdmissionRecord> {
     key(requestKey);
@@ -183,12 +293,7 @@ export class NetworkAdmissionStore {
       if (!row) throw new AdmissionError("AUTHORITY_CHANGED");
       const record = parseAdmissionRecord(row.record);
       const cleanup = command.kind === "request_reclamation" || command.kind === "confirm_reclamation";
-      const authority: AdmissionAuthority = {
-        ...record.authority, installationGeneration: current?.generation ?? record.authority.installationGeneration,
-        ownershipVersion: current?.fact_version ?? record.authority.ownershipVersion,
-        eligible: !!current?.eligible && current.association_id === row.association_id && current.provider_id === row.provider_id
-          && current.device_id === row.device_id,
-      };
+      const authority = currentAuthority(row, record, current);
       if (!cleanup && (!authority.eligible
         || authority.installationGeneration !== record.authority.installationGeneration
         || authority.ownershipVersion !== record.authority.ownershipVersion)) throw new AdmissionError("AUTHORITY_CHANGED");
@@ -211,12 +316,7 @@ export class NetworkAdmissionStore {
         case "request_reclamation": next = requestReclamation(record, expectedVersion, command.reason); break;
         case "confirm_reclamation": next = confirmReclamation(record, expectedVersion, command.evidence, now); break;
       }
-      parseAdmissionRecord(next);
-      const candidateNode = next.node?.nodeId ?? next.challenge?.node.nodeId ?? null;
-      await client.query(
-        `UPDATE ${schema}.network_enrollments SET version=$2,phase=$3,record=$4,candidate_node_id=$5 WHERE enrollment_id=$1`,
-        [enrollmentId, next.version, next.phase, next, candidateNode],
-      );
+      await saveRecord(client, next);
       await client.query(
         `INSERT INTO ${schema}.network_enrollment_commands(enrollment_id,request_key,payload_digest,applied_version,command_kind)
            VALUES($1,$2,$3,$4,$5)`, [enrollmentId, requestKey, fingerprint, next.version, command.kind],
@@ -224,12 +324,7 @@ export class NetworkAdmissionStore {
       if (command.kind === "confirm_restriction") await intent(client, next, "issue_restricted_credential");
       if (command.kind === "request_permission") await intent(client, next, "apply_formal_policy");
       if (command.kind === "request_reclamation" && next.reclamationId !== record.reclamationId) {
-        await client.query(
-          `UPDATE ${schema}.network_operation_intents SET status='cancelled' WHERE enrollment_id=$1 AND status='pending'
-             AND kind IN ('apply_restricted_policy','issue_restricted_credential','apply_formal_policy')`, [enrollmentId],
-        );
-        await intent(client, next, "revoke_credential");
-        await intent(client, next, "revoke_node_access");
+        await scheduleReclamation(client, next);
       }
       if (command.kind === "confirm_reclamation") {
         for (const [confirmed, kind] of [[next.credentialRevoked, "revoke_credential"], [next.nodeAccessRevoked, "revoke_node_access"]] as const) {

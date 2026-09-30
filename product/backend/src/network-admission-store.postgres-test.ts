@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync, randomUUID, sign } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
 import { after, before, test } from "node:test";
 import { Pool } from "pg";
 
@@ -281,5 +284,198 @@ test("provider-first lock order does not deadlock against existing association c
     await holder.query("ROLLBACK");
     holder.release();
     if (pending) await pending;
+  }
+});
+
+async function admittedFixture() {
+  const f = await challengedFixture();
+  const verified = await store.apply(f.record.enrollmentId, f.challenged.version, requestKey(), {
+    kind: "consume_proof", proof: f.proof, source: await source(f.nodeId),
+  });
+  const pending = await store.apply(f.record.enrollmentId, verified.version, requestKey(), {
+    kind: "request_permission", source: await source(f.nodeId), policyRevision: 2,
+  });
+  const admitted = await store.apply(f.record.enrollmentId, pending.version, requestKey(), {
+    kind: "confirm_permission", source: await source(f.nodeId), evidence: {
+      ...scope(pending), node: sourceNode(f.nodeId), evidenceId: requestKey(), policyRevision: 2,
+      checkedAt: await clock(), requiredPathsVerified: true, forbiddenPathsDenied: true,
+    },
+  });
+  return { ...f, admitted };
+}
+
+// Aging is a non-UI clock fixture, never a business acceptance shortcut.
+async function age(record: AdmissionRecord): Promise<void> {
+  const time = Date.parse(await clock());
+  const old = {
+    ...record, createdAt: new Date(time - 1_200_000).toISOString(), expiresAt: new Date(time - 600_000).toISOString(),
+    challenge: record.challenge ? { ...record.challenge,
+      issuedAt: new Date(time - 1_100_000).toISOString(), expiresAt: new Date(time - 1_040_000).toISOString(),
+    } : null,
+  };
+  await pool.query(`UPDATE socialgrowth_product.network_enrollments SET created_at=$2,expires_at=$3,record=$4 WHERE enrollment_id=$1`,
+    [old.enrollmentId, old.createdAt, old.expiresAt, old]);
+}
+async function saved(id: string): Promise<AdmissionRecord> {
+  return (await pool.query<{ record: AdmissionRecord }>(`SELECT record FROM socialgrowth_product.network_enrollments WHERE enrollment_id=$1`, [id])).rows[0]!.record;
+}
+
+test("maintenance expires unfinished admission only, retains candidate until actual two-part reclamation", async () => {
+  await store.reconcileBatch(1000);
+  const fresh = await fixture(), waiting = await fixture(), challenged = await challengedFixture(), admitted = await admittedFixture();
+  await age(waiting.record); await age(challenged.challenged); await age(admitted.admitted);
+  const batch = await new NetworkAdmissionStore(pool).reconcileBatch(1000);
+  assert.equal(batch.failures.length, 0);
+  assert.equal(batch.reclamationRequested, 2);
+  for (const id of [waiting.record.enrollmentId, challenged.record.enrollmentId]) {
+    const r = await saved(id);
+    assert.equal(r.phase, "reclaim_pending");
+    assert.equal(r.reclaimReason, "enrollment_expired");
+    assert.equal(r.credentialRevoked, false); assert.equal(r.nodeAccessRevoked, false);
+    const jobs = await pool.query<{ kind: string; status: string }>(`SELECT kind,status FROM socialgrowth_product.network_operation_intents WHERE enrollment_id=$1`, [id]);
+    assert.equal(jobs.rows.filter(j => j.status === "pending").length, 2);
+  }
+  assert.deepEqual((await saved(challenged.record.enrollmentId)).node, sourceNode(challenged.nodeId));
+  assert.equal((await saved(fresh.record.enrollmentId)).phase, "awaiting_restriction");
+  assert.equal((await saved(admitted.record.enrollmentId)).phase, "admitted", "10 minute admission window is not an admitted network lease");
+  assert.equal((await store.reconcileBatch(1000)).reclamationRequested, 0);
+});
+
+test("maintenance reclaims invalid current authority including already admitted access", async () => {
+  for (const change of ["installation", "generation", "association", "provider", "ownership", "exit"] as const) {
+    const f = await admittedFixture();
+    switch (change) {
+      case "installation": await pool.query(`UPDATE socialgrowth_product.installations SET status='revoked' WHERE installation_id=$1`, [f.context.installationId]); break;
+      case "generation": await pool.query(`UPDATE socialgrowth_product.installations SET generation=generation+1 WHERE installation_id=$1`, [f.context.installationId]); break;
+      case "association": await pool.query(`UPDATE socialgrowth_product.device_associations SET ended_at=clock_timestamp() WHERE association_id=$1`, [f.associationId]); break;
+      case "provider": await pool.query(`UPDATE socialgrowth_product.providers SET status='disabled' WHERE provider_id=$1`, [f.providerId]); break;
+      case "ownership": await pool.query(`UPDATE socialgrowth_product.devices SET fact_version=fact_version+1 WHERE device_id=$1`, [f.record.authority.deviceId]); break;
+      case "exit": await pool.query(`UPDATE socialgrowth_product.devices SET state='exit_pending' WHERE device_id=$1`, [f.record.authority.deviceId]); break;
+    }
+    const batch = await store.reconcileBatch(1000);
+    assert.equal(batch.failures.length, 0);
+    const r = await saved(f.record.enrollmentId);
+    assert.equal(r.phase, "reclaim_pending", change);
+    assert.equal(r.reclaimReason, "authority_changed", change);
+    assert.equal(r.formalEvidenceId, f.admitted.formalEvidenceId, "historical permission evidence is not erased");
+  }
+});
+
+test("two maintenance processes schedule one reclamation and keep unrelated fresh enrollments", async () => {
+  await store.reconcileBatch(1000);
+  const f = await fixture(), fresh = await fixture();
+  await age(f.record);
+  const batches = await Promise.all([store.reconcileBatch(1000), new NetworkAdmissionStore(pool).reconcileBatch(1000)]);
+  assert.equal(batches.reduce((sum, b) => sum + b.reclamationRequested, 0), 1);
+  const counts = await pool.query<{ intents: string; commands: string; audits: string }>(`SELECT
+    (SELECT count(*) FROM socialgrowth_product.network_operation_intents WHERE enrollment_id=$1 AND status='pending')::text AS intents,
+    (SELECT count(*) FROM socialgrowth_product.network_enrollment_commands WHERE enrollment_id=$1)::text AS commands,
+    (SELECT count(*) FROM socialgrowth_product.audit_records WHERE object_id=$1 AND action='network_enrollment.reconciled_reclamation')::text AS audits`, [f.record.enrollmentId]);
+  assert.deepEqual(counts.rows[0], { intents: "2", commands: "1", audits: "1" });
+  assert.equal((await saved(fresh.record.enrollmentId)).version, 0);
+});
+
+test("maintenance checks current authority again after provider lock waiting", async () => {
+  const f = await fixture();
+  await pool.query(`UPDATE socialgrowth_product.providers SET status='disabled' WHERE provider_id=$1`, [f.providerId]);
+  const holder = await pool.connect();
+  let pending: Promise<Awaited<ReturnType<typeof store.reconcileBatch>>> | null = null;
+  try {
+    await holder.query("BEGIN");
+    await holder.query(`UPDATE socialgrowth_product.providers SET status='active' WHERE provider_id=$1`, [f.providerId]);
+    pending = store.reconcileBatch(1000);
+    let waiting = false;
+    const deadline = Date.now() + 3000;
+    while (Date.now() < deadline) {
+      const state = await pool.query<{ waiting: boolean }>(`SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE '%providers%FOR UPDATE%') AS waiting`);
+      if (state.rows[0]?.waiting) { waiting = true; break; }
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    assert.equal(waiting, true);
+    await holder.query("COMMIT");
+    const batch = await pending;
+    assert.equal(batch.failures.length, 0);
+    assert.equal(batch.reclamationRequested, 0);
+    assert.equal((await saved(f.record.enrollmentId)).phase, "awaiting_restriction");
+  } finally {
+    await holder.query("ROLLBACK"); holder.release();
+    if (pending) await pending;
+  }
+});
+
+test("one failed reclamation rolls back all facts, does not stop other devices, and retries safely", async () => {
+  const failed = await fixture(), healthy = await fixture();
+  await age(failed.record); await age(healthy.record);
+  await pool.query(`CREATE FUNCTION socialgrowth_product.fail_one_reconciliation() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+    IF NEW.enrollment_id='${failed.record.enrollmentId}'::uuid THEN RAISE EXCEPTION 'secret-reconciliation-marker'; END IF; RETURN NEW; END $$`);
+  await pool.query(`CREATE TRIGGER fail_one_reconciliation BEFORE INSERT ON socialgrowth_product.network_operation_intents FOR EACH ROW EXECUTE FUNCTION socialgrowth_product.fail_one_reconciliation()`);
+  try {
+    const batch = await store.reconcileBatch(1000);
+    assert.deepEqual(batch.failures, [{ enrollmentId: failed.record.enrollmentId, code: "RECONCILIATION_FAILED" }]);
+    assert.equal(batch.reclamationRequested, 1);
+    assert.equal((await saved(failed.record.enrollmentId)).version, 0);
+    assert.equal((await saved(healthy.record.enrollmentId)).phase, "reclaim_pending");
+    const counts = await pool.query<{ commands: string; cancelled: string; audits: string }>(`SELECT
+      (SELECT count(*) FROM socialgrowth_product.network_enrollment_commands WHERE enrollment_id=$1)::text AS commands,
+      (SELECT count(*) FROM socialgrowth_product.network_operation_intents WHERE enrollment_id=$1 AND status='cancelled')::text AS cancelled,
+      (SELECT count(*) FROM socialgrowth_product.audit_records WHERE object_id=$1 AND action='network_enrollment.reconciled_reclamation')::text AS audits`, [failed.record.enrollmentId]);
+    assert.deepEqual(counts.rows[0], { commands: "0", cancelled: "0", audits: "0" });
+  } finally {
+    await pool.query("DROP TRIGGER fail_one_reconciliation ON socialgrowth_product.network_operation_intents");
+    await pool.query("DROP FUNCTION socialgrowth_product.fail_one_reconciliation()");
+  }
+  assert.equal((await store.reconcileBatch(1000)).reclamationRequested, 1);
+});
+
+test("bounded maintenance cursor advances past a failed row without falsely releasing its node", async () => {
+  const bad = await challengedFixture(), good = await fixture();
+  await age(bad.challenged); await age(good.record);
+  const original = await saved(bad.record.enrollmentId);
+  await pool.query(`UPDATE socialgrowth_product.network_enrollments SET record=jsonb_set(record,'{publicKeySpki}','"bad-key"') WHERE enrollment_id=$1`, [bad.record.enrollmentId]);
+  const failures: string[] = [];
+  let cursor: string | null = null;
+  const seen = new Set<string>();
+  do {
+    const batch = await store.reconcileBatch(1, cursor);
+    for (const failure of batch.failures) failures.push(failure.enrollmentId);
+    cursor = batch.nextCursor;
+    if (cursor) { assert.equal(seen.has(cursor), false); seen.add(cursor); }
+  } while (cursor);
+  assert.deepEqual(failures, [bad.record.enrollmentId]);
+  assert.equal((await saved(good.record.enrollmentId)).phase, "reclaim_pending");
+  const claim = await pool.query<{ candidate_node_id: string; phase: string }>(`SELECT candidate_node_id,phase FROM socialgrowth_product.network_enrollments WHERE enrollment_id=$1`, [bad.record.enrollmentId]);
+  assert.equal(claim.rows[0]?.candidate_node_id, bad.nodeId);
+  assert.equal(claim.rows[0]?.phase, "restricted");
+  await pool.query(`UPDATE socialgrowth_product.network_enrollments SET record=$2 WHERE enrollment_id=$1`, [original.enrollmentId, original]);
+  assert.equal((await store.reconcileBatch(1000)).reclamationRequested, 1);
+});
+
+const exec = promisify(execFile);
+const cliPath = fileURLToPath(new URL("./network-admission-reconcile.ts", import.meta.url));
+test("opt-in maintenance CLI runs one isolated batch, replays safely and exits without a daemon", async () => {
+  const f = await fixture(); await age(f.record);
+  const env = { ...process.env, SG_PRODUCT_DATABASE_URL: databaseUrl, SG_PRODUCT_ADMISSION_RECONCILE_ENABLED: "1" };
+  const first = await exec(process.execPath, ["--import", "tsx", cliPath, "--limit", "100"], { env, timeout: 15_000 });
+  const batch: unknown = JSON.parse(first.stdout);
+  assert.ok(typeof batch === "object" && batch !== null && "reclamationRequested" in batch && batch.reclamationRequested === 1);
+  assert.equal(first.stderr, "");
+  assert.equal((await saved(f.record.enrollmentId)).phase, "reclaim_pending");
+  const second = await exec(process.execPath, ["--import", "tsx", cliPath], { env, timeout: 15_000 });
+  const replay: unknown = JSON.parse(second.stdout);
+  assert.ok(typeof replay === "object" && replay !== null && "examined" in replay && replay.examined === 0);
+});
+
+test("maintenance CLI stays disabled by default and never prints sensitive connection failures", async () => {
+  for (const env of [
+    { ...process.env, SG_PRODUCT_DATABASE_URL: databaseUrl, SG_PRODUCT_ADMISSION_RECONCILE_ENABLED: "0" },
+    { ...process.env, SG_PRODUCT_DATABASE_URL: "postgresql://secret-cli-marker@127.0.0.1:1/not-real", SG_PRODUCT_ADMISSION_RECONCILE_ENABLED: "1" },
+  ]) {
+    await assert.rejects(exec(process.execPath, ["--import", "tsx", cliPath], { env, timeout: 15_000 }), (error: unknown) => {
+      assert.ok(typeof error === "object" && error !== null && "stdout" in error && "stderr" in error && "code" in error);
+      assert.equal(error.code, 1);
+      assert.equal(error.stdout, "");
+      assert.equal(error.stderr, "[admission-reconcile] Batch failed; no external revocation success asserted\n");
+      return true;
+    });
   }
 });

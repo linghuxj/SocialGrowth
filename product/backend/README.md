@@ -11,6 +11,7 @@ WP-01 开始建立正式权威数据模型：
 - [`0002_provider_phone_auth.sql`](migrations/0002_provider_phone_auth.sql)：短信挑战状态、重发/尝试限制和用途绑定；须在 0001 后执行。
 - [`0003_provider_auth_recovery.sql`](migrations/0003_provider_auth_recovery.sql)：为已发布 0002 增加 proof/session 响应恢复关联；保留既有行并允许旧会话关联为空。
 - [`0004_installation_bootstrap_admission.sql`](migrations/0004_installation_bootstrap_admission.sql)：记录不含原始地址的安装引导准入事实，为来源和全局数据库限流提供并发一致的计数。
+- [`0005_network_admission.sql`](migrations/0005_network_admission.sql)：新增网络接入、幂等命令与外部意图，候选节点／当前设备唯一占用；撤权意图绑定回收ID并分别确认。未开放网络接口或 worker。
 
 迁移当前是待后端迁移执行器消费的前向 SQL；未在真实 PostgreSQL 执行前，不得将其记为迁移或并发验收通过。
 
@@ -95,3 +96,18 @@ X-Development-Sms-Token: <independent development token>
 ```
 
 响应只包含 `challengeId` 和验证码，并固定 `Cache-Control: no-store`。验证码仅保存在当前后端进程内，随原 challenge 同时过期，不写数据库、审计或普通日志；进程重启后不能恢复。该接口不得经公网、反向代理或正式客户端暴露，也不证明短信送达。后续真实供应商实现只替换 `SmsDeliveryPort`，不得改变挑战、限流、用途绑定、proof、注册配额或会话语义。
+
+## WP-08 接入失效回收维护
+
+`NetworkAdmissionStore` 为未注册 HTTP 的内部控制平面；受限策略／凭据／正式策略均仅形成待处理意图，真实适配和来源通道未接通。阶段四提供单批 `reconcileBatch` 和默认关闭的单次 CLI：未完成准入超过接入窗口、当前资格／归属／安装代次失效时，在既有提供者→安装→归属／设备→接入锁内重新判断，原子进入回收待处理、取消未投递升级、登记两种撤权及审计。已正常准入不因10分钟接入窗口被当成网络租约到期，但当前资格变化仍回收。
+
+仅由受控 OPS 环境显式启用，数据库须已执行0001～0005，禁止借用 Demo 或其他项目库。维护执行会修改真实接入状态，不能当作只读检查：
+
+```sh
+SG_PRODUCT_ADMISSION_RECONCILE_ENABLED=1 \
+pnpm --filter @socialgrowth/product-backend admission:reconcile -- --limit 100
+```
+
+`SG_PRODUCT_DATABASE_URL` 从受控环境提供，不放入命令参数、报告或普通日志。输出单批统计、失败接入ID／固定错误码及`nextCursor`；有失败退出1，成功退出0，没有后台守护。存在游标则用 `--cursor <nextCursor>` 接续，直到null；下一完整扫描从无cursor开始。每行事务锁等待候选保护为5秒，超时失败记录，不跳过为成功；不是生产延迟承诺。失败行保留原事实和唯一节点占用，继续其他行并在后续轮次重试／人工排障。
+
+此命令**不执行实际网络撤权，不建立业务就绪、不解除暂停或退出**；两类真实回收结果均核对后才允许释放候选。定期调度、外部原对象查询／串行策略投递、异常待办与通知分别待后续实现和真实资源验证。当前根`pnpm dev`、Nest启动和设备worker都不自动运行该命令。
