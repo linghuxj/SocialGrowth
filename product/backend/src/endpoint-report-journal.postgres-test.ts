@@ -33,7 +33,7 @@ before(async () => {
   for (const file of files) await pool.query(await readFile(new URL(file, migrations), "utf8"));
   assert.equal((await pool.query(`SELECT 1 FROM ${s}.endpoint_report_journals`)).rowCount, 0);
   await pool.query(`DROP SCHEMA ${s} CASCADE`);
-  for (const file of files.filter(v => !v.startsWith("0015_"))) await pool.query(await readFile(new URL(file, migrations), "utf8"));
+  for (const file of files.filter(v => v < "0015_")) await pool.query(await readFile(new URL(file, migrations), "utf8"));
   previousInstallation = (await bootstrap()).installation.installationId;
   await pool.query(await readFile(new URL("0015_endpoint_report_journal.sql", migrations), "utf8"));
 });

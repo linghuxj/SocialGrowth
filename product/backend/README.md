@@ -151,6 +151,8 @@ WP-10 新增内部 `endpoint-report-core` 只校验签名完整双用途快照�
 
 阶段三 `connection-maintenance-budget` 是独立纯预算：明确内部限额，无假任务、不采用草案生产默认；次数/耗时跨端点、重载及成功不清零，未知调用继续占位、人工门禁不由迟到成功清除。有任务必须同时满足真实任务预算，无任务null只由权威内部来源提供。返回budgetsAvailable不是动作许可，两份观察副本须共同持久后才可进入未来执行；没有持久/当前任务resolver/HTTP或消费者。详见[维护预算阶段](../../docs/engineering/delivery/records/WP-10-stage3.md)。
 
+阶段四 `ConnectionMaintenanceStore`/0016增内部持久维护round和command；当前DB-only context resolver缺省关闭，不冒充实际来源/任务生产者。旧键只返回当前state与joint=null；有任务明确禁止maintenance-only begin，联合分配尚未实现。共同观察在device→maintenance→task锁后按DB钟计双方账本，双方command/audit同事务且检查真实影响行数；不授动作或解除pause/exit。详见[持久维护阶段](../../docs/engineering/delivery/records/WP-10-stage4.md)。
+
 ## WP-11 内部调用日志（未开放执行）
 
 `PhoneControlJournal`仅保存控制记录和调用／停止历史，不注册HTTP、Nest provider或消费者；新记录默认`stop_requested`，没有持有者取得／重新启用接口。`initialize`、`apply`与审计原子提交；锁序设备→journal，旧版本／同键异载荷拒绝，重复请求返回当前记录及`replayed=true`，绝不能重新执行手机调用。未知调用及原持有者在重启后保留；停止三类证据仅供可信内部适配。
