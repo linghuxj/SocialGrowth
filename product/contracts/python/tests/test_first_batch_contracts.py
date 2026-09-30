@@ -41,6 +41,19 @@ class FirstBatchContractsTest(unittest.TestCase):
             with self.assertRaises(ContractValidationError):
                 self.contracts.validate("enrollmentChallenge", {**challenge, **patch})
 
+    def test_control_action_is_strict_independent_and_never_grants_permission(self) -> None:
+        action = {
+            "protocolVersion": "2026-09-30.control-v1", "deviceId": self.installation_id,
+            "holderId": self.installation_id, "controlGeneration": "9007199254740993",
+            "authorizationId": self.installation_id, "taskAttemptId": self.installation_id,
+            "actionId": self.installation_id, "purpose": "business", "kind": "read_screen",
+        }
+        self.contracts.validate("phoneActionRequest", action)
+        for patch in ({"permissionGranted": True}, {"kind": "shell"}, {"controlGeneration": 1},
+                      {"protocolVersion": "wrong"}, {"purpose": "unrestricted"}):
+            with self.assertRaises(ContractValidationError):
+                self.contracts.validate("phoneActionRequest", {**action, **patch})
+
     def test_accepts_versioned_qr_and_installation_view(self) -> None:
         self.contracts.validate(
             "associationQrPayload",

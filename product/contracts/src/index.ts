@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+export * from "./action-permission.js";
 export * from "./association.js";
 export * from "./common.js";
 export * from "./device-facts.js";

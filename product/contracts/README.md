@@ -42,6 +42,8 @@ WP-08 阶段一新增 CT-05 `enrollmentChallenge`、`enrollmentProof` 和 `nodeI
 
 ## 生成与检查
 
+WP-11阶段一新增独立`protocolVersion=2026-09-30.control-v1`的CT-06 `phoneActionRequest`：目标、持有者、控制代次、授权、任务尝试、单次动作、用途和固定动作类别。Zod／JSON Schema／Python拒绝客户端`permissionGranted`、任意shell、未知字段和旧版本，代次保持字符串。它是请求格式，不是许可凭证；当前没有HTTP、Kotlin或Artemis消费、持久动作原子许可及实际工具类别/参数映射，不能因请求解析成功执行手机。B1及CT-05 Kotlin产物不变，新协议真实消费仍待后续阶段。
+
 ```sh
 pnpm --filter @socialgrowth/product-contracts check
 pnpm --filter @socialgrowth/product-contracts test

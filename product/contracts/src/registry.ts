@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { phoneActionRequestSchema } from "./action-permission.js";
 
 import {
   associationQrPayloadSchema,
@@ -73,6 +74,7 @@ import {
 } from "./status.js";
 
 export const firstBatchContractRegistry = {
+  phoneActionRequest: phoneActionRequestSchema,
   enrollmentChallenge: enrollmentChallengeSchema,
   enrollmentProof: enrollmentProofSchema,
   nodeIdentity: nodeIdentitySchema,
