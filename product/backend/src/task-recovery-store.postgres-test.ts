@@ -109,6 +109,27 @@ test("unknown publication is verified only; R-075 time limit does not convert it
   assert.equal(observed.elapsedMs, 0);
   await assert.rejects(store.apply(f.scope, observed.version, key(), { kind: "begin", recoveryId: randomUUID(), fault: "page_load", submission: "pre_submission" }), RecoveryBudgetError);
 });
+test("accepted long-fraction history is charged exactly after restart and cannot fund another recovery", async () => {
+  const f = await fixture();
+  // Synthetic history only; use an independent integer picosecond oracle.
+  const seconds = await pool.query<{ value: string }>("SELECT to_char(clock_timestamp() AT TIME ZONE 'UTC' - interval '301 seconds','YYYY-MM-DD\"T\"HH24:MI:SS') value");
+  const old = `${seconds.rows[0]!.value}.094603526542Z`;
+  const initial = { ...f.record, createdAt: old, observedAt: old };
+  const running = (await import("./task-recovery-budget.js")).beginTaskRecovery(initial, f.scope, randomUUID(), "network", old, "pre_submission");
+  await pool.query("UPDATE socialgrowth_product.task_recovery_rounds SET version=1,phase='recovering',record=$2 WHERE task_attempt_id=$1", [f.scope.taskAttemptId, running]);
+  const result = await end(f, running);
+  const ticks = (value: string) => {
+    const match = /^(.*:\d\d)(?:\.(\d+))?Z$/.exec(value)!;
+    return BigInt(Date.parse(`${match[1]}Z`)) * 1_000_000_000n + BigInt((match[2] ?? "").padEnd(12, "0"));
+  };
+  assert.equal(result.elapsedMs, Number((ticks(result.observedAt) - ticks(old) + 999_999_999n) / 1_000_000_000n));
+  assert.equal(result.phase, "human_required");
+  assert.equal(result.reason, "time_limit");
+  await assert.rejects(start(f, result), (error: unknown) => error instanceof RecoveryBudgetError && error.code === "AUTOMATIC_RECOVERY_BLOCKED");
+  assert.deepEqual(await new TaskRecoveryStore(pool).read(f.scope), result);
+  await pool.query("UPDATE socialgrowth_product.task_recovery_rounds SET record=$2 WHERE task_attempt_id=$1", [f.scope.taskAttemptId, { ...result, elapsedMs: result.elapsedMs - 852 }]);
+  await assert.rejects(store.read(f.scope), (error: unknown) => error instanceof RecoveryBudgetError && error.code === "INVALID_BOUNDARY");
+});
 test("unknown completion retains active occupancy and late recovery cannot clear human gate", async () => {
   const f = await fixture(), started = await start(f);
   const unknown = await end(f, started, "unknown");

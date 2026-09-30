@@ -81,6 +81,34 @@ test("fractional time uses exact residue ceiling once per attempt, never adds ro
   const running = beginTaskRecovery(offset, offset.scope, randomUUID(), "network", offset.createdAt, "pre_submission");
   assert.equal(observeTaskRecovery(running, "2026-09-30T11:00:01.0000+01:00").elapsedMs, 1);
 });
+test("long leading-zero fractions cannot borrow time from Date.parse normalization", () => {
+  const s = scope(), createdAt = "2026-09-30T10:00:00.00012345678901234567890Z";
+  const r = createTaskRecoveryRound(s, createdAt);
+  const running = beginTaskRecovery(r, s, randomUUID(), "network", createdAt, "pre_submission");
+  const completed = completeTaskRecovery(running, { scope: s, recoveryId: running.recoveries[0]!.recoveryId,
+    outcome: "verified_recovered" }, "2026-09-30T10:05:00.0002Z");
+  assert.equal(completed.elapsedMs, 300_001);
+  assert.equal(completed.phase, "human_required");
+  assert.equal(completed.reason, "time_limit");
+  rejects(() => parseTaskRecoveryRound({ ...completed, elapsedMs: 299_878 }), "INVALID_BOUNDARY");
+  const parsed = parseTaskRecoveryRound(JSON.parse(JSON.stringify(completed)));
+  assert.equal(parsed.elapsedMs, 300_001);
+  for (const fraction of ["012345678901234567890", "004294967296", "0000999999999999999999999999999999999999"]) {
+    const at = `2026-09-30T10:00:00.${fraction}Z`;
+    const initial = createTaskRecoveryRound(scope(), at);
+    const started = beginTaskRecovery(initial, initial.scope, randomUUID(), "network", at, "pre_submission");
+    const delta = observeTaskRecovery(started, "2026-09-30T10:00:01Z");
+    assert.equal(delta.elapsedMs, 1_000 - Number(fraction.slice(0, 3)));
+  }
+  const exactStart = "2026-09-30T10:00:00.094603526542Z";
+  const exact = createTaskRecoveryRound(scope(), exactStart);
+  const begun = beginTaskRecovery(exact, exact.scope, randomUUID(), "network", exactStart, "pre_submission");
+  const failed = completeTaskRecovery(begun, { scope: exact.scope, recoveryId: begun.recoveries[0]!.recoveryId,
+    outcome: "failed" }, "2026-09-30T10:05:00.880000Z");
+  assert.equal(failed.elapsedMs, 300_786);
+  assert.equal(failed.phase, "human_required");
+  rejects(() => beginTaskRecovery(failed, failed.scope, randomUUID(), "network", failed.observedAt, "pre_submission"), "AUTOMATIC_RECOVERY_BLOCKED");
+});
 test("scope pins task, attempt, device and round on start and receipt", () => {
   const r = createTaskRecoveryRound(scope(), now);
   for (const field of ["taskId", "taskAttemptId", "deviceId", "roundId"] as const) {

@@ -31,14 +31,19 @@ function earlier(a: string, b: string): boolean { return compareTimestamps(a, b)
 
 // Charge full active wall time across disconnect/restart, not only successful
 // commands. Round fractional milliseconds UP once per attempt, not per poll.
-// Date.parse supplies the whole millisecond; exact fractional residue supplies
-// the ceiling, so sub-ms clock data cannot be truncated into free retries.
+// Never give arbitrary fractions to Date.parse: Node can discard leading zeros
+// in long fractions. Parse whole seconds separately and take the first THREE
+// decimal places explicitly; exact residue supplies the sub-ms ceiling.
 function duration(start: string, end: string): number {
   if (earlier(end, start)) fail("INVALID_BOUNDARY");
+  const wholeMilliseconds = (s: string) => {
+    const fraction = /\.(\d+)/.exec(s)?.[1] ?? "";
+    return Date.parse(s.replace(/\.\d+/, "")) + Number(fraction.slice(0, 3).padEnd(3, "0"));
+  };
   const residue = (s: string) => (/\.(\d+)/.exec(s)?.[1] ?? "").slice(3);
   const a = residue(start), b = residue(end), width = Math.max(a.length, b.length);
   const extra = b.padEnd(width, "0").localeCompare(a.padEnd(width, "0")) > 0 ? 1 : 0;
-  const value = Date.parse(end) - Date.parse(start) + extra;
+  const value = wholeMilliseconds(end) - wholeMilliseconds(start) + extra;
   if (!Number.isSafeInteger(value) || value < 0) fail("INVALID_BOUNDARY");
   return value;
 }
