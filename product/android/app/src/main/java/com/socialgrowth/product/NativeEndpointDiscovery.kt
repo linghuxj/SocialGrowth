@@ -118,6 +118,6 @@ class NativeEndpointDiscovery(context: Context) {
     private fun live(current: Run) = run === current
     private fun addresses(properties: LinkProperties?) = properties?.linkAddresses?.map { it.address }?.filter { !it.isLoopbackAddress && !it.isAnyLocalAddress }.orEmpty()
     private fun fingerprints(addresses: List<InetAddress>) = addresses.map { it.address.joinToString(",") + "/" + ((it as? Inet6Address)?.scopeId ?: 0) }.toSet()
-    private fun sameAddress(a: InetAddress, b: InetAddress): Boolean = a.address.contentEquals(b.address) && (!a.isLinkLocalAddress || a is Inet6Address && b is Inet6Address && a.scopeId != 0 && a.scopeId == b.scopeId)
+    private fun sameAddress(a: InetAddress, b: InetAddress): Boolean = sameDiscoveryAddress(a, b)
     private fun requireMain() { check(Looper.myLooper() == Looper.getMainLooper()) { "Discovery lifecycle requires main thread" } }
 }
