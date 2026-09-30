@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { compareTimestamps, requestMetadataSchema, timestampSchema, uuidSchema } from "./common.js";
 import { projectLabelSchema } from "./project.js";
+import { planningTimeZoneKeys } from "./planning-time-zone-keys.js";
 
 // Human planning inputs, NOT an executable approved scope or an AI proposal.
 // Empty arrays/null mean not configured, NEVER unrestricted or a demo default.
@@ -12,7 +13,9 @@ export const projectPlanningInputsSchema = z.strictObject({
   targetLanguages: z.array(projectLabelSchema).max(50),
   contentForms: z.array(z.enum(["facebook_video", "facebook_image_text", "youtube_shorts", "youtube_video"])).max(4),
   contentRules: projectLabelSchema.nullable(),
-  businessTimeZone: z.string().max(100).regex(/^(?:UTC|[A-Za-z_]+\/(?:[A-Za-z0-9_+-]+\/)*[A-Za-z0-9_+-]+)$/).nullable(),
+  // One frozen, exact-case vocabulary also emitted as JSON enum for Python.
+  // No locale/filesystem-dependent acceptances or hidden alias normalization.
+  businessTimeZone: z.enum(planningTimeZoneKeys).nullable(),
   firstCycleStartsAt: timestampSchema.nullable(),
   reviewIntervalDays: z.int().min(1).nullable(),
   trafficMinimumPerCycle: z.int().min(0).nullable(),
@@ -23,10 +26,6 @@ export const projectPlanningInputsSchema = z.strictObject({
 }).superRefine((v, ctx) => {
   for (const key of ["targetCountries", "targetLanguages", "contentForms"] as const) {
     if (new Set(v[key]).size !== v[key].length) ctx.addIssue({ code: "custom", path: [key], message: "Duplicate planning input" });
-  }
-  if (v.businessTimeZone !== null) {
-    try { new Intl.DateTimeFormat("en", { timeZone: v.businessTimeZone }).format(0); }
-    catch { ctx.addIssue({ code: "custom", path: ["businessTimeZone"], message: "Unknown business time zone" }); }
   }
   if (v.publishingWindow && timestampSchema.safeParse(v.publishingWindow.startsAt).success && timestampSchema.safeParse(v.publishingWindow.endsAt).success
     && compareTimestamps(v.publishingWindow.startsAt, v.publishingWindow.endsAt) !== -1) ctx.addIssue({ code: "custom", path: ["publishingWindow"], message: "Publication window must be ordered, end exclusive" });

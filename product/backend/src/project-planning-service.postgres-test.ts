@@ -35,7 +35,7 @@ type Actor = Awaited<ReturnType<typeof actor>>;
 async function project(a: Actor) {
   return (await projects.save(a.sessionToken, a.csrfToken, { metadata: meta(), basics: { name: `Planning ${randomUUID()}`, kind: "company_owned", customerName: null, ownerOperatorId: a.operatorId, notificationEmail: null } }, "create")).project;
 }
-const save = (a: Actor, view: ProjectPlanningDraftView, inputs: ProjectPlanningInputs, metadata = meta()) => service.save(a.sessionToken, a.csrfToken,
+const save = (a: Actor, view: ProjectPlanningDraftView, inputs: unknown, metadata = meta()) => service.save(a.sessionToken, a.csrfToken,
   { metadata, projectId: view.projectId, expectedProjectVersion: view.projectFactVersion, expectedDraftVersion: view.draftVersion, inputs });
 async function counts(id: string) { return (await pool.query<{ commands: number; audits: number }>(`SELECT (SELECT count(*)::int FROM socialgrowth_product.project_planning_commands WHERE project_id=$1) commands,(SELECT count(*)::int FROM socialgrowth_product.audit_records WHERE object_id=$1 AND action='project.planning_draft_saved') audits`, [id])).rows[0]!; }
 test("forward migration on full prior schema preserves project, sessions and resource guard without guessing planning inputs", async () => {
@@ -93,6 +93,20 @@ test("upper-case UUID write and lower-case replay share the same committed reque
   const first = (await save(a, upper, base.inputs, metadata)).draft;
   assert.equal(first.projectId, p.projectId); assert.deepEqual((await save(a, upper, base.inputs, metadata)).draft, first);
   assert.deepEqual((await save(a, base, base.inputs, metadata)).draft, first);
+  assert.deepEqual(await counts(p.projectId), { commands: 1, audits: 1 });
+});
+test("noncanonical time zone casing rejects before command persistence, canonical aliases save and replay unchanged", async () => {
+  const a = await actor(), p = await project(a), base = (await service.read(a.sessionToken, p.projectId)).draft, metadata = meta();
+  for (const businessTimeZone of ["asia/shanghai", "ASIA/SHANGHAI", "Asia/shanghai", "america/new_york", "Etc/utc", "US/eastern"]) {
+    await assert.rejects(save(a, base, { ...base.inputs, businessTimeZone }, metadata), errorCode("INPUT_INVALID"));
+    assert.deepEqual(await counts(p.projectId), { commands: 0, audits: 0 });
+    assert.deepEqual((await service.read(a.sessionToken, p.projectId)).draft, base);
+  }
+  const inputs = { ...base.inputs, businessTimeZone: "US/Eastern" as const };
+  const stored = (await save(a, base, inputs, metadata)).draft;
+  assert.equal(stored.inputs.businessTimeZone, "US/Eastern");
+  assert.deepEqual((await service.read(a.sessionToken, p.projectId)).draft, stored);
+  assert.deepEqual((await save(a, base, inputs, metadata)).draft, stored);
   assert.deepEqual(await counts(p.projectId), { commands: 1, audits: 1 });
 });
 test("two same-right operators saving the same draft version have one winner and preserved loser", async () => {

@@ -7,7 +7,6 @@ import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 class ContractValidationError(ValueError):
@@ -70,12 +69,9 @@ class FirstBatchContracts:
             for key in ("targetCountries", "targetLanguages", "contentForms"):
                 if len(set(inputs[key])) != len(inputs[key]):
                     raise ContractDataError(f"{name}: duplicate planning input")
-            zone = inputs["businessTimeZone"]
-            if zone is not None:
-                try:
-                    ZoneInfo(zone)
-                except (ZoneInfoNotFoundError, ValueError) as error:
-                    raise ContractDataError(f"{name}: unknown business time zone") from error
+            # Exact-case time zone vocabulary is the generated JSON enum.
+            # Actual scheduling must separately verify executable TZif data;
+            # a host's filesystem casing/installed tzdata is not the contract.
             window = inputs["publishingWindow"]
             if window is not None and self._compare_timestamps(window["startsAt"], window["endsAt"]) >= 0:
                 raise ContractDataError(f"{name}: unordered publication window")

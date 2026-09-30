@@ -5,7 +5,7 @@
 ## 本阶段范围
 
 - 新增strict规划输入契约：正式开通前/后目标说明、正式开通后广告收益/引流优先级、人工国家/语言标签、FB视频/图文/YT Shorts/常规视频允许形式、内容规则说明、业务时区、首次周期起点、复盘间隔、项目每周期引流最低数量、小时观察窗、结束收尾天数、每日项目总发布数量上界及发布有效窗口。国家/语言和规则说明是人工草案标签，不是可执行批准范围、完整语言/国家字典或机器规则；最长150字符为输入保护，不宣称完整策略编辑器。
-- 允许缺项，空数组/null表示未配置，不表示全部允许或无约束；没有把候选国家语言、图稿6项、7天、时区或其他演示值写成已采用默认。引流最低数量可明确为0但不默认0；数量均安全整数。时区结构＋实际Intl校验，Python使用ZoneInfo；部署时区数据库版本仍须核对。窗口端点按精确时间比较、结束不含，超长小数不经Date.parse截断比较。形式只限首期四种，列表有长度保护并拒绝精确重复；大小写或不同人工标签不能据此宣称真实地域已去重。
+- 允许缺项，空数组/null表示未配置，不表示全部允许或无约束；没有把候选国家语言、图稿6项、7天、时区或其他演示值写成已采用默认。引流最低数量可明确为0但不默认0；数量均安全整数。时区最初采用Intl/ZoneInfo，原复核发现大小写兼容差异，已按下述整改为共享区分大小写的固定enum；部署实际时区数据及转换仍须单独核对。窗口端点按精确时间比较、结束不含，超长小数不经Date.parse截断比较。形式只限首期四种，列表有长度保护并拒绝精确重复；大小写或不同人工标签不能据此宣称真实地域已去重。
 - 返回永远unapproved_draft，携带projectFactVersion/draftVersion、保存时间/实际会话运营；未保存version0只允许完整空输入且无保存来源。没有批准、AI生成、平台正式资格或执行许可字段。
 - 新增0010草案/同键命令，只在preparing项目上读取/保存。运营同权、Host会话及CSRF，HTTP路径与body项目相同、no-store；GET/POST /api/operator/projects/:projectId/planning-draft已在正式Nest模块接入，但没有Web消费入口。不是对外公众接口。
 - 与项目/资源保持operators表元数据锁→actor/session→project。projectVersion＋draftVersion CAS；草案改动同事务递增两版本、保存输入/来源、最小审计和actor/key摘要；同输入不增加两版本/保存时间/审计。三列表按集合排序后求摘要，requestId不参与，结果未知可以同actor/key返回该项目当前草案而非重复写入；异载荷或不同项目不能复用原键。锁后实际DB时钟再次确认会话，审计/SQL/认证失败回滚且不泄漏原SQL/cause。
@@ -32,6 +32,16 @@ pnpm --filter @socialgrowth/product-backend test:postgres
 收尾UUID规范另建sg-wp14-planning-final-pg，同空端口/库名但完整ID9807482451d5dc5407e713c2ccd856b9f2bb2da7834514f3116683113c09eb88，不复用已删除旧库；119项后schema、活动连接、deadlocks仍均0。只停该精确ID及AutoRemove删除可重建夹具，日志保留。
 
 ## 真实缺口与后续
+
+### 原复核P2及整改
+
+已读取原窗口报告artifacts/review/wp14-stage3-c039407.md：c039407仍有1/P2，155产品/119PG及其他探针通过不能抵消时区跨语言差异，因此未合Developer。作者用原330项探针、Python3.12.12和真实TZif字节的区分大小写ZIP来源复现24项TS接受/Python拒绝，red-cross-runtime.log保留断言失败；没有修改原复核探针。
+
+fix/wp-14-case-sensitive-timezones仅从c039407分出整改，不混入未过门禁的WP-15。提交固定554个真实TZif规范键/已声明别名，来源系统2026c-rearguard与Node24.16.0/ICU78.3/tz2026b可识别键的交集；刷新脚本须显式指定源目录、手工执行并复核diff，不在install/build/start自动生成环境相关词表。Zod enum直接产生JSON enum，Python只消费同一生成约束；UTC/Asia/Shanghai/Asia/Kolkata/Asia/Calcutta/US/Eastern/Etc/UTC/Etc/GMT+8保持原规范写法，不对大小写做猜测或隐藏转换。6种非规范大小写及未知键在请求解析、摘要和SQL之前即拒绝；没有旧数据静默改写或迁移历史。历史污染值仍安全拒绝，不宣称已有真实存量均清理。
+
+共享词表是配置契约，不是执行环境时区转换成功证明。WP-24真实调度必须另核验所需TZif可用、版本、DST/本地时刻和实际转换；缺数据不得退到UTC或解读为无限窗口。全部554键/null的四种契约形状正向及原6大小写/未知/空白负向、保存不隐式改写已有别名补充覆盖；原330项区分大小写ZIP探针最终差异0。新增PG实存规范US/Eastern、同键重问/只写1命令1审计及6种大小写零命令/零审计/草案版本不变，完整120/120通过（原119＋1），没有业务输入或平台成功夹具冒充真实验收。
+
+整改首次根检查因已有负向测试把Asia/Unknown作为窄enum静态类型失败，保留root-initial-negative-fixture-type-failure.log；测试调用辅助输入改为unknown，与正式服务验证边界一致，不以类型断言把非法值标合法。最终根check/lint/test/build通过，产品157（36TS＋13Python＋86BE＋4EX＋18Web），原始证据见artifacts/acceptance/product/B3/wp14-stage3-timezone-fix。PG17.11隔离实例7ec1c6bc23987321e9a5fe32fcbf61dbb4781b96261cef793bf56ebb0671cab5，回环32844/sg_wp14_timezone，末次schema/其他活动连接/deadlocks均0，已核验ID/AutoRemove后停止；可重建夹具删除，原始日志保留，原有PG/MinIO及复核窗口独立32902实例不触碰。无新浏览器、Web/backend/Artemis或设备操作。整改后仍须原窗口清零及原QA门禁，不自签通过。
 
 | 记录 | 真实输入、责任与最晚时点 | 解除条件与可继续 |
 | --- | --- | --- |

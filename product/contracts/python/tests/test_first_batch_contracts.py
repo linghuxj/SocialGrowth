@@ -77,6 +77,30 @@ class FirstBatchContractsTest(unittest.TestCase):
             with self.assertRaises(ContractValidationError):
                 self.contracts.validate("projectPlanningDraftView", {**view, **patch})
 
+    def test_planning_time_zone_vocabulary_is_exact_case_and_shared_for_all_shapes(self) -> None:
+        inputs = dict.fromkeys(("preOpeningGoal", "postOpeningGoal", "postOpeningPriority", "contentRules", "businessTimeZone",
+                               "firstCycleStartsAt", "reviewIntervalDays", "trafficMinimumPerCycle", "observationWindowHours",
+                               "tailObservationDays", "maxPublicationsPerDay", "publishingWindow"))
+        inputs.update(targetCountries=[], targetLanguages=[], contentForms=[])
+        keys = self.contracts._schemas["projectPlanningInputs"]["properties"]["businessTimeZone"]["anyOf"][0]["enum"]
+        self.assertEqual(len(keys), len(set(keys)))
+        for key in ("UTC", "Asia/Shanghai", "Asia/Kolkata", "Asia/Calcutta", "US/Eastern", "Etc/UTC", "Etc/GMT+8"):
+            self.assertIn(key, keys)
+        for zone in [*keys, None, "asia/shanghai", "ASIA/SHANGHAI", "Asia/shanghai", "america/new_york", "Etc/utc", "US/eastern", "Asia/Unknown", "GMT+8", " UTC "]:
+            data = {**inputs, "businessTimeZone": zone}
+            draft = {"projectId": self.installation_id, "projectFactVersion": 1, "draftVersion": 1, "inputs": data,
+                     "status": "unapproved_draft", "savedAt": "2026-09-30T00:00:00Z", "savedByOperatorId": self.installation_id}
+            shapes = {"projectPlanningInputs": data, "projectPlanningDraftView": draft, "projectPlanningResponse": {"draft": draft},
+                      "saveProjectPlanningRequest": {"metadata": {"contractVersion": self.contracts.contract_version, "requestId": "timezone-request", "idempotencyKey": "timezone-command"},
+                                                     "projectId": self.installation_id, "expectedProjectVersion": 0, "expectedDraftVersion": 0, "inputs": data}}
+            for name, value in shapes.items():
+                with self.subTest(name=name, zone=zone):
+                    if zone is None or zone in keys:
+                        self.assertEqual(self.contracts.validate(name, value), value)
+                    else:
+                        with self.assertRaises(ContractValidationError):
+                            self.contracts.validate(name, value)
+
     def test_control_action_is_strict_independent_and_never_grants_permission(self) -> None:
         action = {
             "protocolVersion": "2026-09-30.control-v1", "deviceId": self.installation_id,
