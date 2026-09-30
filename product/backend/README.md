@@ -166,6 +166,10 @@ WP-10 新增内部 `endpoint-report-core` 只校验签名完整双用途快照�
 
 `task-impact-core`按完整任务/名额与版本区分更正、撤回、暂停、结束及恢复；未知只核实原提交，编辑中只建议安全停止与检查。更正按显式材料variant谱系，不扩大到另一语言/平台；原任务窗口/材料/名额及成功/取消历史保持，结束无普通恢复。impact_advisory_only不修改任务、不能删除或释放资源，无生产writer/outbox、物理停止或迁移实现，详见[变更任务卡](../../docs/engineering/delivery/records/WP-21.md)。
 
+## WP-25 内部分佣核对（无实际收入或付款）
+
+`commission-core`只对明确到账/产生期间/承接及历史统一比例作BigInt精确核对；跨承接/比例不能可靠拆分、配置未定或未知保持pending。确认空档归公司不是缺记录默认，不公开到本人；币种/精度/舍入显式无生产默认。internal_calculation_only没有真实producer、持久去重、本人API或支付，不能将重复纯计算累计为新应付。78位金额/0～12位精度/18位比例只是技术边界，图稿数字不是配置，详见[分佣任务卡](../../docs/engineering/delivery/records/WP-25.md)。
+
 ## WP-11 内部调用日志（未开放执行）
 
 `PhoneControlJournal`仅保存控制记录和调用／停止历史，不注册HTTP、Nest provider或消费者；新记录默认`stop_requested`，没有持有者取得／重新启用接口。`initialize`、`apply`与审计原子提交；锁序设备→journal，旧版本／同键异载荷拒绝，重复请求返回当前记录及`replayed=true`，绝不能重新执行手机调用。未知调用及原持有者在重启后保留；停止三类证据仅供可信内部适配。
