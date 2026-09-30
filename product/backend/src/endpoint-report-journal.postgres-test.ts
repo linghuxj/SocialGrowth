@@ -292,3 +292,25 @@ test("administrative receipt deletion cannot hide durable ledger/ack inconsisten
   await assert.rejects(f.send(r), code("CORRUPT_STATE"));
   assert.equal((await counts(f.record.enrollmentId)).receipts, 0);
 });
+
+test("returned source is copied before synchronous cancellation cleanup can refresh stale time or repair wrong scope", async () => {
+  const f = await fixture(), r = await f.report(), before = await counts(f.record.enrollmentId);
+  for (const mutation of ["time", "scope"] as const) {
+    for (const operation of ["begin", "report", "query"] as const) {
+      let aborted = false;
+      const source: EndpointReportSourceVerifier = { observe: async (_channel, expected, signal) => {
+        const fresh = await clock();
+        const evidence = { scope: structuredClone(expected), observedAt: fresh };
+        if (mutation === "time") evidence.observedAt = "2026-01-01T00:00:00Z";
+        else evidence.scope.node.networkRevision++;
+        signal.addEventListener("abort", () => { aborted = true; evidence.observedAt = fresh; evidence.scope = structuredClone(expected); }, { once: true });
+        return evidence;
+      } };
+      const checked = new EndpointReportJournal(pool, source, 10_000);
+      const call = operation === "report" ? f.send(r, checked) : operation === "query" ? f.query(null, 10_000, checked)
+        : checked.begin(f.install.sessionToken, transport, { enrollmentId: f.record.enrollmentId, epochId: randomUUID(), expectedRevision: f.started.state.endpointRevision });
+      await assert.rejects(call, code(mutation === "time" ? "SOURCE_STALE" : "SOURCE_MISMATCH"));
+      assert.equal(aborted, true); assert.deepEqual(await counts(f.record.enrollmentId), before);
+    }
+  }
+});
