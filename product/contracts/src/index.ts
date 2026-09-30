@@ -11,6 +11,7 @@ export * from "./invitation.js";
 export * from "./network-admission.js";
 export * from "./operator.js";
 export * from "./provider-auth.js";
+export * from "./project.js";
 export * from "./registry.js";
 export * from "./status.js";
 

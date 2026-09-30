@@ -61,7 +61,15 @@ class FirstBatchContracts:
         return value
 
     def _validate_contract_semantics(self, name: str, value: Any) -> None:
-        if name == "enrollmentChallenge":
+        if name in ("createProjectRequest", "updateProjectRequest"):
+            self._validate_project_basics(value["basics"], name)
+        elif name in ("projectView", "projectResponse", "listProjectsResponse"):
+            projects = value["projects"] if name == "listProjectsResponse" else [value["project"] if name == "projectResponse" else value]
+            for project in projects:
+                self._validate_project_basics(project, name)
+                if self._compare_timestamps(project["updatedAt"], project["createdAt"]) < 0:
+                    raise ContractDataError(f"{name}: update predates creation")
+        elif name == "enrollmentChallenge":
             if self._compare_timestamps(value["issuedAt"], value["expiresAt"]) >= 0:
                 raise ContractDataError(f"{name}: challenge is already expired")
         elif name == "invitationView":
@@ -91,6 +99,11 @@ class FirstBatchContracts:
                 value["session"]["createdAt"], value["session"]["expiresAt"]
             ) >= 0:
                 raise ContractDataError(f"{name}.session: session is already expired")
+
+    @staticmethod
+    def _validate_project_basics(value: dict[str, Any], path: str) -> None:
+        if (value["kind"] == "client_managed") != (value["customerName"] is not None):
+            raise ContractDataError(f"{path}: customer and project kind conflict")
 
     @staticmethod
     def _timestamp_parts(value: str) -> tuple[datetime, str]:

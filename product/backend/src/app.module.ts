@@ -12,6 +12,8 @@ import { OperatorAuthService } from "./operator-auth-service.js";
 import { OperatorController } from "./operator.controller.js";
 import { ProviderAuthService } from "./provider-auth-service.js";
 import { ProviderController } from "./provider.controller.js";
+import { ProjectService } from "./project-service.js";
+import { ProjectController } from "./project.controller.js";
 import {
   DevelopmentSmsCapturePort,
   DisabledDevelopmentSmsCodeReader,
@@ -103,6 +105,7 @@ const providerAuthProvider = {
     InstallationController,
     OperatorController,
     ProviderController,
+    ProjectController,
   ],
   providers: [
     poolProvider,
@@ -112,6 +115,7 @@ const providerAuthProvider = {
     installationAuthProvider,
     smsRuntimeProvider,
     providerAuthProvider,
+    { provide: ProjectService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ProjectService(pool, auth) },
     DatabaseLifecycle,
   ],
 })

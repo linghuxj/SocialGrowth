@@ -14,10 +14,13 @@ WP-01 开始建立正式权威数据模型：
 - [`0005_network_admission.sql`](migrations/0005_network_admission.sql)：新增网络接入、幂等命令与外部意图，候选节点／当前设备唯一占用；撤权意图绑定回收ID并分别确认。未开放网络接口或 worker。
 - [`0006_phone_control_journal.sql`](migrations/0006_phone_control_journal.sql)：设备调用／停止日志、严格记录和幂等命令；默认停止待确认，无持有者取得／重新启用或实际执行调用方。
 - [`0007_task_recovery_budget.sql`](migrations/0007_task_recovery_budget.sql)：内部任务尝试恢复预算、一attempt一round及幂等命令；无真实任务生产者／人工新轮、队列或手机消费者。
+- [`0008_project_basics.sql`](migrations/0008_project_basics.sql)：筹备项目识别信息与同事务幂等命令；不产生批准、资源分配、周期或执行事实。
 
 迁移当前是待后端迁移执行器消费的前向 SQL；未在真实 PostgreSQL 执行前，不得将其记为迁移或并发验收通过。
 
 ## WP-01 事务服务
+
+WP-14 第一阶段新增运营会话入口`GET/POST /api/operator/projects`及`POST /api/operator/projects/:projectId/basics`。写入需Host会话与CSRF，当前所有运营同权；由会话确定操作人，负责人不是权限隔离。版本CAS保护基本信息，多人冲突不覆盖；actor＋request key的载荷摘要排除requestId，同键返回该项目当前事实，不重复创建；同事务保存项目、命令和最小审计。表单无改动不增加业务版本，停用后原负责人可保留，但不能新指定无效运营。字段仅名称、自营/代运营、客户、负责人、提醒邮箱；无方向确认、任务、提醒发送、身份/手机分配或运行状态迁移。完整交付与原复核/QA门禁见[WP-14任务卡](../../docs/engineering/delivery/records/WP-14.md)。
 
 `IdentityTransactionService` 实现当前首批后端事务基础：
 

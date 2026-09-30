@@ -171,3 +171,36 @@ final result: passed
 真机实现忠实承接选定方向，同时按服务端事实纠正邀请初始状态。注册成功页明确说明管理登录不会接入本机；完整真机流程证据另记入 WP-04 交付记录。
 
 final result: passed
+
+---
+
+# WP-14 第一阶段筹备项目设计 QA
+
+2026-09-30，image-to-code按已选准备图/原prompt实现，仅元数据筹备，不背书批准、资源/执行、周期或通知送达。
+
+## 输入与比较
+
+- source visual truth：`docs/design/workbench/project-readiness-v1.png`，1464×1074；原prompt、README、页面规格§3及DESIGN.md约束语义。
+- implementation：`artifacts/acceptance/product/B3/wp14-stage1-gate/readiness-desktop.png`，1465×1074 CSS/pixel，deviceScaleFactor1；另有full/980/700/390截图。实际隔离页面创建项目/负责人，邮箱保存但未发送，目标/素材/资源/周期未配置。源是含示例就绪事实的虚构筹备状态，不把其数量、日期、人员、资源当真实输入；比较同类骨架/视觉，非数据/操作逐像素一致。
+- full-view comparison：`artifacts/design-qa/wp14-stage1/pass1-comparison.png`、`pass2-comparison.png`、`pass3-comparison.png`，同一输入左源右实际实现，尺寸2953×1074，24px间隔，未缩放；源少1px不拉伸。
+- focused evidence：`pass3-table-comparison.png`，源box266,389,1421,781与实现303,419,1392,802，原像素细看表格/图标/文字；`pass3-mobile-remediation-comparison.png`左旧手机、右整改手机，不冒充源有手机稿。脚本仅组合已有证据，不AI重绘截图。
+
+## Findings 与比较历史
+
+1. Pass1 P2：透明返回按钮继承白字低对比；重复通用标题使清单下移且下方解释区缺失。改为蓝色text-button，收敛页头/项目标题，恢复两个说明区、白底摘要/8px面板；原失败截图保留。
+2. Pass2：上项闭合；新P2手机需横滚才见影响/入口。改为逐行纵排“事实→缺项影响→入口”，保留语义表头，手机无写入控件。
+3. Pass3：同真实项目重读并排复核，桌面六行与双说明区、返回对比保持；手机聚焦图显示原被隐藏的影响/入口。Playwright断言影响cell完整在700/390视口、全页不横溢出。首次精确accessible-name断言遗漏CSS辅助标签而超时，改为包含同一cell真实内容后通过，未删除可读性断言。
+
+当前无可执行P0/P1/P2。P3：源为生成图，精确字形/图标尺寸自然不同；保留既有系统中文字体及DESIGN候选办公尺度，不声称冻结最终品牌token。
+
+## 五个必查表面
+
+- Fonts/typography：中文系统回退，24px项目标题、18px分区/14px正文；比生成图略小但沿候选规范，长文本可换行，手机label/事实无重叠截断。
+- Spacing/layout：230px导航、连续白色信息区/细表格、24px间距、六行与两个下方说明区。真实保存表单在后，不复刻未实现确认按钮；980桌面/700与390只读可滚动、关键影响不横藏。
+- Colors/tokens：#2459C4蓝、#172B4D正文、#F4F6FA画布、#DCE2EA边框，8px面板/6px控件；缺项不用成功绿，冲突黄仅表示需核对。
+- Image/assets：无必需照片/插画，标准图标采用Phosphor；没有手绘SVG/CSS图画/emoji/假设备画面或人物。
+- Copy/content：改“先确认方向”为“发布前确认方向，准备可并行推进”，删除运营界面的WP编号；邮箱保存不送达、所有运营可代办、不额外启动审批，缺项如实。
+
+实际Playwright覆盖创建/丢响应同键恢复/未知请求冻结、跨导航草稿、两运营冲突与核对、负责人/邮箱、reload、客户必填、响应式只读；非预期console/page error0。应用内tab因安全策略校验服务不可用被拒绝，未弱化/绕过，IAB未打开；用户指定的独立标准Playwright渲染截图另作证据，RES-WP14-03保留，不自签原QA独立验收。
+
+final result: passed

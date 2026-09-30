@@ -613,6 +613,15 @@ test("registration waiting past invitation expiry is rejected using lock-time wa
     const outcomePromise = Promise.allSettled([registration]);
     const remaining = Math.max(0, expiresAt.getTime() - Date.now() + 50);
     await new Promise((resolve) => setTimeout(resolve, remaining));
+    // Docker's database clock can lag the host. Prove expiry on the same
+    // authoritative clock used by the service before releasing the row lock.
+    let databaseExpired = false;
+    for (let attempt = 0; attempt < 500; attempt++) {
+      const fact = await pool.query<{ expired: boolean }>("SELECT clock_timestamp()>$1::timestamptz AS expired", [expiresAt.toISOString()]);
+      if (fact.rows[0]?.expired) { databaseExpired = true; break; }
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    assert.ok(databaseExpired, "Database clock must actually cross the invitation deadline");
     await blocker.query("COMMIT");
     const [registrationOutcome] = await outcomePromise;
     assert.equal(registrationOutcome?.status, "rejected");

@@ -15,6 +15,7 @@ import {
   type OperatorView,
   type ListOperatorDeviceFactsResponse,
   type ProductErrorResponse,
+  listProjectsResponseSchema, projectResponseSchema, type ProjectBasics, type ProjectView,
 } from "@socialgrowth/product-contracts";
 
 const csrfStorageKey = "socialgrowth.operator.csrf";
@@ -89,6 +90,16 @@ export async function login(loginName: string, password: string): Promise<Operat
 
 export async function listOperators(): Promise<OperatorView[]> {
   return (await request("/api/operator/accounts", listOperatorsResponseSchema)).operators;
+}
+
+export async function listProjects(): Promise<ProjectView[]> {
+  return (await request("/api/operator/projects", listProjectsResponseSchema)).projects;
+}
+export async function saveProject(basics: ProjectBasics, idempotencyKey: string, current?: ProjectView): Promise<ProjectView> {
+  return (await request(current ? `/api/operator/projects/${current.projectId}/basics` : "/api/operator/projects", projectResponseSchema, {
+    method: "POST", headers: { "x-csrf-token": csrfToken() }, body: JSON.stringify({ metadata: mutationMetadata(idempotencyKey), basics,
+      ...(current ? { projectId: current.projectId, expectedFactVersion: current.factVersion } : {}) }),
+  })).project;
 }
 
 export async function listInvitations(): Promise<InvitationView[]> {

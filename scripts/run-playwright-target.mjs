@@ -1,11 +1,14 @@
 import { spawn } from "node:child_process";
 
+const productScripts = { projects: "scripts/verify-product-projects-playwright.mts", "project-viewports": "scripts/verify-product-project-viewports.mts", identity: "scripts/verify-product-web-readiness.mts" };
+const target = process.env.SG_WEB_TARGET ?? "demo";
+const scope = process.env.SG_PRODUCT_WEB_SCOPE ?? "identity";
+if (target === "product" && !(scope in productScripts)) { console.error("[playwright] Unknown product scope"); process.exit(2); }
 const targets = {
   demo: ["tsx", "scripts/verify-web-publication-readiness.mts"],
-  product: ["tsx", "scripts/verify-product-web-readiness.mts"],
+  product: ["tsx", productScripts[scope]],
 };
 
-const target = process.env.SG_WEB_TARGET ?? "demo";
 const command = targets[target];
 
 if (!command) {

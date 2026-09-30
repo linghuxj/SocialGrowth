@@ -41,6 +41,18 @@ class FirstBatchContractsTest(unittest.TestCase):
             with self.assertRaises(ContractValidationError):
                 self.contracts.validate("enrollmentChallenge", {**challenge, **patch})
 
+    def test_project_basics_and_projection_keep_unknown_conditions_unapproved(self) -> None:
+        basics = {"name": "首期项目", "kind": "company_owned", "customerName": None,
+                  "ownerOperatorId": None, "notificationEmail": None}
+        project = {**basics, "projectId": self.installation_id, "createdByOperatorId": self.installation_id,
+                   "phase": "preparing", "factVersion": 0, "createdAt": "2026-09-30T00:00:00Z",
+                   "updatedAt": "2026-09-30T00:00:00Z"}
+        self.contracts.validate("projectResponse", {"project": project})
+        for patch in ({"kind": "client_managed"}, {"phase": "running"}, {"approved": True},
+                      {"updatedAt": "2026-09-29T00:00:00Z"}, {"name": " padded "}, {"notificationEmail": "wrong"}):
+            with self.assertRaises(ContractValidationError):
+                self.contracts.validate("listProjectsResponse", {"projects": [{**project, **patch}]})
+
     def test_control_action_is_strict_independent_and_never_grants_permission(self) -> None:
         action = {
             "protocolVersion": "2026-09-30.control-v1", "deviceId": self.installation_id,

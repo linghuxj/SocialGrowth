@@ -5,6 +5,57 @@
   font-synthesis: none;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
+.project-workspace { max-width: 1220px; margin: 0 auto; font-size: 14px; line-height: 1.6; }
+.project-workspace h2 { font-size: 24px; font-weight: 600; }
+.project-workspace h1 { font-size: 24px; font-weight: 600; line-height: 1.4; margin-bottom: 8px; }
+.project-workspace h3 { font-size: 18px; font-weight: 600; }
+.project-workspace button { display: inline-flex; align-items: center; gap: 8px; border-radius: 6px; font-weight: 600; }
+.project-workspace .text-button { color: #2459c4; }
+.project-workspace .panel { border-radius: 8px; box-shadow: none; }
+.project-canvas .page-header { align-items: center; margin-bottom: 12px; }
+.project-canvas .page-header h1, .project-canvas .page-description { display: none; }
+.project-canvas .breadcrumb { margin-bottom: 0; }
+.project-canvas .header-actions button { margin-top: 0; }
+.project-heading button { margin-left: auto; }
+.project-followthrough { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.project-followthrough p { margin-bottom: 0; }
+.project-title-row, .project-heading { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+.project-heading h1 { margin: 0; }
+.project-tabs { display: flex; flex-wrap: wrap; gap: 24px; border-bottom: 1px solid #dce2ea; padding: 0 0 12px; margin-bottom: 24px; color: #526176; }
+.project-tabs [aria-current] { color: #2459c4; font-weight: 600; }
+.project-direction-note { display: flex; align-items: flex-start; gap: 16px; padding: 20px 24px; margin-bottom: 24px; border: 1px solid #cddaf4; border-radius: 8px; background: #fff; }
+.project-direction-note svg { flex-shrink: 0; margin-top: 3px; color: #2459c4; }
+.project-direction-note p { margin-bottom: 0; }
+.project-readiness td { white-space: normal; min-width: 155px; }
+.project-readiness td:nth-child(3) { min-width: 240px; }
+.project-readiness td:first-child svg { display: inline-block; vertical-align: middle; margin-right: 8px; color: #2459c4; }
+.project-readiness table { width: 100%; }
+.project-form fieldset { border: 0; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px 24px; }
+.project-form input, .project-form select { border-radius: 6px; padding: 9px 12px; }
+.project-form label { font-weight: 500; }
+.project-save-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+.project-conflict { margin-top: 20px; padding: 16px; background: #fff4df; color: #75430a; border-radius: 6px; }
+.project-conflict p { overflow-wrap: anywhere; }
+.project-facts { display: grid; grid-template-columns: 100px minmax(0,1fr); gap: 12px; }
+.project-facts dd { margin: 0; overflow-wrap: anywhere; }
+@media(max-width:700px) { .project-form fieldset, .project-followthrough { grid-template-columns: 1fr; } .project-tabs { gap: 12px; } .project-direction-note { padding: 16px; } .project-title-row { font-size: 13px; } }
+@media(max-width:700px) {
+  .project-workspace table { display: block; border: 0; }
+  .project-workspace thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+  .project-workspace tbody { display: block; }
+  .project-workspace tr { display: block; margin-bottom: 16px; border: 1px solid #dce2ea; border-radius: 6px; }
+  .project-workspace td, .project-workspace .project-readiness td:nth-child(3) { display: block; min-width: 0; padding: 10px 12px; border: 0; white-space: normal; overflow-wrap: anywhere; }
+  .project-workspace td:first-child { background: #f5f8fc; font-weight: 600; }
+  .project-workspace td::before { display: block; color: #526176; font-size: 12px; margin-bottom: 4px; }
+  .project-readiness td:nth-child(2)::before { content: "当前事实"; }
+  .project-readiness td:nth-child(3)::before { content: "缺什么 / 影响范围"; }
+  .project-readiness td:nth-child(4)::before { content: "处理入口"; }
+  .project-list-panel td:nth-child(2)::before { content: "类型 / 客户"; }
+  .project-list-panel td:nth-child(3)::before { content: "当前事实"; }
+  .project-list-panel td:nth-child(4)::before { content: "负责人"; }
+  .project-list-panel td:nth-child(5)::before { content: "更新时间"; }
+}
 body { margin: 0; min-width: 320px; background: #f4f6fa; }
 button, input, select { font: inherit; }
 button { border: 0; border-radius: 8px; padding: 10px 16px; color: #fff; background: #2459c4; font-weight: 700; cursor: pointer; }
