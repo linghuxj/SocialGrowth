@@ -1,5 +1,7 @@
 # WP-15 第三阶段：人工素材身份与不可变版本登记
 
+后续工程接续：[认证单项声明API](WP-15-stage7.md)提供受控runtime/票据实际bytes resolver及当前版本投影；下面固定747原阶段的未接HTTP描述保留其原门禁范围，不推定后来API/新源码已获旧复核或全部业务验收。
+
 2026-10-01后续门禁：原非作者固定ab2bc2b..747a9ce完整报告`artifacts/review/wp15-registry-747a9ce.md`已全文读取，新增0/本增量remaining0，指定5unit/14PG/8实际MinIO＋新独立9组与static通过；独立首轮2处夹具失败保留后仅修夹具最终9通过。不是作者根334/全PG253的再次独立通过。已交原QA同固定12文件接续，不包括未来0020/上传票据；QA未完成前不自签双G1，父来源pending1/Developeraf14/真实准入及手机缺口不变。
 
 随后原QA完整报告`artifacts/acceptance/product/B3/20260930T221923Z-wp15-registry-747a9ce/acceptance-report.md`已全文读取：同固定12文件、5/14/8＋原9 guard-only、static/manifest/结构全部通过，新增0/本增量remaining0、新oracle0、不认领作者334/253。QA实际PG17.11 Debian与原复核17.10 Alpine分开；自身两实例/卷/2合成桶/快照精确清理，原RED保留。双有限工程通过不等准入/全WP15/手机/AC/G3，不解除父pending1，Developer仍af14。

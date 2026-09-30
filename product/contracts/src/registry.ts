@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { saveMaterialDeclarationRequestSchema, materialCurrentViewSchema, saveMaterialDeclarationResponseSchema } from "./material-registry.js";
 import { prepareMaterialUploadRequestSchema, materialUploadTicketViewSchema, prepareMaterialUploadResponseSchema, uploadMaterialBytesCommandSchema, uploadMaterialBytesResponseSchema } from "./material-upload.js";
 import { commissionCursorSchema, providerCommissionRecordSchema, listProviderCommissionsResponseSchema } from "./commission.js";
 import { deviceAssistanceTodoSummarySchema, listDeviceAssistanceTodosResponseSchema, recordDeviceAssistanceNoteRequestSchema, recordDeviceAssistanceNoteResponseSchema, providerDeviceAssistanceTodoSummarySchema, listProviderDeviceAssistanceTodosResponseSchema, deviceAssistanceNoteViewSchema, listDeviceAssistanceNotesResponseSchema } from "./device-assistance.js";
@@ -79,6 +80,9 @@ import {
 } from "./status.js";
 
 export const firstBatchContractRegistry = {
+  saveMaterialDeclarationRequest: saveMaterialDeclarationRequestSchema,
+  materialCurrentView: materialCurrentViewSchema,
+  saveMaterialDeclarationResponse: saveMaterialDeclarationResponseSchema,
   prepareMaterialUploadRequest: prepareMaterialUploadRequestSchema,
   materialUploadTicketView: materialUploadTicketViewSchema,
   prepareMaterialUploadResponse: prepareMaterialUploadResponseSchema,

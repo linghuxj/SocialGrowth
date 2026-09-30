@@ -78,6 +78,12 @@ export class MaterialRegistryStore {
     return this.tx(token, null, async c => { await this.project(c, projectId.toLowerCase()); const saved = await this.load(c, variantId.toLowerCase());
       if (!saved || saved.projectId !== projectId.toLowerCase()) throw stale(); return saved; });
   }
+  // HTTP authentication preflight also runs when storage is unconfigured.
+  // It does not grant a lease: save/read reauthenticate in their own tx.
+  async authorizeWrite(token: string, csrf: string, projectId: string) {
+    if (!uuidSchema.safeParse(projectId).success) throw new ProductTransactionError("INPUT_INVALID", "Invalid material project");
+    await this.tx(token, csrf, async c => { await this.project(c, projectId.toLowerCase()); });
+  }
   private async verify(r: MaterialSave) {
     const controller = new AbortController(); let timer: ReturnType<typeof setTimeout> | undefined;
     try {

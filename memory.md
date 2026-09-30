@@ -25,6 +25,8 @@
 
 ## 2026-09-30 工程检查点
 
+2026-10-01最新登记接续：Cookie统一8c2bc97凝聚16文件已交原复核，bf5配置＋bytes整改be02..bf5固定26文件已交原QA，原模式/完整报告读取不重发保持。feature/wp-15-material-declaration-api-stage7作者根362、指定7BE/2TS/2Python、旧内部14PG/新实际AppModule＋自有PG/MinIO9；严格单项POST/current GET只pending/false许可，full历史内部核对后最小当前投影，配置关闭先实际auth再503，图片次序/语言同unit/source及旧key当前保留。旧79schema逐项不变新3、Android不变；首次TS1过1失败两次为新emoji长度预期误用UTF16，依实际依赖codePointLength修151负向/150正向、Python一致，原失败保留。自有be2d63 PG32872/5cfbbc MinIO32905及唯一74e0fa/9d3e80卷完整核验已清理，0|0|0/after空，日志保留。默认服务/Samsung授权、人工/真实配置需求记录继续，父来源pending1/Developeraf14/浏览器/保护脚本只路径状态不变；单项不是批量UI/准入/Task/手机/全部开发完成，下一独立BE批量和有界历史。
+
 2026-10-01最新Cookie统一：1486原完整报告及bf5原74行报告全文已读，WP15-1486-01局部material同窗实际清零、新增/remaining0；指定12BE/3TS/3Python/13真实联合、原1～7 guard-only/新9独立，未认领作者354/253/父来源13。旧第8裸object PUT404其实仍可通过但组名不准确，新第9明确bytes200和未实现路由404，首次筛选意外8/自有lint诊断按报告保留。当前feature/operator-cookie-boundary-hardening统一六消费者，作者356产品/256全PG/新3实际AppModule认证回归；新fixture方法名/表名及旧2短token首次失败均保留，只据实际接口修夹具、未放宽认证。自有ae5841 PG32871及唯一996e0a卷已完整归属核验清理，0|0|0/after空，原服务未动。原复核/QA/开发三窗口发送新固定阶段与仅读已有报告方式不变、默认自有服务/Samsung授权持续；父来源pending1/Developeraf14/浏览器管理员/保护发布脚本只路径状态不变。待原QA be02..bf5组合与本统一独立门禁，随后登记API；配置/真人缺口记录继续，未报全部开发或AC/G3完成。
 
 2026-10-01字节接续：be02原QA完整20260930T224743Z报告已读，4/11＋原8 guard-only增量0、新oracle0、实际PG17.11与复核17.10区分、reset前cluster/完整实例归属及自身清理，父pending1不清。1486原复核中已确认Cookie后缀截断1P3/独立7过1RED，未全文报告前不自报清零。feature/wp-15-authenticated-byte-transport-stage6作者354/253全PG/13实际AppModule＋自有PG/MinIO，auth/原ticket前置、锁外16MiB/15秒读取、真实断开/超量/超时/并发/撤销和原ID重试。局部Cookie完整保留并精确校验，原P3同窗复验待做，旧其他消费者需下一统一。只byte PUT/票据API，登记/UI/准入/Task/手机仍缺；自有fa47df PG32870/c724cc MinIO32904及唯一卷已核验清理、0|0|0/after空，源码/首次诊断/最终保留。默认服务/Samsung授权、人工/配置需求记录继续、原三窗口模式及发送固定/仅读报告不重发、父af14/浏览器/保护脚本限制不变，未报全部完成。

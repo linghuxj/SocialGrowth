@@ -179,6 +179,8 @@ WP-10 新增内部 `endpoint-report-core` 只校验签名完整双用途快照�
 
 后续六类运营控制器统一`operatorSessionTokenFrom`，完整43字符base64url且同名唯一，拒绝数组合并/后缀/名称畸形及控制字符，不改变auth、CSRF或响应Cookie属性。作者2unit/3实际AppModule认证回归及产品356/全PG256通过，原固定门禁另做；非真实浏览器登录、全站生产安全或媒体验收，见[Cookie统一整改](../../docs/engineering/delivery/records/operator-cookie-hardening.md)。
 
+第七阶段注册单项`POST /api/operator/projects/:projectId/materials`及当前版本`GET .../:variantId`，唯一共享人工身份/声明输入、Cookie/CSRF与项目preflight，再原store重新认证/锁外实际字节核验/CAS/完整历史校对。当前GET不返全历史/actor/存储定位，历史损坏仍关闭；只pending_validation/两许可false。默认JSON大小未改，单项极限真实HTTP通过；配置关闭先认证再503，历史只读不证明当前bytes。作者362产品/旧内部14PG/新实际AppModule＋PG/MinIO9分别通过，非UI/准入/手机，批量/有界历史另接续；详见[接口、失败、资源及职责](../../docs/engineering/delivery/records/WP-15-stage7.md)。
+
 ## WP-25 内部分佣核对（无实际收入或付款）
 
 `commission-core`只对明确到账/产生期间/承接及历史统一比例作BigInt精确核对；跨承接/比例不能可靠拆分、配置未定或未知保持pending。确认空档归公司不是缺记录默认，不公开到本人；币种/精度/舍入显式无生产默认。internal_calculation_only没有真实producer、持久去重、本人API或支付，不能将重复纯计算累计为新应付。78位金额/0～12位精度/18位比例只是技术边界，图稿数字不是配置，详见[分佣任务卡](../../docs/engineering/delivery/records/WP-25.md)。

@@ -63,7 +63,31 @@ class FirstBatchContracts:
         return value
 
     def _validate_contract_semantics(self, name: str, value: Any) -> None:
-        if name in ("materialUploadTicketView", "prepareMaterialUploadResponse", "uploadMaterialBytesResponse"):
+        if name in ("saveMaterialDeclarationRequest", "materialCurrentView", "saveMaterialDeclarationResponse"):
+            identity, declaration = value["identity"], value["declaration"]
+            whitespace = "\u0009\u000a\u000b\u000c\u000d\u0020\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
+            if ((identity["seriesId"] is None) != (identity["episodeNumber"] is None)
+                or (identity["seriesId"] is not None and (identity["mediaKind"] != "video" or identity["businessKind"] != "drama"))):
+                raise ContractDataError(f"{name}: inconsistent explicit episode identity")
+            for field, maximum in (("name", 150), ("description", 5000), ("businessFacts", 5000), ("sourceStatement", 5000)):
+                text = declaration[field]
+                if (text.strip(whitespace) != text or any(ord(char) < 32 or ord(char) == 127 for char in text)
+                    or len(text) > maximum):
+                    raise ContractDataError(f"{name}: invalid explicit declaration text")
+            evidence = [item.lower() for item in declaration["sourceEvidenceIds"]]
+            if len(set(evidence)) != len(evidence):
+                raise ContractDataError(f"{name}: duplicate evidence identity")
+            if name == "saveMaterialDeclarationRequest":
+                objects = [item.lower() for item in value["objectIds"]]
+            else:
+                objects = [item["objectId"].lower() for item in value["objects"]]
+                if (value["recordedAt"].startswith("0000-")
+                    or any((item["contentType"].startswith("image/") if identity["mediaKind"] == "video" else item["contentType"] == "video/mp4") for item in value["objects"])
+                    or (name == "saveMaterialDeclarationResponse" and value["changed"] and value["replayed"])):
+                    raise ContractDataError(f"{name}: inconsistent material current result")
+            if len(set(objects)) != len(objects) or (identity["mediaKind"] == "video" and len(objects) != 1):
+                raise ContractDataError(f"{name}: invalid explicit object list")
+        elif name in ("materialUploadTicketView", "prepareMaterialUploadResponse", "uploadMaterialBytesResponse"):
             verified = value["verifiedAt"]
             if ((value["status"] == "verified_bytes") != (verified is not None)
                 or (verified is not None and self._compare_timestamps(value["preparedAt"], verified) > 0)

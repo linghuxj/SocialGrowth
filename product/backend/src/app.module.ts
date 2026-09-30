@@ -3,6 +3,7 @@ import { Pool } from "pg";
 import { AppController } from "./app.controller.js";
 import { MaterialRuntime, readMaterialRuntimeConfig } from "./material-runtime.js";
 import { MaterialUploadController } from "./material-upload.controller.js";
+import { MaterialRegistryController } from "./material-registry.controller.js";
 import { readOperatorRuntimeConfig, readSmsRuntimeConfig } from "./config.js";
 import { DatabaseLifecycle } from "./database-lifecycle.js";
 import { DevelopmentProviderSmsController } from "./development-provider-sms.controller.js";
@@ -116,6 +117,7 @@ const providerAuthProvider = {
   controllers: [
     AppController,
     MaterialUploadController,
+    MaterialRegistryController,
     DevelopmentProviderSmsController,
     InstallationController,
     OperatorController,

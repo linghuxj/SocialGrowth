@@ -11,6 +11,7 @@ export * from "./identity.js";
 export * from "./installation-auth.js";
 export * from "./invitation.js";
 export * from "./material-upload.js";
+export * from "./material-registry.js";
 export * from "./network-admission.js";
 export * from "./operator.js";
 export * from "./provider-auth.js";
