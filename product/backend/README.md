@@ -167,6 +167,10 @@ WP-10 新增内部 `endpoint-report-core` 只校验签名完整双用途快照�
 
 `task-impact-core`按完整任务/名额与版本区分更正、撤回、暂停、结束及恢复；未知只核实原提交，编辑中只建议安全停止与检查。更正按显式材料variant谱系，不扩大到另一语言/平台；原任务窗口/材料/名额及成功/取消历史保持，结束无普通恢复。impact_advisory_only不修改任务、不能删除或释放资源，无生产writer/outbox、物理停止或迁移实现，详见[变更任务卡](../../docs/engineering/delivery/records/WP-21.md)。
 
+## WP-15 人工素材内部登记（无准入或发布）
+
+`MaterialRegistryStore`/0019只持久当前operator/CSRF的人工unit/source、语言variant、不可变对象manifest/修订、命令及最小审计。默认对象verifier关闭新save，旧read不证明当前字节仍在；server-only核验在事务外，随后重新认证/CAS及最后DB钟，同原key读当前不重做IO。名称/hash/语言或新UUID不推定实际身份，给定原source命名空间稳定唯一；更正保留原unit/文件，saveBatch最多50逐项独立结果，失败不阻合格项，但所有保存仍pending_validation/candidateAllowed=false/publicationAllowed=false。MaterialStorageVerifier实际readVerified完整字节核验，production upload/location lookup及HTTP/跨端/UI/候选/名额/Task/手机接线尚未配置或实现；详见[素材登记](../../docs/engineering/delivery/records/WP-15-stage3.md)。
+
 ## WP-25 内部分佣核对（无实际收入或付款）
 
 `commission-core`只对明确到账/产生期间/承接及历史统一比例作BigInt精确核对；跨承接/比例不能可靠拆分、配置未定或未知保持pending。确认空档归公司不是缺记录默认，不公开到本人；币种/精度/舍入显式无生产默认。internal_calculation_only没有真实producer、持久去重、本人API或支付，不能将重复纯计算累计为新应付。78位金额/0～12位精度/18位比例只是技术边界，图稿数字不是配置，详见[分佣任务卡](../../docs/engineering/delivery/records/WP-25.md)。

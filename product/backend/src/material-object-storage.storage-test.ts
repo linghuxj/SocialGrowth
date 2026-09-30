@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import { after, before, test } from "node:test";
 import { CreateBucketCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { MaterialObjectStorage, MaterialStorageError, type MaterialObjectReference } from "./material-object-storage.js";
+import { MaterialStorageVerifier } from "./material-storage-verifier.js";
+import { MaterialRegistryError } from "./material-registry-store.js";
 const endpoint = process.env.SG_PRODUCT_TEST_STORAGE_ENDPOINT;
 if (endpoint !== "http://127.0.0.1:32900" || process.env.SG_PRODUCT_TEST_STORAGE_ISOLATED !== "1") throw new Error("Storage checks require the exact isolated loopback test server");
 const accessKeyId = process.env.SG_PRODUCT_TEST_STORAGE_ACCESS_KEY, secretAccessKey = process.env.SG_PRODUCT_TEST_STORAGE_SECRET_KEY;
@@ -61,4 +63,14 @@ test("anonymous and incorrect credentials cannot read a private object; safe fac
   // Supplemental real source reading, not a business/material approval workflow.
   const actual = await admin.send(new GetObjectCommand({ Bucket: c.bucket, Key: ref.key }));
   if (actual.Body) await actual.Body.transformToByteArray();
+});
+test("registry verifier resolves protected uploaded manifest and actually detects changed bytes, not caller success", async () => {
+  const ref = await store.put(input(), Buffer.from("synthetic actual bytes; not media readiness"));
+  const verifier = new MaterialStorageVerifier(store, async (projectId, objectId) => projectId === ref.projectId && objectId === ref.objectId ? ref : null);
+  const request = { projectId: ref.projectId, objectIds: [ref.objectId] };
+  assert.deepEqual(await verifier.verify(request, new AbortController().signal), [ref]);
+  await assert.rejects(verifier.verify({ ...request, objectIds: [randomUUID()] }, new AbortController().signal), (e: unknown) => e instanceof MaterialRegistryError && e.code === "VERIFIER_UNAVAILABLE" && !e.cause);
+  const cancelled = new AbortController(); cancelled.abort(); await assert.rejects(verifier.verify(request, cancelled.signal));
+  await admin.send(new PutObjectCommand({ Bucket: c.bucket, Key: ref.key, Body: Buffer.alloc(ref.bytes, 120), ContentType: ref.contentType }));
+  await assert.rejects(verifier.verify(request, new AbortController().signal), (e: unknown) => e instanceof MaterialRegistryError && e.code === "VERIFIER_UNAVAILABLE" && !e.cause);
 });
