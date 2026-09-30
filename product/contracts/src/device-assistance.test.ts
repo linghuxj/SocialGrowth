@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { deviceAssistanceTodoSummarySchema, listDeviceAssistanceTodosResponseSchema, recordDeviceAssistanceNoteRequestSchema, recordDeviceAssistanceNoteResponseSchema } from "./device-assistance.js";
+import { deviceAssistanceTodoSummarySchema, listDeviceAssistanceTodosResponseSchema, recordDeviceAssistanceNoteRequestSchema, recordDeviceAssistanceNoteResponseSchema, providerDeviceAssistanceTodoSummarySchema, listProviderDeviceAssistanceTodosResponseSchema } from "./device-assistance.js";
 import { contractVersion } from "./common.js";
 const id = "00000000-0000-4000-8000-00000000000a";
 const summary = { todoId: id, occurrenceId: id, providerId: id, initialResponsibleOperatorId: id, originScope: "unassigned_device", kind: "network_access_help", status: "awaiting_recheck", factVersion: 1,
@@ -31,4 +31,12 @@ test("all assistance response shapes share representable calendar years without 
   const first = "2026-09-30T00:00:00.12345678901234567890Z", later = "2026-09-30T01:00:00.12345678901234567891+01:00";
   assert.equal(deviceAssistanceTodoSummarySchema.safeParse({ ...summary, createdAt: first, updatedAt: later }).success, true);
   assert.equal(deviceAssistanceTodoSummarySchema.safeParse({ ...summary, createdAt: later, updatedAt: first }).success, false);
+});
+test("provider summary preserves same todo progress but excludes operator responsibility and private history", () => {
+  const value = { todoId: id, originScope: summary.originScope, kind: summary.kind, status: summary.status, factVersion: summary.factVersion, impactCount: 1, noteCount: 1, createdAt: summary.createdAt, updatedAt: summary.updatedAt };
+  assert.deepEqual(providerDeviceAssistanceTodoSummarySchema.parse(value), value);
+  for (const patch of [{ providerId: id }, { initialResponsibleOperatorId: id }, { text: "internal" }, { notificationStatus: "sent" }, { noteCount: 0 }, { createdAt: "0000-01-01T00:00:00Z" }]) assert.equal(providerDeviceAssistanceTodoSummarySchema.safeParse({ ...value, ...patch }).success, false);
+  assert.equal(listProviderDeviceAssistanceTodosResponseSchema.safeParse({ todos: [value], nextAfterTodoId: id }).success, true);
+  assert.equal(listProviderDeviceAssistanceTodosResponseSchema.safeParse({ todos: [value, { ...value, todoId: id.toUpperCase() }], nextAfterTodoId: null }).success, false);
+  assert.equal(listProviderDeviceAssistanceTodosResponseSchema.safeParse({ todos: [], nextAfterTodoId: id }).success, false);
 });

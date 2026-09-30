@@ -63,14 +63,15 @@ class FirstBatchContracts:
         return value
 
     def _validate_contract_semantics(self, name: str, value: Any) -> None:
-        if name in ("deviceAssistanceTodoSummary", "listDeviceAssistanceTodosResponse", "recordDeviceAssistanceNoteResponse"):
-            todos = value["todos"] if name == "listDeviceAssistanceTodosResponse" else [value["todo"] if name == "recordDeviceAssistanceNoteResponse" else value]
+        if name in ("deviceAssistanceTodoSummary", "listDeviceAssistanceTodosResponse", "recordDeviceAssistanceNoteResponse", "providerDeviceAssistanceTodoSummary", "listProviderDeviceAssistanceTodosResponse"):
+            page = name in ("listDeviceAssistanceTodosResponse", "listProviderDeviceAssistanceTodosResponse")
+            todos = value["todos"] if page else [value["todo"] if name == "recordDeviceAssistanceNoteResponse" else value]
             for todo in todos:
                 if todo["status"] == "awaiting_recheck" and todo["noteCount"] == 0:
                     raise ContractDataError(f"{name}: recheck lacks processing report")
                 if self._compare_timestamps(todo["updatedAt"], todo["createdAt"]) < 0:
                     raise ContractDataError(f"{name}: update predates creation")
-            if name == "listDeviceAssistanceTodosResponse":
+            if page:
                 ids = [todo["todoId"].lower() for todo in todos]
                 cursor = value["nextAfterTodoId"]
                 if len(set(ids)) != len(ids) or (cursor is not None and (not ids or cursor.lower() != ids[-1])):

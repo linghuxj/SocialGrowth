@@ -139,6 +139,17 @@ class FirstBatchContractsTest(unittest.TestCase):
         with self.assertRaises(ContractValidationError):
             self.contracts._timestamp_parts("0000-01-01T00:00:00Z")
 
+    def test_provider_assistance_summary_excludes_other_principals_and_keeps_calendar_cursor_semantics(self) -> None:
+        value = {"todoId": self.installation_id, "originScope": "unassigned_device", "kind": "network_access_help", "status": "awaiting_recheck",
+                 "factVersion": 2, "impactCount": 1, "noteCount": 1, "createdAt": "2026-09-30T00:00:00Z", "updatedAt": "2026-09-30T00:00:00Z"}
+        self.contracts.validate("providerDeviceAssistanceTodoSummary", value)
+        self.contracts.validate("listProviderDeviceAssistanceTodosResponse", {"todos": [value], "nextAfterTodoId": self.installation_id})
+        for patch in ({"initialResponsibleOperatorId": self.installation_id}, {"providerId": self.installation_id}, {"text": "internal"}, {"noteCount": 0}, {"createdAt": "0000-01-01T00:00:00Z"}):
+            with self.assertRaises(ContractValidationError):
+                self.contracts.validate("providerDeviceAssistanceTodoSummary", {**value, **patch})
+        with self.assertRaises(ContractValidationError):
+            self.contracts.validate("listProviderDeviceAssistanceTodosResponse", {"todos": [value, value], "nextAfterTodoId": None})
+
     def test_control_action_is_strict_independent_and_never_grants_permission(self) -> None:
         action = {
             "protocolVersion": "2026-09-30.control-v1", "deviceId": self.installation_id,

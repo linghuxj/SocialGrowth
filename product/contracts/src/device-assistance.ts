@@ -28,3 +28,19 @@ export type DeviceAssistanceTodoSummary = z.infer<typeof deviceAssistanceTodoSum
 export const recordDeviceAssistanceNoteRequestSchema = z.strictObject({ metadata: requestMetadataSchema,
   todoId: uuidSchema, expectedFactVersion: z.int().min(0), kind: z.enum(["note", "reported_processed"]), text: projectLabelSchema });
 export const recordDeviceAssistanceNoteResponseSchema = z.strictObject({ todo: deviceAssistanceTodoSummarySchema });
+// Provider sees their own item identity and progress, not operator responsibility,
+// other providers, raw device errors, internal notes or notification configuration.
+export const providerDeviceAssistanceTodoSummarySchema = z.strictObject({
+  todoId: deviceAssistanceTodoSummarySchema.shape.todoId, originScope: deviceAssistanceTodoSummarySchema.shape.originScope,
+  kind: deviceAssistanceTodoSummarySchema.shape.kind, status: deviceAssistanceTodoSummarySchema.shape.status,
+  factVersion: deviceAssistanceTodoSummarySchema.shape.factVersion, impactCount: deviceAssistanceTodoSummarySchema.shape.impactCount,
+  noteCount: deviceAssistanceTodoSummarySchema.shape.noteCount, createdAt: assistanceTimestampSchema, updatedAt: assistanceTimestampSchema,
+}).superRefine((v, ctx) => {
+  if (v.status === "awaiting_recheck" && v.noteCount === 0) ctx.addIssue({ code: "custom", message: "Recheck status needs a recorded processing report" });
+  if (assistanceTimestampSchema.safeParse(v.createdAt).success && assistanceTimestampSchema.safeParse(v.updatedAt).success && compareTimestamps(v.updatedAt, v.createdAt) === -1) ctx.addIssue({ code: "custom", message: "Assistance update predates creation" });
+});
+export const listProviderDeviceAssistanceTodosResponseSchema = z.strictObject({ todos: z.array(providerDeviceAssistanceTodoSummarySchema).max(50), nextAfterTodoId: uuidSchema.nullable() })
+  .superRefine((v, ctx) => {
+    if (new Set(v.todos.map(t => t.todoId.toLowerCase())).size !== v.todos.length
+      || (v.nextAfterTodoId !== null && v.nextAfterTodoId.toLowerCase() !== v.todos.at(-1)?.todoId.toLowerCase())) ctx.addIssue({ code: "custom", message: "Assistance page cursor or identity is inconsistent" });
+  });

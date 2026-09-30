@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { deviceAssistanceTodoSummarySchema, listDeviceAssistanceTodosResponseSchema, recordDeviceAssistanceNoteRequestSchema, recordDeviceAssistanceNoteResponseSchema } from "./device-assistance.js";
+import { deviceAssistanceTodoSummarySchema, listDeviceAssistanceTodosResponseSchema, recordDeviceAssistanceNoteRequestSchema, recordDeviceAssistanceNoteResponseSchema, providerDeviceAssistanceTodoSummarySchema, listProviderDeviceAssistanceTodosResponseSchema } from "./device-assistance.js";
 import { phoneActionRequestSchema } from "./action-permission.js";
 import { createProjectRequestSchema, updateProjectRequestSchema, projectResponseSchema, projectViewSchema, listProjectsResponseSchema } from "./project.js";
 import { projectPlanningInputsSchema, projectPlanningDraftViewSchema, projectPlanningResponseSchema, saveProjectPlanningRequestSchema } from "./project-planning.js";
@@ -81,6 +81,8 @@ export const firstBatchContractRegistry = {
   listDeviceAssistanceTodosResponse: listDeviceAssistanceTodosResponseSchema,
   recordDeviceAssistanceNoteRequest: recordDeviceAssistanceNoteRequestSchema,
   recordDeviceAssistanceNoteResponse: recordDeviceAssistanceNoteResponseSchema,
+  providerDeviceAssistanceTodoSummary: providerDeviceAssistanceTodoSummarySchema,
+  listProviderDeviceAssistanceTodosResponse: listProviderDeviceAssistanceTodosResponseSchema,
   projectPlanningInputs: projectPlanningInputsSchema,
   projectPlanningDraftView: projectPlanningDraftViewSchema,
   projectPlanningResponse: projectPlanningResponseSchema,

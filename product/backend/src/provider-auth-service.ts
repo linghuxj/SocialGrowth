@@ -533,6 +533,20 @@ export class ProviderAuthService {
     return { providerId: row.provider_id };
   }
 
+  async authenticateSessionInTransaction(client: PoolClient, sessionToken: string): Promise<{ providerId: string; sessionId: string }> {
+    if (!/^[A-Za-z0-9_-]{43}$/.test(sessionToken)) throw new ProductTransactionError("AUTHENTICATION_REQUIRED", "Provider session is invalid");
+    const tokenDigest = secretDigest(this.securityPepper, sessionToken);
+    const locator = (await client.query<{ provider_id: string }>(`SELECT provider_id FROM ${schema}.provider_sessions WHERE token_digest=$1`, [tokenDigest])).rows[0];
+    if (!locator) throw new ProductTransactionError("AUTHENTICATION_REQUIRED", "Provider session is invalid");
+    // Provider before session; non-key protection is compatible with FK
+    // key-share locks in other flows, but still blocks disable/delete changes.
+    const provider = (await client.query<{ status: string }>(`SELECT status FROM ${schema}.providers WHERE provider_id=$1 FOR NO KEY UPDATE`, [locator.provider_id])).rows[0];
+    const session = (await client.query<{ session_id: string }>(`SELECT session_id FROM ${schema}.provider_sessions WHERE token_digest=$1 AND provider_id=$2 AND revoked_at IS NULL AND expires_at>clock_timestamp() FOR UPDATE`, [tokenDigest, locator.provider_id])).rows[0];
+    if (!session) throw new ProductTransactionError("AUTHENTICATION_REQUIRED", "Provider session is invalid or expired");
+    if (!provider || provider.status !== "active") throw new ProductTransactionError("PROVIDER_DISABLED", "Provider is disabled");
+    return { providerId: locator.provider_id, sessionId: session.session_id };
+  }
+
   private async completeProviderSession(
     phoneVerificationId: string,
     expectedPurpose: "provider_registration" | "provider_login",

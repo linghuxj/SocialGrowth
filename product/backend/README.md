@@ -36,6 +36,8 @@ WP-24 `project-cycle-core`只消费未来可信日历生成器的冻结实际边
 
 WP-20 `GET /api/operator/assistance-todos`仅以当前Host运营会话读取无项目来源事项的全局摘要，`afterTodoId`及`pageSize`严格分页，默认20/上限50、no-store。初始联系人不隔离访问，originScope不是当前项目分配状态；不返回说明正文/秘密，见[认证分页任务卡](../../docs/engineering/delivery/records/WP-20-stage2.md)。新增`POST /api/operator/assistance-todos/:todoId/notes`需同会话＋CSRF、严格metadata/路径对象/版本CAS/kind/text；reported_processed仅等待复核，不关闭或恢复；同键返回当前摘要，已提交未知响应保留原键核实。摘要共同支持0001～9999年。没有故障创建、详情分页、真实复核/恢复HTTP或实际事件/邮件/跨端UI接线，不能从测试入库或空页自报完整业务完成，见[说明命令与日历修复](../../docs/engineering/delivery/records/WP-20-stage3.md)。
 
+`GET /api/provider/assistance-todos`新增Provider Bearer本人分页投影，同todoID与当前进度、不返运营责任/内部说明/其他provider，owned微秒cursor不能跨人；事务认证与最后DB钟保护失效会话。只是后端接口，未实现Android待办UI、人工写入或真实恢复，见[本人待办任务卡](../../docs/engineering/delivery/records/WP-20-stage4.md)。
+
 `IdentityTransactionService` 实现当前首批后端事务基础：
 
 - 邀请注册锁定验证与邀请行，在同一事务内复核有效性、创建提供者、扣减名额、消费验证并保存幂等结果。

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { after, before, test } from "node:test";
@@ -9,10 +9,18 @@ import { DeviceAssistanceTodoStore } from "./device-assistance-todo-store.js";
 import { DeviceAssistanceFeedService } from "./device-assistance-feed-service.js";
 import { OperatorAuthService } from "./operator-auth-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
+import { ProviderAuthService, UnavailableSmsDeliveryPort } from "./provider-auth-service.js";
+import { ProviderAssistanceFeedService } from "./provider-assistance-feed-service.js";
 const url = process.env.SG_PRODUCT_TEST_DATABASE_URL;
 if (!url || process.env.SG_PRODUCT_TEST_ALLOW_RESET !== "1") throw new Error("Assistance journal tests require an isolated reset-authorized database");
 const pool = new Pool({ connectionString: url, max: 10, application_name: "sg-todo-fixtures" });
 const auth = new OperatorAuthService(pool, "isolated-todo-fixture-pepper-only-00001"), store = new DeviceAssistanceTodoStore(pool, auth), feed = new DeviceAssistanceFeedService(pool, auth);
+const providerPepper = "isolated-provider-feed-pepper-only-0001", providerAuth = new ProviderAuthService(pool, providerPepper, new UnavailableSmsDeliveryPort()), providerFeed = new ProviderAssistanceFeedService(pool, providerAuth);
+async function providerSession(providerId: string) {
+  const token = randomBytes(32).toString("base64url"), sessionId = randomUUID();
+  await pool.query("INSERT INTO socialgrowth_product.provider_sessions(session_id,provider_id,token_digest,expires_at) VALUES($1,$2,$3,clock_timestamp()+interval '1 day')", [sessionId, providerId, createHmac("sha256", providerPepper).update(token).digest()]);
+  return { token, sessionId };
+}
 const meta = () => ({ contractVersion, requestId: `todo-${randomUUID()}`, idempotencyKey: `todo-${randomUUID()}` });
 const code = (value: string) => (e: unknown) => e instanceof ProductTransactionError && e.code === value;
 before(async () => {
@@ -287,4 +295,61 @@ test("actual synthetic BC history cannot escape the common calendar or turn a co
   await assert.rejects(feed.list(f.a.token, { afterTodoId: null, pageSize: 1 }), unknown);
   for (let i = 0; i < 2; i++) await assert.rejects(feed.recordNote(f.a.token, f.a.csrf, input), unknown);
   assert.deepEqual(await counts(initial.todoId), { impacts: 1, notes: 1, events: 1, commands: 1, notifications: 1, audits: 2 });
+});
+test("provider and operator share exact todo identity/progress, provider never sees another principal or internal text", async () => {
+  const f = await fixture(), g = await fixture(), session = await providerSession(f.p.providerId), first = await store.ingestUnassignedDeviceEvent(f.input), foreign = await store.ingestUnassignedDeviceEvent(g.input);
+  await feed.recordNote(f.a.token, f.a.csrf, { ...note(first.todoId, 1), text: "仅运营内部说明夹具" });
+  const page = await providerFeed.list(session.token, { afterTodoId: null, pageSize: 50 });
+  assert.equal(page.todos.length, 1); assert.equal(page.todos[0]?.todoId, first.todoId); assert.equal(page.todos[0]?.status, "awaiting_recheck"); assert.equal(page.todos[0]?.factVersion, 2); assert.equal(page.todos[0]?.noteCount, 1);
+  assert.ok(!JSON.stringify(page).includes(f.a.operatorId)); assert.ok(!JSON.stringify(page).includes("内部说明")); assert.ok(!JSON.stringify(page).includes(g.p.providerId));
+  await assert.rejects(providerFeed.list(session.token, { afterTodoId: foreign.todoId, pageSize: 20 }), code("FACT_VERSION_STALE"));
+  await assert.rejects(providerFeed.list(session.token, { afterTodoId: null, pageSize: 20, providerId: g.p.providerId }), code("INPUT_INVALID"));
+});
+test("provider cursor uses owned database microseconds and same displayed millisecond is visited exactly once", async () => {
+  const f = await fixture(), session = await providerSession(f.p.providerId), first = await store.ingestUnassignedDeviceEvent(f.input), second = await store.ingestUnassignedDeviceEvent(event(f.d.deviceId));
+  await pool.query("UPDATE socialgrowth_product.device_assistance_todos SET created_at='2026-01-01T00:00:00.123456Z' WHERE todo_id=$1", [first.todoId]);
+  await pool.query("UPDATE socialgrowth_product.device_assistance_todos SET created_at='2026-01-01T00:00:00.123457Z' WHERE todo_id=$1", [second.todoId]);
+  const one = await providerFeed.list(session.token, { afterTodoId: null, pageSize: 1 }), two = await providerFeed.list(session.token, { afterTodoId: one.nextAfterTodoId?.toUpperCase(), pageSize: 1 });
+  assert.equal(one.todos[0]?.todoId, first.todoId); assert.equal(two.todos[0]?.todoId, second.todoId); assert.equal(two.nextAfterTodoId, null); assert.equal(one.todos[0]?.createdAt, two.todos[0]?.createdAt);
+});
+test("provider session revocation, disable and wrong principal cannot read assistance", async () => {
+  const f = await fixture(), session = await providerSession(f.p.providerId); await store.ingestUnassignedDeviceEvent(f.input);
+  await assert.rejects(providerFeed.list(f.a.token, { afterTodoId: null, pageSize: 20 }), code("AUTHENTICATION_REQUIRED"));
+  await pool.query("UPDATE socialgrowth_product.providers SET status='disabled' WHERE provider_id=$1", [f.p.providerId]);
+  await assert.rejects(providerFeed.list(session.token, { afterTodoId: null, pageSize: 20 }), code("PROVIDER_DISABLED"));
+  await pool.query("UPDATE socialgrowth_product.providers SET status='active' WHERE provider_id=$1", [f.p.providerId]);
+  await providerAuth.logout(session.token, meta().requestId);
+  await assert.rejects(providerFeed.list(session.token, { afterTodoId: null, pageSize: 20 }), code("AUTHENTICATION_REQUIRED"));
+});
+test("provider actual SELECT lock wait beyond database expiry discards protected summaries", async () => {
+  const f = await fixture(), session = await providerSession(f.p.providerId); await store.ingestUnassignedDeviceEvent(f.input); const blocker = await pool.connect(); let pending: Promise<unknown> | undefined;
+  await pool.query("UPDATE socialgrowth_product.provider_sessions SET expires_at=clock_timestamp()+interval '1 second' WHERE session_id=$1", [session.sessionId]);
+  try {
+    await blocker.query("BEGIN"); await blocker.query("LOCK TABLE socialgrowth_product.device_assistance_todos IN ACCESS EXCLUSIVE MODE");
+    pending = providerFeed.list(session.token, { afterTodoId: null, pageSize: 20 }); const rejection = assert.rejects(pending, code("AUTHENTICATION_REQUIRED"));
+    let waiting = false, expired = false;
+    for (let i = 0; i < 300; i++) { if ((await pool.query("SELECT 1 FROM pg_stat_activity WHERE application_name='sg-todo-fixtures' AND wait_event_type='Lock' AND query LIKE '%SELECT t.todo_id%device_assistance_todos%' AND pid<>pg_backend_pid()")).rowCount) { waiting = true; break; } await new Promise(r => setTimeout(r, 5)); }
+    assert.ok(waiting);
+    for (let i = 0; i < 300; i++) { if ((await pool.query<{ expired: boolean }>("SELECT expires_at<=clock_timestamp() expired FROM socialgrowth_product.provider_sessions WHERE session_id=$1", [session.sessionId])).rows[0]?.expired) { expired = true; break; } await new Promise(r => setTimeout(r, 5)); }
+    assert.ok(expired); await blocker.query("COMMIT"); await rejection;
+  } finally { await blocker.query("ROLLBACK"); blocker.release(); await pending?.catch(() => undefined); }
+});
+test("provider non-key row protection permits a real FK writer holding the session while feed queues then rechecks revocation", async () => {
+  const f = await fixture(), session = await providerSession(f.p.providerId); await store.ingestUnassignedDeviceEvent(f.input); const blocker = await pool.connect(); let pending: Promise<unknown> | undefined;
+  try {
+    await blocker.query("BEGIN"); await blocker.query("SET LOCAL lock_timeout='2s'"); await blocker.query("SELECT 1 FROM socialgrowth_product.provider_sessions WHERE session_id=$1 FOR UPDATE", [session.sessionId]);
+    pending = providerFeed.list(session.token, { afterTodoId: null, pageSize: 20 }); const rejection = assert.rejects(pending, code("AUTHENTICATION_REQUIRED")); let waiting = false;
+    for (let i = 0; i < 300; i++) { if ((await pool.query("SELECT 1 FROM pg_stat_activity WHERE application_name='sg-todo-fixtures' AND wait_event_type='Lock' AND query LIKE '%provider_sessions%FOR UPDATE%' AND pid<>pg_backend_pid()")).rowCount) { waiting = true; break; } await new Promise(r => setTimeout(r, 5)); }
+    assert.ok(waiting);
+    await blocker.query("INSERT INTO socialgrowth_product.provider_sessions(session_id,provider_id,token_digest,expires_at) VALUES($1,$2,$3,clock_timestamp()+interval '1 day')", [randomUUID(), f.p.providerId, randomBytes(32)]);
+    await blocker.query("UPDATE socialgrowth_product.provider_sessions SET revoked_at=clock_timestamp() WHERE session_id=$1", [session.sessionId]); await blocker.query("COMMIT"); await rejection;
+  } finally { await blocker.query("ROLLBACK"); blocker.release(); await pending?.catch(() => undefined); }
+});
+test("provider corrupted intent or calendar cannot expose a partial page or private internal failure details", async () => {
+  const f = await fixture(), session = await providerSession(f.p.providerId), first = await store.ingestUnassignedDeviceEvent(f.input);
+  await pool.query("DELETE FROM socialgrowth_product.device_assistance_notification_intents WHERE todo_id=$1", [first.todoId]);
+  await assert.rejects(providerFeed.list(session.token, { afterTodoId: null, pageSize: 20 }), code("INTERNAL_ERROR"));
+  await pool.query("INSERT INTO socialgrowth_product.device_assistance_notification_intents(todo_id) VALUES($1)", [first.todoId]);
+  await pool.query("UPDATE socialgrowth_product.device_assistance_todos SET created_at='0001-01-01 00:00:00+00 BC' WHERE todo_id=$1", [first.todoId]);
+  await assert.rejects(providerFeed.list(session.token, { afterTodoId: null, pageSize: 20 }), code("INTERNAL_ERROR"));
 });
