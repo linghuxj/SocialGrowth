@@ -397,6 +397,28 @@ test("notes real SELECT lock wait beyond current database session deadline disca
     assert.ok(expired); await blocker.query("COMMIT"); await rejection;
   } finally { await blocker.query("ROLLBACK"); blocker.release(); await pending?.catch(() => undefined); }
 });
+test("notes reject raw +/- one-microsecond bounds before same-millisecond Date projection, including off-page history", async () => {
+  const f = await fixture(), initial = await store.ingestUnassignedDeviceEvent(f.input);
+  await feed.recordNote(f.a.token, f.a.csrf, note(initial.todoId, 1, "note"));
+  await feed.recordNote(f.a.token, f.a.csrf, note(initial.todoId, 2, "note"));
+  const ids = (await pool.query<{ note_id: string }>("SELECT note_id FROM socialgrowth_product.device_assistance_notes WHERE todo_id=$1 ORDER BY recorded_at,note_id", [initial.todoId])).rows.map(r => r.note_id);
+  await pool.query("UPDATE socialgrowth_product.device_assistance_todos SET created_at='2026-09-29T00:00:00.123400Z',updated_at='2026-09-29T00:00:00.123600Z' WHERE todo_id=$1", [initial.todoId]);
+  await pool.query("UPDATE socialgrowth_product.device_assistance_notes SET recorded_at='2026-09-29T00:00:00.123400Z' WHERE note_id=$1", [ids[0]]);
+  const rejected = (e: unknown) => code("INTERNAL_ERROR")(e) && (e as ProductTransactionError).retryable && !String(e).includes("fixture-private");
+  const before = await counts(initial.todoId);
+  for (const value of ["2026-09-29T00:00:00.123399Z", "2026-09-29T00:00:00.123601Z"]) {
+    await pool.query("UPDATE socialgrowth_product.device_assistance_notes SET recorded_at=$2 WHERE note_id=$1", [ids[1], value]);
+    const raw = (await pool.query<{ created_at: Date; updated_at: Date; recorded_at: Date; bad: boolean }>("SELECT t.created_at,t.updated_at,n.recorded_at,(n.recorded_at<t.created_at OR n.recorded_at>t.updated_at) AS bad FROM socialgrowth_product.device_assistance_todos t JOIN socialgrowth_product.device_assistance_notes n USING(todo_id) WHERE n.note_id=$1", [ids[1]])).rows[0]!;
+    assert.equal(raw.bad, true); assert.equal(raw.recorded_at.getTime(), raw.created_at.getTime()); assert.equal(raw.recorded_at.getTime(), raw.updated_at.getTime());
+    await assert.rejects(notesFeed.list(f.a.token, initial.todoId, { afterNoteId: null, pageSize: 1 }), rejected);
+    await assert.rejects(notesFeed.list(f.a.token, initial.todoId, { afterNoteId: ids[0], pageSize: 1 }), rejected);
+    assert.deepEqual(await counts(initial.todoId), before);
+  }
+  await pool.query("UPDATE socialgrowth_product.device_assistance_notes SET recorded_at='2026-09-29T00:00:00.123600Z' WHERE note_id=$1", [ids[1]]);
+  const first = await notesFeed.list(f.a.token, initial.todoId, { afterNoteId: null, pageSize: 1 }), second = await notesFeed.list(f.a.token, initial.todoId, { afterNoteId: first.nextAfterNoteId, pageSize: 1 });
+  assert.equal(first.notes[0]?.noteId, ids[0]); assert.equal(second.notes[0]?.noteId, ids[1]); assert.equal(second.nextAfterNoteId, null); assert.equal(first.notes[0]?.recordedAt, second.notes[0]?.recordedAt);
+  assert.deepEqual(await counts(initial.todoId), before);
+});
 test("0013 forward notes cursor index preserves real preexisting command/history rows", async () => {
   const f = await fixture(), first = await store.ingestUnassignedDeviceEvent(f.input); await feed.recordNote(f.a.token, f.a.csrf, note(first.todoId, 1));
   await pool.query("DROP INDEX socialgrowth_product.device_assistance_notes_cursor_idx");
