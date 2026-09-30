@@ -35,6 +35,8 @@ WP-22 `metric-snapshot-core`仅内部效果快照与显式更正规则：精确�
 
 WP-24 `project-cycle-core`只消费未来可信日历生成器的冻结实际边界，检查同瞬间连续/旧周期不变；按原平台task去重、实际发布时间左闭右开归属与迟到核验回原期，计划/完成/失败/待核实/路径不足分开且缺口不自动累入下一期。不生成IANA/DST边界、不查真实发布或引流证明、不存持久报告或授予执行，见[周期任务卡](../../docs/engineering/delivery/records/WP-24.md)。
 
+`observation-window-core`只消费明确的项目默认/形式覆盖、已核验发布与可信来源日历，分别检查精确小时和完整平台日、首不足日、同定义/持续时长/年龄及实际快照覆盖/截止；未满或不足只阻该比较，不产生停发/重发/换主指标。ready/aligned仅进入真实证据充分性复核，不证明可比或授权；未接批准/日历/来源生产者、持久化、AI或页面，见[观察窗口任务卡](../../docs/engineering/delivery/records/WP-24-stage2.md)。
+
 WP-20 `GET /api/operator/assistance-todos`仅以当前Host运营会话读取无项目来源事项的全局摘要，`afterTodoId`及`pageSize`严格分页，默认20/上限50、no-store。初始联系人不隔离访问，originScope不是当前项目分配状态；不返回说明正文/秘密，见[认证分页任务卡](../../docs/engineering/delivery/records/WP-20-stage2.md)。新增`POST /api/operator/assistance-todos/:todoId/notes`需同会话＋CSRF、严格metadata/路径对象/版本CAS/kind/text；reported_processed仅等待复核，不关闭或恢复；同键返回当前摘要，已提交未知响应保留原键核实。摘要共同支持0001～9999年。没有故障创建、真实复核/恢复HTTP或实际事件/邮件/跨端UI接线，不能从测试入库或空页自报完整业务完成，见[说明命令与日历修复](../../docs/engineering/delivery/records/WP-20-stage3.md)。
 
 `GET /api/provider/assistance-todos`新增Provider Bearer本人分页投影，同todoID与当前进度、不返运营责任/内部说明/其他provider，owned微秒cursor不能跨人；事务认证与最后DB钟保护失效会话。只是后端接口，未实现Android待办UI、人工写入或真实恢复，见[本人待办任务卡](../../docs/engineering/delivery/records/WP-20-stage4.md)。
