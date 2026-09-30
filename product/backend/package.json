@@ -15,9 +15,11 @@
     "dev": "tsx watch src/main.ts",
     "pretest": "pnpm --filter @socialgrowth/product-contracts build",
     "test": "tsx --test src/*.test.ts",
-    "test:postgres": "tsx --test --test-concurrency=1 src/*.postgres-test.ts"
+    "test:postgres": "tsx --test --test-concurrency=1 src/*.postgres-test.ts",
+    "test:storage": "tsx --test --test-concurrency=1 src/*.storage-test.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1143.0",
     "@nestjs/common": "12.1.1",
     "@nestjs/core": "12.1.1",
     "@nestjs/platform-express": "12.1.1",

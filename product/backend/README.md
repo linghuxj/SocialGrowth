@@ -26,6 +26,8 @@ WP-14 第一阶段新增运营会话入口`GET/POST /api/operator/projects`及`P
 
 第三阶段新增`GET/POST /api/operator/projects/:projectId/planning-draft`，运营Host会话读、CSRF写。严格contract/body路径及project/draft版本，空项保留未配置，保存永远unapproved_draft；同事务草案及project版本/审计/命令，无改动不加版本，同键读取当前草案。只支持筹备项目，未连Web；人工国家语言标签和内容说明不是可执行批准边界，不能据此启动周期或任务。完整字段、迁移/测试及真实缺口见[规划输入任务卡](../../docs/engineering/delivery/records/WP-14-stage3.md)。
 
+WP-15 `MaterialObjectStorage`为内部S3/MinIO字节适配器，未接Nest/HTTP/Web/素材登记/消费者；显式受控配置及凭据，无环境默认凭据链。固定UUID对象/条件防覆盖、完整下载哈希/长度验证、配置位置绑定，不产生公开URL/批准/名额或执行许可。`test:storage`只运行明确隔离回环32900新fixture，不是项目E2E或UI验收；适用范围、128MiB缓冲上限、正式S3/上传准入/手机缺口见[素材任务卡](../../docs/engineering/delivery/records/WP-15.md)。
+
 `IdentityTransactionService` 实现当前首批后端事务基础：
 
 - 邀请注册锁定验证与邀请行，在同一事务内复核有效性、创建提供者、扣减名额、消费验证并保存幂等结果。

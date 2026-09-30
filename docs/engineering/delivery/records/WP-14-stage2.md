@@ -47,3 +47,5 @@ pnpm --filter @socialgrowth/product-backend test:postgres
 尚未完成真实资源分配/平台资格、批准范围和周期等WP-14总体能力。第一阶段复核缺陷与本独立核心分别跟踪，剩余项不会被“核心通过”抹掉；G1等待固定提交原非作者清零和原QA工程核验，G3/AC未通过。
 
 原非作者固定5227127报告artifacts/review/wp14-stage2-5227127.md已完整读取：remaining0，内部工程G1通过；独立150产品、106PG、2400步/7种腐坏快照oracle及12组Store/SQL/双OS/回执丢失/锁后到期/overflow探针全部通过，独立库deadlocks0。包含read等待guard与另一运营负责人编辑交错，两者完成，未借作者红测试冒充独立证据。其首轮PG与contracts构建并行导入失败保留，依赖就绪后完整106通过；原窗口只清理自己容器。已交原QA固定5227127工程复验，尚不合Developer或签署真实资源G3。
+
+原QA固定5227127报告artifacts/acceptance/product/B3/20260930T091141Z-wp14-stage2-5227127/acceptance-report.md已完整读取：独立150/106、2400步＋7种坏快照及12组持久化探针通过，内部工程G1通过，独立库deadlocks0，自己的隔离容器/快照已清理。核对worktree/祖先/旧tip后CAS将Developer从6394cde快进5227127，不切换或重置后续草案/素材及用户脏脚本。真实资源/身份/初始化/承接/许可与G3、AC25/26仍未通过；第一阶段浏览器策略及SEC缺口不关闭。
