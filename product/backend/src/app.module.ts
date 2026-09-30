@@ -20,6 +20,8 @@ import { DeviceAssistanceFeedService } from "./device-assistance-feed-service.js
 import { DeviceAssistanceFeedController } from "./device-assistance-feed.controller.js";
 import { ProviderAssistanceFeedService } from "./provider-assistance-feed-service.js";
 import { ProviderAssistanceFeedController } from "./provider-assistance-feed.controller.js";
+import { ProviderCommissionFeedService } from "./provider-commission-feed-service.js";
+import { ProviderCommissionFeedController } from "./provider-commission-feed.controller.js";
 import { DeviceAssistanceNotesService } from "./device-assistance-notes-service.js";
 import { DeviceAssistanceNotesController } from "./device-assistance-notes.controller.js";
 import { TrackingLinkService } from "./tracking-link-service.js";
@@ -119,6 +121,7 @@ const providerAuthProvider = {
     ProjectPlanningController,
     DeviceAssistanceFeedController,
     ProviderAssistanceFeedController,
+    ProviderCommissionFeedController,
     DeviceAssistanceNotesController,
     TrackingRedirectController,
   ],
@@ -134,6 +137,7 @@ const providerAuthProvider = {
     { provide: ProjectPlanningService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ProjectPlanningService(pool, auth) },
     { provide: DeviceAssistanceFeedService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new DeviceAssistanceFeedService(pool, auth) },
     { provide: ProviderAssistanceFeedService, inject: [Pool, ProviderAuthService], useFactory: (pool: Pool, auth: ProviderAuthService) => new ProviderAssistanceFeedService(pool, auth) },
+    { provide: ProviderCommissionFeedService, inject: [Pool, ProviderAuthService], useFactory: (pool: Pool, auth: ProviderAuthService) => new ProviderCommissionFeedService(pool, auth) },
     { provide: DeviceAssistanceNotesService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new DeviceAssistanceNotesService(pool, auth) },
     // No real business target origin/definition has been supplied. Closed until
     // an explicit server-owned policy adapter is reviewed; no ambient fallback.

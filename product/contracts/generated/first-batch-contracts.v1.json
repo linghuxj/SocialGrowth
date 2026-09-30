@@ -1,6 +1,342 @@
 {
   "contractVersion": "2026-09-29.identity-v1",
   "schemas": {
+    "commissionCursor": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "incomeId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "incomeId",
+        "revision"
+      ],
+      "additionalProperties": false
+    },
+    "providerCommissionRecord": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "incomeId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "currentForIncome": {
+          "type": "boolean"
+        },
+        "identityId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "accountIdentityRef": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,150}$"
+        },
+        "platform": {
+          "type": "string",
+          "enum": [
+            "facebook",
+            "youtube"
+          ]
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "minorUnitScale": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 12
+        },
+        "produced": {
+          "type": "object",
+          "properties": {
+            "startsAt": {
+              "type": "string",
+              "pattern": "^(?!0000-)(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            },
+            "endsAt": {
+              "type": "string",
+              "pattern": "^(?!0000-)(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            }
+          },
+          "required": [
+            "startsAt",
+            "endsAt"
+          ],
+          "additionalProperties": false
+        },
+        "receivedAt": {
+          "type": "string",
+          "pattern": "^(?!0000-)(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        },
+        "evaluatedAt": {
+          "type": "string",
+          "pattern": "^(?!0000-)(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        },
+        "receivedRevenueMinorUnits": {
+          "type": "string",
+          "maxLength": 78,
+          "pattern": "^(?:0|[1-9][0-9]*)$"
+        },
+        "commissionMinorUnits": {
+          "type": "string",
+          "maxLength": 78,
+          "pattern": "^(?:0|[1-9][0-9]*)$"
+        },
+        "appliedFraction": {
+          "type": "string",
+          "pattern": "^(?:0|1|0\\.[0-9]{1,18})$"
+        },
+        "rateVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "rounding": {
+          "type": "string",
+          "enum": [
+            "down",
+            "half_up",
+            "half_even"
+          ]
+        },
+        "moneyPolicyVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "calculationStage": {
+          "type": "string",
+          "const": "internal_calculation_only"
+        },
+        "paymentStatus": {
+          "type": "string",
+          "const": "not_recorded"
+        },
+        "paymentAllowed": {
+          "type": "boolean",
+          "const": false
+        }
+      },
+      "required": [
+        "incomeId",
+        "revision",
+        "currentForIncome",
+        "identityId",
+        "accountIdentityRef",
+        "platform",
+        "currency",
+        "minorUnitScale",
+        "produced",
+        "receivedAt",
+        "evaluatedAt",
+        "receivedRevenueMinorUnits",
+        "commissionMinorUnits",
+        "appliedFraction",
+        "rateVersion",
+        "rounding",
+        "moneyPolicyVersion",
+        "calculationStage",
+        "paymentStatus",
+        "paymentAllowed"
+      ],
+      "additionalProperties": false
+    },
+    "listProviderCommissionsResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "records": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "incomeId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "currentForIncome": {
+                "type": "boolean"
+              },
+              "identityId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "accountIdentityRef": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,150}$"
+              },
+              "platform": {
+                "type": "string",
+                "enum": [
+                  "facebook",
+                  "youtube"
+                ]
+              },
+              "currency": {
+                "type": "string",
+                "pattern": "^[A-Z]{3}$"
+              },
+              "minorUnitScale": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 12
+              },
+              "produced": {
+                "type": "object",
+                "properties": {
+                  "startsAt": {
+                    "type": "string",
+                    "pattern": "^(?!0000-)(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                  },
+                  "endsAt": {
+                    "type": "string",
+                    "pattern": "^(?!0000-)(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                  }
+                },
+                "required": [
+                  "startsAt",
+                  "endsAt"
+                ],
+                "additionalProperties": false
+              },
+              "receivedAt": {
+                "type": "string",
+                "pattern": "^(?!0000-)(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "evaluatedAt": {
+                "type": "string",
+                "pattern": "^(?!0000-)(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "receivedRevenueMinorUnits": {
+                "type": "string",
+                "maxLength": 78,
+                "pattern": "^(?:0|[1-9][0-9]*)$"
+              },
+              "commissionMinorUnits": {
+                "type": "string",
+                "maxLength": 78,
+                "pattern": "^(?:0|[1-9][0-9]*)$"
+              },
+              "appliedFraction": {
+                "type": "string",
+                "pattern": "^(?:0|1|0\\.[0-9]{1,18})$"
+              },
+              "rateVersion": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "rounding": {
+                "type": "string",
+                "enum": [
+                  "down",
+                  "half_up",
+                  "half_even"
+                ]
+              },
+              "moneyPolicyVersion": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "calculationStage": {
+                "type": "string",
+                "const": "internal_calculation_only"
+              },
+              "paymentStatus": {
+                "type": "string",
+                "const": "not_recorded"
+              },
+              "paymentAllowed": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "required": [
+              "incomeId",
+              "revision",
+              "currentForIncome",
+              "identityId",
+              "accountIdentityRef",
+              "platform",
+              "currency",
+              "minorUnitScale",
+              "produced",
+              "receivedAt",
+              "evaluatedAt",
+              "receivedRevenueMinorUnits",
+              "commissionMinorUnits",
+              "appliedFraction",
+              "rateVersion",
+              "rounding",
+              "moneyPolicyVersion",
+              "calculationStage",
+              "paymentStatus",
+              "paymentAllowed"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "nextAfter": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "incomeId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "incomeId",
+                "revision"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "records",
+        "nextAfter"
+      ],
+      "additionalProperties": false
+    },
     "deviceAssistanceTodoSummary": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",

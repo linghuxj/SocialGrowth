@@ -63,7 +63,20 @@ class FirstBatchContracts:
         return value
 
     def _validate_contract_semantics(self, name: str, value: Any) -> None:
-        if name == "listDeviceAssistanceNotesResponse":
+        if name in ("providerCommissionRecord", "listProviderCommissionsResponse"):
+            records = value["records"] if name == "listProviderCommissionsResponse" else [value]
+            for record in records:
+                if (self._compare_timestamps(record["produced"]["startsAt"], record["produced"]["endsAt"]) >= 0
+                    or self._compare_timestamps(record["produced"]["endsAt"], record["evaluatedAt"]) > 0
+                    or self._compare_timestamps(record["receivedAt"], record["evaluatedAt"]) > 0
+                    or int(record["commissionMinorUnits"]) > int(record["receivedRevenueMinorUnits"])):
+                    raise ContractDataError(f"{name}: inconsistent internal commission record")
+            if name == "listProviderCommissionsResponse":
+                keys = [(r["incomeId"].lower(), r["revision"]) for r in records]
+                cursor = value["nextAfter"]
+                if len(set(keys)) != len(keys) or (cursor is not None and (not keys or (cursor["incomeId"].lower(), cursor["revision"]) != keys[-1])):
+                    raise ContractDataError(f"{name}: inconsistent commission cursor or identity")
+        elif name == "listDeviceAssistanceNotesResponse":
             self._validate_contract_semantics("deviceAssistanceTodoSummary", value["todo"])
             ids = [note["noteId"].lower() for note in value["notes"]]
             cursor = value["nextAfterNoteId"]

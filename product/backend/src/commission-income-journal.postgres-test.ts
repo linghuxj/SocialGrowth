@@ -1,13 +1,20 @@
+import "reflect-metadata";
 import assert from "node:assert/strict";
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { Module } from "@nestjs/common";
+import { NestFactory } from "@nestjs/core";
+import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { after, before, test } from "node:test";
 import { Pool, type PoolClient } from "pg";
 import { contractVersion } from "@socialgrowth/product-contracts";
 import { CommissionIncomeJournal, CommissionJournalError, type CommissionIncomeProducer } from "./commission-income-journal.js";
-import { type CommissionContext, type CommissionIncome } from "./commission-core.js";
+import { calculateCommission, type CommissionContext, type CommissionIncome } from "./commission-core.js";
 import { OperatorAuthService } from "./operator-auth-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
+import { ProviderAuthService, UnavailableSmsDeliveryPort } from "./provider-auth-service.js";
+import { ProviderCommissionFeedService } from "./provider-commission-feed-service.js";
+import { ProviderCommissionFeedController } from "./provider-commission-feed.controller.js";
+import { ProductExceptionFilter } from "./product-exception.filter.js";
 const url = process.env.SG_PRODUCT_TEST_DATABASE_URL;
 if (!url || process.env.SG_PRODUCT_TEST_ALLOW_RESET !== "1") throw new Error("Commission SQL tests require an isolated reset-authorized database");
 const pool = new Pool({ connectionString: url, max: 8, application_name: "sg-commission-fixtures" });
@@ -237,4 +244,159 @@ test("producer errors are fixed codes without raw text/cause or fake old success
   const f = await fixture(); const j = new CommissionIncomeJournal(pool, auth, { read: async () => { throw new Error("synthetic-private-marker"); } });
   await assert.rejects(apply(f, f.input, j), (e: unknown) => e instanceof CommissionJournalError && e.code === "PRODUCER_UNAVAILABLE" && !e.cause && !e.message.includes("private-marker"));
   assert.deepEqual(await counts(f.income.incomeId), zero);
+});
+const providerPepper = "synthetic-commission-provider-pepper-00001";
+const providerAuth = new ProviderAuthService(pool, providerPepper, new UnavailableSmsDeliveryPort());
+const providerFeed = new ProviderCommissionFeedService(pool, providerAuth);
+let phoneSequence = 0;
+async function viewer() {
+  const providerId = randomUUID(), sessionId = randomUUID(), token = randomBytes(32).toString("base64url");
+  await pool.query(`INSERT INTO ${s}.providers(provider_id,phone_e164,display_name,status) VALUES($1,$2,'Synthetic commission viewer','active')`, [providerId, `+155501${String(++phoneSequence).padStart(5, "0")}`]);
+  await pool.query(`INSERT INTO ${s}.provider_sessions(session_id,provider_id,token_digest,expires_at) VALUES($1,$2,$3,clock_timestamp()+interval '1 day')`, [sessionId, providerId, createHmac("sha256", providerPepper).update(token).digest()]);
+  return { providerId, sessionId, token };
+}
+async function owned(v: Awaited<ReturnType<typeof viewer>>, incomeId?: string) {
+  const f = await fixture(); if (incomeId) { f.income.incomeId = incomeId; f.input.incomeId = incomeId; }
+  const row = f.context.ownership[0]!; assert.equal(row.kind, "provider");
+  if (row.kind !== "provider") throw new Error("Wrong synthetic ownership fixture");
+  row.providerId = v.providerId; await produce(f); await apply(f); return f;
+}
+const page = (v: Awaited<ReturnType<typeof viewer>>, after: { incomeId: string; revision: number } | null = null, pageSize = 20) => providerFeed.list(v.token, { after, pageSize });
+test("numeric revision ordering remains continuous across 9/10 in read, correction, replay and provider projection", async () => {
+  const a = await viewer(), f = await owned(a);
+  for (let revision = 2; revision <= 12; revision++) {
+    f.income.revision = revision; f.income.amountMinorUnits = String(revision * 100); await produce(f);
+    assert.equal((await apply(f, { ...f.input, metadata: meta(), expectedCurrentRevision: revision - 1 })).currentRevision, revision);
+  }
+  const history = await journal.read(f.a.token, f.income.incomeId);
+  assert.deepEqual(history.revisions.map(v => v.income.revision), Array.from({ length: 12 }, (_, i) => i + 1));
+  assert.equal((await apply(f)).currentRevision, 12);
+  const records = (await page(a)).records;
+  assert.deepEqual(records.map(v => v.revision), Array.from({ length: 12 }, (_, i) => i + 1));
+  assert.deepEqual(records.map(v => v.currentForIncome), Array.from({ length: 12 }, (_, i) => i === 11));
+});
+test("complete numeric 1000-revision fixture remains readable/replayable; 1001 is rejected, not truncated", async () => {
+  // Synthetic boundary fixture only; continuous normal service writes above
+  // separately prove the actual 9->10 path. This is not a receipt oracle.
+  const a = await viewer(), f = await owned(a), first = (await journal.read(f.a.token, f.income.incomeId)).revisions[0]!;
+  const entries = Array.from({ length: 1000 }, (_, i) => {
+    const income = { ...f.income, revision: i + 2 };
+    return { income, context: f.context, calculation: calculateCommission(income, f.context, first.calculation.evaluatedAt) };
+  });
+  await pool.query(`INSERT INTO ${s}.commission_income_revisions(income_id,revision,income,context,calculation,evaluated_at,recorded_by_operator_id)
+    SELECT $1,(j->'income'->>'revision')::bigint,j->'income',j->'context',j->'calculation',$3,$4 FROM jsonb_array_elements($2::jsonb) j`, [f.income.incomeId, JSON.stringify(entries.slice(0, 999)), first.calculation.evaluatedAt, f.a.operatorId]);
+  const c = await pool.connect();
+  try {
+    await c.query("BEGIN"); await c.query(`ALTER TABLE ${s}.commission_income_sources DISABLE TRIGGER USER`);
+    await c.query(`UPDATE ${s}.commission_income_sources SET current_revision=1000 WHERE income_id=$1`, [f.income.incomeId]);
+    await c.query("SET CONSTRAINTS ALL IMMEDIATE"); // Resolve the fixture's deferred FK before ALTER TABLE.
+    await c.query(`ALTER TABLE ${s}.commission_income_sources ENABLE TRIGGER USER`); await c.query("COMMIT");
+  } finally { await c.query("ROLLBACK"); c.release(); }
+  const history = await journal.read(f.a.token, f.income.incomeId); assert.equal(history.revisions.length, 1000);
+  for (const revision of [10, 100, 1000]) assert.equal(history.revisions[revision - 1]!.income.revision, revision);
+  assert.equal((await apply(f)).currentRevision, 1000);
+  assert.deepEqual((await page(a, { incomeId: f.income.incomeId, revision: 999 }, 1)).records.map(v => [v.revision, v.currentForIncome]), [[1000, true]]);
+  f.income.revision = 1001; await produce(f);
+  await assert.rejects(apply(f, { ...f.input, metadata: meta(), expectedCurrentRevision: 1000 }), code("REVISION_STALE"));
+  await pool.query(`INSERT INTO ${s}.commission_income_revisions(income_id,revision,income,context,calculation,evaluated_at,recorded_by_operator_id) VALUES($1,1001,$2,$3,$4,$5,$6)`, [f.income.incomeId, entries[999]!.income, f.context, entries[999]!.calculation, first.calculation.evaluatedAt, f.a.operatorId]);
+  await assert.rejects(journal.read(f.a.token, f.income.incomeId), code("CORRUPT_HISTORY"));
+  await assert.rejects(page(a, { incomeId: f.income.incomeId, revision: 1000 }), code("INTERNAL_ERROR"));
+});
+test("provider projection uses actual current session and returns only own allowlisted internal records", async () => {
+  const a = await viewer(), b = await viewer(), empty = await viewer(), mine = await owned(a), other = await owned(b);
+  const gap = await fixture(), old = gap.context.ownership[0]!;
+  gap.context.ownership[0] = { kind: "company_gap", periodId: old.periodId, version: old.version, evidenceId: old.evidenceId, startsAt: old.startsAt, endsAt: old.endsAt }; await produce(gap); await apply(gap);
+  const pending = await fixture(); pending.income.attribution = "unknown";
+  const owner = pending.context.ownership[0]!; if (owner.kind !== "provider") throw new Error("Wrong synthetic ownership fixture");
+  owner.providerId = a.providerId; await produce(pending); await apply(pending);
+  const result = await page(a); assert.equal(result.records.length, 1); const row = result.records[0]!;
+  assert.equal(row.incomeId, mine.income.incomeId); assert.equal(row.currentForIncome, true); assert.equal(row.commissionMinorUnits, "10");
+  assert.equal(row.paymentAllowed, false); assert.equal(row.paymentStatus, "not_recorded"); assert.equal(row.rounding, "half_even");
+  assert.equal((await page(b)).records[0]!.incomeId, other.income.incomeId); assert.deepEqual(await page(empty), { records: [], nextAfter: null });
+  for (const forbidden of ["providerId", "deviceId", "sourceId", "sourceRecordId", "evidenceId", "receiptId", "recordedByOperatorId", "ownership", "paidAmountMinorUnits", "balance"]) assert.equal(forbidden in row, false);
+  for (const secret of [b.providerId, other.income.incomeId, gap.income.incomeId, mine.income.receiptId!, mine.a.operatorId]) assert.equal(JSON.stringify(result).includes(secret), false);
+});
+test("corrected ownership retains former viewer's archived record without exposing new owner", async () => {
+  const a = await viewer(), b = await viewer(), f = await owned(a);
+  f.income.revision = 2; f.income.amountMinorUnits = "200";
+  const owner = f.context.ownership[0]!; if (owner.kind !== "provider") throw new Error("Wrong synthetic ownership fixture");
+  owner.providerId = b.providerId; await produce(f);
+  await apply(f, { ...f.input, metadata: meta(), expectedCurrentRevision: 1 });
+  const first = (await page(a)).records, second = (await page(b)).records;
+  assert.deepEqual(first.map(v => [v.revision, v.currentForIncome, v.commissionMinorUnits]), [[1, false, "10"]]);
+  assert.deepEqual(second.map(v => [v.revision, v.currentForIncome, v.commissionMinorUnits]), [[2, true, "20"]]);
+  assert.equal(JSON.stringify(first).includes(b.providerId), false); assert.equal(JSON.stringify(second).includes(a.providerId), false);
+});
+test("bounded own pagination handles two revisions and income UUID order; foreign cursors fail identically", async () => {
+  const a = await viewer(), b = await viewer(), f = await owned(a), extra = await owned(a), other = await owned(b);
+  f.income.revision = 2; f.income.amountMinorUnits = "200"; await produce(f); await apply(f, { ...f.input, metadata: meta(), expectedCurrentRevision: 1 });
+  const expected = [{ incomeId: f.income.incomeId, revision: 1 }, { incomeId: f.income.incomeId, revision: 2 }, { incomeId: extra.income.incomeId, revision: 1 }].sort((l, r) => l.incomeId.localeCompare(r.incomeId) || l.revision - r.revision);
+  let cursor: { incomeId: string; revision: number } | null = null;
+  for (const [index, ref] of expected.entries()) {
+    const result = await page(a, cursor, 1); assert.equal(result.records.length, 1); assert.equal(result.records[0]!.incomeId, ref.incomeId); assert.equal(result.records[0]!.revision, ref.revision);
+    assert.deepEqual(result.nextAfter, index === 2 ? null : ref); cursor = { ...ref, incomeId: ref.incomeId.toUpperCase() };
+  }
+  assert.deepEqual(await page(a, cursor), { records: [], nextAfter: null });
+  for (const incomeId of [other.income.incomeId, randomUUID()]) await assert.rejects(page(a, { incomeId, revision: 1 }), code("FACT_VERSION_STALE"));
+  for (const pageSize of [0, 51]) await assert.rejects(page(a, null, pageSize), code("INPUT_INVALID"));
+  await assert.rejects(providerFeed.list(a.token, { after: null, pageSize: 20, providerId: b.providerId }), code("INPUT_INVALID"));
+});
+async function tamperCalculation(incomeId: string, value: string) {
+  await pool.query(`ALTER TABLE ${s}.commission_income_revisions DISABLE TRIGGER commission_revision_immutable`);
+  try { await pool.query(`UPDATE ${s}.commission_income_revisions SET calculation=jsonb_set(calculation,'{providerId}',to_jsonb($2::text)) WHERE income_id=$1`, [incomeId, value]); }
+  finally { await pool.query(`ALTER TABLE ${s}.commission_income_revisions ENABLE TRIGGER commission_revision_immutable`); }
+}
+test("forged stored owner cannot disclose a foreign record, including cursor and overscan", async () => {
+  const a = await viewer(), b = await viewer();
+  await owned(a, "10000000-0000-4000-8000-000000000001");
+  const foreign = await owned(b, "f0000000-0000-4000-8000-000000000001");
+  await tamperCalculation(foreign.income.incomeId, a.providerId);
+  try {
+    await assert.rejects(page(a), code("INTERNAL_ERROR"));
+    await assert.rejects(page(a, { incomeId: foreign.income.incomeId, revision: 1 }), code("INTERNAL_ERROR"));
+    // The forged record sorts second and is the single-row page's overscan.
+    await assert.rejects(page(a, null, 1), code("INTERNAL_ERROR"));
+  } finally { await tamperCalculation(foreign.income.incomeId, b.providerId); }
+});
+test("revoked or disabled provider cannot use existing records; another current session survives logout", async () => {
+  const a = await viewer(); await owned(a);
+  const token = randomBytes(32).toString("base64url"), sessionId = randomUUID();
+  await pool.query(`INSERT INTO ${s}.provider_sessions(session_id,provider_id,token_digest,expires_at) VALUES($1,$2,$3,clock_timestamp()+interval '1 day')`, [sessionId, a.providerId, createHmac("sha256", providerPepper).update(token).digest()]);
+  await pool.query(`UPDATE ${s}.provider_sessions SET revoked_at=clock_timestamp() WHERE session_id=$1`, [a.sessionId]);
+  await assert.rejects(page(a), code("AUTHENTICATION_REQUIRED"));
+  assert.equal((await providerFeed.list(token, { after: null, pageSize: 20 })).records.length, 1);
+  await pool.query(`UPDATE ${s}.providers SET status='disabled' WHERE provider_id=$1`, [a.providerId]);
+  await assert.rejects(providerFeed.list(token, { after: null, pageSize: 20 }), code("PROVIDER_DISABLED"));
+});
+test("real source-table lock wait crossing actual session expiry rejects before returning records", async () => {
+  const a = await viewer(); await owned(a); const locker = await pool.connect();
+  await pool.query(`UPDATE ${s}.provider_sessions SET expires_at=clock_timestamp()+interval '1 second' WHERE session_id=$1`, [a.sessionId]);
+  await locker.query("BEGIN"); await locker.query(`LOCK TABLE ${s}.commission_income_sources IN ACCESS EXCLUSIVE MODE`);
+  const rejection = assert.rejects(page(a), code("AUTHENTICATION_REQUIRED"));
+  try {
+    let waiting = false, expired = false;
+    for (let i = 0; i < 300; i++) {
+      waiting ||= Boolean((await pool.query("SELECT 1 FROM pg_stat_activity WHERE application_name='sg-commission-fixtures' AND wait_event_type='Lock' AND query LIKE '%row_to_json(src)%'")).rowCount);
+      expired = (await pool.query(`SELECT expires_at<=clock_timestamp() expired FROM ${s}.provider_sessions WHERE session_id=$1`, [a.sessionId])).rows[0]!.expired;
+      if (waiting && expired) break; await new Promise(resolve => setTimeout(resolve, 5));
+    }
+    assert.equal(waiting, true); assert.equal(expired, true); await locker.query("COMMIT"); await rejection;
+  } finally { await locker.query("ROLLBACK"); locker.release(); }
+});
+@Module({ controllers: [ProviderCommissionFeedController], providers: [{ provide: ProviderCommissionFeedService, useValue: providerFeed }] })
+class CommissionHttpFixtureModule {}
+test("actual Nest readonly GET uses real provider authentication, strict query and no-store headers", async () => {
+  // Ordinary NON-UI integration, not Playwright or actual income acceptance.
+  const a = await viewer(), b = await viewer(), mine = await owned(a), foreign = await owned(b);
+  const app = await NestFactory.create(CommissionHttpFixtureModule, { logger: false }); app.useGlobalFilters(new ProductExceptionFilter());
+  try {
+    await app.listen(0, "127.0.0.1"); const base = await app.getUrl();
+    const get = (query = "", token: string | undefined = a.token) => fetch(`${base}/api/provider/commissions${query}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    const response = await get(); assert.equal(response.status, 200); assert.equal(response.headers.get("cache-control"), "no-store");
+    const body = await response.json() as { records: { incomeId: string }[] }; assert.deepEqual(body.records.map(v => v.incomeId), [mine.income.incomeId]);
+    assert.equal((await get("", "")).status, 401); assert.equal((await get("?providerId=other")).status, 400);
+    assert.equal((await get(`?afterIncomeId=${foreign.income.incomeId}&afterRevision=1`)).status, 409);
+    assert.equal((await fetch(`${base}/api/provider/commissions`, { method: "POST", headers: { Authorization: `Bearer ${a.token}` } })).status, 404);
+    const before = await counts(mine.income.incomeId); await get(); assert.deepEqual(await counts(mine.income.incomeId), before);
+  } finally { await app.close(); }
 });

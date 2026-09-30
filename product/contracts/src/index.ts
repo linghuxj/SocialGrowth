@@ -3,6 +3,7 @@ import { z } from "zod";
 export * from "./action-permission.js";
 export * from "./association.js";
 export * from "./common.js";
+export * from "./commission.js";
 export * from "./device-facts.js";
 export * from "./device-assistance.js";
 export * from "./errors.js";

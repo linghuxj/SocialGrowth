@@ -173,6 +173,8 @@ WP-10 新增内部 `endpoint-report-core` 只校验签名完整双用途快照�
 
 `CommissionIncomeJournal`/0018另提供内部operator会话＋CSRF的稳定源去重、连续修订和冻结原依据；缺省producer在connect前关闭。旧key读当前不重算，换actor/key相同收入不重复计数或用新context自动改历史。修订/源/命令/最小audit同事务，完整历史按原context/DB微秒钟重算校对，损坏拒绝；没有实际到账/承接producer、本人feed/HTTP/UI或付款。DB-only port需同guard保护，未来共享锁顺序须先对齐，不在guard后擅自锁provider/device或外部网络；详见[收入账本](../../docs/engineering/delivery/records/WP-25-stage2.md)。
 
+后续`GET /api/provider/commissions`仅真实Provider Bearer当前会话只读本人**内部**计算历史，默认20/上限50、严格成对afterIncomeId/afterRevision与no-store；不收caller providerId。按同一查询快照完整重算历史，cursor/overscan同样校验，归属更正后原人的旧修订currentForIncome=false，不得累加多个应付。公司空档/他人/未知归属不披露，只有必要Page/频道标识、期间、原比例/舍入版本与内部金额，没有原source/receipt/他人/凭据、提现/总余额/付款。paymentStatus=not_recorded不是已付或未付事实确认。数值修订排序整改不削减1000上限；跨页不是冻结快照，新插入UUID排序在cursor前须重新加载。尚无实际收入producer、本人Web/Android消费者或付款记录，详见[本人最小投影与整改](../../docs/engineering/delivery/records/WP-25-stage3.md)。
+
 ## WP-11 内部调用日志（未开放执行）
 
 `PhoneControlJournal`仅保存控制记录和调用／停止历史，不注册HTTP、Nest provider或消费者；新记录默认`stop_requested`，没有持有者取得／重新启用接口。`initialize`、`apply`与审计原子提交；锁序设备→journal，旧版本／同键异载荷拒绝，重复请求返回当前记录及`replayed=true`，绝不能重新执行手机调用。未知调用及原持有者在重启后保留；停止三类证据仅供可信内部适配。

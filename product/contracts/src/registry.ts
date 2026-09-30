@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { commissionCursorSchema, providerCommissionRecordSchema, listProviderCommissionsResponseSchema } from "./commission.js";
 import { deviceAssistanceTodoSummarySchema, listDeviceAssistanceTodosResponseSchema, recordDeviceAssistanceNoteRequestSchema, recordDeviceAssistanceNoteResponseSchema, providerDeviceAssistanceTodoSummarySchema, listProviderDeviceAssistanceTodosResponseSchema, deviceAssistanceNoteViewSchema, listDeviceAssistanceNotesResponseSchema } from "./device-assistance.js";
 import { phoneActionRequestSchema } from "./action-permission.js";
 import { createProjectRequestSchema, updateProjectRequestSchema, projectResponseSchema, projectViewSchema, listProjectsResponseSchema } from "./project.js";
@@ -77,6 +78,9 @@ import {
 } from "./status.js";
 
 export const firstBatchContractRegistry = {
+  commissionCursor: commissionCursorSchema,
+  providerCommissionRecord: providerCommissionRecordSchema,
+  listProviderCommissionsResponse: listProviderCommissionsResponseSchema,
   deviceAssistanceTodoSummary: deviceAssistanceTodoSummarySchema,
   listDeviceAssistanceTodosResponse: listDeviceAssistanceTodosResponseSchema,
   recordDeviceAssistanceNoteRequest: recordDeviceAssistanceNoteRequestSchema,

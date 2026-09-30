@@ -20,8 +20,8 @@ export interface CommissionIncomeProducer {
   read(c: PoolClient, incomeId: string): Promise<unknown>;
 }
 const producedSchema = z.strictObject({ income: z.unknown(), context: z.unknown() });
-interface Source { income_id: string; source_id: string; source_record_id: string; identity_id: string; account_id: string; platform: string; current_revision: string }
-interface Revision { revision: string; income: unknown; context: unknown; calculation: unknown; evaluated_at: string; recorded_by_operator_id: string }
+export interface CommissionSourceRow { income_id: string; source_id: string; source_record_id: string; identity_id: string; account_id: string; platform: string; current_revision: string }
+export interface CommissionRevisionRow { revision: string; income: unknown; context: unknown; calculation: unknown; evaluated_at: string; recorded_by_operator_id: string }
 function canonical(v: unknown): string {
   if (v === null || typeof v !== "object") return JSON.stringify(v);
   if (Array.isArray(v)) return `[${v.map(canonical).join(",")}]`;
@@ -33,15 +33,13 @@ async function fresh(c: PoolClient, a: OperatorSessionContext): Promise<string> 
     WHERE x.session_id=$1 AND x.operator_id=$2 AND x.revoked_at IS NULL AND x.expires_at>t`, [a.sessionId, a.operator.operatorId])).rows[0];
   if (!row) throw new ProductTransactionError("AUTHENTICATION_REQUIRED", "Operator session expired"); return row.now;
 }
-function scopeMatches(source: Source, income: ReturnType<typeof parseCommissionIncome>): boolean {
+function scopeMatches(source: CommissionSourceRow, income: ReturnType<typeof parseCommissionIncome>): boolean {
   return source.income_id === income.incomeId && source.source_id === income.sourceId && source.source_record_id === income.sourceRecordId
     && source.identity_id === income.identityId && source.platform === income.platform;
 }
-async function load(c: PoolClient, incomeId: string) {
-  const source = (await c.query<Source>(`SELECT *,current_revision::text FROM ${s}.commission_income_sources WHERE income_id=$1 FOR UPDATE`, [incomeId])).rows[0];
-  if (!source) return null;
-  const rows = (await c.query<Revision>(`SELECT revision::text,income,context,calculation,evaluated_at,recorded_by_operator_id
-    FROM ${s}.commission_income_revisions WHERE income_id=$1 ORDER BY revision LIMIT 1001`, [incomeId])).rows;
+// Shared rehydration of a coherent source + complete history. Caller must obtain
+// them under one DB query snapshot or the journal writer's existing guard.
+export function validateCommissionHistory(source: CommissionSourceRow, rows: CommissionRevisionRow[]) {
   if (!rows.length || rows.length > 1000 || String(rows.length) !== source.current_revision) return fail("CORRUPT_HISTORY");
   let lastTime: string | null = null;
   const revisions = rows.map((row, i) => {
@@ -55,6 +53,13 @@ async function load(c: PoolClient, incomeId: string) {
     } catch { return fail("CORRUPT_HISTORY"); }
   });
   return { source, revisions };
+}
+async function load(c: PoolClient, incomeId: string) {
+  const source = (await c.query<CommissionSourceRow>(`SELECT *,current_revision::text FROM ${s}.commission_income_sources WHERE income_id=$1 FOR UPDATE`, [incomeId])).rows[0];
+  if (!source) return null;
+  const rows = (await c.query<CommissionRevisionRow>(`SELECT revision::text,income,context,calculation,evaluated_at,recorded_by_operator_id
+    FROM ${s}.commission_income_revisions history_row WHERE income_id=$1 ORDER BY history_row.revision LIMIT 1001`, [incomeId])).rows;
+  return validateCommissionHistory(source, rows);
 }
 async function affected(c: PoolClient, sql: string, values: unknown[]): Promise<void> {
   if ((await c.query(sql, values)).rowCount !== 1) fail("DATABASE_UNAVAILABLE");

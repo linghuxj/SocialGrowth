@@ -23,3 +23,9 @@ producer须在当前同guard保护的权威事实下DB-only读取；无注册pro
 复现`pnpm env:check`及根check/lint/test/build；专项`pnpm --filter @socialgrowth/product-backend exec tsx --test src/commission-income-journal.test.ts`，明确隔离reset授权URL下`pnpm --filter @socialgrowth/product-backend exec tsx --test --test-concurrency=1 src/commission-income-journal.postgres-test.ts`或全量`test:postgres`。测试会重建socialgrowth_product，仅本专用库；文档check_consistency仅结构。禁止改指真实库或以本补充计为Playwright/AC通过。
 
 RES-WP25-01～03仍开放：实际到账/可靠产生期间、确认比例/精度/舍入、初始化/退出/交接生产者、本人API/UI、浏览器控制和合法收入样本未完成。人员/配置不足记录后继续；下一独立工程为真实provider会话的最小只读投影，不披露公司空档或别人的历史/收益。作者完成待固定门禁，父来源pending1/Developeraf14保持，未签完整WP25/AC/G3或全部完成。
+
+## 原非作者后续发现：WP25-7CF-01 / P1
+
+已全文读取`artifacts/review/wp25-income-7cf8878.md`。1unit/22指定PG及静态通过；独立11组9通过/2 RED，对应同一连续修订缺陷，新增1P1/remaining1，本增量需修复、不合入/不提QA。`SELECT revision::text ... ORDER BY revision`按文本输出列排序，合法1～9逐次提交后第10次更正误报CORRUPT_HISTORY并回滚；1000历史读失败，之后1001分支未执行。原失败日志及快照保留，不能通过降低等级/改9条上限或已有通过抵消。
+
+整改在[第三阶段](WP-25-stage3.md)显式按底层bigint表列排序，仍返回文本/完整1000历史/连续性/损坏关闭；增加真实连续1～12更正、旧key当前、本人历史及1000/1001边界补充。作者通过不自签P1清零，形成新固定阶段后仍交同一原非作者窗口复验；该窗口仅读取固定新提交，不夹带活动未来代码。父来源pending1另保留。
