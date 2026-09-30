@@ -173,6 +173,8 @@ WP-10 新增内部 `endpoint-report-core` 只校验签名完整双用途快照�
 
 后续内部`MaterialUploadStore`/0020先固定认证object票据与server存储绑定、声明SHA/长度/类型；事务外真实条件PUT＋完整GET，重新认证及最终DB钟后才记verified_bytes/immutable manifest。存储或COMMIT失ACK/过期均按原ID原字节核实重试，历史重放不重复IO；不自动删对象或迁移旧manifest。server-only DB objectVerifier只读matching verified票据并重新验实际bytes，不再依赖临时map。仍无受控runtime配置注册、HTTP/跨端/UI/媒体准入/Task/手机，verified_bytes不等批准，许可false。`test:upload-storage`仅显式自有PG＋32902合成真实存储补充检查，不能替代Playwright；详见[上传票据](../../docs/engineering/delivery/records/WP-15-stage4.md)。
 
+第五阶段已实际注册MaterialRuntime及`POST /api/operator/projects/:projectId/material-uploads`/`GET .../:objectId`认证票据API。当前Cookie/CSRF/DB钟、最小共享TS/JSON/Python契约；只返必要bytes/status/时间与false许可，不返descriptor/位置/key/凭据。默认无配置新写503、历史read不重新证明当前bytes。显式SG_PRODUCT_MATERIAL_MODE=configured及所有受保护server字段才构造SDK，详见[配置/字段/实际测试及缺口](../../docs/engineering/delivery/records/WP-15-stage5.md)。shutdown关闭自有SDK，不自动发现/创建生产bucket。字节HTTP、素材登记HTTP、UI/准入/Task/手机仍未实现，不能把票据API当整个上传或媒体链路通过。
+
 ## WP-25 内部分佣核对（无实际收入或付款）
 
 `commission-core`只对明确到账/产生期间/承接及历史统一比例作BigInt精确核对；跨承接/比例不能可靠拆分、配置未定或未知保持pending。确认空档归公司不是缺记录默认，不公开到本人；币种/精度/舍入显式无生产默认。internal_calculation_only没有真实producer、持久去重、本人API或支付，不能将重复纯计算累计为新应付。78位金额/0～12位精度/18位比例只是技术边界，图稿数字不是配置，详见[分佣任务卡](../../docs/engineering/delivery/records/WP-25.md)。

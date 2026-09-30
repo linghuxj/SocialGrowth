@@ -2,6 +2,8 @@
 
 2026-10-01后续门禁：原非作者固定ab2bc2b..747a9ce完整报告`artifacts/review/wp15-registry-747a9ce.md`已全文读取，新增0/本增量remaining0，指定5unit/14PG/8实际MinIO＋新独立9组与static通过；独立首轮2处夹具失败保留后仅修夹具最终9通过。不是作者根334/全PG253的再次独立通过。已交原QA同固定12文件接续，不包括未来0020/上传票据；QA未完成前不自签双G1，父来源pending1/Developeraf14/真实准入及手机缺口不变。
 
+随后原QA完整报告`artifacts/acceptance/product/B3/20260930T221923Z-wp15-registry-747a9ce/acceptance-report.md`已全文读取：同固定12文件、5/14/8＋原9 guard-only、static/manifest/结构全部通过，新增0/本增量remaining0、新oracle0、不认领作者334/253。QA实际PG17.11 Debian与原复核17.10 Alpine分开；自身两实例/卷/2合成桶/快照精确清理，原RED保留。双有限工程通过不等准入/全WP15/手机/AC/G3，不解除父pending1，Developer仍af14。
+
 2026-10-01；基线ab2bc2b，feature/wp-15-material-registry-stage3。BE实施代理Codex；原非作者/QA固定门禁，WEB/EX/BIZ/OPS真人待签。[存储与真实资源](WP-15.md)、[名额规则](WP-15-stage2.md)、R-007/021～025/030～032/125、AC27～29及[质量手册](../quality-gates.md)。
 
 领取实际operator会话/CSRF的内部素材登记与完整版本读取，固定项目/人工内容单元/类型/剧集、语言variant及连续修订；稳定原source/sourceRecord只映射一个内容单元，重导入不创造名额。项目/单元/variant不可重绑，不按hash/标题猜人工内容关系。不实现迁移历史、新上传UI、媒体批准/权威Task/实际平台发布或队列。登记producer为实际认证运营提供的声明，不是模型、自报版权或真实未发布证明。

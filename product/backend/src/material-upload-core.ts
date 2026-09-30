@@ -1,9 +1,8 @@
 import { z } from "zod";
-import { requestMetadataSchema, uuidSchema } from "@socialgrowth/product-contracts";
+import { prepareMaterialUploadRequestSchema, requestMetadataSchema, uuidSchema } from "@socialgrowth/product-contracts";
 import { materialObjectReferenceSchema } from "./material-registry-core.js";
 const id = uuidSchema.transform(v => v.toLowerCase());
-export const materialUploadPrepareSchema = z.strictObject({ metadata: requestMetadataSchema, projectId: id, objectId: id,
-  sha256: materialObjectReferenceSchema.shape.sha256, bytes: materialObjectReferenceSchema.shape.bytes, contentType: materialObjectReferenceSchema.shape.contentType });
+export const materialUploadPrepareSchema = prepareMaterialUploadRequestSchema.extend({ projectId: id, objectId: id });
 export const materialUploadCommandSchema = z.strictObject({ metadata: requestMetadataSchema, projectId: id, objectId: id });
 export const materialUploadDescriptorSchema = materialObjectReferenceSchema;
 export class MaterialUploadError extends Error {

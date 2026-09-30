@@ -20,6 +20,11 @@ const configSchema = z.strictObject({
     || (u.protocol === "http:" && !["127.0.0.1", "[::1]", "localhost"].includes(u.hostname))) ctx.addIssue({ code: "custom", path: ["endpoint"], message: "Trusted endpoint must be HTTPS or loopback HTTP without path/credentials" });
 });
 export type MaterialStorageConfig = z.infer<typeof configSchema>;
+export function parseMaterialStorageConfig(input: unknown): MaterialStorageConfig {
+  const parsed = configSchema.safeParse(input);
+  if (!parsed.success) throw new MaterialStorageError("CONFIGURATION_REQUIRED");
+  return parsed.data;
+}
 const inputSchema = z.strictObject({ projectId: uuidSchema, objectId: uuidSchema, contentType });
 const refSchema = z.strictObject({
   storageLocationId: uuidSchema, storageBindingDigest: z.string().regex(/^[a-f0-9]{64}$/), projectId: uuidSchema, objectId: uuidSchema,
@@ -35,9 +40,8 @@ export class MaterialObjectStorage {
   #config: MaterialStorageConfig;
   #binding: string;
   constructor(input: unknown) {
-    const parsed = configSchema.safeParse(input);
-    if (!parsed.success) throw new MaterialStorageError("CONFIGURATION_REQUIRED");
-    this.#config = { ...parsed.data, storageLocationId: parsed.data.storageLocationId.toLowerCase(), endpoint: new URL(parsed.data.endpoint).origin };
+    const parsed = parseMaterialStorageConfig(input);
+    this.#config = { ...parsed, storageLocationId: parsed.storageLocationId.toLowerCase(), endpoint: new URL(parsed.endpoint).origin };
     const c = this.#config;
     this.#binding = createHash("sha256").update(JSON.stringify({ endpoint: c.endpoint, region: c.region, bucket: c.bucket, forcePathStyle: c.forcePathStyle })).digest("hex");
     this.#client = new S3Client({ endpoint: c.endpoint, region: c.region, forcePathStyle: c.forcePathStyle, maxAttempts: 2,

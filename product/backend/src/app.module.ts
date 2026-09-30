@@ -1,6 +1,8 @@
 import { Module } from "@nestjs/common";
 import { Pool } from "pg";
 import { AppController } from "./app.controller.js";
+import { MaterialRuntime, readMaterialRuntimeConfig } from "./material-runtime.js";
+import { MaterialUploadController } from "./material-upload.controller.js";
 import { readOperatorRuntimeConfig, readSmsRuntimeConfig } from "./config.js";
 import { DatabaseLifecycle } from "./database-lifecycle.js";
 import { DevelopmentProviderSmsController } from "./development-provider-sms.controller.js";
@@ -113,6 +115,7 @@ const providerAuthProvider = {
 @Module({
   controllers: [
     AppController,
+    MaterialUploadController,
     DevelopmentProviderSmsController,
     InstallationController,
     OperatorController,
@@ -133,6 +136,7 @@ const providerAuthProvider = {
     installationAuthProvider,
     smsRuntimeProvider,
     providerAuthProvider,
+    { provide: MaterialRuntime, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new MaterialRuntime(pool, auth, readMaterialRuntimeConfig()) },
     { provide: ProjectService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ProjectService(pool, auth) },
     { provide: ProjectPlanningService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ProjectPlanningService(pool, auth) },
     { provide: DeviceAssistanceFeedService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new DeviceAssistanceFeedService(pool, auth) },

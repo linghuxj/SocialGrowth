@@ -1,5 +1,7 @@
 # WP-15 第四阶段：认证对象上传票据与持久核验
 
+2026-10-01后续原非作者完整报告`artifacts/review/wp15-upload-be02bd7.md`已全文读取：固定747..be02十五文件新增0/remaining0，指定4unit/11真实联合＋新独立8、static通过；manifest首轮错误把test script算consumer的失败及初始诊断保留后仅修自身脚本。未重跑作者338/全253，旧SQL守卫未单独断言端口，实际完整实例归属另核验。已交原QA同固定增量（未来stage5完全排除），尚不作者自签双G1/父来源pending1或业务通过。
+
 2026-10-01；基线747a9ce，feature/wp-15-authenticated-object-upload-stage4。BE/OPS实施代理Codex；原非作者/QA，WEB/EX/BIZ真人待签。[素材登记](WP-15-stage3.md)、[原存储](WP-15.md)、R-007/022～025/031/125、AC27～29及[质量手册](../quality-gates.md)。
 
 领取先固定原project/object ID及字节SHA/长度/声明MIME/显式存储位置绑定的认证票据，再按原ID上传完整bytes与实际读回核验；事务外存储IO，前后实际operator会话/CSRF、原请求key/描述/CAS一致。失ACK/过期导致登记未完成时原票据可核实或重试同ID，不自动换ID、覆盖原字节或清理未知结果；成功保存verified_bytes不等素材准入/手机就绪/平台发布。
