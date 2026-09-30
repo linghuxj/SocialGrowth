@@ -12,6 +12,7 @@ export * from "./network-admission.js";
 export * from "./operator.js";
 export * from "./provider-auth.js";
 export * from "./project.js";
+export * from "./project-planning.js";
 export * from "./registry.js";
 export * from "./status.js";
 

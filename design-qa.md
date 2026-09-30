@@ -1,3 +1,15 @@
+# WP-14 第三阶段最新设计门禁：暂停新UI实现
+
+2026-09-30。目标是project-settings-v1.png及project-settings-prompt.txt的筹备目标/设置能力，以docs/workbench-page-spec.md §3与DESIGN.md校正生成稿示例；没有实现运行周期修改或复制示例数值。
+
+原QA固定6394cde于本轮再次收到管理员浏览器策略校验服务不可用，完整证据artifacts/acceptance/product/B3/20260930T084037Z-wp14-stage1-6394cde/browser-policy-blocker.md。按image-to-code/design-qa，暂停新UI实现、截图与视觉交付，不换其他入口绕过控制。当前只有规划草案后端、契约/PG证据，没有第三阶段浏览器渲染、同状态并排或聚焦图；五个视觉表面、响应式、交互及console均未验证，不从源码推导设计通过。
+
+责任与解除：运行环境维护方恢复管理员策略校验服务，WEB/QA随后从真实页面补捕获、操作与同尺寸比较。其他独立工程继续，见docs/engineering/delivery/records/WP-14-stage3.md。以下既有阶段历史证据保留，其passed不覆盖本阶段。
+
+final result: blocked
+
+---
+
 # WP-03 第三阶段设计 QA
 
 日期：2026-09-29。最终结果面向邀请管理 Web 的 UI-014 浅色工作台实现。

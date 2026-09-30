@@ -53,6 +53,30 @@ class FirstBatchContractsTest(unittest.TestCase):
             with self.assertRaises(ContractValidationError):
                 self.contracts.validate("listProjectsResponse", {"projects": [{**project, **patch}]})
 
+    def test_planning_inputs_remain_unapproved_with_cross_language_limits(self) -> None:
+        inputs = dict.fromkeys(("preOpeningGoal", "postOpeningGoal", "postOpeningPriority", "contentRules", "businessTimeZone",
+                               "firstCycleStartsAt", "reviewIntervalDays", "trafficMinimumPerCycle", "observationWindowHours",
+                               "tailObservationDays", "maxPublicationsPerDay", "publishingWindow"))
+        inputs.update(targetCountries=[], targetLanguages=[], contentForms=[])
+        self.contracts.validate("projectPlanningInputs", inputs)
+        view = {"projectId": self.installation_id, "projectFactVersion": 0, "draftVersion": 0, "inputs": inputs,
+                "status": "unapproved_draft", "savedAt": None, "savedByOperatorId": None}
+        self.contracts.validate("projectPlanningResponse", {"draft": view})
+        for patch in ({"targetCountries": [" padded "]}, {"targetLanguages": ["西班牙语", "西班牙语"]},
+                      {"targetCountries": [str(i) for i in range(51)]}, {"contentForms": ["youtube_shorts"] * 5},
+                      {"businessTimeZone": "Asia/Unknown"}, {"businessTimeZone": "GMT+8"}, {"reviewIntervalDays": 0},
+                      {"approved": True}, {"tailObservationDays": 9007199254740992}):
+            with self.assertRaises(ContractValidationError):
+                self.contracts.validate("projectPlanningInputs", {**inputs, **patch})
+        fine = {**inputs, "businessTimeZone": "Asia/Shanghai", "trafficMinimumPerCycle": 0,
+                "publishingWindow": {"startsAt": "2026-09-30T00:00:00.1234567890Z", "endsAt": "2026-09-30T00:00:00.1234567891Z"}}
+        self.contracts.validate("projectPlanningInputs", fine)
+        with self.assertRaises(ContractValidationError):
+            self.contracts.validate("projectPlanningInputs", {**fine, "publishingWindow": {**fine["publishingWindow"], "endsAt": fine["publishingWindow"]["startsAt"]}})
+        for patch in ({"status": "approved"}, {"savedAt": "2026-09-30T00:00:00Z"}, {"inputs": fine}):
+            with self.assertRaises(ContractValidationError):
+                self.contracts.validate("projectPlanningDraftView", {**view, **patch})
+
     def test_control_action_is_strict_independent_and_never_grants_permission(self) -> None:
         action = {
             "protocolVersion": "2026-09-30.control-v1", "deviceId": self.installation_id,

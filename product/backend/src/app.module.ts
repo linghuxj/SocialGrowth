@@ -14,6 +14,8 @@ import { ProviderAuthService } from "./provider-auth-service.js";
 import { ProviderController } from "./provider.controller.js";
 import { ProjectService } from "./project-service.js";
 import { ProjectController } from "./project.controller.js";
+import { ProjectPlanningController } from "./project-planning.controller.js";
+import { ProjectPlanningService } from "./project-planning-service.js";
 import {
   DevelopmentSmsCapturePort,
   DisabledDevelopmentSmsCodeReader,
@@ -106,6 +108,7 @@ const providerAuthProvider = {
     OperatorController,
     ProviderController,
     ProjectController,
+    ProjectPlanningController,
   ],
   providers: [
     poolProvider,
@@ -116,6 +119,7 @@ const providerAuthProvider = {
     smsRuntimeProvider,
     providerAuthProvider,
     { provide: ProjectService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ProjectService(pool, auth) },
+    { provide: ProjectPlanningService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ProjectPlanningService(pool, auth) },
     DatabaseLifecycle,
   ],
 })

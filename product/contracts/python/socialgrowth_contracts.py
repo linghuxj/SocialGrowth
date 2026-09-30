@@ -7,6 +7,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 class ContractValidationError(ValueError):
@@ -31,8 +32,10 @@ class FirstBatchContracts:
         "format",
         "items",
         "maxLength",
+        "maxItems",
         "maximum",
         "minLength",
+        "minItems",
         "minimum",
         "oneOf",
         "pattern",
@@ -61,7 +64,29 @@ class FirstBatchContracts:
         return value
 
     def _validate_contract_semantics(self, name: str, value: Any) -> None:
-        if name in ("createProjectRequest", "updateProjectRequest"):
+        if name in ("projectPlanningInputs", "saveProjectPlanningRequest", "projectPlanningDraftView", "projectPlanningResponse"):
+            draft = value["draft"] if name == "projectPlanningResponse" else value
+            inputs = value if name == "projectPlanningInputs" else draft["inputs"]
+            for key in ("targetCountries", "targetLanguages", "contentForms"):
+                if len(set(inputs[key])) != len(inputs[key]):
+                    raise ContractDataError(f"{name}: duplicate planning input")
+            zone = inputs["businessTimeZone"]
+            if zone is not None:
+                try:
+                    ZoneInfo(zone)
+                except (ZoneInfoNotFoundError, ValueError) as error:
+                    raise ContractDataError(f"{name}: unknown business time zone") from error
+            window = inputs["publishingWindow"]
+            if window is not None and self._compare_timestamps(window["startsAt"], window["endsAt"]) >= 0:
+                raise ContractDataError(f"{name}: unordered publication window")
+            if name in ("projectPlanningDraftView", "projectPlanningResponse"):
+                unsaved = draft["draftVersion"] == 0
+                no_provenance = draft["savedAt"] is None and draft["savedByOperatorId"] is None
+                if unsaved != no_provenance or (draft["savedAt"] is None) != (draft["savedByOperatorId"] is None):
+                    raise ContractDataError(f"{name}: inconsistent save provenance")
+                if unsaved and any(v != [] if k in ("targetCountries", "targetLanguages", "contentForms") else v is not None for k, v in inputs.items()):
+                    raise ContractDataError(f"{name}: unsaved draft claims persisted inputs")
+        elif name in ("createProjectRequest", "updateProjectRequest"):
             self._validate_project_basics(value["basics"], name)
         elif name in ("projectView", "projectResponse", "listProjectsResponse"):
             projects = value["projects"] if name == "listProjectsResponse" else [value["project"] if name == "projectResponse" else value]
@@ -288,6 +313,8 @@ class FirstBatchContracts:
                     self._validate_value(properties[key], item, f"{path}.{key}")
 
         if isinstance(value, list):
+            if len(value) < schema.get("minItems", 0) or len(value) > schema.get("maxItems", len(value)):
+                raise ContractDataError(f"{path}: array length outside limits")
             items = schema.get("items")
             if items is not None:
                 for index, item in enumerate(value):

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { phoneActionRequestSchema } from "./action-permission.js";
 import { createProjectRequestSchema, updateProjectRequestSchema, projectResponseSchema, projectViewSchema, listProjectsResponseSchema } from "./project.js";
+import { projectPlanningInputsSchema, projectPlanningDraftViewSchema, projectPlanningResponseSchema, saveProjectPlanningRequestSchema } from "./project-planning.js";
 
 import {
   associationQrPayloadSchema,
@@ -75,6 +76,10 @@ import {
 } from "./status.js";
 
 export const firstBatchContractRegistry = {
+  projectPlanningInputs: projectPlanningInputsSchema,
+  projectPlanningDraftView: projectPlanningDraftViewSchema,
+  projectPlanningResponse: projectPlanningResponseSchema,
+  saveProjectPlanningRequest: saveProjectPlanningRequestSchema,
   createProjectRequest: createProjectRequestSchema,
   updateProjectRequest: updateProjectRequestSchema,
   projectResponse: projectResponseSchema,

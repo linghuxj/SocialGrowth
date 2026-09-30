@@ -4,7 +4,8 @@ import { compareTimestamps, requestMetadataSchema, timestampSchema, uuidSchema }
 // Additive operator-only project metadata. No approval/execution payload here.
 // Names are single-line identifiers; rejecting control bytes is intentional.
 // oxlint-disable-next-line no-control-regex
-const name = z.string().min(1).max(150).regex(/^[^\s\u0000-\u001f\u007f\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff](?:[^\u0000-\u001f\u007f]*[^\s\u0000-\u001f\u007f\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff])?$/);
+export const projectLabelSchema = z.string().min(1).max(150).regex(/^[^\s\u0000-\u001f\u007f\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff](?:[^\u0000-\u001f\u007f]*[^\s\u0000-\u001f\u007f\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff])?$/);
+const name = projectLabelSchema;
 export const projectBasicsSchema = z.strictObject({
   name, kind: z.enum(["company_owned", "client_managed"]),
   customerName: name.nullable(), ownerOperatorId: uuidSchema.nullable(),
