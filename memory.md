@@ -42,3 +42,5 @@
 随后6fc8c30原QA完整报告（20260930T133351Z-wp20-stage4-6fc8c30）已读取，有限工程G1通过；工作树/祖先/旧tip核对后Developer从4448849快进6fc8c30，QA实际PG17.11与复核17.10分别留证。原wp20-stage5-7f0ee97.md完整报告已读：常规检查过但微秒越事项界1P3/remaining1，不合入、不自行清零，后续同窗固定修复。6a6a6d8观察规则及feature/wp-09-native-discovery-stage1原生层均作者阶段，未过原门禁；Samsung本轮6生命周期自检，两个端点UNKNOWN，不记自动发现/配对或新信任。默认隔离服务/已连接手机授权、人工阻断继续及窗口模式不变，原App数据不清。
 
 随后固定fad821c微秒整改作者209/151通过，保留首轮fixture约束失败日志，已交原只读非作者窗口复验。feature/b2-b4-next-foundation-integration整合69630b9（含6a6a6d8）与fad821c，仅为阶段工程组合；Developer仍6fc8c30，原P3及新观察/原生规则不能由作者自签清零。发送窗口沿用原授权非作者/QA对话，读取报告不重发任务；所有窗口模式及默认隔离服务/真机授权不变，人工作业缺口记录后继续独立工程。用户脏脚本仍仅路径/状态，Samsung原APK哈希恢复、两端点UNKNOWN，不宣称配对/信任。
+
+原fad821c完整复核报告已读取：原1P3实际SQL/HTTP清零，新增/remaining0，209/151及17组65HTTP通过，实际PG17.10；已交原QA固定6fc8c30..fad821c复验，不夹带后续代码。组合da06e9f根221/check/lint/build通过，按fad..da固定19文件交原只读非作者，不代签原QA/业务。继续feature/wp-23-tracking-link-stage1，真实政策缺口使公开路由默认关闭；内部认证配置和非UI请求journal继续工程，不以配置关联当来源。两原窗口、发送/读取模式及既定安全/人工阻断规则不变，Developer暂6fc8c30。

@@ -22,6 +22,8 @@ import { ProviderAssistanceFeedService } from "./provider-assistance-feed-servic
 import { ProviderAssistanceFeedController } from "./provider-assistance-feed.controller.js";
 import { DeviceAssistanceNotesService } from "./device-assistance-notes-service.js";
 import { DeviceAssistanceNotesController } from "./device-assistance-notes.controller.js";
+import { TrackingLinkService } from "./tracking-link-service.js";
+import { TrackingRedirectController } from "./tracking-redirect.controller.js";
 import {
   DevelopmentSmsCapturePort,
   DisabledDevelopmentSmsCodeReader,
@@ -118,6 +120,7 @@ const providerAuthProvider = {
     DeviceAssistanceFeedController,
     ProviderAssistanceFeedController,
     DeviceAssistanceNotesController,
+    TrackingRedirectController,
   ],
   providers: [
     poolProvider,
@@ -132,6 +135,9 @@ const providerAuthProvider = {
     { provide: DeviceAssistanceFeedService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new DeviceAssistanceFeedService(pool, auth) },
     { provide: ProviderAssistanceFeedService, inject: [Pool, ProviderAuthService], useFactory: (pool: Pool, auth: ProviderAuthService) => new ProviderAssistanceFeedService(pool, auth) },
     { provide: DeviceAssistanceNotesService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new DeviceAssistanceNotesService(pool, auth) },
+    // No real business target origin/definition has been supplied. Closed until
+    // an explicit server-owned policy adapter is reviewed; no ambient fallback.
+    { provide: TrackingLinkService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new TrackingLinkService(pool, auth, null) },
     DatabaseLifecycle,
   ],
 })

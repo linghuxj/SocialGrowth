@@ -20,10 +20,13 @@ WP-01 开始建立正式权威数据模型：
 - [`0011_unassigned_device_todos.sql`](migrations/0011_unassigned_device_todos.sql)：无项目设备协助内部日志、逐设备影响/原关联、初始邀请责任、人工说明与单个通知意图；没有真实故障或发送/复核消费者。
 - [`0012_device_assistance_feed_index.sql`](migrations/0012_device_assistance_feed_index.sql)：认证只读全局摘要的DB微秒游标索引，不改写历史状态或产生权限。
 - [`0013_device_assistance_notes_index.sql`](migrations/0013_device_assistance_notes_index.sql)：运营说明历史的逐事项DB微秒游标索引，保留已有说明及命令行。
+- [`0014_tracking_link_requests.sql`](migrations/0014_tracking_link_requests.sql)：不可重绑定的配置链接及原记录ID去重请求日志；配置关联不是实际来源，未提供正式政策时公开路由关闭。
 
 迁移当前是待后端迁移执行器消费的前向 SQL；未在真实 PostgreSQL 执行前，不得将其记为迁移或并发验收通过。
 
 ## WP-01 事务服务
+
+WP-23新增内部认证TrackingLinkService配置/撤销及`GET/HEAD /r/:token`。真实目标origin政策尚缺，AppModule显式null、公开路由404且无数据库调用，未接运营HTTP合同/UI；没有可对业务开放的生成入口。服务端白名单HTTPS目标不来自query/Host，配置同事务权限/幂等/审计，配置内容关联不证明点击来源；GET提交请求日志后302，HEAD不记录，no-store/no-referrer/无正文。只同record ID重放去重、保守Sec-Purpose预览识别，无正式重复访问窗口、平台路径或实际来源生产者；不能把request_records_prefetch_v1当正式点击/真人/到达/成交或AC-45通过，见[任务与真实资源](../../docs/engineering/delivery/records/WP-23.md)。
 
 WP-14 第一阶段新增运营会话入口`GET/POST /api/operator/projects`及`POST /api/operator/projects/:projectId/basics`。写入需Host会话与CSRF，当前所有运营同权；由会话确定操作人，负责人不是权限隔离。版本CAS保护基本信息，多人冲突不覆盖；actor＋request key的载荷摘要排除requestId，同键返回该项目当前事实，不重复创建；同事务保存项目、命令和最小审计。表单无改动不增加业务版本，停用后原负责人可保留，但不能新指定无效运营。字段仅名称、自营/代运营、客户、负责人、提醒邮箱；无方向确认、任务、提醒发送、身份/手机分配或运行状态迁移。完整交付与原复核/QA门禁见[WP-14任务卡](../../docs/engineering/delivery/records/WP-14.md)。
 
