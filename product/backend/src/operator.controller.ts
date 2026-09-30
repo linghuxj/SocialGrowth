@@ -21,6 +21,7 @@ import {
 import { randomUUID } from "node:crypto";
 import { OperatorAuthService } from "./operator-auth-service.js";
 import { InvitationManagementService } from "./invitation-management-service.js";
+import { operatorSessionTokenFrom } from "./operator-session-cookie.js";
 import {
   requestIdFrom,
   requireSupportedContract,
@@ -40,12 +41,7 @@ interface HttpResponse {
 }
 
 function cookieValue(request: HttpRequest, name: string): string | undefined {
-  const header = request.headers.cookie;
-  const value = Array.isArray(header) ? header.join(";") : header;
-  return value
-    ?.split(";")
-    .map((part) => part.trim().split("="))
-    .find(([key]) => key === name)?.[1];
+  return name === sessionCookieName ? operatorSessionTokenFrom(request.headers.cookie) || undefined : undefined;
 }
 
 function sessionCookie(token: string, maxAge: number): string {

@@ -26,6 +26,8 @@ prepare HTTP同时限制16MiB，已有超过上限的旧内部ticket可读但该
 
 ## 自有资源与补验分工
 
+原非作者完整74行`artifacts/review/wp15-byte-bf5c8cf.md`已全文读取：固定1486..bf5的18文件，WP15-1486-01原三case及零写断言实际清零、新增/remaining0。原指定12BE/3TS/3Python/13联合、原1～7 guard-only及新9独立通过；不认领作者354/253或父来源13。原8第8裸object PUT404仍合法，但旧组名不准确，新第9单独适配验证真实`/bytes`200及仍缺路由404；首次筛选误执行8和首次自有lint诊断保留，不声称旧8描述现功能。原窗口PG17.10、自有4fd4c5/515ae6及唯一卷已自身清理/0|0|0；原QA组合复验尚待，Developeraf14/父pending1不清。后续其余消费者统一实施及真实作者结果见[独立Cookie切片](operator-cookie-hardening.md)，未混入此固定原门禁。
+
 自有PG实际17.10 Alpine/镜像sha256:93aa428db0aeeb71d24dcad1491bef6e1396a4255697e4bfc4c725bfeb981b74，完整IDfa47df0cfae170ec37d963b528438f17afc68fdec9d58fa6cc1565f3540893e1/sg-wp15-byte-pg，回环32870/sg_byte_api，唯一匿名卷169e54f1d3e5b2db04a383790e8891e7884520ffccd0170b3abd7a117118826d。MinIO实际RELEASE.2025-09-07T16-13-09Z/commit07c3a429，镜像sha256:69b2ec208575b69597784255eec6fa6a2985ee9e1a47f4411a51f7f5fdd193a9，完整IDc724cce001c6ae9963d2b6a21bf824037535029b0457b58636ec55c70631c31d/sg-wp15-byte-storage，回环32904，唯一匿名卷f13b55ddb4509c3d9cca254e890ea3e08760025b9f16cf3e3a6623148bb1e049。只显式合成私有桶/bytes，无宿主挂载/外国秘密读取。实际PG最后schema/其他连接/deadlocks=0|0|0，完整ID/name/image/port/AutoRemove/卷独占核验后仅停止并删除自身两容器/唯一卷，after两个文件0字节；合成数据不可恢复但可重建，全部源码/首次及最终日志保留，原review32903/32869及其他实例不动。
 
 复现根env/check/lint/test/build、文档结构；`tsx --test src/material-byte-transport.test.ts src/material-upload.controller.test.ts src/material-upload-core.test.ts`；明确专用URL/reset的全test:postgres；`test:material-api-storage`现在严格自有32870/sg_byte_api及32904/isolated1/显式合成credentials，先核验实例归属再运行，不能用旧stage5或原9000服务。实际AppModule只临时loopback入口并退出，非替代Playwright的独立E2E项目验收。

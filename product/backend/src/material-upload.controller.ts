@@ -5,18 +5,13 @@ import { contractVersion, materialUploadTicketViewSchema, prepareMaterialUploadR
   productErrorResponseSchema, uploadMaterialBytesCommandSchema, uploadMaterialBytesResponseSchema, type MaterialUploadTicketView } from "@socialgrowth/product-contracts";
 import { MaterialByteTransportError, materialHttpMaxBytes, readMaterialByteStream } from "./material-byte-transport.js";
 import { MaterialRuntime } from "./material-runtime.js";
+import { operatorSessionTokenFrom } from "./operator-session-cookie.js";
 import { MaterialUploadError } from "./material-upload-core.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
 import { requestIdFrom, requireSupportedContract, rethrowHttp } from "./product-http.js";
 interface Request { headers: Record<string, string | string[] | undefined> }
 function token(request: Request): string {
-  const cookies = request.headers.cookie;
-  if (typeof cookies !== "string") return "";
-  const name = "__Host-sg_operator_session";
-  const matches = cookies.split(";").map(c => c.trim()).filter(c => c.slice(0, c.includes("=") ? c.indexOf("=") : c.length).trim() === name);
-  const one = matches.length === 1 ? matches[0] : undefined;
-  const value = one?.startsWith(`${name}=`) ? one.slice(name.length + 1) : "";
-  return /^[A-Za-z0-9_-]{43}$/.test(value) ? value : "";
+  return operatorSessionTokenFrom(request.headers.cookie);
 }
 function view(saved: Awaited<ReturnType<ReturnType<MaterialRuntime["uploads"]>["read"]>>): MaterialUploadTicketView {
   const parsed = materialUploadTicketViewSchema.safeParse({ projectId: saved.projectId, objectId: saved.objectId,

@@ -175,7 +175,9 @@ WP-10 新增内部 `endpoint-report-core` 只校验签名完整双用途快照�
 
 第五阶段已实际注册MaterialRuntime及`POST /api/operator/projects/:projectId/material-uploads`/`GET .../:objectId`认证票据API。当前Cookie/CSRF/DB钟、最小共享TS/JSON/Python契约；只返必要bytes/status/时间与false许可，不返descriptor/位置/key/凭据。默认无配置新写503、历史read不重新证明当前bytes。显式SG_PRODUCT_MATERIAL_MODE=configured及所有受保护server字段才构造SDK，详见[配置/字段/实际测试及缺口](../../docs/engineering/delivery/records/WP-15-stage5.md)。shutdown关闭自有SDK，不自动发现/创建生产bucket。字节HTTP、素材登记HTTP、UI/准入/Task/手机仍未实现，不能把票据API当整个上传或媒体链路通过。
 
-第六阶段提供同object的`PUT .../material-uploads/:objectId/bytes`，raw application/octet-stream＋x-sg-contract-version/x-request-id/x-idempotency-key、Cookie/CSRF；先实际认证/票据binding，再锁外有界读取与原upload二次认证。HTTP prepare/PUT技术上限16MiB/总读15秒，内部128MiB不等HTTP支持；断开/超时/超量可能关闭连接，必须原ID/key查当前/重试，不自动删除或换ID。成功仅verified历史，两许可false，无下载/登记API/UI/媒体准入或手机Task。新Cookie保留完整值再精确校验，不截断`=`后缀；原P3仍待原窗清零，其他旧消费者统一另接续。见[真实测试/原失败/规模与人工缺口](../../docs/engineering/delivery/records/WP-15-stage6.md)。
+第六阶段提供同object的`PUT .../material-uploads/:objectId/bytes`，raw application/octet-stream＋x-sg-contract-version/x-request-id/x-idempotency-key、Cookie/CSRF；先实际认证/票据binding，再锁外有界读取与原upload二次认证。HTTP prepare/PUT技术上限16MiB/总读15秒，内部128MiB不等HTTP支持；断开/超时/超量可能关闭连接，必须原ID/key查当前/重试，不自动删除或换ID。成功仅verified历史，两许可false，无下载/登记API/UI/媒体准入或手机Task。新Cookie保留完整值再精确校验，不截断`=`后缀；bf5局部原P3同窗实际清零、组合原QA仍待。见[真实测试/原失败/规模与人工缺口](../../docs/engineering/delivery/records/WP-15-stage6.md)。
+
+后续六类运营控制器统一`operatorSessionTokenFrom`，完整43字符base64url且同名唯一，拒绝数组合并/后缀/名称畸形及控制字符，不改变auth、CSRF或响应Cookie属性。作者2unit/3实际AppModule认证回归及产品356/全PG256通过，原固定门禁另做；非真实浏览器登录、全站生产安全或媒体验收，见[Cookie统一整改](../../docs/engineering/delivery/records/operator-cookie-hardening.md)。
 
 ## WP-25 内部分佣核对（无实际收入或付款）
 

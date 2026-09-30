@@ -3,12 +3,12 @@ import { z } from "zod";
 import { recordDeviceAssistanceNoteRequestSchema, uuidSchema } from "@socialgrowth/product-contracts";
 import { randomUUID } from "node:crypto";
 import { DeviceAssistanceFeedService } from "./device-assistance-feed-service.js";
+import { operatorSessionTokenFrom } from "./operator-session-cookie.js";
 import { requestIdFrom, requireSupportedContract, rethrowHttp } from "./product-http.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
 interface Request { headers: Record<string, string | string[] | undefined> }
 function operatorToken(request: Request): string {
-  const header = request.headers.cookie;
-  return (Array.isArray(header) ? header.join(";") : header)?.split(";").map(s => s.trim().split("=")).find(([k]) => k === "__Host-sg_operator_session")?.[1] ?? "";
+  return operatorSessionTokenFrom(request.headers.cookie);
 }
 const querySchema = z.strictObject({ afterTodoId: uuidSchema.optional(), pageSize: z.string().regex(/^[1-9][0-9]?$/).refine(v => Number(v) <= 50).optional() });
 @Controller("api/operator/assistance-todos")

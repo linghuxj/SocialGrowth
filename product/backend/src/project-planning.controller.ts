@@ -2,12 +2,12 @@ import { Body, Controller, Get, Header, Headers, Inject, Param, Post, Req } from
 import { randomUUID } from "node:crypto";
 import { saveProjectPlanningRequestSchema, uuidSchema } from "@socialgrowth/product-contracts";
 import { ProjectPlanningService } from "./project-planning-service.js";
+import { operatorSessionTokenFrom } from "./operator-session-cookie.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
 import { requestIdFrom, requireSupportedContract, rethrowHttp } from "./product-http.js";
 interface Request { headers: Record<string, string | string[] | undefined> }
 function token(request: Request): string {
-  const header = request.headers.cookie;
-  return (Array.isArray(header) ? header.join(";") : header)?.split(";").map(s => s.trim().split("=")).find(([k]) => k === "__Host-sg_operator_session")?.[1] ?? "";
+  return operatorSessionTokenFrom(request.headers.cookie);
 }
 @Controller("api/operator/projects/:projectId/planning-draft")
 export class ProjectPlanningController {

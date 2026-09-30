@@ -24,6 +24,8 @@ MaterialRuntime在真实AppModule注入Pool/auth，显式读SG_PRODUCT_MATERIAL_
 
 ## 资源与接续
 
+原非作者固定1486完整报告`artifacts/review/wp15-api-1486eaf.md`已全文读取：WP15-1486-01一P3/remaining1，完整Cookie带等号后缀被截断，需真实有效前缀及CSRF，非无凭据越权；指定检查通过但独立8为7正常/1 RED，原结果保留。后续bf5固定局部整改完整74行报告`artifacts/review/wp15-byte-bf5c8cf.md`已读，原第3组业务断言逐字不改，三case POST/GET401及零写实际清零、新增0；原QA当前配置/API＋bytes整改组合仍需复验。其余旧运营消费者统一见[Cookie切片](operator-cookie-hardening.md)，不将bf5局部清零外推全站或父来源门禁。
+
 自有PG实际17.10 Alpine/镜像sha256:93aa428db0aeeb71d24dcad1491bef6e1396a4255697e4bfc4c725bfeb981b74，完整ID82dca9a0985c485f832c525679b08fd4b24c33fd1f0dfd2e21df6ebc542b8973/sg-wp15-api-pg，回环32869/sg_upload_api，唯一匿名卷51d06b17f55e08796999914dca6d2d0d83dba188352b853fcd540b58db5dde9f。MinIO实际RELEASE.2025-09-07T16-13-09Z/commit07c3a429，镜像sha256:69b2ec208575b69597784255eec6fa6a2985ee9e1a47f4411a51f7f5fdd193a9，完整ID83c7e42be67d197a720098c31f20f03acdc7503485ea37a3901c961e59ebbb80/sg-wp15-api-storage，回环32903，唯一匿名卷16d7f9592bade9054d0d21ca07c108d54386c15694bd0631fcb396d58f7ff6c7。仅显式合成私有随机桶/bytes、无宿主挂载；其他实例/原9000秘密未读。最后schema/其他连接/deadlocks=0|0|0、完整CID/挂载/卷独占核验后仅停止并移除本两容器/匿名卷，after两文件0字节；合成数据不可恢复但按脚本可重建，源码/失败及最终日志保留。
 
 复现根env/check/lint/test/build；新指定unit `tsx --test src/material-runtime.test.ts src/material-upload.controller.test.ts`；明确专用reset URL全`test:postgres`；`pnpm --filter @socialgrowth/product-backend test:material-api-storage`必须自有127.0.0.1/sg_upload_api＋ALLOW_RESET=1、32903＋ISOLATED=1/显式合成credentials，运行前另核验完整服务归属（现SQL守卫不单独断言端口）；不能指生产/外国同名库。测试真实AppModule监听自有临时loopback端口并退出，非替代Playwright的另套项目验收。

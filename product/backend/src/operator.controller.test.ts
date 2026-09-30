@@ -106,6 +106,7 @@ test("HTTP boundary masks unexpected failures with a retryable product envelope"
 });
 
 test("device facts route uses the operator host session cookie", async () => {
+  const sessionToken = "S".repeat(43);
   let receivedToken = "";
   const service = {
     async listDeviceFacts(sessionToken: string) {
@@ -115,13 +116,14 @@ test("device facts route uses the operator host session cookie", async () => {
   } as unknown as OperatorAuthService;
   const controller = new OperatorController(service, {} as InvitationManagementService);
   const result = await controller.listDeviceFacts({
-    headers: { cookie: "other=x; __Host-sg_operator_session=operator-session" },
+    headers: { cookie: `other=x; __Host-sg_operator_session=${sessionToken}` },
   });
-  assert.equal(receivedToken, "operator-session");
+  assert.equal(receivedToken, sessionToken);
   assert.deepEqual(result, { readAt: "2026-09-29T10:00:00Z", providers: [], devices: [] });
 });
 
 test("invitation HTTP writes use the host session, csrf token, and path identity", async () => {
+  const sessionToken = "S".repeat(43);
   let observed: unknown;
   const invitationService = {
     async revokeInvitation(sessionToken: string, csrfToken: string, request: unknown) {
@@ -145,13 +147,13 @@ test("invitation HTTP writes use the host session, csrf token, and path identity
       invitationId: "00000000-0000-4000-8000-000000000098",
       expectedFactVersion: 4,
     },
-    { headers: { cookie: "other=x; __Host-sg_operator_session=session-token" } },
+    { headers: { cookie: `other=x; __Host-sg_operator_session=${sessionToken}` } },
     "csrf-token",
   );
 
   assert.deepEqual(response, { success: true });
   assert.deepEqual(observed, {
-    sessionToken: "session-token",
+    sessionToken,
     csrfToken: "csrf-token",
     request: {
       metadata: {
