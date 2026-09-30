@@ -164,3 +164,7 @@ export function requireRecoveryHuman(record: TaskRecoveryRound, scope: unknown,
   if (!["account_restricted", "human_verification", "identity_mismatch", "permission_changed"].includes(fault)) fail("INVALID_BOUNDARY");
   return { ...r, phase: "human_required", reason: fault };
 }
+
+// Internal exact elapsed-time primitive shared by the separate connection
+// maintenance budget; this does not invent a task for maintenance.
+export { duration as recoveryDurationMilliseconds };

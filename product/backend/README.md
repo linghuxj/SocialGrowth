@@ -149,6 +149,8 @@ WP-10 新增内部 `endpoint-report-core` 只校验签名完整双用途快照�
 
 阶段二 `EndpointReportJournal` 增加0015持久快照/回执，真实安装bearer与当前归属/已准入绑定在同事务内重查；来源接口缺省null在连库前关闭。可信来源观察在事务/锁前完成，有3秒技术超时与AbortSignal；锁后及提交前以实际DB微秒钟再校验来源和会话，不在长事务等外部网络。该接口没有实际LocalAPI实现、Nest/HTTP或Android发送接线；测试来源是合成非UI seam，不是已验证独立来源。配对session未持久接线，本层只允许pairing未知/撤销，不允许真实配对候选。保存、回执、最小审计同事务，行数核验，默认不派动作/队列或新网络许可。完整记录及后续范围见[持久阶段](../../docs/engineering/delivery/records/WP-10-stage2.md)。
 
+阶段三 `connection-maintenance-budget` 是独立纯预算：明确内部限额，无假任务、不采用草案生产默认；次数/耗时跨端点、重载及成功不清零，未知调用继续占位、人工门禁不由迟到成功清除。有任务必须同时满足真实任务预算，无任务null只由权威内部来源提供。返回budgetsAvailable不是动作许可，两份观察副本须共同持久后才可进入未来执行；没有持久/当前任务resolver/HTTP或消费者。详见[维护预算阶段](../../docs/engineering/delivery/records/WP-10-stage3.md)。
+
 ## WP-11 内部调用日志（未开放执行）
 
 `PhoneControlJournal`仅保存控制记录和调用／停止历史，不注册HTTP、Nest provider或消费者；新记录默认`stop_requested`，没有持有者取得／重新启用接口。`initialize`、`apply`与审计原子提交；锁序设备→journal，旧版本／同键异载荷拒绝，重复请求返回当前记录及`replayed=true`，绝不能重新执行手机调用。未知调用及原持有者在重启后保留；停止三类证据仅供可信内部适配。
