@@ -37,3 +37,7 @@ adb -s RFCW40MYYCV uninstall com.socialgrowth.product.test
 这是当前 Samsung 测试手机的可复现命令，不能视作 minSdk 27／其他机型兼容承诺。正式签名、首次实际网络来源核对、异常回收及 AC-11/12 仍须按交付记录补验。
 
 构建和单元检查本身只证明 Android 契约消费层与 APK 可构建。WP-04 的真机注册／登录证据见 `docs/engineering/delivery/records/WP-04.md`；WP-06 第三阶段真机空设备检查及剩余双机／执行端验收缺口见 `docs/engineering/delivery/records/WP-06.md`。这些证据不证明真实短信、双机扫码、安装升级、正式签名或完整设备流程通过。
+
+WP-09第一阶段新增`NativeEndpointDiscovery`（RequiresApi34）及`EndpointDiscoveryState`，仅主线程启动/停止的限时本机Wi-Fi NSD观察，不接MainActivity/后台service或任何配对/连接/上报。两种purpose分开，候选不授信任，冲突/未解析/失去/网络变化/旧generation与ticket安全关闭，结束不返回旧port；名字/地址只内存，实际全量Wi-Fi地址筛选不替代中心来源核验。调用方需检查API并在退后台时close，当前min27不是该层支持承诺。
+
+`-PsgNativeDiscoveryChecks=true`只切换test APK runner为`NativeDiscoveryInstrumentation`，默认false仍用原EnrollmentCrypto；只允许true/false。用上述Gradle命令加该flag重建并核验实际test manifest，再运行`com.socialgrowth.product.test/com.socialgrowth.product.NativeDiscoveryInstrumentation`。该无UI补充检查不读session/keys，不打开媒体App、不上报、不配对，不是Playwright或完整业务验收。Samsung本轮6生命周期检查通过，connect/pairing都UNKNOWN；不能声称发现端口或首次配对通过。Debug/Release各28 JVM与APK/lint通过，原APK已恢复且本轮test包卸载；真实资源/细节/日志见[WP-09记录](../../docs/engineering/delivery/records/WP-09.md)。

@@ -13,7 +13,10 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.0.0"
-        testInstrumentationRunner = "com.socialgrowth.product.EnrollmentCryptoInstrumentation"
+        val nativeDiscoveryChecks = providers.gradleProperty("sgNativeDiscoveryChecks").orElse("false").get()
+        require(nativeDiscoveryChecks in setOf("true", "false")) { "sgNativeDiscoveryChecks must be true or false" }
+        testInstrumentationRunner = if (nativeDiscoveryChecks == "true") "com.socialgrowth.product.NativeDiscoveryInstrumentation"
+            else "com.socialgrowth.product.EnrollmentCryptoInstrumentation"
     }
 
     buildFeatures {

@@ -1,6 +1,6 @@
 # 开发工作包
 
-更新：2026-09-29。所有工作包当前均未开始，已有 Demo／诊断原型仅作可核对的复用输入。职责代码见[执行手册](README.md)，实际人名、状态和证据只在[台账](delivery-tracker.md)维护。需求对应见[追踪表](requirement-coverage.md)，验收编号见[执行矩阵](acceptance-matrix.md)。
+更新：2026-09-30。本文维护工作包定义及依赖，不作为实时状态；部分正式工程阶段已实施，已有 Demo／诊断原型仍只作可核对的复用输入。职责代码见[执行手册](README.md)，实际人名、状态和证据只在[台账](delivery-tracker.md)维护。需求对应见[追踪表](requirement-coverage.md)，验收编号见[执行矩阵](acceptance-matrix.md)。
 
 ## 领取及拆分规则
 

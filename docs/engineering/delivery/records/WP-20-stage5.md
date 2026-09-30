@@ -32,3 +32,5 @@ python3 docs/engineering/delivery/check_consistency.py
 RES-WP20-01～04真实来源/受控联系人sender/逐对象复核与当前恢复权限/客户端项目范围继续按[总卡](WP-20.md)由EX/BE/AND、OPS/BIZ、AI/EX/QA、WEB/AND落实；WEB使用此历史接口补纯文本详情、分页/刷新/会话失效，QA须从真实入口提交和读取说明再断言。AND保持本人摘要，不因后台内部正文可读扩大权限。责任角色不代表真人已签收。
 
 RES-WP14-03管理员浏览器控制拒绝保持；使用product-design:image-to-code的设计验收约束使新增UI/视觉捕获暂停，不换CLI/Chrome/代理绕过，恢复前重新读取原图/提示词/页面规格。SEC-WP14-01人工候选凭据核查未关闭，无关脏脚本只路径/状态。用户默认授权隔离服务及已连接Samsung联调有效，不扩大外部发布/删除/账号或任意邮件。缺人工/环境记录真实需求及解除条件并继续独立后端，完整WP-20/B2/G3、AC及所有开发均未完成。
+
+后续完整读取原artifacts/review/wp20-stage5-7f0ee97.md，1P3/remaining1：行政坏记录比事项创建早或当前更新晚1微秒、仍在同一显示毫秒时，在Date投影截断后被HTTP200接受。正常209产品/150PG及122对照、11组正常SQL通过不消除两个RED反例（同一个finding）。本阶段退回修复、不合入、不向QA报清零；须在原DB精度处校验并补±1微秒/inclusive/正常微秒分页/BC拒绝，再原窗口固定复验。原RED和报告保留、不修改旧历史来伪造通过。

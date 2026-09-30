@@ -29,6 +29,7 @@ yarn-error.log*
 .env.agent
 product/deploy/.env.product
 product/android/.gradle/
+product/android/.kotlin/
 product/android/local.properties
 product/android/app/build/
 
