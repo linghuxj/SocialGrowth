@@ -241,3 +241,50 @@ test("feed lock wait past actual database session deadline discards protected ro
     assert.ok(expired); await blocker.query("COMMIT"); await rejection;
   } finally { await blocker.query("ROLLBACK"); blocker.release(); await pending?.catch(() => undefined); }
 });
+test("public note bridge records same-right operator reports atomically, replays current summaries and never exposes text or grants access", async () => {
+  const f = await fixture(), b = await actor(), initial = await store.ingestUnassignedDeviceEvent(f.input), input = note(initial.todoId.toUpperCase(), 1);
+  const first = await feed.recordNote(b.token, b.csrf, input);
+  assert.equal(first.todo.status, "awaiting_recheck"); assert.equal(first.todo.factVersion, 2); assert.equal(first.todo.noteCount, 1);
+  assert.equal(first.todo.initialResponsibleOperatorId, f.a.operatorId); assert.equal(first.todo.notificationStatus, "awaiting_configuration");
+  assert.ok(!JSON.stringify(first).includes(input.text)); assert.ok(!("permissionGranted" in first.todo));
+  assert.deepEqual(await feed.recordNote(b.token, b.csrf, { ...input, todoId: initial.todoId, metadata: { ...input.metadata, requestId: meta().requestId } }), first);
+  const second = await store.ingestUnassignedDeviceEvent(event((await device(f.p)).deviceId, f.input.occurrenceId));
+  const replay = await feed.recordNote(b.token, b.csrf, input); assert.equal(replay.todo.status, "open"); assert.equal(replay.todo.factVersion, second.factVersion); assert.equal(replay.todo.impactCount, 2); assert.equal(replay.todo.noteCount, 1);
+  assert.equal((await pool.query("SELECT state FROM socialgrowth_product.devices WHERE device_id=$1", [f.d.deviceId])).rows[0]?.state, "associated_pending_access");
+  assert.deepEqual(await counts(initial.todoId), { impacts: 2, notes: 1, events: 2, commands: 1, notifications: 1, audits: 3 });
+});
+test("public note bridge rejects invalid authority, CSRF, altered keys, stale CAS and revoked replay without extra writes", async () => {
+  const f = await fixture(), initial = await store.ingestUnassignedDeviceEvent(f.input), input = note(initial.todoId, 1, "note");
+  await assert.rejects(feed.recordNote(f.a.token, f.a.csrf, { ...input, permissionGranted: true }), code("INPUT_INVALID"));
+  await assert.rejects(feed.recordNote(f.a.token, "", input), code("AUTHENTICATION_REQUIRED"));
+  const saved = await feed.recordNote(f.a.token, f.a.csrf, input); assert.equal(saved.todo.status, "open");
+  await assert.rejects(feed.recordNote(f.a.token, f.a.csrf, { ...input, text: "改变原幂等载荷" }), code("IDEMPOTENCY_KEY_REUSED"));
+  await assert.rejects(feed.recordNote(f.a.token, f.a.csrf, note(initial.todoId, 1)), code("FACT_VERSION_STALE"));
+  await pool.query("UPDATE socialgrowth_product.operator_sessions SET revoked_at=clock_timestamp(),revoked_reason='logout' WHERE session_id=$1", [f.a.sessionId]);
+  await assert.rejects(feed.recordNote(f.a.token, f.a.csrf, input), code("AUTHENTICATION_REQUIRED"));
+  assert.deepEqual(await counts(initial.todoId), { impacts: 1, notes: 1, events: 1, commands: 1, notifications: 1, audits: 2 });
+});
+test("public note actual COMMIT receipt loss remains retryable and original command recovers only one persisted report", async () => {
+  const f = await fixture(), initial = await store.ingestUnassignedDeviceEvent(f.input), input = note(initial.todoId, 1), original = pool.connect.bind(pool); let inject = true;
+  pool.connect = (async () => {
+    const client = await original(), query = client.query.bind(client);
+    client.query = (async (text: unknown, ...values: unknown[]) => {
+      const result = await (query as (...args: unknown[]) => Promise<unknown>)(text, ...values);
+      if (text === "COMMIT" && inject) { inject = false; throw new Error("fixture-private-lost-note-receipt"); }
+      return result;
+    }) as PoolClient["query"];
+    const release = client.release.bind(client); client.release = () => { client.query = query; release(); }; return client;
+  }) as Pool["connect"];
+  try { await assert.rejects(feed.recordNote(f.a.token, f.a.csrf, input), (e: unknown) => code("INTERNAL_ERROR")(e) && (e as ProductTransactionError).retryable && !String(e).includes("fixture-private")); }
+  finally { pool.connect = original as Pool["connect"]; }
+  const recovered = await feed.recordNote(f.a.token, f.a.csrf, input); assert.equal(recovered.todo.status, "awaiting_recheck"); assert.equal(recovered.todo.noteCount, 1);
+  assert.deepEqual(await counts(initial.todoId), { impacts: 1, notes: 1, events: 1, commands: 1, notifications: 1, audits: 2 });
+});
+test("actual synthetic BC history cannot escape the common calendar or turn a committed note into definitive input rejection", async () => {
+  const f = await fixture(), initial = await store.ingestUnassignedDeviceEvent(f.input), input = note(initial.todoId, 1);
+  await pool.query("UPDATE socialgrowth_product.device_assistance_todos SET created_at='0001-01-01 00:00:00+00 BC',updated_at='0001-01-01 00:00:00+00 BC' WHERE todo_id=$1", [initial.todoId]);
+  const unknown = (e: unknown) => code("INTERNAL_ERROR")(e) && (e as ProductTransactionError).retryable;
+  await assert.rejects(feed.list(f.a.token, { afterTodoId: null, pageSize: 1 }), unknown);
+  for (let i = 0; i < 2; i++) await assert.rejects(feed.recordNote(f.a.token, f.a.csrf, input), unknown);
+  assert.deepEqual(await counts(initial.todoId), { impacts: 1, notes: 1, events: 1, commands: 1, notifications: 1, audits: 2 });
+});

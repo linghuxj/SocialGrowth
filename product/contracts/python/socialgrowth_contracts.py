@@ -63,8 +63,8 @@ class FirstBatchContracts:
         return value
 
     def _validate_contract_semantics(self, name: str, value: Any) -> None:
-        if name in ("deviceAssistanceTodoSummary", "listDeviceAssistanceTodosResponse"):
-            todos = value["todos"] if name == "listDeviceAssistanceTodosResponse" else [value]
+        if name in ("deviceAssistanceTodoSummary", "listDeviceAssistanceTodosResponse", "recordDeviceAssistanceNoteResponse"):
+            todos = value["todos"] if name == "listDeviceAssistanceTodosResponse" else [value["todo"] if name == "recordDeviceAssistanceNoteResponse" else value]
             for todo in todos:
                 if todo["status"] == "awaiting_recheck" and todo["noteCount"] == 0:
                     raise ContractDataError(f"{name}: recheck lacks processing report")
@@ -145,9 +145,12 @@ class FirstBatchContracts:
         )
         if match is None:
             raise ContractDataError("timestamp was not structurally validated")
-        whole_seconds = datetime.fromisoformat(
-            f"{match.group(1)}{match.group(3)}".replace("Z", "+00:00")
-        )
+        try:
+            whole_seconds = datetime.fromisoformat(
+                f"{match.group(1)}{match.group(3)}".replace("Z", "+00:00")
+            )
+        except (ValueError, OverflowError) as error:
+            raise ContractDataError("timestamp outside supported calendar") from error
         return whole_seconds, match.group(2) or ""
 
     @classmethod

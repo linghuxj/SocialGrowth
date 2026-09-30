@@ -114,6 +114,31 @@ class FirstBatchContractsTest(unittest.TestCase):
             with self.assertRaises(ContractValidationError):
                 self.contracts.validate("listDeviceAssistanceTodosResponse", {"todos": todos, "nextAfterTodoId": cursor})
 
+    def test_assistance_notes_are_strict_and_processing_reports_are_not_verification(self) -> None:
+        request = {"metadata": {"contractVersion": self.contracts.contract_version, "requestId": "note-request", "idempotencyKey": "note-command-0001"},
+                   "todoId": self.installation_id, "expectedFactVersion": 1, "kind": "reported_processed", "text": "已处理，等待真实复核"}
+        self.contracts.validate("recordDeviceAssistanceNoteRequest", request)
+        for patch in ({"kind": "verified"}, {"text": "x" * 151}, {"text": " padded "}, {"text": "two\nlines"}, {"actorId": self.installation_id}, {"expectedFactVersion": -1}):
+            with self.assertRaises(ContractValidationError):
+                self.contracts.validate("recordDeviceAssistanceNoteRequest", {**request, **patch})
+        summary = {"todoId": self.installation_id, "occurrenceId": self.installation_id, "providerId": self.installation_id,
+                   "initialResponsibleOperatorId": self.installation_id, "originScope": "unassigned_device", "kind": "network_access_help", "status": "awaiting_recheck",
+                   "factVersion": 2, "impactCount": 1, "noteCount": 1, "notificationStatus": "awaiting_configuration", "createdAt": "2026-09-30T00:00:00Z", "updatedAt": "2026-09-30T00:00:00Z"}
+        self.contracts.validate("recordDeviceAssistanceNoteResponse", {"todo": summary})
+        for patch in ({"status": "resolved"}, {"noteCount": 0}, {"permissionGranted": True}, {"updatedAt": "2026-09-29T00:00:00Z"}):
+            with self.assertRaises(ContractValidationError):
+                self.contracts.validate("recordDeviceAssistanceNoteResponse", {"todo": {**summary, **patch}})
+        for time in ("0001-01-01T00:00:00Z", "9999-12-31T23:59:59Z", "0000-01-01T00:00:00Z", "10000-01-01T00:00:00Z"):
+            value = {**summary, "createdAt": time, "updatedAt": time}
+            for name, data in (("deviceAssistanceTodoSummary", value), ("listDeviceAssistanceTodosResponse", {"todos": [value], "nextAfterTodoId": None}), ("recordDeviceAssistanceNoteResponse", {"todo": value})):
+                if time.startswith(("0001", "9999")):
+                    self.contracts.validate(name, data)
+                else:
+                    with self.assertRaises(ContractValidationError):
+                        self.contracts.validate(name, data)
+        with self.assertRaises(ContractValidationError):
+            self.contracts._timestamp_parts("0000-01-01T00:00:00Z")
+
     def test_control_action_is_strict_independent_and_never_grants_permission(self) -> None:
         action = {
             "protocolVersion": "2026-09-30.control-v1", "deviceId": self.installation_id,

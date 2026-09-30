@@ -1,6 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
-import { listDeviceAssistanceTodosResponseSchema, uuidSchema } from "@socialgrowth/product-contracts";
+import { listDeviceAssistanceTodosResponseSchema, recordDeviceAssistanceNoteRequestSchema, recordDeviceAssistanceNoteResponseSchema, uuidSchema } from "@socialgrowth/product-contracts";
+import { DeviceAssistanceTodoStore } from "./device-assistance-todo-store.js";
 import { OperatorAuthService } from "./operator-auth-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
 const querySchema = z.strictObject({ afterTodoId: uuidSchema.nullable(), pageSize: z.int().min(1).max(50) });
@@ -8,6 +9,20 @@ const schema = "socialgrowth_product";
 interface Row { todo_id: string; occurrence_id: string; provider_id: string; initial_responsible_operator_id: string; kind: string; status: string; fact_version: string; impact_count: string; note_count: string; notification_status: string; created_at: Date; updated_at: Date }
 export class DeviceAssistanceFeedService {
   constructor(private readonly pool: Pool, private readonly auth: OperatorAuthService) {}
+  async recordNote(token: string, csrf: string, input: unknown) {
+    const parsed = recordDeviceAssistanceNoteRequestSchema.safeParse(input);
+    if (!parsed.success) throw new ProductTransactionError("INPUT_INVALID", "Invalid assistance note");
+    // Reuse the proven transactional command: no second read transaction after
+    // commit could turn an accepted note into a misleading definitive 401.
+    const v = await new DeviceAssistanceTodoStore(this.pool, this.auth).recordNote(token, csrf, parsed.data);
+    const result = recordDeviceAssistanceNoteResponseSchema.safeParse({ todo: { todoId: v.todoId, occurrenceId: v.occurrenceId, providerId: v.providerId,
+      initialResponsibleOperatorId: v.initialResponsibleOperatorId, originScope: "unassigned_device", kind: v.kind, status: v.status, factVersion: v.factVersion,
+      impactCount: v.impacts.length, noteCount: v.notes.length, notificationStatus: v.notification.status, createdAt: v.createdAt, updatedAt: v.updatedAt } });
+    // Invalid persisted projection is not bad user input. The command may have
+    // committed already: retain its original key and return a safe unknown result.
+    if (!result.success) throw new ProductTransactionError("INTERNAL_ERROR", "Assistance note result unavailable", true);
+    return result.data;
+  }
   async list(token: string, input: unknown) {
     const parsed = querySchema.safeParse(input);
     if (!parsed.success) throw new ProductTransactionError("INPUT_INVALID", "Invalid assistance page query");
