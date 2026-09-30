@@ -20,8 +20,8 @@ const s = "socialgrowth_product", key = () => `maint_${randomUUID().replaceAll("
 // Synthetic DB-only current-context seam, NOT a production authority/current
 // task resolver, real network path, Web approval or phone-operation evidence.
 const context: MaintenanceCurrentContext = { resolve: async (c, scope) => {
-  const row = (await c.query<{ scope: ConnectionMaintenanceScope; task: TaskRecoveryScope | null }>(`SELECT scope,task FROM ${s}.maintenance_context_fixture WHERE device_id=$1 FOR UPDATE`, [scope.deviceId])).rows[0];
-  return row ? { scope: row.scope, currentTask: row.task } : null;
+  const row = (await c.query<{ scope: ConnectionMaintenanceScope; task: TaskRecoveryScope | null; submission: "pre_submission" | "possible_submission" | "verified_success" | null }>(`SELECT scope,task,submission FROM ${s}.maintenance_context_fixture WHERE device_id=$1 FOR UPDATE`, [scope.deviceId])).rows[0];
+  return row ? { scope: row.scope, currentTask: row.task, taskSubmission: row.submission } : null;
 } };
 const store = new ConnectionMaintenanceStore(pool, context), tasks = new TaskRecoveryStore(pool);
 const isCode = (code: string) => (e: unknown) => (e instanceof MaintenanceStoreError || e instanceof ConnectionMaintenanceError) && e.code === code && e.message === code && !e.cause;
@@ -38,7 +38,8 @@ before(async () => {
   for (const f of files.filter(v => v < "0016_")) await pool.query(await readFile(new URL(f, migrationDirectory), "utf8"));
   previousInstallation = (await bootstrap()).installation.installationId;
   await pool.query(await readFile(new URL("0016_connection_maintenance_budget.sql", migrationDirectory), "utf8"));
-  await pool.query(`CREATE TABLE ${s}.maintenance_context_fixture(device_id uuid PRIMARY KEY REFERENCES ${s}.devices(device_id), scope jsonb NOT NULL, task jsonb)`);
+  for (const f of files.filter(v => v >= "0017_")) await pool.query(await readFile(new URL(f, migrationDirectory), "utf8"));
+  await pool.query(`CREATE TABLE ${s}.maintenance_context_fixture(device_id uuid PRIMARY KEY REFERENCES ${s}.devices(device_id), scope jsonb NOT NULL, task jsonb, submission text)`);
 });
 after(async () => { try { await pool.query(`DROP SCHEMA IF EXISTS ${s} CASCADE`); } finally { await pool.end(); } });
 async function bootstrap() {
@@ -76,7 +77,7 @@ async function counts(f: Awaited<ReturnType<typeof fixture>>) {
 async function currentTask(f: Awaited<ReturnType<typeof fixture>>) {
   const scope = { deviceId: f.scope.deviceId, taskId: randomUUID(), taskAttemptId: randomUUID(), roundId: randomUUID() };
   const record = (await tasks.initialize(scope, key())).record;
-  await pool.query(`UPDATE ${s}.maintenance_context_fixture SET task=$2 WHERE device_id=$1`, [f.scope.deviceId, scope]); return { scope, record };
+  await pool.query(`UPDATE ${s}.maintenance_context_fixture SET task=$2,submission='pre_submission' WHERE device_id=$1`, [f.scope.deviceId, scope]); return { scope, record };
 }
 
 test("0016 retains prior 0015 identities and enforces scope CHECK/FK", async () => {
@@ -227,4 +228,125 @@ test("administrative missing command cannot be hidden by replay or a fresh reque
   await assert.rejects(store.read(f.scope), isCode("CORRUPT_STATE"));
   await assert.rejects(store.apply(f.scope, 0, requestKey, command), isCode("CORRUPT_STATE"));
   await assert.rejects(store.apply(f.scope, 1, key(), { kind: "observe" }), isCode("CORRUPT_STATE"));
+});
+
+const jointCommand = () => ({ kind: "reserve_joint", recoveryId: randomUUID(), endpoint: endpoint() });
+async function jointComplete(f: Awaited<ReturnType<typeof fixture>>, r: ConnectionMaintenanceRound, hasTask: boolean, outcome: "failed" | "unknown" | "verified_connected") {
+  const a = r.attempts.at(-1)!;
+  return store.apply(f.scope, r.version, key(), { kind: "complete_joint", receipt: { scope: f.scope, recoveryId: a.recoveryId, endpoint: a.endpoint, outcome,
+    taskOutcome: hasTask ? outcome === "verified_connected" ? "verified_recovered" : outcome : null } });
+}
+async function reservationCount(f: Awaited<ReturnType<typeof fixture>>) {
+  return (await pool.query(`SELECT count(*)::int n FROM ${s}.joint_recovery_reservations WHERE device_id=$1`, [f.scope.deviceId])).rows[0].n as number;
+}
+test("joint reservation occupies BOTH actual stored budgets atomically; completion preserves both counters", async () => {
+  const f = await fixture(), t = await currentTask(f), command = jointCommand(), r = await store.apply(f.scope, 0, key(), command);
+  assert.equal(r.joint, null); assert.equal(r.record.attemptsUsed, 1);
+  const occupied = await tasks.read(t.scope); assert.equal(occupied.attemptsUsed, 1); assert.equal(occupied.phase, "recovering");
+  assert.equal(occupied.recoveries[0]!.recoveryId, command.recoveryId); assert.equal(await reservationCount(f), 1);
+  const linked = (await pool.query(`SELECT task_attempt_id,task_scope FROM ${s}.joint_recovery_reservations WHERE device_id=$1`, [f.scope.deviceId])).rows[0];
+  assert.equal(linked.task_attempt_id, t.scope.taskAttemptId); assert.deepEqual(linked.task_scope, t.scope);
+  const done = await jointComplete(f, r.record, true, "verified_connected"), taskDone = await tasks.read(t.scope);
+  assert.equal(done.record.attemptsUsed, 1); assert.equal(taskDone.attemptsUsed, 1); assert.equal(taskDone.recoveries[0]!.outcome, "verified_recovered");
+  assert.ok(done.record.elapsedMs > 0); assert.ok(taskDone.elapsedMs > 0); assert.equal(done.record.phase, "available"); assert.equal(taskDone.phase, "available");
+});
+test("genuinely no-task reservation has nullable linkage and never creates a fictional task budget", async () => {
+  const f = await fixture(), r = await store.apply(f.scope, 0, key(), jointCommand());
+  const link = (await pool.query(`SELECT task_attempt_id,task_scope FROM ${s}.joint_recovery_reservations WHERE device_id=$1`, [f.scope.deviceId])).rows[0];
+  assert.deepEqual(link, { task_attempt_id: null, task_scope: null });
+  assert.equal((await pool.query(`SELECT 1 FROM ${s}.task_recovery_rounds WHERE device_id=$1`, [f.scope.deviceId])).rowCount, 0);
+  const done = await jointComplete(f, r.record, false, "failed"); assert.equal(done.record.attemptsUsed, 1);
+});
+test("concurrent exact joint allocation and actual COMMIT lost response consume each budget once", async () => {
+  const f = await fixture(), t = await currentTask(f), requestKey = key(), command = jointCommand();
+  const values = await Promise.all([store.apply(f.scope, 0, requestKey, command), new ConnectionMaintenanceStore(pool, context).apply(f.scope, 0, requestKey, command)]);
+  assert.equal(values.filter(v => v.replayed).length, 1); assert.equal((await tasks.read(t.scope)).attemptsUsed, 1); assert.equal(await reservationCount(f), 1);
+  const g = await fixture(), gt = await currentTask(g), gkey = key(), gcommand = jointCommand(); let once = true;
+  const fault = { connect: async () => { const c = await pool.connect(); return { query: async (sql: string, args?: unknown[]) => {
+    const result = await c.query(sql, args); if (sql === "COMMIT" && once) { once = false; throw new Error("synthetic-lost-joint-ack"); } return result;
+  }, release: () => c.release() } as unknown as PoolClient; } } as unknown as Pool;
+  await assert.rejects(new ConnectionMaintenanceStore(fault, context).apply(g.scope, 0, gkey, gcommand), isCode("DATABASE_UNAVAILABLE"));
+  const repeated = await store.apply(g.scope, 0, gkey, gcommand); assert.equal(repeated.replayed, true); assert.equal(repeated.joint, null);
+  assert.equal(repeated.record.attemptsUsed, 1); assert.equal((await tasks.read(gt.scope)).attemptsUsed, 1); assert.equal(await reservationCount(g), 1);
+});
+test("either spent budget blocks allocation; endpoints/restart/verified recovery cannot reset task 2/5 limits", async () => {
+  const f = await fixture(), t = await currentTask(f); let r = f.initial;
+  for (let i = 0; i < 2; i++) {
+    r = (await store.apply(f.scope, r.version, key(), jointCommand())).record;
+    r = (await jointComplete(f, r, true, "verified_connected")).record;
+  }
+  assert.equal((await tasks.read(t.scope)).attemptsUsed, 2); assert.deepEqual((await tasks.read(t.scope)).limits, { maxAttempts: 2, maxElapsedMs: 300_000 });
+  const blocked = await new ConnectionMaintenanceStore(pool, context).apply(f.scope, r.version, key(), jointCommand());
+  assert.equal(blocked.record.attemptsUsed, 2); assert.equal(await reservationCount(f), 2); assert.equal((await tasks.read(t.scope)).phase, "human_required");
+  const g = await fixture({ maxAttempts: 1, maxElapsedMs: 120_000 }), gt = await currentTask(g);
+  const first = await store.apply(g.scope, 0, key(), jointCommand()), done = await jointComplete(g, first.record, true, "verified_connected");
+  const maintBlocked = await store.apply(g.scope, done.record.version, key(), jointCommand());
+  assert.equal(maintBlocked.record.phase, "human_required"); assert.equal(maintBlocked.record.attemptsUsed, 1); assert.equal((await tasks.read(gt.scope)).attemptsUsed, 1);
+});
+test("unknown publication and missing authoritative submission never reserve retries", async () => {
+  for (const submission of ["possible_submission", "verified_success", null]) {
+    const f = await fixture(), t = await currentTask(f);
+    await pool.query(`UPDATE ${s}.maintenance_context_fixture SET submission=$2 WHERE device_id=$1`, [f.scope.deviceId, submission]);
+    if (submission === null) await assert.rejects(store.apply(f.scope, 0, key(), jointCommand()), isCode("CURRENT_CONTEXT_UNAVAILABLE"));
+    else {
+      await store.apply(f.scope, 0, key(), jointCommand());
+      assert.equal((await tasks.read(t.scope)).phase, submission === "possible_submission" ? "verification_required" : "available");
+    }
+    assert.equal((await store.read(f.scope)).attemptsUsed, 0); assert.equal((await tasks.read(t.scope)).attemptsUsed, 0); assert.equal(await reservationCount(f), 0);
+  }
+});
+test("unknown joint call retains BOTH occupied slots across restart; late success leaves both human gates sticky", async () => {
+  const f = await fixture(), t = await currentTask(f), started = await store.apply(f.scope, 0, key(), jointCommand());
+  const unknown = await jointComplete(f, started.record, true, "unknown");
+  assert.equal(unknown.record.attempts[0]!.endedAt, null); assert.equal((await tasks.read(t.scope)).recoveries[0]!.endedAt, null);
+  const replay = await new ConnectionMaintenanceStore(pool, context).apply(f.scope, unknown.record.version, key(), jointCommand());
+  assert.equal(replay.record.attemptsUsed, 1); assert.equal((await tasks.read(t.scope)).attemptsUsed, 1); assert.equal(await reservationCount(f), 1);
+  const ended = await jointComplete(f, replay.record, true, "verified_connected");
+  assert.equal(ended.record.phase, "human_required"); assert.equal((await tasks.read(t.scope)).phase, "human_required");
+});
+test("task linkage/endpoint/receipt outcome cannot be replaced and maintenance-only completion cannot free a joint call", async () => {
+  const f = await fixture(), t = await currentTask(f), started = await store.apply(f.scope, 0, key(), jointCommand()), a = started.record.attempts[0]!;
+  await assert.rejects(store.apply(f.scope, started.record.version, key(), { kind: "complete", receipt: { scope: f.scope, recoveryId: a.recoveryId, endpoint: a.endpoint, outcome: "verified_connected" } }), isCode("TASK_BUDGET_REQUIRED"));
+  for (const patch of [{ taskOutcome: null }, { taskOutcome: "unknown" }, { endpoint: endpoint() }]) {
+    await assert.rejects(store.apply(f.scope, started.record.version, key(), { kind: "complete_joint", receipt: { scope: f.scope, recoveryId: a.recoveryId, endpoint: a.endpoint, outcome: "verified_connected", taskOutcome: "verified_recovered", ...patch } }),
+      isCode("endpoint" in patch ? "STALE_RECEIPT" : "INPUT_INVALID"));
+  }
+  const newer = await currentTask(f); assert.notEqual(newer.scope.taskAttemptId, t.scope.taskAttemptId);
+  const ended = await jointComplete(f, started.record, true, "verified_connected");
+  assert.equal(ended.record.attempts[0]!.outcome, "verified_connected"); assert.equal((await tasks.read(t.scope)).recoveries[0]!.outcome, "verified_recovered"); assert.equal((await tasks.read(newer.scope)).attemptsUsed, 0);
+  await assert.rejects(pool.query(`UPDATE ${s}.joint_recovery_reservations SET task_attempt_id=$2,task_scope=$3 WHERE device_id=$1`, [f.scope.deviceId, newer.scope.taskAttemptId, newer.scope]), sqlCode("P0001"));
+});
+test("reservation and every affected ledger/command/audit silent write skip rolls back entire joint allocation", async () => {
+  for (const [table, operation, predicate] of [
+    ["joint_recovery_reservations", "INSERT", "true"], ["task_recovery_rounds", "UPDATE", "true"], ["task_recovery_commands", "INSERT", "true"],
+    ["audit_records", "INSERT", "NEW.action='task_recovery.begin'"], ["connection_maintenance_rounds", "UPDATE", "true"],
+    ["connection_maintenance_commands", "INSERT", "true"], ["audit_records", "INSERT", "NEW.action='connection_maintenance.reserve_joint'"],
+  ]) {
+    const f = await fixture(), t = await currentTask(f);
+    await pool.query(`CREATE FUNCTION ${s}.fixture_joint_skip() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF ${predicate} THEN RETURN NULL; END IF; RETURN NEW; END $$`);
+    await pool.query(`CREATE TRIGGER joint_skip BEFORE ${operation} ON ${s}.${table} FOR EACH ROW EXECUTE FUNCTION ${s}.fixture_joint_skip()`);
+    try {
+      await assert.rejects(store.apply(f.scope, 0, key(), jointCommand()), isCode("DATABASE_UNAVAILABLE"));
+      assert.deepEqual(await store.read(f.scope), f.initial); assert.deepEqual(await tasks.read(t.scope), t.record); assert.equal(await reservationCount(f), 0); assert.deepEqual(await counts(f), { commands: 1, audits: 1 });
+    } finally { await pool.query(`DROP TRIGGER joint_skip ON ${s}.${table}`); await pool.query(`DROP FUNCTION ${s}.fixture_joint_skip()`); }
+  }
+});
+test("joint completion task write failure never frees maintenance slot or confirms an uncommitted receipt", async () => {
+  const f = await fixture(), t = await currentTask(f), started = await store.apply(f.scope, 0, key(), jointCommand()), taskBefore = await tasks.read(t.scope);
+  await pool.query(`CREATE FUNCTION ${s}.fixture_joint_end_skip() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END $$`);
+  await pool.query(`CREATE TRIGGER joint_end_skip BEFORE UPDATE ON ${s}.task_recovery_rounds FOR EACH ROW EXECUTE FUNCTION ${s}.fixture_joint_end_skip()`);
+  try {
+    await assert.rejects(jointComplete(f, started.record, true, "verified_connected"), isCode("DATABASE_UNAVAILABLE"));
+    assert.deepEqual(await store.read(f.scope), started.record); assert.deepEqual(await tasks.read(t.scope), taskBefore);
+  } finally { await pool.query(`DROP TRIGGER joint_end_skip ON ${s}.task_recovery_rounds`); await pool.query(`DROP FUNCTION ${s}.fixture_joint_end_skip()`); }
+});
+test("legacy and joint reservation deletion is detected before any read, replay or new allocation", async () => {
+  for (const joint of [false, true]) {
+    const f = await fixture(); if (joint) await currentTask(f);
+    const command = joint ? jointCommand() : beginCommand(), requestKey = key();
+    await store.apply(f.scope, 0, requestKey, command);
+    await pool.query(`DELETE FROM ${s}.joint_recovery_reservations WHERE device_id=$1`, [f.scope.deviceId]);
+    await assert.rejects(store.read(f.scope), isCode("CORRUPT_STATE"));
+    await assert.rejects(store.apply(f.scope, 0, requestKey, command), isCode("CORRUPT_STATE"));
+  }
 });

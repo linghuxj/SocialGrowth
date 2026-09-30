@@ -1,5 +1,7 @@
 # WP-10 第二阶段来源快照时序整改
 
+当前原复验结果：完整53行限定报告artifacts/review/wp10-source-0d7ae82.md已读取，静态/240/184完成，原13独立反例和相关指纹未运行，未签原P3清零/G1。平台限制及实际真人输入/同窗补验条件见[复核补验记录](WP-10-review-blocker.md)。不以作者GREEN或后续共同预算208代签，Developer仍af14；以下保留固定整改作者交付事实。
+
 2026-10-01；基线b60ad24，fix/wp-10-source-evidence-snapshot。EX/BE实施代理Codex，原非作者/原QA固定门禁；真实来源和生产上下文仍AND/EX/OPS负责，真人签收未落实。依据R-109/148～151、CT-05、AC14/15/59、[原阶段](WP-10-stage2.md)、[质量手册](../quality-gates.md)。整改只处理WP10-B60-01，不替代完整WP10或其他作者分支。
 
 ## 原问题与修复

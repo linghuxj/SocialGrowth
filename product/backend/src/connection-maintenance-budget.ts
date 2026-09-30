@@ -14,6 +14,8 @@ const stateSchema = z.strictObject({ scope: scopeSchema, limits: limitsSchema, v
   reason: z.enum(["attempt_limit", "time_limit", "call_unknown", "target_mismatch", "authority_changed", "human_intervention"]).nullable(), attempts: z.array(attemptSchema).max(100) });
 export type ConnectionMaintenanceScope = z.infer<typeof scopeSchema>;
 export type ConnectionMaintenanceRound = z.infer<typeof stateSchema>;
+// Internal boundary reuse; exporting schemas does not expose a route/permission.
+export { scopeSchema as connectionMaintenanceScopeSchema, endpointSchema as connectionMaintenanceEndpointSchema };
 export class ConnectionMaintenanceError extends Error {
   constructor(readonly code: "INPUT_INVALID" | "CORRUPT_STATE" | "STALE_SCOPE" | "BUSY" | "AUTOMATIC_RECOVERY_BLOCKED" | "STALE_RECEIPT") { super(code); }
 }
