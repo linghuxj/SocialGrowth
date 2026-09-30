@@ -1,6 +1,6 @@
 # 首批跨端契约
 
-`src/` 中的 Zod schema 是 TypeScript 运行时校验源；`generated/first-batch-contracts.v1.json` 是构建时生成的 JSON Schema 2020-12 等价格式，供 Kotlin、Python 和接口评审消费。生成步骤同时产出 Android 使用的 `GeneratedFirstBatchContractSpec.kt`，并在 `generate:check` 中对两种产物做字节级防漂移检查。消费端仍须实际执行运行时校验，不能只依赖静态类型或生成常量。
+`src/` 中的 Zod schema 是 TypeScript 运行时校验源；`generated/first-batch-contracts.v1.json` 是构建时生成的 JSON Schema 2020-12 等价格式，供 Kotlin、Python 和接口评审消费。生成步骤同时产出 Android 使用的 `GeneratedFirstBatchContractSpec.kt` 与独立的 `GeneratedAdmissionContractSpec.kt`，并在 `generate:check` 中对三种产物做字节级防漂移检查。消费端仍须实际执行运行时校验，不能只依赖静态类型或生成常量。
 
 ## CT-01～04 覆盖
 
@@ -17,7 +17,7 @@
 
 ## HTTP 交接表
 
-WP-08 阶段一新增 CT-05 `enrollmentChallenge`、`enrollmentProof` 和 `nodeIdentity`，纳入同一 JSON Schema 生成／防漂移入口，但载荷使用独立 `protocolVersion=2026-09-30.admission-v1`，不改变已部署的 B1 请求与响应。签名为 P-256/SHA-256、IEEE-P1363 的 64 字节 `r||s`（无填充 base64url）；签名字节定义在 Backend `challengeSigningBytes` 的固定有序 JSON 元组中，包含用途、全部身份／代次、节点 ID／密钥／网络修订、随机数和起止时间。来源节点只能由可信核验通道观察，不接受客户端自报或代理头。当前仅有 TypeScript 状态核心和 Python 结构消费，尚无 CT-05 HTTP、Kotlin 签名消费、真实来源／策略适配和持久事务；Android 原生成规格保持 B1 范围，不能宣称新协议跨端已接通。
+WP-08 阶段一新增 CT-05 `enrollmentChallenge`、`enrollmentProof` 和 `nodeIdentity`，纳入同一 JSON Schema 生成／防漂移入口，但载荷使用独立 `protocolVersion=2026-09-30.admission-v1`，不改变已部署的 B1 请求与响应。签名为 P-256/SHA-256、IEEE-P1363 的 64 字节 `r||s`（无填充 base64url）；签名字节定义在 Backend `challengeSigningBytes` 的固定有序 JSON 元组中，包含用途、全部身份／代次、节点 ID／密钥／网络修订、随机数和起止时间。来源节点只能由可信核验通道观察，不接受客户端自报或代理头。阶段二已有持久事务与待处理意图，阶段三增加独立 Kotlin 挑战消费及 Keystore 签名辅助层；原 B1 生成规格不变。CT-05 HTTP、真实来源／策略适配和界面仍未接通，不能宣称真实网络准入完成。客户端将来重试证明时必须保存原签名与原请求键，而不是重新 ECDSA 签名后复用旧键。
 
 该表定义语义和身份，不表示 WP-02～06 的路由已经实现。
 

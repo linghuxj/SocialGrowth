@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { generateKeyPairSync, randomUUID, sign } from "node:crypto";
+import { createHash, generateKeyPairSync, randomUUID, sign } from "node:crypto";
 import test from "node:test";
+import { enrollmentChallengeSchema } from "@socialgrowth/product-contracts";
 
 import {
   AdmissionError,
@@ -21,6 +22,18 @@ import {
 } from "./network-admission-core.js";
 
 const now = "2026-09-30T10:00:00.000Z";
+test("CT-05 signing bytes retain the Android golden tuple and original UUID spelling", () => {
+  const id = "018F47AC-7A69-7DB4-A572-8C62F3650191";
+  const challenge = enrollmentChallengeSchema.parse({
+    protocolVersion: "2026-09-30.admission-v1", purpose: "network_node_binding",
+    challengeId: id, enrollmentId: id, deviceId: id, installationId: id,
+    installationGeneration: "9007199254740993", enrollmentGeneration: "1",
+    node: { nodeId: "node-A", nodeKey: "key-A", networkRevision: 1 },
+    nonce: "A".repeat(43), issuedAt: "2026-09-30T10:00:00.0000000001Z", expiresAt: "2026-09-30T10:01:00Z",
+  });
+  assert.equal(createHash("sha256").update(challengeSigningBytes(challenge)).digest("hex"),
+    "f9ae23f75612797357faae891c2af105a509d6c222dd1781774748e7b2574387");
+});
 const later = (ms: number) => new Date(Date.parse(now) + ms).toISOString();
 const authority: AdmissionAuthority = {
   deviceId: randomUUID(), installationId: randomUUID(), installationGeneration: "1",
