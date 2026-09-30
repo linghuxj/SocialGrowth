@@ -16,6 +16,11 @@ import {
 } from "./association.js";
 import { productErrorResponseSchema } from "./errors.js";
 import {
+  enrollmentChallengeSchema,
+  enrollmentProofSchema,
+  nodeIdentitySchema,
+} from "./network-admission.js";
+import {
   listOperatorDeviceFactsResponseSchema,
   operatorDeviceFactSchema,
   operatorProviderFactSchema,
@@ -68,6 +73,9 @@ import {
 } from "./status.js";
 
 export const firstBatchContractRegistry = {
+  enrollmentChallenge: enrollmentChallengeSchema,
+  enrollmentProof: enrollmentProofSchema,
+  nodeIdentity: nodeIdentitySchema,
   associationQrPayload: associationQrPayloadSchema,
   associationResultResponse: associationResultResponseSchema,
   associationSessionView: associationSessionViewSchema,

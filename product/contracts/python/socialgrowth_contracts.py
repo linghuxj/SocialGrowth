@@ -61,7 +61,10 @@ class FirstBatchContracts:
         return value
 
     def _validate_contract_semantics(self, name: str, value: Any) -> None:
-        if name == "invitationView":
+        if name == "enrollmentChallenge":
+            if self._compare_timestamps(value["issuedAt"], value["expiresAt"]) >= 0:
+                raise ContractDataError(f"{name}: challenge is already expired")
+        elif name == "invitationView":
             self._validate_invitation_view(value, name)
         elif name in {"createInvitationResponse", "revokeInvitationResponse"}:
             self._validate_invitation_view(value["invitation"], f"{name}.invitation")

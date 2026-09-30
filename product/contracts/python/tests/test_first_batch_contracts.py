@@ -16,6 +16,31 @@ class FirstBatchContractsTest(unittest.TestCase):
         self.contracts = FirstBatchContracts()
         self.installation_id = "00000000-0000-4000-8000-000000000001"
 
+    def test_admission_challenge_is_strict_and_expiry_is_after_issuance(self) -> None:
+        challenge = {
+            "protocolVersion": "2026-09-30.admission-v1",
+            "purpose": "network_node_binding",
+            "challengeId": self.installation_id,
+            "enrollmentId": self.installation_id,
+            "deviceId": self.installation_id,
+            "installationId": self.installation_id,
+            "installationGeneration": "9007199254740993",
+            "enrollmentGeneration": "1",
+            "node": {"nodeId": "node-1", "nodeKey": "node-key-1", "networkRevision": 1},
+            "nonce": "A" * 43,
+            "issuedAt": "2026-09-30T10:00:00Z",
+            "expiresAt": "2026-09-30T10:01:00Z",
+        }
+        self.contracts.validate("enrollmentChallenge", challenge)
+        for patch in (
+            {"expiresAt": challenge["issuedAt"]},
+            {"installationGeneration": 1},
+            {"clientIp": "100.64.0.1"},
+            {"purpose": "adb_pairing"},
+        ):
+            with self.assertRaises(ContractValidationError):
+                self.contracts.validate("enrollmentChallenge", {**challenge, **patch})
+
     def test_accepts_versioned_qr_and_installation_view(self) -> None:
         self.contracts.validate(
             "associationQrPayload",

@@ -17,6 +17,8 @@
 
 ## HTTP 交接表
 
+WP-08 阶段一新增 CT-05 `enrollmentChallenge`、`enrollmentProof` 和 `nodeIdentity`，纳入同一 JSON Schema 生成／防漂移入口，但载荷使用独立 `protocolVersion=2026-09-30.admission-v1`，不改变已部署的 B1 请求与响应。签名为 P-256/SHA-256、IEEE-P1363 的 64 字节 `r||s`（无填充 base64url）；签名字节定义在 Backend `challengeSigningBytes` 的固定有序 JSON 元组中，包含用途、全部身份／代次、节点 ID／密钥／网络修订、随机数和起止时间。来源节点只能由可信核验通道观察，不接受客户端自报或代理头。当前仅有 TypeScript 状态核心和 Python 结构消费，尚无 CT-05 HTTP、Kotlin 签名消费、真实来源／策略适配和持久事务；Android 原生成规格保持 B1 范围，不能宣称新协议跨端已接通。
+
 该表定义语义和身份，不表示 WP-02～06 的路由已经实现。
 
 | 操作 | 身份 | 请求/响应 schema | 典型错误 |
