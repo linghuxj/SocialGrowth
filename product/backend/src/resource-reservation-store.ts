@@ -33,6 +33,11 @@ export class ResourceReservationStore {
     try { client = await this.pool.connect(); } catch { throw new ProductTransactionError("INTERNAL_ERROR", "Resource ledger unavailable", true); }
     try {
       await client.query("BEGIN"); await client.query("SET LOCAL lock_timeout='5s'"); await client.query("SET LOCAL statement_timeout='10s'");
+      // Project basics can lock another operator as the new responsible owner.
+      // Take their SAME metadata table lock BEFORE any actor/session row, also
+      // for reads that wait on the guard, or actor -> guard -> project can cycle
+      // against project -> owner. Phone/executor paths do not use this lock.
+      await client.query(`LOCK TABLE ${schema}.operators IN SHARE ROW EXCLUSIVE MODE`);
       const context = await this.auth.authenticateSessionInTransaction(client, token, csrf ?? undefined, csrf !== null);
       // One short metadata ledger guard, not a global phone-control lock. The
       // registry producer must also own this guard; snapshot loading then cannot

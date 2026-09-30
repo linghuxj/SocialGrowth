@@ -6,6 +6,7 @@ import { Pool } from "pg";
 import { contractVersion } from "@socialgrowth/product-contracts";
 import { OperatorAuthService } from "./operator-auth-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
+import { ProjectService } from "./project-service.js";
 import { ResourceReservationError } from "./resource-reservation-core.js";
 import { ResourceReservationStore } from "./resource-reservation-store.js";
 const url = process.env.SG_PRODUCT_TEST_DATABASE_URL;
@@ -167,4 +168,32 @@ test("exit, exit pending and unassociated phones cannot be newly reserved; proje
   await pool.query("UPDATE socialgrowth_product.devices SET state='paused' WHERE device_id=$1", [f.deviceId]);
   await pool.query("UPDATE socialgrowth_product.operators SET status='disabled',disabled_at=clock_timestamp() WHERE operator_id=$1", [f.a.operatorId]);
   assert.equal((await pool.query("SELECT 1 FROM socialgrowth_product.project_identity_reservations WHERE identity_id=$1", [f.fb])).rowCount, 1);
+});
+
+test("resource guard wait and another operator assigning the first actor as owner share a deadlock-free metadata order", async () => {
+  const f = await fixture(), b = await actor(), input = await request(f), blocker = await pool.connect();
+  let settled: Promise<PromiseSettledResult<unknown>[]> | undefined;
+  try {
+    await blocker.query("BEGIN"); await blocker.query("SELECT 1 FROM socialgrowth_product.resource_reservation_guard FOR UPDATE");
+    const reserve = store.reserve(f.a.token, f.a.csrf, input); void reserve.catch(() => undefined);
+    let guardWaiting = false;
+    for (let i = 0; i < 100; i++) {
+      guardWaiting = !!(await pool.query("SELECT 1 FROM pg_stat_activity WHERE application_name='sg-resource-fixtures' AND wait_event_type='Lock' AND query LIKE '%resource_reservation_guard%' AND pid<>pg_backend_pid()")).rowCount;
+      if (guardWaiting) break; await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    assert.ok(guardWaiting);
+    const edit = new ProjectService(pool, auth).save(b.token, b.csrf, { metadata: metadata(), projectId: f.projectId, expectedFactVersion: 0,
+      basics: { name: "Resource owner race", kind: "company_owned", customerName: null, ownerOperatorId: f.a.operatorId, notificationEmail: null } }, "update");
+    settled = Promise.allSettled([reserve, edit]);
+    let writerWaitingBeforeProject = false;
+    for (let i = 0; i < 100; i++) {
+      writerWaitingBeforeProject = !!(await pool.query("SELECT 1 FROM pg_stat_activity WHERE application_name='sg-resource-fixtures' AND wait_event_type='Lock' AND query LIKE 'LOCK TABLE %operators%' AND pid<>pg_backend_pid()")).rowCount;
+      if (writerWaitingBeforeProject) break; await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    assert.ok(writerWaitingBeforeProject, "Project writer must wait before owning project/other-operator locks");
+    await blocker.query("COMMIT");
+    const results = await settled; assert.ok(results.every(r => r.status === "fulfilled"));
+    assert.deepEqual(await counts(f), { commands: 1, audits: 1, identities: 1 });
+    assert.equal((await pool.query("SELECT owner_operator_id FROM socialgrowth_product.projects WHERE project_id=$1", [f.projectId])).rows[0]?.owner_operator_id, f.a.operatorId);
+  } finally { await blocker.query("ROLLBACK"); blocker.release(); await settled; }
 });
