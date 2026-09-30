@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { deviceAssistanceTodoSummarySchema, listDeviceAssistanceTodosResponseSchema, recordDeviceAssistanceNoteRequestSchema, recordDeviceAssistanceNoteResponseSchema, providerDeviceAssistanceTodoSummarySchema, listProviderDeviceAssistanceTodosResponseSchema } from "./device-assistance.js";
+import { deviceAssistanceTodoSummarySchema, listDeviceAssistanceTodosResponseSchema, recordDeviceAssistanceNoteRequestSchema, recordDeviceAssistanceNoteResponseSchema, providerDeviceAssistanceTodoSummarySchema, listProviderDeviceAssistanceTodosResponseSchema, listDeviceAssistanceNotesResponseSchema } from "./device-assistance.js";
 import { contractVersion } from "./common.js";
 const id = "00000000-0000-4000-8000-00000000000a";
 const summary = { todoId: id, occurrenceId: id, providerId: id, initialResponsibleOperatorId: id, originScope: "unassigned_device", kind: "network_access_help", status: "awaiting_recheck", factVersion: 1,
@@ -39,4 +39,9 @@ test("provider summary preserves same todo progress but excludes operator respon
   assert.equal(listProviderDeviceAssistanceTodosResponseSchema.safeParse({ todos: [value], nextAfterTodoId: id }).success, true);
   assert.equal(listProviderDeviceAssistanceTodosResponseSchema.safeParse({ todos: [value, { ...value, todoId: id.toUpperCase() }], nextAfterTodoId: null }).success, false);
   assert.equal(listProviderDeviceAssistanceTodosResponseSchema.safeParse({ todos: [], nextAfterTodoId: id }).success, false);
+});
+test("operator notes page preserves bounded recorded notes and consistent current count/cursor", () => {
+  const note = { noteId: id, actorId: id, kind: "reported_processed", text: "需要真实复核", recordedAt: summary.updatedAt }, value = { todo: summary, notes: [note], nextAfterNoteId: id };
+  assert.deepEqual(listDeviceAssistanceNotesResponseSchema.parse(value), value);
+  for (const patch of [{ notes: [note, { ...note, noteId: id.toUpperCase() }] }, { notes: [], nextAfterNoteId: id }, { notes: [{ ...note, kind: "verified" }] }, { notes: [{ ...note, permissionGranted: true }] }, { notes: [{ ...note, recordedAt: "0000-01-01T00:00:00Z" }] }, { notes: [{ ...note, recordedAt: "2026-09-29T23:59:59.999999999Z" }] }, { notes: [{ ...note, recordedAt: "2026-09-30T00:00:00.000000001Z" }] }, { notes: [note], todo: { ...summary, status: "open", noteCount: 0 } }]) assert.equal(listDeviceAssistanceNotesResponseSchema.safeParse({ ...value, ...patch }).success, false);
 });

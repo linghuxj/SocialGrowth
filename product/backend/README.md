@@ -19,6 +19,7 @@ WP-01 开始建立正式权威数据模型：
 - [`0010_project_planning_drafts.sql`](migrations/0010_project_planning_drafts.sql)：筹备规划输入及幂等记录；只存未批准草案，不开启周期/切换资格/派发任务。
 - [`0011_unassigned_device_todos.sql`](migrations/0011_unassigned_device_todos.sql)：无项目设备协助内部日志、逐设备影响/原关联、初始邀请责任、人工说明与单个通知意图；没有真实故障或发送/复核消费者。
 - [`0012_device_assistance_feed_index.sql`](migrations/0012_device_assistance_feed_index.sql)：认证只读全局摘要的DB微秒游标索引，不改写历史状态或产生权限。
+- [`0013_device_assistance_notes_index.sql`](migrations/0013_device_assistance_notes_index.sql)：运营说明历史的逐事项DB微秒游标索引，保留已有说明及命令行。
 
 迁移当前是待后端迁移执行器消费的前向 SQL；未在真实 PostgreSQL 执行前，不得将其记为迁移或并发验收通过。
 
@@ -34,9 +35,11 @@ WP-22 `metric-snapshot-core`仅内部效果快照与显式更正规则：精确�
 
 WP-24 `project-cycle-core`只消费未来可信日历生成器的冻结实际边界，检查同瞬间连续/旧周期不变；按原平台task去重、实际发布时间左闭右开归属与迟到核验回原期，计划/完成/失败/待核实/路径不足分开且缺口不自动累入下一期。不生成IANA/DST边界、不查真实发布或引流证明、不存持久报告或授予执行，见[周期任务卡](../../docs/engineering/delivery/records/WP-24.md)。
 
-WP-20 `GET /api/operator/assistance-todos`仅以当前Host运营会话读取无项目来源事项的全局摘要，`afterTodoId`及`pageSize`严格分页，默认20/上限50、no-store。初始联系人不隔离访问，originScope不是当前项目分配状态；不返回说明正文/秘密，见[认证分页任务卡](../../docs/engineering/delivery/records/WP-20-stage2.md)。新增`POST /api/operator/assistance-todos/:todoId/notes`需同会话＋CSRF、严格metadata/路径对象/版本CAS/kind/text；reported_processed仅等待复核，不关闭或恢复；同键返回当前摘要，已提交未知响应保留原键核实。摘要共同支持0001～9999年。没有故障创建、详情分页、真实复核/恢复HTTP或实际事件/邮件/跨端UI接线，不能从测试入库或空页自报完整业务完成，见[说明命令与日历修复](../../docs/engineering/delivery/records/WP-20-stage3.md)。
+WP-20 `GET /api/operator/assistance-todos`仅以当前Host运营会话读取无项目来源事项的全局摘要，`afterTodoId`及`pageSize`严格分页，默认20/上限50、no-store。初始联系人不隔离访问，originScope不是当前项目分配状态；不返回说明正文/秘密，见[认证分页任务卡](../../docs/engineering/delivery/records/WP-20-stage2.md)。新增`POST /api/operator/assistance-todos/:todoId/notes`需同会话＋CSRF、严格metadata/路径对象/版本CAS/kind/text；reported_processed仅等待复核，不关闭或恢复；同键返回当前摘要，已提交未知响应保留原键核实。摘要共同支持0001～9999年。没有故障创建、真实复核/恢复HTTP或实际事件/邮件/跨端UI接线，不能从测试入库或空页自报完整业务完成，见[说明命令与日历修复](../../docs/engineering/delivery/records/WP-20-stage3.md)。
 
 `GET /api/provider/assistance-todos`新增Provider Bearer本人分页投影，同todoID与当前进度、不返运营责任/内部说明/其他provider，owned微秒cursor不能跨人；事务认证与最后DB钟保护失效会话。只是后端接口，未实现Android待办UI、人工写入或真实恢复，见[本人待办任务卡](../../docs/engineering/delivery/records/WP-20-stage4.md)。
+
+`GET /api/operator/assistance-todos/:todoId/notes`以当前Host运营会话分页读取实际保存的说明/作者及当前摘要，默认20/上限50/no-store，游标仅同事项且取DB完整微秒。记录时间不越过事项创建/更新时间；末页或人工reported_processed不是复核通过或恢复。正文不向provider/模型/日志自动传递，后续UI须纯文本显示；原内部load全部说明的性能不据此关闭。没有UI消费或真实业务验收，见[说明历史任务卡](../../docs/engineering/delivery/records/WP-20-stage5.md)。
 
 `IdentityTransactionService` 实现当前首批后端事务基础：
 

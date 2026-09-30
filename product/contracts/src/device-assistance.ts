@@ -44,3 +44,10 @@ export const listProviderDeviceAssistanceTodosResponseSchema = z.strictObject({ 
     if (new Set(v.todos.map(t => t.todoId.toLowerCase())).size !== v.todos.length
       || (v.nextAfterTodoId !== null && v.nextAfterTodoId.toLowerCase() !== v.todos.at(-1)?.todoId.toLowerCase())) ctx.addIssue({ code: "custom", message: "Assistance page cursor or identity is inconsistent" });
   });
+export const deviceAssistanceNoteViewSchema = z.strictObject({ noteId: uuidSchema, actorId: uuidSchema, kind: z.enum(["note", "reported_processed"]), text: projectLabelSchema, recordedAt: assistanceTimestampSchema });
+export const listDeviceAssistanceNotesResponseSchema = z.strictObject({ todo: deviceAssistanceTodoSummarySchema, notes: z.array(deviceAssistanceNoteViewSchema).max(50), nextAfterNoteId: uuidSchema.nullable() })
+  .superRefine((v, ctx) => {
+    if (new Set(v.notes.map(n => n.noteId.toLowerCase())).size !== v.notes.length || v.notes.length > v.todo.noteCount
+      || (v.nextAfterNoteId !== null && v.nextAfterNoteId.toLowerCase() !== v.notes.at(-1)?.noteId.toLowerCase())) ctx.addIssue({ code: "custom", message: "Assistance notes cursor or count is inconsistent" });
+    if (v.notes.some(n => compareTimestamps(n.recordedAt, v.todo.createdAt) === -1 || compareTimestamps(n.recordedAt, v.todo.updatedAt) === 1)) ctx.addIssue({ code: "custom", message: "Assistance note predates item or exceeds current update" });
+  });

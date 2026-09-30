@@ -150,6 +150,16 @@ class FirstBatchContractsTest(unittest.TestCase):
         with self.assertRaises(ContractValidationError):
             self.contracts.validate("listProviderDeviceAssistanceTodosResponse", {"todos": [value, value], "nextAfterTodoId": None})
 
+    def test_operator_notes_page_has_strict_current_count_and_cursor(self) -> None:
+        summary = {"todoId": self.installation_id, "occurrenceId": self.installation_id, "providerId": self.installation_id, "initialResponsibleOperatorId": self.installation_id,
+                   "originScope": "unassigned_device", "kind": "network_access_help", "status": "awaiting_recheck", "factVersion": 2, "impactCount": 1, "noteCount": 1, "notificationStatus": "awaiting_configuration", "createdAt": "2026-09-30T00:00:00Z", "updatedAt": "2026-09-30T00:00:00Z"}
+        note = {"noteId": self.installation_id, "actorId": self.installation_id, "kind": "reported_processed", "text": "需要真实复核", "recordedAt": summary["updatedAt"]}
+        value = {"todo": summary, "notes": [note], "nextAfterNoteId": self.installation_id}
+        self.contracts.validate("listDeviceAssistanceNotesResponse", value)
+        for patch in ({"notes": [note, note]}, {"notes": []}, {"notes": [{**note, "kind": "verified"}]}, {"notes": [{**note, "recordedAt": "0000-01-01T00:00:00Z"}]}, {"notes": [{**note, "recordedAt": "2026-09-29T23:59:59.999999999Z"}]}, {"notes": [{**note, "recordedAt": "2026-09-30T00:00:00.000000001Z"}]}, {"todo": {**summary, "status": "open", "noteCount": 0}}):
+            with self.assertRaises(ContractValidationError):
+                self.contracts.validate("listDeviceAssistanceNotesResponse", {**value, **patch})
+
     def test_control_action_is_strict_independent_and_never_grants_permission(self) -> None:
         action = {
             "protocolVersion": "2026-09-30.control-v1", "deviceId": self.installation_id,

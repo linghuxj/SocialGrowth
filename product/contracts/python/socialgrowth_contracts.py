@@ -63,7 +63,15 @@ class FirstBatchContracts:
         return value
 
     def _validate_contract_semantics(self, name: str, value: Any) -> None:
-        if name in ("deviceAssistanceTodoSummary", "listDeviceAssistanceTodosResponse", "recordDeviceAssistanceNoteResponse", "providerDeviceAssistanceTodoSummary", "listProviderDeviceAssistanceTodosResponse"):
+        if name == "listDeviceAssistanceNotesResponse":
+            self._validate_contract_semantics("deviceAssistanceTodoSummary", value["todo"])
+            ids = [note["noteId"].lower() for note in value["notes"]]
+            cursor = value["nextAfterNoteId"]
+            if len(ids) != len(set(ids)) or len(ids) > value["todo"]["noteCount"] or (cursor is not None and (not ids or cursor.lower() != ids[-1])):
+                raise ContractDataError(f"{name}: inconsistent notes cursor or count")
+            if any(self._compare_timestamps(note["recordedAt"], value["todo"]["createdAt"]) < 0 or self._compare_timestamps(note["recordedAt"], value["todo"]["updatedAt"]) > 0 for note in value["notes"]):
+                raise ContractDataError(f"{name}: note outside current item history")
+        elif name in ("deviceAssistanceTodoSummary", "listDeviceAssistanceTodosResponse", "recordDeviceAssistanceNoteResponse", "providerDeviceAssistanceTodoSummary", "listProviderDeviceAssistanceTodosResponse"):
             page = name in ("listDeviceAssistanceTodosResponse", "listProviderDeviceAssistanceTodosResponse")
             todos = value["todos"] if page else [value["todo"] if name == "recordDeviceAssistanceNoteResponse" else value]
             for todo in todos:

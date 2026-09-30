@@ -11,10 +11,12 @@ import { OperatorAuthService } from "./operator-auth-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
 import { ProviderAuthService, UnavailableSmsDeliveryPort } from "./provider-auth-service.js";
 import { ProviderAssistanceFeedService } from "./provider-assistance-feed-service.js";
+import { DeviceAssistanceNotesService } from "./device-assistance-notes-service.js";
 const url = process.env.SG_PRODUCT_TEST_DATABASE_URL;
 if (!url || process.env.SG_PRODUCT_TEST_ALLOW_RESET !== "1") throw new Error("Assistance journal tests require an isolated reset-authorized database");
 const pool = new Pool({ connectionString: url, max: 10, application_name: "sg-todo-fixtures" });
 const auth = new OperatorAuthService(pool, "isolated-todo-fixture-pepper-only-00001"), store = new DeviceAssistanceTodoStore(pool, auth), feed = new DeviceAssistanceFeedService(pool, auth);
+const notesFeed = new DeviceAssistanceNotesService(pool, auth);
 const providerPepper = "isolated-provider-feed-pepper-only-0001", providerAuth = new ProviderAuthService(pool, providerPepper, new UnavailableSmsDeliveryPort()), providerFeed = new ProviderAssistanceFeedService(pool, providerAuth);
 async function providerSession(providerId: string) {
   const token = randomBytes(32).toString("base64url"), sessionId = randomUUID();
@@ -25,7 +27,7 @@ const meta = () => ({ contractVersion, requestId: `todo-${randomUUID()}`, idempo
 const code = (value: string) => (e: unknown) => e instanceof ProductTransactionError && e.code === value;
 before(async () => {
   await pool.query("DROP SCHEMA IF EXISTS socialgrowth_product CASCADE");
-  for (const name of ["0001_identity_and_device.sql", "0002_provider_phone_auth.sql", "0003_provider_auth_recovery.sql", "0004_installation_bootstrap_admission.sql", "0005_network_admission.sql", "0006_phone_control_journal.sql", "0007_task_recovery_budget.sql", "0008_project_basics.sql", "0009_resource_reservations.sql", "0010_project_planning_drafts.sql", "0011_unassigned_device_todos.sql", "0012_device_assistance_feed_index.sql"]) await pool.query(await readFile(new URL(`../migrations/${name}`, import.meta.url), "utf8"));
+  for (const name of ["0001_identity_and_device.sql", "0002_provider_phone_auth.sql", "0003_provider_auth_recovery.sql", "0004_installation_bootstrap_admission.sql", "0005_network_admission.sql", "0006_phone_control_journal.sql", "0007_task_recovery_budget.sql", "0008_project_basics.sql", "0009_resource_reservations.sql", "0010_project_planning_drafts.sql", "0011_unassigned_device_todos.sql", "0012_device_assistance_feed_index.sql", "0013_device_assistance_notes_index.sql"]) await pool.query(await readFile(new URL(`../migrations/${name}`, import.meta.url), "utf8"));
 });
 after(async () => { try { await pool.query("DROP SCHEMA IF EXISTS socialgrowth_product CASCADE"); } finally { await pool.end(); } });
 // Synthetic NON-UI authority fixtures; not actual phone/SMS/Artemis evidence.
@@ -352,4 +354,54 @@ test("provider corrupted intent or calendar cannot expose a partial page or priv
   await pool.query("INSERT INTO socialgrowth_product.device_assistance_notification_intents(todo_id) VALUES($1)", [first.todoId]);
   await pool.query("UPDATE socialgrowth_product.device_assistance_todos SET created_at='0001-01-01 00:00:00+00 BC' WHERE todo_id=$1", [first.todoId]);
   await assert.rejects(providerFeed.list(session.token, { afterTodoId: null, pageSize: 20 }), code("INTERNAL_ERROR"));
+});
+test("notes detail is current-operator only, preserves actual authors/history without changing processed or device authority", async () => {
+  const f = await fixture(), b = await actor(), first = await store.ingestUnassignedDeviceEvent(f.input);
+  await feed.recordNote(f.a.token, f.a.csrf, { ...note(first.todoId, 1), text: "已处理等待真实复核" });
+  await feed.recordNote(b.token, b.csrf, { ...note(first.todoId, 2, "note"), text: "复核尚未完成" });
+  const before = await counts(first.todoId), page = await notesFeed.list(b.token, first.todoId.toUpperCase(), { afterNoteId: null, pageSize: 20 });
+  assert.equal(page.todo.factVersion, 3); assert.equal(page.todo.status, "awaiting_recheck"); assert.equal(page.notes.length, 2); assert.equal(page.notes[0]?.actorId, f.a.operatorId); assert.equal(page.notes[1]?.actorId, b.operatorId); assert.equal(page.notes[1]?.text, "复核尚未完成"); assert.equal(page.nextAfterNoteId, null);
+  assert.deepEqual(await counts(first.todoId), before);
+  await assert.rejects(notesFeed.list((await providerSession(f.p.providerId)).token, first.todoId, { afterNoteId: null, pageSize: 20 }), code("AUTHENTICATION_REQUIRED"));
+});
+test("notes opaque cursor retains actual microsecond order and rejects another item's or unknown cursor", async () => {
+  const f = await fixture(), g = await fixture(), first = await store.ingestUnassignedDeviceEvent(f.input), foreign = await store.ingestUnassignedDeviceEvent(g.input);
+  await feed.recordNote(f.a.token, f.a.csrf, note(first.todoId, 1, "note")); await feed.recordNote(f.a.token, f.a.csrf, note(first.todoId, 2)); await feed.recordNote(g.a.token, g.a.csrf, note(foreign.todoId, 1));
+  const ids = (await pool.query<{ note_id: string }>("SELECT note_id FROM socialgrowth_product.device_assistance_notes WHERE todo_id=$1 ORDER BY recorded_at,note_id", [first.todoId])).rows;
+  await pool.query("UPDATE socialgrowth_product.device_assistance_todos SET created_at='2026-09-29T00:00:00Z' WHERE todo_id=$1", [first.todoId]);
+  for (let i = 0; i < 2; i++) await pool.query("UPDATE socialgrowth_product.device_assistance_notes SET recorded_at=$2 WHERE note_id=$1", [ids[i]!.note_id, `2026-09-30T00:00:00.12345${6 + i}Z`]);
+  const one = await notesFeed.list(f.a.token, first.todoId, { afterNoteId: null, pageSize: 1 }), two = await notesFeed.list(f.a.token, first.todoId, { afterNoteId: one.nextAfterNoteId?.toUpperCase(), pageSize: 1 });
+  assert.equal(one.notes[0]?.noteId, ids[0]?.note_id); assert.equal(two.notes[0]?.noteId, ids[1]?.note_id); assert.equal(one.notes[0]?.recordedAt, two.notes[0]?.recordedAt); assert.equal(two.nextAfterNoteId, null);
+  const foreignNote = (await pool.query<{ note_id: string }>("SELECT note_id FROM socialgrowth_product.device_assistance_notes WHERE todo_id=$1", [foreign.todoId])).rows[0]!.note_id;
+  for (const cursor of [foreignNote, randomUUID()]) await assert.rejects(notesFeed.list(f.a.token, first.todoId, { afterNoteId: cursor, pageSize: 20 }), code("FACT_VERSION_STALE"));
+});
+test("notes invalid query, absent item, expired/revoked session and corrupt record fail safely with no partial history", async () => {
+  const f = await fixture(), first = await store.ingestUnassignedDeviceEvent(f.input);
+  await assert.rejects(notesFeed.list(f.a.token, first.todoId, { afterNoteId: null, pageSize: 51 }), code("INPUT_INVALID"));
+  await assert.rejects(notesFeed.list(f.a.token, randomUUID(), { afterNoteId: null, pageSize: 20 }), code("FACT_VERSION_STALE"));
+  await feed.recordNote(f.a.token, f.a.csrf, note(first.todoId, 1));
+  await pool.query("UPDATE socialgrowth_product.device_assistance_notes SET recorded_at='0001-01-01 00:00:00+00 BC' WHERE todo_id=$1", [first.todoId]);
+  await assert.rejects(notesFeed.list(f.a.token, first.todoId, { afterNoteId: null, pageSize: 20 }), code("INTERNAL_ERROR"));
+  await pool.query("UPDATE socialgrowth_product.operator_sessions SET revoked_at=clock_timestamp(),revoked_reason='logout' WHERE session_id=$1", [f.a.sessionId]);
+  await assert.rejects(notesFeed.list(f.a.token, first.todoId, { afterNoteId: null, pageSize: 20 }), code("AUTHENTICATION_REQUIRED"));
+});
+test("notes real SELECT lock wait beyond current database session deadline discards private text", async () => {
+  const f = await fixture(), first = await store.ingestUnassignedDeviceEvent(f.input); await feed.recordNote(f.a.token, f.a.csrf, note(first.todoId, 1)); const blocker = await pool.connect(); let pending: Promise<unknown> | undefined;
+  await pool.query("UPDATE socialgrowth_product.operator_sessions SET expires_at=clock_timestamp()+interval '1 second' WHERE session_id=$1", [f.a.sessionId]);
+  try {
+    await blocker.query("BEGIN"); await blocker.query("LOCK TABLE socialgrowth_product.device_assistance_notes IN ACCESS EXCLUSIVE MODE");
+    pending = notesFeed.list(f.a.token, first.todoId, { afterNoteId: null, pageSize: 20 }); const rejection = assert.rejects(pending, code("AUTHENTICATION_REQUIRED")); let waiting = false, expired = false;
+    for (let i = 0; i < 300; i++) { if ((await pool.query("SELECT 1 FROM pg_stat_activity WHERE application_name='sg-todo-fixtures' AND wait_event_type='Lock' AND query LIKE '%device_assistance_notes%' AND pid<>pg_backend_pid()")).rowCount) { waiting = true; break; } await new Promise(r => setTimeout(r, 5)); }
+    assert.ok(waiting);
+    for (let i = 0; i < 300; i++) { if ((await pool.query<{ expired: boolean }>("SELECT expires_at<=clock_timestamp() expired FROM socialgrowth_product.operator_sessions WHERE session_id=$1", [f.a.sessionId])).rows[0]?.expired) { expired = true; break; } await new Promise(r => setTimeout(r, 5)); }
+    assert.ok(expired); await blocker.query("COMMIT"); await rejection;
+  } finally { await blocker.query("ROLLBACK"); blocker.release(); await pending?.catch(() => undefined); }
+});
+test("0013 forward notes cursor index preserves real preexisting command/history rows", async () => {
+  const f = await fixture(), first = await store.ingestUnassignedDeviceEvent(f.input); await feed.recordNote(f.a.token, f.a.csrf, note(first.todoId, 1));
+  await pool.query("DROP INDEX socialgrowth_product.device_assistance_notes_cursor_idx");
+  const before = (await pool.query("SELECT to_jsonb(n) facts FROM socialgrowth_product.device_assistance_notes n ORDER BY note_id")).rows;
+  await pool.query(await readFile(new URL("../migrations/0013_device_assistance_notes_index.sql", import.meta.url), "utf8"));
+  assert.deepEqual((await pool.query("SELECT to_jsonb(n) facts FROM socialgrowth_product.device_assistance_notes n ORDER BY note_id")).rows, before);
+  assert.equal((await pool.query("SELECT count(*)::int n FROM pg_indexes WHERE schemaname='socialgrowth_product' AND indexname='device_assistance_notes_cursor_idx'")).rows[0]?.n, 1);
 });

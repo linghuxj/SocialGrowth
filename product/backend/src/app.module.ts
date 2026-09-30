@@ -20,6 +20,8 @@ import { DeviceAssistanceFeedService } from "./device-assistance-feed-service.js
 import { DeviceAssistanceFeedController } from "./device-assistance-feed.controller.js";
 import { ProviderAssistanceFeedService } from "./provider-assistance-feed-service.js";
 import { ProviderAssistanceFeedController } from "./provider-assistance-feed.controller.js";
+import { DeviceAssistanceNotesService } from "./device-assistance-notes-service.js";
+import { DeviceAssistanceNotesController } from "./device-assistance-notes.controller.js";
 import {
   DevelopmentSmsCapturePort,
   DisabledDevelopmentSmsCodeReader,
@@ -115,6 +117,7 @@ const providerAuthProvider = {
     ProjectPlanningController,
     DeviceAssistanceFeedController,
     ProviderAssistanceFeedController,
+    DeviceAssistanceNotesController,
   ],
   providers: [
     poolProvider,
@@ -128,6 +131,7 @@ const providerAuthProvider = {
     { provide: ProjectPlanningService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ProjectPlanningService(pool, auth) },
     { provide: DeviceAssistanceFeedService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new DeviceAssistanceFeedService(pool, auth) },
     { provide: ProviderAssistanceFeedService, inject: [Pool, ProviderAuthService], useFactory: (pool: Pool, auth: ProviderAuthService) => new ProviderAssistanceFeedService(pool, auth) },
+    { provide: DeviceAssistanceNotesService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new DeviceAssistanceNotesService(pool, auth) },
     DatabaseLifecycle,
   ],
 })
