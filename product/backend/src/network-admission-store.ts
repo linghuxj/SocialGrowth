@@ -99,9 +99,10 @@ async function lockAuthority(client: PoolClient, installationId: string): Promis
 
 async function intent(client: PoolClient, r: AdmissionRecord, kind: string): Promise<void> {
   await client.query(
-    `INSERT INTO ${schema}.network_operation_intents(operation_id,enrollment_id,expected_version,kind)
-       VALUES($1,$2,$3,$4) ON CONFLICT(enrollment_id,expected_version,kind) DO NOTHING`,
-    [randomUUID(), r.enrollmentId, r.version, kind],
+    `INSERT INTO ${schema}.network_operation_intents(operation_id,enrollment_id,expected_version,kind,reclamation_id)
+       VALUES($1,$2,$3,$4,$5) ON CONFLICT(enrollment_id,expected_version,kind) DO NOTHING`,
+    [randomUUID(), r.enrollmentId, r.version, kind,
+      kind === "revoke_credential" || kind === "revoke_node_access" ? r.reclamationId : null],
   );
 }
 
@@ -160,7 +161,13 @@ export class NetworkAdmissionStore {
 
   async apply(enrollmentId: string, expectedVersion: number, requestKey: string, command: AdmissionCommand): Promise<AdmissionRecord> {
     key(requestKey);
-    const fingerprint = digest(canonical({ expectedVersion, command }));
+    // Socket observation time is server transport metadata, not the client's
+    // command content. A retried identical signed proof arrives on a new socket
+    // observation; keep actual node identity in the digest, not its timestamp.
+    const stableCommand = "source" in command
+      ? { ...command, source: { node: command.source.node } }
+      : command;
+    const fingerprint = digest(canonical({ expectedVersion, command: stableCommand }));
     return transact(this.pool, async (client) => {
       // Read locator first without locking enrollment, then lock authority before
       // enrollment on ALL paths. Locator identities are immutable columns.
@@ -216,13 +223,22 @@ export class NetworkAdmissionStore {
       );
       if (command.kind === "confirm_restriction") await intent(client, next, "issue_restricted_credential");
       if (command.kind === "request_permission") await intent(client, next, "apply_formal_policy");
-      if (command.kind === "request_reclamation") {
+      if (command.kind === "request_reclamation" && next.reclamationId !== record.reclamationId) {
         await client.query(
           `UPDATE ${schema}.network_operation_intents SET status='cancelled' WHERE enrollment_id=$1 AND status='pending'
              AND kind IN ('apply_restricted_policy','issue_restricted_credential','apply_formal_policy')`, [enrollmentId],
         );
         await intent(client, next, "revoke_credential");
         await intent(client, next, "revoke_node_access");
+      }
+      if (command.kind === "confirm_reclamation") {
+        for (const [confirmed, kind] of [[next.credentialRevoked, "revoke_credential"], [next.nodeAccessRevoked, "revoke_node_access"]] as const) {
+          if (confirmed) await client.query(
+            `UPDATE ${schema}.network_operation_intents SET status='confirmed'
+             WHERE enrollment_id=$1 AND reclamation_id=$2 AND kind=$3 AND status='pending'`,
+            [enrollmentId, next.reclamationId, kind],
+          );
+        }
       }
       await audit(client, next, requestKey, `network_enrollment.${command.kind}`);
       return next;

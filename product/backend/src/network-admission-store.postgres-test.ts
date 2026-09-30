@@ -115,6 +115,19 @@ test("same proof command concurrent retry consumes once; service restart reads p
   await assert.rejects(store.apply(f.record.enrollmentId, f.challenged.version, key, { ...command, proof: { ...f.proof, signature: "A".repeat(86) } }), stale);
 });
 
+test("a lost proof response accepts the same payload with a newly observed server timestamp but not another node", async () => {
+  const f = await challengedFixture();
+  const key = requestKey();
+  const command = { kind: "consume_proof" as const, source: await source(f.nodeId), proof: f.proof };
+  const original = await store.apply(f.record.enrollmentId, f.challenged.version, key, command);
+  await new Promise(resolve => setTimeout(resolve, 5));
+  const retried = { ...command, source: await source(f.nodeId) };
+  assert.notEqual(retried.source.observedAt, command.source.observedAt);
+  const result = await new NetworkAdmissionStore(pool).apply(f.record.enrollmentId, f.challenged.version, key, retried);
+  assert.deepEqual(result, original);
+  await assert.rejects(store.apply(f.record.enrollmentId, f.challenged.version, key, { ...retried, source: await source("different-node") }), stale);
+});
+
 test("different command IDs competing for the same challenge have one winner", async () => {
   const f = await challengedFixture();
   const command = { kind: "consume_proof" as const, source: await source(f.nodeId), proof: f.proof };
@@ -194,6 +207,27 @@ test("partial reclamation holds unique node/device claim; confirmed cleanup perm
   assert.equal(newRecord.authority.enrollmentGeneration, "2");
   assert.notEqual(newRecord.enrollmentId, complete.enrollmentId);
   await assert.rejects(store.apply(complete.enrollmentId, complete.version, requestKey(), { kind: "consume_proof", source: await source(f.nodeId), proof: f.proof }), AdmissionError);
+});
+
+test("repeated cleanup after reclaimed never queues a new revocation against a reassigned node", async () => {
+  const f = await challengedFixture();
+  const pending = await store.apply(f.record.enrollmentId, f.challenged.version, requestKey(), { kind: "request_reclamation", reason: "expired" });
+  const receipt = { ...scope(pending), reclamationId: pending.reclamationId!, node: pending.node,
+    evidenceId: requestKey(), checkedAt: await clock(), credentialRevoked: true, nodeAccessRevoked: true };
+  const complete = await store.apply(pending.enrollmentId, pending.version, requestKey(), { kind: "confirm_reclamation", evidence: receipt });
+  const next = await store.begin(f.context, f.publicKey, requestKey());
+  const restricted = await store.apply(next.enrollmentId, 0, requestKey(), { kind: "confirm_restriction", evidence: {
+    ...scope(next), evidenceId: requestKey(), policyRevision: 1, networkRevision: 1, checkedAt: await clock(),
+    independentVerifierReachable: true, adbDenied: true, otherPhonesDenied: true, operatorServicesDenied: true, businessEgressDenied: true, additiveRulesChecked: true,
+  } });
+  const reassigned = await store.apply(restricted.enrollmentId, restricted.version, requestKey(), { kind: "issue_challenge", source: await source(f.nodeId) });
+  assert.equal(reassigned.challenge?.node.nodeId, f.nodeId);
+  const replay = await store.apply(complete.enrollmentId, complete.version, requestKey(), { kind: "request_reclamation", reason: "expired" });
+  assert.equal(replay.phase, "reclaimed");
+  assert.equal(replay.version, complete.version);
+  const oldJobs = await pool.query<{ pending: string; confirmed: string }>(`SELECT count(*) FILTER(WHERE status='pending')::text AS pending,
+    count(*) FILTER(WHERE status='confirmed')::text AS confirmed FROM socialgrowth_product.network_operation_intents WHERE enrollment_id=$1`, [complete.enrollmentId]);
+  assert.deepEqual(oldJobs.rows[0], { pending: "0", confirmed: "2" });
 });
 
 function sourceNode(nodeId: string) { return { nodeId, nodeKey: `key-${nodeId}`, networkRevision: 1 }; }

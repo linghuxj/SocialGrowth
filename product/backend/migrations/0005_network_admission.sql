@@ -49,9 +49,11 @@ CREATE TABLE socialgrowth_product.network_operation_intents (
   enrollment_id uuid NOT NULL REFERENCES socialgrowth_product.network_enrollments(enrollment_id),
   expected_version bigint NOT NULL CHECK (expected_version >= 0),
   kind text NOT NULL CHECK (kind IN ('apply_restricted_policy','issue_restricted_credential','apply_formal_policy','revoke_credential','revoke_node_access')),
-  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','cancelled')),
+  reclamation_id uuid,
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','cancelled','confirmed')),
   created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
-  UNIQUE (enrollment_id, expected_version, kind)
+  UNIQUE (enrollment_id, expected_version, kind),
+  CHECK ((kind IN ('revoke_credential','revoke_node_access')) = (reclamation_id IS NOT NULL))
 );
 -- No delivery worker exists in stage two. Do not infer external success from an
 -- intent, its cancellation, an auth-key expiry or an enrollment deadline.
