@@ -7,6 +7,25 @@ from socialgrowth_contracts import FirstBatchContracts, ContractValidationError
 
 
 class MaterialUploadContractsTest(unittest.TestCase):
+    def test_inventory_nested_status_project_order_and_cursor(self):
+        contracts, first = FirstBatchContracts(), self.row()
+        second = {**first, "objectId": "a0000000-0000-4000-8000-000000000002", "status": "verified_bytes", "verifiedAt": first["preparedAt"]}
+        page = {"projectId": first["projectId"], "tickets": [first, second], "nextAfterObjectId": second["objectId"]}
+        contracts.validate("materialUploadInventoryQuery", {"afterObjectId": None, "pageSize": 50})
+        contracts.validate("materialUploadInventoryResponse", page)
+        contracts.validate("materialUploadInventoryResponse", {**page, "tickets": [], "nextAfterObjectId": None})
+        for size in (0, 51, True, 1.2):
+            with self.assertRaises(ContractValidationError):
+                contracts.validate("materialUploadInventoryQuery", {"afterObjectId": None, "pageSize": size})
+        for patch in ({"tickets": [second, first], "nextAfterObjectId": None}, {"tickets": [first, first], "nextAfterObjectId": None},
+                      {"nextAfterObjectId": first["objectId"]}, {"tickets": [], "nextAfterObjectId": first["objectId"]},
+                      {"tickets": [{**first, "projectId": second["objectId"]}], "nextAfterObjectId": None},
+                      {"tickets": [{**first, "status": "verified_bytes"}], "nextAfterObjectId": None},
+                      {"tickets": [{**second, "verifiedAt": "2026-10-01T00:00:00.123456789122Z"}], "nextAfterObjectId": None},
+                      {"tickets": [{**first, "key": "private"}], "nextAfterObjectId": None}, {"tickets": [{**first, "candidateAllowed": True}], "nextAfterObjectId": None}):
+            with self.assertRaises(ContractValidationError):
+                contracts.validate("materialUploadInventoryResponse", {**page, **patch})
+
     def row(self):
         identifier = "a0000000-0000-4000-8000-000000000001"
         return {"projectId": identifier, "objectId": identifier, "sha256": "a" * 64, "bytes": 12,

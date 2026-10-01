@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
-import { compareTimestamps, timestampSchema, uuidSchema } from "@socialgrowth/product-contracts";
+import { compareTimestamps, materialUploadInventoryQuerySchema, timestampSchema, uuidSchema } from "@socialgrowth/product-contracts";
 import { materialUploadCommandSchema, materialUploadPrepareSchema, materialUploadDescriptorSchema, MaterialUploadError } from "./material-upload-core.js";
 import { canonicalMaterial } from "./material-registry-core.js";
 import { MaterialObjectStorage, MaterialStorageError } from "./material-object-storage.js";
@@ -68,6 +68,21 @@ export class MaterialUploadStore {
   async read(token: string, projectId: string, objectId: string) {
     if (!uuidSchema.safeParse(projectId).success || !uuidSchema.safeParse(objectId).success) throw new ProductTransactionError("INPUT_INVALID", "Invalid upload locator");
     return this.tx(token, null, async c => { await this.project(c, projectId.toLowerCase()); const saved = await this.load(c, objectId.toLowerCase()); if (!saved || saved.projectId !== projectId.toLowerCase()) throw stale(); return saved; });
+  }
+  async list(token: string, projectId: string, input: unknown) {
+    const p = materialUploadInventoryQuerySchema.safeParse(input);
+    if (!uuidSchema.safeParse(projectId).success || !p.success) throw new ProductTransactionError("INPUT_INVALID", "Invalid upload inventory locator");
+    const project = projectId.toLowerCase(), after = p.data.afterObjectId?.toLowerCase() ?? null;
+    return this.tx(token, null, async c => {
+      await this.project(c, project);
+      if (after && !(await c.query(`SELECT 1 FROM ${s}.material_upload_tickets WHERE project_id=$1 AND object_id=$2`, [project, after])).rowCount) throw stale();
+      const rows = (await c.query<{ object_id: string }>(`SELECT object_id FROM ${s}.material_upload_tickets WHERE project_id=$1 AND ($2::uuid IS NULL OR object_id>$2::uuid) ORDER BY object_id LIMIT $3`, [project, after, p.data.pageSize + 1])).rows;
+      const tickets = [];
+      for (const row of rows.slice(0, p.data.pageSize)) {
+        const saved = await this.load(c, row.object_id); if (!saved || saved.projectId !== project) return corrupt(); tickets.push(saved);
+      }
+      return { projectId: project, tickets, nextAfterObjectId: rows.length > p.data.pageSize ? tickets.at(-1)!.objectId : null };
+    }); // Historical DB facts only: no configured storage or SDK IO needed.
   }
   async prepare(token: string, csrf: string, input: unknown) {
     const p = materialUploadPrepareSchema.safeParse(input); if (!p.success) throw new ProductTransactionError("INPUT_INVALID", "Invalid upload descriptor");

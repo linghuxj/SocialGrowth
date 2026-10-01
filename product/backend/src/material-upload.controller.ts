@@ -1,7 +1,7 @@
-import { Body, Controller, Get, Header, Headers, Inject, Param, Post, Put, Req, HttpException } from "@nestjs/common";
+import { Body, Controller, Get, Header, Headers, Inject, Param, Post, Put, Query, Req, HttpException } from "@nestjs/common";
 import type { IncomingMessage } from "node:http";
 import { randomUUID } from "node:crypto";
-import { contractVersion, materialUploadTicketViewSchema, prepareMaterialUploadRequestSchema, prepareMaterialUploadResponseSchema,
+import { contractVersion, materialUploadInventoryQuerySchema, materialUploadInventoryResponseSchema, materialUploadTicketViewSchema, prepareMaterialUploadRequestSchema, prepareMaterialUploadResponseSchema,
   productErrorResponseSchema, uploadMaterialBytesCommandSchema, uploadMaterialBytesResponseSchema, type MaterialUploadTicketView } from "@socialgrowth/product-contracts";
 import { MaterialByteTransportError, materialHttpMaxBytes, readMaterialByteStream } from "./material-byte-transport.js";
 import { MaterialRuntime } from "./material-runtime.js";
@@ -37,6 +37,19 @@ function fail(error: unknown, requestId: string): never {
 @Controller("api/operator/projects/:projectId/material-uploads")
 export class MaterialUploadController {
   constructor(@Inject(MaterialRuntime) private readonly runtime: MaterialRuntime) {}
+  @Get() @Header("Cache-Control", "no-store")
+  async list(@Param("projectId") projectId: string, @Query() query: unknown, @Req() request: Request) {
+    try {
+      if (!query || typeof query !== "object" || Array.isArray(query)) throw new ProductTransactionError("INPUT_INVALID", "Invalid upload inventory query");
+      const raw = query as Record<string, unknown>;
+      if (Object.keys(raw).some(key => key !== "afterObjectId" && key !== "pageSize") || (raw.pageSize !== undefined && (typeof raw.pageSize !== "string" || !/^[1-9][0-9]*$/.test(raw.pageSize)))) throw new ProductTransactionError("INPUT_INVALID", "Invalid upload inventory query");
+      const input = materialUploadInventoryQuerySchema.parse({ afterObjectId: raw.afterObjectId ?? null, pageSize: raw.pageSize === undefined ? 20 : Number(raw.pageSize) });
+      const saved = await this.runtime.uploads().list(token(request), projectId, input);
+      const result = materialUploadInventoryResponseSchema.safeParse({ projectId: saved.projectId, tickets: saved.tickets.map(view), nextAfterObjectId: saved.nextAfterObjectId });
+      if (!result.success) throw new ProductTransactionError("INTERNAL_ERROR", "Material upload result is unavailable");
+      return result.data;
+    } catch (error) { fail(error, `request-${randomUUID()}`); }
+  }
   @Post() @Header("Cache-Control", "no-store")
   async prepare(@Param("projectId") projectId: string, @Body() body: unknown, @Req() request: Request, @Headers("x-csrf-token") csrf: string | undefined) {
     try {

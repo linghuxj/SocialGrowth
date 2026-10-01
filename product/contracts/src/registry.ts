@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { saveMaterialDeclarationRequestSchema, materialCurrentViewSchema, saveMaterialDeclarationResponseSchema, batchMaterialDeclarationsRequestSchema, batchMaterialDeclarationsResponseSchema, materialHistoryQuerySchema, materialHistoryResponseSchema, materialLibraryQuerySchema, materialLibraryResponseSchema } from "./material-registry.js";
-import { prepareMaterialUploadRequestSchema, materialUploadTicketViewSchema, prepareMaterialUploadResponseSchema, uploadMaterialBytesCommandSchema, uploadMaterialBytesResponseSchema } from "./material-upload.js";
+import { prepareMaterialUploadRequestSchema, materialUploadTicketViewSchema, prepareMaterialUploadResponseSchema, uploadMaterialBytesCommandSchema, uploadMaterialBytesResponseSchema, materialUploadInventoryQuerySchema, materialUploadInventoryResponseSchema } from "./material-upload.js";
 import { commissionCursorSchema, providerCommissionRecordSchema, listProviderCommissionsResponseSchema } from "./commission.js";
 import { deviceAssistanceTodoSummarySchema, listDeviceAssistanceTodosResponseSchema, recordDeviceAssistanceNoteRequestSchema, recordDeviceAssistanceNoteResponseSchema, providerDeviceAssistanceTodoSummarySchema, listProviderDeviceAssistanceTodosResponseSchema, deviceAssistanceNoteViewSchema, listDeviceAssistanceNotesResponseSchema } from "./device-assistance.js";
 import { phoneActionRequestSchema } from "./action-permission.js";
@@ -91,6 +91,8 @@ export const firstBatchContractRegistry = {
   saveMaterialDeclarationResponse: saveMaterialDeclarationResponseSchema,
   prepareMaterialUploadRequest: prepareMaterialUploadRequestSchema,
   materialUploadTicketView: materialUploadTicketViewSchema,
+  materialUploadInventoryQuery: materialUploadInventoryQuerySchema,
+  materialUploadInventoryResponse: materialUploadInventoryResponseSchema,
   prepareMaterialUploadResponse: prepareMaterialUploadResponseSchema,
   uploadMaterialBytesCommand: uploadMaterialBytesCommandSchema,
   uploadMaterialBytesResponse: uploadMaterialBytesResponseSchema,

@@ -21,3 +21,7 @@ export const prepareMaterialUploadResponseSchema = z.strictObject({ ...ticketFie
   .refine(v => validStatus(v) && !(v.changed && v.replayed), "Inconsistent upload result");
 export const uploadMaterialBytesResponseSchema = prepareMaterialUploadResponseSchema.refine(v => v.status === "verified_bytes", "Upload acknowledgement requires verified bytes");
 export type MaterialUploadTicketView = z.infer<typeof materialUploadTicketViewSchema>;
+export const materialUploadInventoryQuerySchema = z.strictObject({ afterObjectId: id.nullable(), pageSize: z.int().min(1).max(50) });
+export const materialUploadInventoryResponseSchema = z.strictObject({ projectId: id, tickets: z.array(materialUploadTicketViewSchema).max(50), nextAfterObjectId: id.nullable() }).refine(v =>
+  v.tickets.every((t, i) => t.projectId.toLowerCase() === v.projectId.toLowerCase() && (!i || v.tickets[i - 1]!.objectId.toLowerCase() < t.objectId.toLowerCase()))
+  && (v.nextAfterObjectId === null || v.nextAfterObjectId.toLowerCase() === v.tickets.at(-1)?.objectId.toLowerCase()), "Inconsistent upload inventory page");

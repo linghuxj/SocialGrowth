@@ -1,5 +1,7 @@
 # WP-15 第八阶段：显式逐项批量登记与有界历史
 
+2026-10-01接续：原78行`artifacts/review/wp15-batch-history-02a030a.md`已全文读，SHA cde1127817f325babf4e73c7613a1a2e9e0c6c0f66245a642780aa45696be4aa；固定14cc..02a17文件，新增0/增量remaining0，9BE/TS4/Py4/旧PG14/newjoint9/旧1～7guard-only＋新独立9（45语义case一组）通过。旧第8路由不存在断言保持/未执行不计GREEN，首次辅助lint重复变量及未执行初稿/原旧RED与manifest首败SHA保留；实际9首次pass。原自有PG17.10 Alpine/MinIO3合成桶/两个own容器匿名卷清理0|0|0，原服务未动。已交原QA相同17文件，未来e006列表和stage10不入本门禁；父pending1/Developeraf14、browser/SEC、真实业务/UI/准入/Task/手机门禁仍开放，不报全开发完成。
+
 2026-10-01；基线14cc7aa，feature/wp-15-batch-history-api-stage8。BE实施代理Codex；原复核/原QA固定门禁，WEB/OPS/BIZ/EX真人待签。[单项API](WP-15-stage7.md)、[内部历史](WP-15-stage3.md)、[质量手册](../quality-gates.md)。
 
 领取最多50显式items的批量登记HTTP、每项独立认证/事务/安全结果，以及数值修订cursor的历史分页；不自动分组、改变人工unit/source/语言/对象次序/名额，不用单一batch success掩盖失败或赋予准入许可。保持单项原键/CAS/真实存储复验和完整历史一致性。原Nest默认100KiB JSON传输限额不改，超大批次须按实际字节拆为显式请求（项数和字节两个边界），不是任意50最大声明都能单次上传；单项最大仍已验证。历史分页不删旧版或只看最新掩盖损坏。

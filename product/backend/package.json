@@ -21,7 +21,8 @@
     "test:material-api-storage": "tsx --test --test-concurrency=1 src/material-upload-api.storage-sql-test.ts",
     "test:material-registry-api-storage": "tsx --test --test-concurrency=1 src/material-registry-api.storage-sql-test.ts",
     "test:material-batch-api-storage": "tsx --test --test-concurrency=1 src/material-batch-api.storage-sql-test.ts",
-    "test:material-library-postgres": "tsx --test --test-concurrency=1 src/material-library-api.pg-test.ts"
+    "test:material-library-postgres": "tsx --test --test-concurrency=1 src/material-library-api.pg-test.ts",
+    "test:upload-inventory-postgres": "tsx --test --test-concurrency=1 src/material-upload-inventory-api.pg-test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1143.0",

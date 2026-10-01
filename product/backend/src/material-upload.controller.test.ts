@@ -10,6 +10,18 @@ const input = { metadata: { contractVersion, requestId: "request-upload-http", i
 const request = { headers: { cookie: `unrelated=skip; __Host-sg_operator_session=${session}` } };
 const saved = { ...input, descriptor: { ...input, key: "internal-do-not-disclose", storageLocationId: id, storageBindingDigest: "d".repeat(64), secret: "must-not-expose" },
   status: "pending_bytes", preparedAt: "2026-10-01T00:00:00.123456Z", verifiedAt: null, candidateAllowed: false, publicationAllowed: false, changed: true, replayed: false };
+test("inventory controller defaults strict query and projects only original minimal tickets", async () => {
+  let calls = 0;
+  const controller = new MaterialUploadController({ uploads: () => ({ list: async (token: string, project: string, query: unknown) => {
+    calls++; assert.equal(token, session); assert.equal(project, id); assert.deepEqual(query, { afterObjectId: null, pageSize: 20 });
+    return { projectId: id, tickets: [saved], nextAfterObjectId: null };
+  } }) } as unknown as MaterialRuntime);
+  const result = await controller.list(id, {}, request); assert.equal(result.tickets[0]!.objectId, id); assert.ok(!JSON.stringify(result).includes("internal-do-not-disclose"));
+  for (const query of [{ pageSize: "01" }, { pageSize: "51" }, { pageSize: ["1", "2"] }, { afterObjectId: [id, id] }, { extra: "private" }]) await assert.rejects(controller.list(id, query, request), e => e instanceof HttpException && e.getStatus() === 400);
+  assert.equal(calls, 1);
+  const bad = new MaterialUploadController({ uploads: () => ({ list: async () => ({ projectId: id, tickets: [{ ...saved, status: "verified_bytes" }], nextAfterObjectId: null }) }) } as unknown as MaterialRuntime);
+  await assert.rejects(bad.list(id, {}, request), e => e instanceof HttpException && e.getStatus() === 500);
+});
 test("upload controller forwards exact current cookie/CSRF and allowlists minimal bytes ticket", async () => {
   const controller = new MaterialUploadController({ uploads: () => ({ prepare: async (token: string, csrf: string, value: unknown) => {
     assert.equal(token, session); assert.equal(csrf, "current-csrf"); assert.deepEqual(value, input); return saved;
