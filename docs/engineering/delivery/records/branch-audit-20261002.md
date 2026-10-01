@@ -1,5 +1,21 @@
 # 本地分支盘点与收敛建议
 
+## 用户确认后的第一批执行结果
+
+2026-10-02用户明确“确认进行调整和优化”后，已实际清理原候选52个本地分支；从100降至48，stage命名从79降至40。下面原只读盘点/库存保留为清理前快照，不表示这些52个ref仍存在。
+
+范围严格为“Developer祖先＋无upstream＋非main/Developer/当前分支”，实际 `git branch -d -- <52个精确名称>` exit0，不用-D/通配强删。删除前重新核对100个name/tip/upstream、候选完整SHA不变、Developer仍af14、HEAD02f80ec、仅当前一个worktree；原复核/QA均idle且固定SHA任务已完成，本次读进度不重发旧任务。其它相关已加载项目窗口为idle，没有据notLoaded推断在运行；保护未验范围和未提交内容。
+
+恢复清单：[52个名称→完整SHA](branch-cleanup-20261002-refs.tsv)。已先创建一个annotated归档标签 `archive/branch-cleanup-20261002-pre`，解引用精确为02f80ec36cc020378f5e83173c0eefd7610b1b32，不新建52个标签。删除后48个剩余ref的名称、完整tip、upstream与原库存扣除52项逐项精确相同；52个原tip仍全部为Developer祖先，Developer为归档标签祖先，因此所有已删名称对应的提交历史仍可达、可恢复。
+
+恢复单条命令（只在确有恢复需求且名称不存在时执行）：`git branch -- <清单中的branch_name> <清单中的full_commit_sha>`。恢复只是重建本地名称，不代表批准合入或改变验收。不得批量将52条恢复当作回归测试重新污染分支列表。
+
+保留main、Developer、当前核心分支、有upstream的first-loop历史分支，以及44个尚未进入Developer的旧tip；尤其WP10 endpoint-journal/source-evidence-snapshot保持门禁定位。第二批待验收关系及引用核定后再收拢，本次不做未验收合并。工程规范CLAUDE.md已加入阶段用commit/记录而非永久分支、独立切片才建短期分支和清理核对规则。
+
+远端缓存3refs及其完整SHA前后相同，无fetch/push/远端删除；不改配置、服务或手机。用户保护发布脚本仅PATH/STATUS，未读/diff/hash/archive/stage/run；旧queue、外来ADR、WP11本地盘点和artifacts/review均保留。本次仅读文档/修改治理记录，没有产品代码变化，不重跑或重复累计上一阶段534工程测试，更不称Web/Artemis验收通过。两原C1报告SHA仍与盘点前相同，新P2/P3未清。
+
+## 清理前只读盘点（历史快照）
+
 2026-10-02（Asia/Shanghai）。用户要求提交当前阶段并检查过程分支存续。本盘点为只读，不授权或执行删除、改名、合并、push、fetch 或远端分支清理。数据来自提交前 HEAD 08c48f902c59bb9e03d588f08c29643420d80c54；当前阶段提交后仍按祖先关系重新核对。
 
 ## 结论

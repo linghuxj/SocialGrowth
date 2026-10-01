@@ -1,5 +1,9 @@
 # 开发进度与阻断台账
 
+## 2026-10-02 分支治理执行结果
+
+用户已确认调整，[盘点执行记录](records/branch-audit-20261002.md)与[恢复清单](records/branch-cleanup-20261002-refs.tsv)：已非强制删除52个已入Developer/无upstream旧ref，本地100→48、stage79→40；剩余ref精确不变，单个archive/branch-cleanup-20261002-pre标签及Developer保留全部历史可达。CLAUDE新增短期切片/阶段commit/验收与清理核对规则；未删远端、未合Developer、未消除父pending/C1两finding，未改变产品代码或重跑业务。下方100/未删为治理前快照，待验44旧tip及有upstream历史分支暂留。
+
 ## 2026-10-02 提交检查点与原窗口新报告
 
 [C3a提交前编排](records/core-automation-loop-c3.md)：当前10作者单元、根534、executor类型/lint/build通过，仍缺生产Task/实时物理许可/持久journal/文件准备/独立证据，默认不启动；真实Artemis/Web闭环未验，独立门禁未签。C1两原报告已读：非作者新C1-READ-01/P2及C1-DOC-01/P3余2、524PASS/1FAIL；QA520有限工程不抵消该发现，真实页面/视觉因安全校验不可用未准入。原窗分别cursor196/93 idle；C2a已提交待独立新批次。下方“在途”是历史检查点，当前以此段为准，不重发已完成报告读取。
