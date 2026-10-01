@@ -12,6 +12,12 @@ export class DatabaseBackupFileError extends Error { constructor(readonly code: 
 const invalid = () => new DatabaseBackupFileError("DATABASE_BACKUP_FILE_INVALID");
 const configSchema = z.strictObject({ directory: z.string().min(1).max(4096).refine(v => isAbsolute(v) && resolve(v) === v && !v.includes("\0")) });
 const digest = (b: Buffer) => createHash("sha256").update(b).digest("hex");
+// Server-owned IO port; the default is the real local filesystem. Never accept
+// this port from HTTP/config data. Fault checks delegate real IO then lose ACK.
+export interface DatabaseBackupFileIO {
+  open: typeof open; lstat: typeof lstat; realpath: typeof realpath; link: typeof link; unlink: typeof unlink;
+}
+const localIO: DatabaseBackupFileIO = { open, lstat, realpath, link, unlink };
 function canonical(v: unknown): string {
   if (v === null || typeof v !== "object") return JSON.stringify(v);
   if (Array.isArray(v)) return `[${v.map(canonical).join(",")}]`;
@@ -31,21 +37,21 @@ function authenticate(input: unknown, key: DatabaseBackupKey, expectedId?: strin
 }
 const sameInode = (a: Stats, b: Stats) => a.dev === b.dev && a.ino === b.ino;
 const ownedMode = (s: Stats, mode: number) => typeof process.getuid === "function" && s.uid === process.getuid() && (s.mode & 0o7777) === mode;
-async function directory(path: string) {
-  const stat = await lstat(path);
-  if (!stat.isDirectory() || !ownedMode(stat, 0o700) || await realpath(path) !== path) throw new DatabaseBackupFileError("DATABASE_BACKUP_FILE_UNAVAILABLE");
-  const handle = await open(path, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+async function directory(path: string, io: DatabaseBackupFileIO) {
+  const stat = await io.lstat(path);
+  if (!stat.isDirectory() || !ownedMode(stat, 0o700) || await io.realpath(path) !== path) throw new DatabaseBackupFileError("DATABASE_BACKUP_FILE_UNAVAILABLE");
+  const handle = await io.open(path, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
   try { if (!sameInode(stat, await handle.stat())) throw new DatabaseBackupFileError("DATABASE_BACKUP_FILE_UNAVAILABLE"); }
   catch (e) { await handle.close(); throw e; }
-  return { handle, stat, path };
+  return { handle, stat, path, io };
 }
 async function checkDirectory(d: Awaited<ReturnType<typeof directory>>) {
-  const stat = await lstat(d.path);
-  if (!stat.isDirectory() || !ownedMode(stat, 0o700) || !sameInode(stat, d.stat) || await realpath(d.path) !== d.path) throw new DatabaseBackupFileError("DATABASE_BACKUP_FILE_UNAVAILABLE");
+  const stat = await d.io.lstat(d.path);
+  if (!stat.isDirectory() || !ownedMode(stat, 0o700) || !sameInode(stat, d.stat) || await d.io.realpath(d.path) !== d.path) throw new DatabaseBackupFileError("DATABASE_BACKUP_FILE_UNAVAILABLE");
 }
 async function readFile(d: Awaited<ReturnType<typeof directory>>, id: string, key: DatabaseBackupKey) {
   await checkDirectory(d);
-  const handle = await open(join(d.path, `${id}.sgbackup.json`), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  const handle = await d.io.open(join(d.path, `${id}.sgbackup.json`), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   let bytes: Buffer | undefined;
   try {
     const before = await handle.stat();
@@ -68,7 +74,8 @@ async function readFile(d: Awaited<ReturnType<typeof directory>>, id: string, ke
 // No HTTP, scheduler, key storage, automatic pg_restore, consumer or deletion.
 export class EncryptedDatabaseBackupFileStore {
   private readonly path: string | null;
-  constructor(config: unknown = null) { const parsed = configSchema.safeParse(config); this.path = parsed.success ? parsed.data.directory : null; }
+  private readonly io: DatabaseBackupFileIO;
+  constructor(config: unknown = null, io: DatabaseBackupFileIO = localIO) { const parsed = configSchema.safeParse(config); this.path = parsed.success ? parsed.data.directory : null; this.io = Object.freeze({ ...io }); }
   async save(input: unknown, keyInput: DatabaseBackupKey | null = null) {
     let key: DatabaseBackupKey | undefined, d: Awaited<ReturnType<typeof directory>> | undefined, staged: FileHandle | undefined;
     let temporary: string | undefined, temporaryStat: Stats | undefined, intent = false, committed = false;
@@ -76,13 +83,13 @@ export class EncryptedDatabaseBackupFileStore {
       if (!this.path) throw new DatabaseBackupFileError("DATABASE_BACKUP_FILE_UNAVAILABLE");
       key = keyCopy(keyInput); const envelope = authenticate(input, key), id = envelope.manifest.metadata.backupId.toLowerCase();
       const bytes = Buffer.from(canonical(envelope)); if (bytes.length > maxEncryptedBackupFileBytes) throw invalid();
-      d = await directory(this.path); temporary = join(d.path, `.${id}.${randomUUID()}.pending`); intent = true;
-      staged = await open(temporary, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+      d = await directory(this.path, this.io); temporary = join(d.path, `.${id}.${randomUUID()}.pending`); intent = true;
+      staged = await this.io.open(temporary, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
       temporaryStat = await staged.stat(); await staged.writeFile(bytes); await staged.sync();
       const ready = await staged.stat();
       if (!ready.isFile() || !ownedMode(ready, 0o600) || ready.nlink !== 1 || ready.size !== bytes.length || !sameInode(ready, temporaryStat)) throw invalid();
       await checkDirectory(d); let status: "stored" | "already_stored" = "stored";
-      try { await link(temporary, join(d.path, `${id}.sgbackup.json`)); committed = true; }
+      try { await this.io.link(temporary, join(d.path, `${id}.sgbackup.json`)); committed = true; }
       catch (e) {
         if (!(e instanceof Error && "code" in e && e.code === "EEXIST")) throw e;
         const existing = await readFile(d, id, key);
@@ -90,8 +97,8 @@ export class EncryptedDatabaseBackupFileStore {
         status = "already_stored";
       }
       // No rename/overwrite. Only remove this call's exact staging inode.
-      await checkDirectory(d); if (!sameInode(await lstat(temporary), temporaryStat)) throw invalid();
-      await unlink(temporary); temporary = undefined; await d.handle.sync();
+      await checkDirectory(d); if (!sameInode(await this.io.lstat(temporary), temporaryStat)) throw invalid();
+      await this.io.unlink(temporary); temporary = undefined; await d.handle.sync();
       return { backupId: id, envelopeSha256: digest(bytes), status, requiresReconciliation: true as const, executionAllowed: false as const, publicationAllowed: false as const };
     } catch (e) {
       if (committed) throw new DatabaseBackupFileError("DATABASE_BACKUP_FILE_UNKNOWN");
@@ -99,7 +106,7 @@ export class EncryptedDatabaseBackupFileStore {
       throw new DatabaseBackupFileError(intent ? "DATABASE_BACKUP_FILE_UNKNOWN" : "DATABASE_BACKUP_FILE_UNAVAILABLE");
     } finally {
       key?.key.fill(0);
-      if (temporary && temporaryStat && d) { try { await checkDirectory(d); if (sameInode(await lstat(temporary), temporaryStat)) await unlink(temporary); } catch { /* Error already reported; never delete a final artifact or foreign inode. */ } }
+      if (temporary && temporaryStat && d) { try { await checkDirectory(d); if (sameInode(await this.io.lstat(temporary), temporaryStat)) await this.io.unlink(temporary); } catch { /* Error already reported; never delete a final artifact or foreign inode. */ } }
       try { await staged?.close(); } catch { /* No raw paths/configuration in errors. */ }
       try { await d?.handle.close(); } catch { /* Read-only directory descriptor. */ }
     }
@@ -109,7 +116,7 @@ export class EncryptedDatabaseBackupFileStore {
     try {
       if (!this.path) throw new DatabaseBackupFileError("DATABASE_BACKUP_FILE_UNAVAILABLE");
       const id = uuidSchema.safeParse(backupId); if (!id.success) throw invalid();
-      key = keyCopy(keyInput); d = await directory(this.path); return await readFile(d, id.data.toLowerCase(), key);
+      key = keyCopy(keyInput); d = await directory(this.path, this.io); return await readFile(d, id.data.toLowerCase(), key);
     } catch (e) { if (e instanceof DatabaseBackupFileError) throw e; throw new DatabaseBackupFileError("DATABASE_BACKUP_FILE_UNAVAILABLE"); }
     finally { key?.key.fill(0); try { await d?.handle.close(); } catch { /* Fixed error boundary. */ } }
   }

@@ -4,7 +4,9 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { mkdtemp, mkdir, chmod, realpath, lstat, readdir, readFile, writeFile, symlink, link, unlink, open, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { EncryptedDatabaseBackupFileStore, DatabaseBackupFileError, maxEncryptedBackupFileBytes } from "./database-backup-file-store.js";
+import * as localFilesystem from "node:fs/promises";
+import type { FileHandle } from "node:fs/promises";
+import { EncryptedDatabaseBackupFileStore, DatabaseBackupFileError, maxEncryptedBackupFileBytes, type DatabaseBackupFileIO } from "./database-backup-file-store.js";
 import { sealInventoryBoundDatabaseBackup, openInventoryBoundDatabaseBackup } from "./database-backup-inventory-envelope.js";
 const fixture = () => {
   const key = { keyId: "synthetic-file-store-only", key: randomBytes(32) }, dump = Buffer.from("PGDMPsynthetic-private-fixture-not-real-SQL");
@@ -77,4 +79,58 @@ test("orphan staging and unrelated files are preserved, never replayed or automa
   const f = fixture(), orphan = `.${f.metadata.backupId}.${randomUUID()}.pending`; await writeFile(join(dir, orphan), "synthetic-partial", { mode: 0o600 }); await writeFile(join(dir, "unrelated"), "preserve", { mode: 0o600 });
   await assert.rejects(store.load(f.metadata.backupId, f.key), error("DATABASE_BACKUP_FILE_UNAVAILABLE")); await store.save(f.envelope, f.key);
   assert.equal(await readFile(join(dir, orphan), "utf8"), "synthetic-partial"); assert.equal(await readFile(join(dir, "unrelated"), "utf8"), "preserve"); assert.equal((await readdir(dir)).length, 3); f.key.key.fill(0);
+}));
+function faultHandle(handle: FileHandle, method: "sync" | "writeFile", fault: (h: FileHandle, input: unknown) => Promise<void>) {
+  return new Proxy(handle, { get(target, property) {
+    if (property === method) return (input?: unknown) => fault(target, input);
+    const value: unknown = Reflect.get(target, property, target); return typeof value === "function" ? value.bind(target) : value;
+  } });
+}
+test("actual successful hardlink with lost ACK returns UNKNOWN, preserves original ID and is recovered without another artifact", async () => owned(async (dir, store) => {
+  const f = fixture(), faulty = new EncryptedDatabaseBackupFileStore({ directory: dir }, { ...localFilesystem, link: async (from, to) => { await link(from, to); throw new Error("synthetic-sensitive-link-ack-fault"); } });
+  await assert.rejects(faulty.save(f.envelope, f.key), error("DATABASE_BACKUP_FILE_UNKNOWN"));
+  assert.deepEqual(await readdir(dir), [`${f.metadata.backupId}.sgbackup.json`]); const original = await store.load(f.metadata.backupId, f.key);
+  assert.deepEqual(original.envelope, f.envelope); const replay = await store.save(f.envelope, f.key); assert.equal(replay.status, "already_stored"); assert.equal(replay.envelopeSha256, original.envelopeSha256); f.key.key.fill(0);
+}));
+test("actual directory fsync followed by response loss cannot delete the committed backup or report failure as success", async () => owned(async (dir, store) => {
+  const f = fixture(), faulty = new EncryptedDatabaseBackupFileStore({ directory: dir }, { ...localFilesystem, open: async (path, flags, mode) => {
+    const h = await open(path, flags, mode); return (await h.stat()).isDirectory() ? faultHandle(h, "sync", async actual => { await actual.sync(); throw new Error("synthetic-directory-sync-response-fault"); }) : h;
+  } });
+  await assert.rejects(faulty.save(f.envelope, f.key), error("DATABASE_BACKUP_FILE_UNKNOWN")); assert.deepEqual(await readdir(dir), [`${f.metadata.backupId}.sgbackup.json`]);
+  assert.deepEqual((await store.load(f.metadata.backupId, f.key)).envelope, f.envelope); assert.equal((await store.save(f.envelope, f.key)).status, "already_stored"); f.key.key.fill(0);
+}));
+test("actual partial staging write then IO error stays UNKNOWN and same original envelope can safely be retried", async () => owned(async (dir, store) => {
+  const f = fixture(), faulty = new EncryptedDatabaseBackupFileStore({ directory: dir }, { ...localFilesystem, open: async (path, flags, mode) => {
+    const h = await open(path, flags, mode); return (await h.stat()).isDirectory() ? h : faultHandle(h, "writeFile", async (actual, value) => {
+      assert.ok(Buffer.isBuffer(value)); await actual.writeFile(value.subarray(0, Math.floor(value.length / 2))); throw new Error("synthetic-partial-write-fault");
+    });
+  } });
+  await assert.rejects(faulty.save(f.envelope, f.key), error("DATABASE_BACKUP_FILE_UNKNOWN")); assert.deepEqual(await readdir(dir), []);
+  await assert.rejects(store.load(f.metadata.backupId, f.key), error("DATABASE_BACKUP_FILE_UNAVAILABLE")); assert.equal((await store.save(f.envelope, f.key)).status, "stored"); assert.deepEqual((await store.load(f.metadata.backupId, f.key)).envelope, f.envelope); f.key.key.fill(0);
+}));
+async function reconcileOwnStaging(dir: string, id: string) {
+  const final = await lstat(join(dir, `${id}.sgbackup.json`)), names = (await readdir(dir)).filter(v => v.startsWith(`.${id}.`) && v.endsWith(".pending")); assert.equal(names.length, 1);
+  const path = join(dir, names[0]!), staging = await lstat(path); assert.ok(staging.isFile()); assert.equal(staging.uid, process.getuid!()); assert.equal(staging.dev, final.dev); assert.equal(staging.ino, final.ino); await unlink(path);
+}
+test("actual publication followed by denied staging cleanup preserves both links and requires explicit maintenance reconciliation", async () => owned(async (dir, store) => {
+  const f = fixture(), faulty = new EncryptedDatabaseBackupFileStore({ directory: dir }, { ...localFilesystem, unlink: async () => { throw new Error("synthetic-unlink-denied-fault"); } });
+  await assert.rejects(faulty.save(f.envelope, f.key), error("DATABASE_BACKUP_FILE_UNKNOWN")); assert.equal((await readdir(dir)).length, 2); assert.equal((await lstat(join(dir, `${f.metadata.backupId}.sgbackup.json`))).nlink, 2);
+  await assert.rejects(store.load(f.metadata.backupId, f.key), error("DATABASE_BACKUP_FILE_INVALID")); await reconcileOwnStaging(dir, f.metadata.backupId);
+  assert.deepEqual((await store.load(f.metadata.backupId, f.key)).envelope, f.envelope); assert.equal((await store.save(f.envelope, f.key)).status, "already_stored"); f.key.key.fill(0);
+}));
+test("real post-link directory permission loss is UNKNOWN, does not auto chmod, and IO port functions are defensively pinned", async () => owned(async (dir, store) => {
+  const f = fixture(), port: DatabaseBackupFileIO = { ...localFilesystem, link: async (from, to) => { await link(from, to); await chmod(dir, 0o750); throw new Error("synthetic-directory-permission-loss"); } };
+  const faulty = new EncryptedDatabaseBackupFileStore({ directory: dir }, port); port.link = link;
+  await assert.rejects(faulty.save(f.envelope, f.key), error("DATABASE_BACKUP_FILE_UNKNOWN")); assert.equal((await lstat(dir)).mode & 0o7777, 0o750);
+  await assert.rejects(store.load(f.metadata.backupId, f.key), error("DATABASE_BACKUP_FILE_UNAVAILABLE")); await chmod(dir, 0o700); await reconcileOwnStaging(dir, f.metadata.backupId);
+  assert.deepEqual((await store.load(f.metadata.backupId, f.key)).envelope, f.envelope); f.key.key.fill(0);
+}));
+test("actual staging creation with lost open ACK is UNKNOWN, orphan is preserved and same ID recovery does not consume it", async () => owned(async (dir, store) => {
+  const f = fixture(), faulty = new EncryptedDatabaseBackupFileStore({ directory: dir }, { ...localFilesystem, open: async (path, flags, mode) => {
+    const h = await open(path, flags, mode); if ((await h.stat()).isDirectory()) return h;
+    await h.close(); throw new Error("synthetic-open-ack-loss");
+  } });
+  await assert.rejects(faulty.save(f.envelope, f.key), error("DATABASE_BACKUP_FILE_UNKNOWN")); const names = await readdir(dir); assert.equal(names.length, 1); assert.ok(names[0]!.endsWith(".pending"));
+  assert.equal((await lstat(join(dir, names[0]!))).size, 0); await assert.rejects(store.load(f.metadata.backupId, f.key), error("DATABASE_BACKUP_FILE_UNAVAILABLE"));
+  assert.equal((await store.save(f.envelope, f.key)).status, "stored"); assert.equal((await readdir(dir)).length, 2); assert.equal((await lstat(join(dir, names[0]!))).size, 0); assert.deepEqual((await store.load(f.metadata.backupId, f.key)).envelope, f.envelope); f.key.key.fill(0);
 }));

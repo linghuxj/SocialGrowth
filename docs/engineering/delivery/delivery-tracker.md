@@ -35,7 +35,7 @@
 | WP-24 周期、观察窗口与历史更正 | B4 / BE | Codex阶段代理；AI/WEB/EX/TL/BIZ/原非作者/QA协作职责 | 前三有限双工程门禁通过；最终a761原P3双方同oracle清零/new0，Developeraf14 | 双方原8/最终10/复用独立7分别过，原范围2首1PASS1RED→同2GREEN/QA新oracle0；ICU78.3/tz2026b，有限纯补充不代真实policy/来源/持久更正/AC | [计数](records/WP-24.md)、[观察窗](records/WP-24-stage2.md)、[版本日历](records/WP-24-stage3.md)、[范围整改](records/WP-24-calendar-range-remediation.md)、[批次交接](records/B4-B5-review-queue-20261001.md)；标签及civil2000～2099/cutoff/版本明确，不当批准source/实际发布或所有时区支持；真人政策/producer缺口记录继续 |
 | WP-25 基础分佣与本人视图 | B4 / BE | Codex BE阶段代理；原非作者/QA，WEB/AND/BIZ真人待签 | 18446ea双有限纯门禁0；ab2原P1双有限实际清零/新增0，未清父门禁 | 双方31PG/原11＋新7 guard-only；QA3BE3TS2Python，无新独立oracle，QA17.11与复核17.10区分；作者329/239分开，无实际收款/本人UI/付款，AC未验证 | [纯核对](records/WP-25.md)、[收入账本](records/WP-25-stage2.md)、[本人投影与整改](records/WP-25-stage3.md)；原QA23固定文件完整报告已读，原RED保留、旧版归档非新应付，真实producer/UI/付款缺口继续，不清父来源pending1/Developeraf14 |
 | WP-26 真实反馈到下一轮执行闭环 | B4 / AI | 待分配 | 待分配 | 未验证 | 编码依赖：WP-17, WP-18, WP-19, WP-21, WP-22, WP-23, WP-24；交付依赖见工作包 |
-| WP-27 部署、观测、备份恢复与更新回滚 | B5 / OPS | Codex阶段代理；TL/BE/EX/AND/QA及正式OPS真人待签 | 第一546及继承整改A有限双工程通过/原P2双清零；v2最小组合B非作者new0/QA中；第四文件阶段作者完成待评审 | 第一双方4/5/5/3过；A双方3/4/11/4/1过，旧RED/错误SQLSTATE/hook诊断保留；B原4=3PASS1RED与组合4PASS/PG12分开；新stage4作者真实fs8/加密落盘PG12/根422过，非生产恢复/AC | [加密恢复](records/WP-27.md)、[清单](records/WP-27-stage2.md)、[v2认证](records/WP-27-stage3.md)、[继承整改](records/WP-27-inheritance-remediation.md)、[加密文件](records/WP-27-stage4.md)、[实际批次/职责](records/B4-B5-review-queue-20261001.md)；0700/0600、不覆盖/原ID核对、默认关闭/无consumer，manifest敏感明文；RES-WP27-01～03/父门禁与全开发ACG3未关闭 |
+| WP-27 部署、观测、备份恢复与更新回滚 | B5 / OPS | Codex阶段代理；TL/BE/EX/AND/QA及正式OPS真人待签 | 第一546、继承A与v2最小组合B有限双工程过/原P2双清零；第四固定525原非作者执行；第五作者完成待固定门禁 | A双方3/4/11/4/1；B原3PASS1RED保持、组合PG12/同oracle4/declaration1双新0；stage4作者fs8/PG12/root422，stage5真实故障fs14/root428/静态过、首类型诊断保留未重跑PG，非生产恢复/AC | [加密恢复](records/WP-27.md)、[清单](records/WP-27-stage2.md)、[v2认证](records/WP-27-stage3.md)、[继承整改](records/WP-27-inheritance-remediation.md)、[加密文件](records/WP-27-stage4.md)、[故障接续](records/WP-27-stage5.md)、[实际批次/职责](records/B4-B5-review-queue-20261001.md)；0700/0600/不覆盖/原ID/默认关闭/无consumer/manifest敏感明文；RES-WP27-01～03/父门禁与全开发ACG3未关闭 |
 | WP-28 20–50 台管理与可靠性验证 | B5 / QA | 待分配 | 待分配 | 未验证 | 编码依赖：WP-10, WP-12, WP-16, WP-27；交付依赖见工作包 |
 | WP-29 首期全覆盖验收与试运行交接 | B5 / QA | 待分配 | 待分配 | 未验证 | 编码依赖：WP-07, WP-08, WP-09, WP-10, WP-11, WP-12, WP-13, WP-14, WP-15, WP-16, WP-17, WP-18, WP-19, WP-20, WP-21, WP-22, WP-23, WP-24, WP-25, WP-26, WP-27, WP-28；交付依赖见工作包 |
 
@@ -77,7 +77,7 @@
 
 | 日期 | 风险/缺陷 | 关联WP/AC及版本 | 状态 | 主责姓名 | 证据与下一步/解除时点 |
 | --- | --- | --- | --- | --- | --- |
-| 2026-10-01 | REV-WP27-INHERIT-01 / P2 | WP-27 / 63b9cae清单 / AC-52/53受影响的维护对照子范围 | c147原非作者与原QA同oracle双实际清零，增量remaining0 | Codex OPS/BE实施代理；原非作者/QA实际复验，真人OPS/TL待签 | 原真实继承首红/错SQLSTATE/hook工具错误保留；A双方3/4/11/4/1，[整改](records/WP-27-inheritance-remediation.md)；v2 B原1921继承RED保持历史、最小组合非作者通过/原QA中，不清父门禁 |
+| 2026-10-01 | REV-WP27-INHERIT-01 / P2 | WP-27 / 63b9cae清单 / AC-52/53受影响的维护对照子范围 | c147原非作者与原QA同oracle双实际清零，增量remaining0 | Codex OPS/BE实施代理；原非作者/QA实际复验，真人OPS/TL待签 | 原真实继承首红/错SQLSTATE/hook工具错误保留；A双方3/4/11/4/1，[整改](records/WP-27-inheritance-remediation.md)；v2 B原1921继承RED保持历史，最小组合原非作者/QA有限双实际通过，不清父门禁 |
 
 ## 监督记录
 
