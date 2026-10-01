@@ -24,6 +24,7 @@
     "test:material-library-postgres": "tsx --test --test-concurrency=1 src/material-library-api.pg-test.ts",
     "test:upload-inventory-postgres": "tsx --test --test-concurrency=1 src/material-upload-inventory-api.pg-test.ts",
     "test:resource-preparation-postgres": "tsx --test --test-concurrency=1 src/resource-preparation-api.pg-test.ts",
+    "test:media-credentials-postgres": "tsx --test --test-concurrency=1 src/media-credential-store.pg-test.ts",
     "test:task-recheck-redis": "tsx --test --test-concurrency=1 src/task-recheck-queue.redis-test.ts",
     "test:task-recheck-outbox": "tsx --test --test-concurrency=1 src/task-recheck-journal.pg-redis-test.ts",
     "test:database-backup": "tsx --test --test-concurrency=1 src/database-backup.pg-test.ts",

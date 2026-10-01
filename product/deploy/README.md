@@ -1,5 +1,9 @@
 # 正式产品本地依赖
 
+筹备a42bc15原复核/QA完整报告均已读，严格24双有限0/各522首次过，QA新oracle0不累加；SHAe25589…/5f6d114…及所有原辅助失败/warning保留。自有两窗数据库/卷/快照精确gone，仍不签业务G1/AC/G3/父门禁或生产可用，详见WP13筹备卡。
+
+2026-10-01 [WP13受控凭据原语](../../docs/engineering/delivery/records/WP-13-stage2.md)：新增0023加密历史/current head/幂等命令三表，仅显式trusted server-only `MediaCredentialStore`，未注册AppModule或暴露HTTP、未读取任何历史密钥/环境文件。写入需要独立AES与HMAC key，缺省关闭；查询只取非敏感metadata，旧key重放返回当前失效/版本，不还原旧secret。历史密文/旧HMAC key的实际保留、轮换和恢复由OPS/TL确认，没有生产key-provider或自动Artemis填入。作者根486/5加密/最终12自有PG和全静态通过，仅工程补充；原筹备a42非作者有限0已交同QA。新测试命令BE `pnpm test:media-credentials-postgres`需reset=1及自有loopback DB、明确cluster/fullCID/唯一匿名volume；精确说明见任务卡，旧已gone CID/端口不能直接复用。没有敏感填入、可靠屏幕保护/初始化承接或业务ACG3通过。
+
 2026-10-01 [WP13筹备后台](../../docs/engineering/delivery/records/WP-13.md)已接正式AppModule：运营Cookie/CSRF的POST `/api/operator/resources/identities`、POST `/api/operator/resources/reservations`，GET `/api/operator/resources/preparation`；新增0022 media_registry_commands与四strict共享schema。只登记运营声明的来源引用/初始筹备，registered_unverified/pending_initialization及两false，不读取旧媒体凭据、不调用平台或初始化/Artemis/队列。作者481产品/14实际HTTP-PG/旧资源13PG和静态通过，非UI补充，需原固定门禁；真实资源与受控凭据/R145承接producer/UI仍缺。自有PG17.10@127.0.0.1:32882/cluster7691693773417799713已核空schema/连接/upgrade库后精确CID和匿名卷清理、只读终核端口关且外来三实例不动；首辅助和产品fixture诊断保留，详见卡。未采用生产Compose/真实账号或手机联调，本次默认授权不扩大。
 
 最新原两窗完整报告已全文读：票据双46/工程0、字节双55/工程0、批量非作者78/工程0，辅助首诊断与warning保留，已交同原QA批量固定18b7。均不能关闭真实HTTP/S3/页面/权利/手机验收或父pending1；发送不是验收完成。
