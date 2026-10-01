@@ -1,5 +1,6 @@
 import type { MediaCredentialWriteKeys } from "./media-credential-store.js";
 import type { MediaCredentialKey } from "./media-credential-envelope.js";
+import { types } from "node:util";
 
 export class MediaCredentialKeyCustodianError extends Error {
   constructor() { super("CONTROLLED_MEDIA_KEYS_UNAVAILABLE"); }
@@ -50,7 +51,7 @@ export class MediaCredentialKeyCustodian {
       // Refusal must also consume a native rejected Promise, without surfacing
       // its original error/cause as an unhandled rejection. Never await it or
       // keep lent bytes alive for it; this cannot stop arbitrary callback code.
-      if (output instanceof Promise) void Promise.prototype.catch.call(output, () => undefined);
+      if (types.isPromise(output)) void Promise.prototype.catch.call(output, () => undefined);
       if (output !== undefined) throw fail();
     } catch { throw fail(); } finally { for (const bytes of owned) bytes.fill(0); }
   }

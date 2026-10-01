@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { inspect } from "node:util";
 import { test } from "node:test";
+import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { contractVersion } from "@socialgrowth/product-contracts";
@@ -97,4 +98,19 @@ test("rejected async copier cannot leak its original error through an unhandled 
   assert.throws(() => custodian.withWriteKeys(value => { lent = keys(value); return Promise.reject(new Error("synthetic-rejected-copier-only")) as unknown as void; }), unavailable);
   await new Promise(resolve => setTimeout(resolve, 20));
   assert.ok(lent.every(key => key.equals(Buffer.alloc(32)))); assert.ok(keys(input).every(key => !key.equals(Buffer.alloc(32)))); custodian.dispose();
+});
+test("native rejected Promise from a trusted vm realm is consumed without extending the byte lease", () => {
+  const moduleUrl = new URL("./media-credential-key-custodian.ts", import.meta.url).href;
+  const code = `import assert from 'node:assert/strict'; import vm from 'node:vm';
+    import { MediaCredentialKeyCustodian } from ${JSON.stringify(moduleUrl)};
+    const c = new MediaCredentialKeyCustodian({ encryption: { keyId:'enc', key:Buffer.alloc(32,1) },
+      digestKeys:[{keyId:'dig',key:Buffer.alloc(32,2)}], currentDigestKeyId:'dig' }); let borrowed;
+    assert.throws(() => c.withWriteKeys(k => { borrowed=[k.encryption.key,k.digestKeys[0].key];
+      return vm.runInNewContext('Promise.reject(new Error("synthetic-cross-realm-rejection-only"))');
+    }), e => e.message === 'CONTROLLED_MEDIA_KEYS_UNAVAILABLE');
+    assert(borrowed.every(v => v.equals(Buffer.alloc(32)))); c.dispose();
+    await new Promise(r => setImmediate(r));`;
+  const child = spawnSync(process.execPath, ["--import", "tsx", "--unhandled-rejections=strict", "--input-type=module", "-e", code], { encoding: "utf8", timeout: 10_000 });
+  assert.equal(child.error, undefined); assert.equal(child.status, 0, child.stderr);
+  assert.equal(child.stderr, "");
 });
