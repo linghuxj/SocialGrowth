@@ -1,5 +1,9 @@
 # SocialGrowth 协作窗口记忆
 
+2026-10-02用户要求提交Git及检查过程分支：本批凝聚Artemis提交前会话编排（仍默认关闭、无生产journal/实时逐动作fence/worker），当前10PASS、product-executor check/lint/build0、根534=66TS/38Py/339BE/14EX/77Web实际0；旧首8日志保留，新根日志core-loop-stage3-author/tests-commit-check.log。C3a记录core-automation-loop-c3.md，仅工程不是手机/Web/业务验收；临时handoff“2项未跑”由本次10PASS更新。分支只读盘点100本地/79stage，全部tip为当前HEAD祖先，55为Developer祖先；第一批52无upstream旧ref候选，尚未删除/改名/合并/push/fetch，清单见branch-audit-20261002.md。Developer仍af14/父pending，不为减少分支绕过门禁。仅明确stage本批文件，用户保护脚本PATH/STATUS与外来ADR/旧queue/WP11盘点/review均保留。
+
+最新原C1两份完整报告已全文读取：原非作者core-c1-6cb2.md/SHAea7aefca591796649c7777de1a80ad404400a63927c6a300a64ac1ab6b633ece，524PASS/1FAIL、C1-READ-01/P2旧读取覆盖较新observed版本及C1-DOC-01/P3固定链接缺目标，余2未修，cursor54a63b32-a73a-4faf-aed4-761c09935e4b:196/idle；原QA20261001T184639Z-core-loop-c1-6cb2/acceptance-report.md/SHA8770fa4e0eb409561f23695a8d85dd3c88c56c060abf9f477ee44ae3d7a0455c，520有限工程/真实Web视觉阻断，cursorb0763ca2-4129-4780-9222-89e21d2ef03b:93/idle。固定均f3b1→6cb/strict13，不覆盖C2/C3，QA不抵消P2/P3、不叠加通过数；原QA两份旧元数据误写已原SHA恢复并完整披露，报告/首失败/指纹不改。下一阶段先固定C1整改同原窗复验，C2a独立待交，本批C3未新派发，不把读取/提交当门禁通过。调度本回合未查看/更改，不推测后台持续运行。
+
 2026-10-02继续推进实际批次：C1固定f3b1→6cb22d3d98c73c8e31184f340b8e1cd037eb7e75/strict13已实际交两原窗（不是重发旧报告），原非作者cursor195/turn01a0f8c3-c3f2-7d13-9977-3d9aa94d34eb、QA cursor92/turn01a0f8c3-c52a-7452-846a-0f4bf555224c在途，不当验收通过。主窗C2a已接目标/范围/周期草案真实页面与原接口，10新/77Web/根524及构建工程通过，浏览器/视觉未验。C2a记录core-automation-loop-c2.md；不复制运行周期图为筹备事实、不把草案批准/AI/任务启动。Artemis提交前调用模块正在实现，尚无生产中央许可/journal/物理fence接线，默认不启动真机，不把其合成端口测试当Artemis实绩。新发现外来未跟踪ADR0012保留，不纳入本批。PAUSED调度状态未更改；本次为前台实际推进。
 
 2026-10-02用户质询后的措辞纠正：本轮实际原错误为CUA/IAB browser security check unavailable / admin-enforced policy could not be verified / access was not granted。这是自动化工具在访问前无法完成策略验证而未准入；**无证据管理员主动封禁、用户手动拒绝或产品HTTP403**，也未证明用户普通浏览器不可访问。具体策略校验不可用原因尚未确认，不能擅自归因配置、网络或权限。原始工具文本与证据文件保持不改；下方“管理员拒绝”仅为历史简写，应按此精确口径解读。仅该工具实际Web/视觉验收未完成，其他核心开发继续。

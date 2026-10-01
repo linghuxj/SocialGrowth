@@ -1,5 +1,11 @@
 # 开发进度与阻断台账
 
+## 2026-10-02 提交检查点与原窗口新报告
+
+[C3a提交前编排](records/core-automation-loop-c3.md)：当前10作者单元、根534、executor类型/lint/build通过，仍缺生产Task/实时物理许可/持久journal/文件准备/独立证据，默认不启动；真实Artemis/Web闭环未验，独立门禁未签。C1两原报告已读：非作者新C1-READ-01/P2及C1-DOC-01/P3余2、524PASS/1FAIL；QA520有限工程不抵消该发现，真实页面/视觉因安全校验不可用未准入。原窗分别cursor196/93 idle；C2a已提交待独立新批次。下方“在途”是历史检查点，当前以此段为准，不重发已完成报告读取。
+
+[分支盘点](records/branch-audit-20261002.md)：100本地、79stage，所有tip当前分支可达、55为Developer祖先，52无upstream旧ref第一批候选；只读未删/合并/推送，不能把祖先关系当验收。Developeraf14/父pending保留；本次不纳入用户保护发布脚本和外来修改。
+
 ## 2026-10-02 核心业务主线（最新用户确认优先）
 
 接续实绩：C1固定6cb22d3/strict13已交同原复核/QA，在途不当通过；[C2a目标/周期草案](records/core-automation-loop-c2.md)已连接真实GET/POST，10新增/77Web/根524及构建工程通过，真实Web与设计blocked/未验（工具校验不可用，不推定人为封禁）。C2整体批准/真实AI/持久排期未完成；C3提交前模块工程在途，未生产接线/真机执行。分批门禁保留，不将未提交C3混进C2a。
