@@ -25,6 +25,8 @@
 
 ## 2026-09-30 工程检查点
 
+2026-10-01最新恢复清单：feature/wp-27-restore-inventory-stage2基线9f5812f，自管RR READ ONLY一致snapshot、trusted dump callback、66表行及7类schema定义指纹，same仍requiresReconciliation/双false，无生产runner/HTTP/consumer/fence。作者407/纯3/actualPG8，首6中5过1夹具42703保留后正确列名，不改原断言；真实同snapshot当前源较新、缺index/改函数及CHECK/RLS隐藏/行bytes超限反例通过。ownedc47f58 PG32878/唯一7ed70a卷/cluster7691522423404990497每reset前full元数据及双库TCP归属、最终各0|0|0|0/精确清理/端口关闭，未读外来Env/数据，源码日志留。原9f完整47行SHAb06c7c7ce0ec4c61fb6f0759b858db54a4b2f7c157f19502a264eef08dba4514全文已读，P2实际清零/新0/原10与Redis8/2+3配置和9调用分开，旧RED保持/ownRedis已清；交原QA限定两段并集12文件，原非作者接续cc41881严格9文件。发送新固定/仅读原报告不重发/原三窗口模式与默认服务Samsung授权/人工需求记录继续不变，父pending1/Developeraf14/browser/SEC/保护脚本路径状态保持。加密/日历/本阶段待固定门禁，正式OPS及全开发/AC G3未完成。
+
 2026-10-01队列整改：日历ccc4707六文件凝聚提交；fix/wp-16-queue-config-redaction基线ccc4707仅原145c等价队列refinement捕获URL解析失败，不携cause/input、无放宽TLS/端口/DB/默认关闭。新增三类×三入口回归首3组2PASS+1RED、同断言3GREEN/9调用，作者完整404通过；原独立10首9PASS+1RED保留/P2仍待原窗口复核。无服务/DB/Redis/手机/浏览器接触，不认领原Redis8或10；新固定任务发送与仅读旧报告不重新发起、原三窗口模式/默认服务Samsung授权/人工缺口记录继续。后续outbox/backup/calendar单独待门禁，父来源pending1/Developeraf14/browser/SEC与保护脚本只路径状态不变，全开发/AC G3未完成。
 
 2026-10-01最新：feature/wp-24-runtime-calendar-stage3基线546d35b，仅实际ICU78.3/tz2026b版本核对、六区/2000～2099、显式civil截止、精确fraction/gap-overlap关闭，8指定及根403首次通过，无批准source/真实pub/调度/许可，服务与手机未动。b0b8原QA完整56行报告全文已读、3/5/5/原9新0，有限双门禁通过；原RED/首辅助ENOENT及自有快照清理保留。145c原非作者完整55行报告SHA69b62e840e492b3f874e9e3b618c960eb9774b521ab13a7fad9bfa16a7a71d8b全文已读，新增WP16-145C-01 P2/remaining1、独立10首9过1RED，URL异常可能带原endpoint；先修复交同一窗口、不发QA称绿，实际秘密泄露未观察/SEC范围不扩大。发送新固定任务/仅读既有报告不重新发起及原三窗口模式不变，默认服务/Samsung授权/人工需求记录继续；父pending1/Developeraf14/browser/保护脚本只路径状态保持，cc41881/546d35b/本stage3待门禁，全开发/AC G3未完成。

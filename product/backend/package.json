@@ -25,7 +25,8 @@
     "test:upload-inventory-postgres": "tsx --test --test-concurrency=1 src/material-upload-inventory-api.pg-test.ts",
     "test:task-recheck-redis": "tsx --test --test-concurrency=1 src/task-recheck-queue.redis-test.ts",
     "test:task-recheck-outbox": "tsx --test --test-concurrency=1 src/task-recheck-journal.pg-redis-test.ts",
-    "test:database-backup": "tsx --test --test-concurrency=1 src/database-backup.pg-test.ts"
+    "test:database-backup": "tsx --test --test-concurrency=1 src/database-backup.pg-test.ts",
+    "test:database-inventory": "tsx --test --test-concurrency=1 src/database-restore-inventory.pg-test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1143.0",
