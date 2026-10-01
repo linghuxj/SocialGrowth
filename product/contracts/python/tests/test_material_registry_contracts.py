@@ -45,3 +45,42 @@ class MaterialRegistryContractsTest(unittest.TestCase):
                 contracts.validate("materialCurrentView", {**row, **patch})
         with self.assertRaises(ContractValidationError):
             contracts.validate("saveMaterialDeclarationResponse", {**row, "changed": True, "replayed": True})
+
+    def current(self):
+        row = self.request()
+        for key in ("metadata", "expectedCurrentRevision", "objectIds"):
+            row.pop(key)
+        row.update(languageTag="en-us", currentRevision=2, objects=[{"objectId": row["projectId"], "sha256": "a" * 64, "bytes": 10, "contentType": "video/mp4"}],
+                   recordedAt="2026-10-01T00:00:01.123456789123Z", status="pending_validation", candidateAllowed=False, publicationAllowed=False)
+        return row
+
+    def test_batch_trace_and_per_item_index_scope(self):
+        contracts, request = FirstBatchContracts(), self.request()
+        metadata = {"contractVersion": contracts.contract_version, "requestId": request["metadata"]["requestId"]}
+        batch = {"metadata": metadata, "projectId": request["projectId"], "items": [None, {"malformed": True}, request]}
+        contracts.validate("batchMaterialDeclarationsRequest", batch)
+        for patch in ({"metadata": request["metadata"]}, {"items": [request] * 51}):
+            with self.assertRaises(ContractValidationError):
+                contracts.validate("batchMaterialDeclarationsRequest", {**batch, **patch})
+        saved = {**self.current(), "changed": True, "replayed": False}
+        rejected = {"index": 0, "outcome": "rejected", "error": {"code": "INPUT_INVALID", "message": "Fixed safe error", "retryable": False}}
+        response = {"projectId": request["projectId"], "results": [rejected, {"index": 1, "outcome": "saved", "material": saved}]}
+        contracts.validate("batchMaterialDeclarationsResponse", response)
+        for patch in ({"allSaved": True}, {"results": [{**rejected, "index": 1}]}, {"results": [{"index": 0, "outcome": "saved", "material": {**saved, "projectId": "b0000000-0000-4000-8000-000000000001"}}]}):
+            with self.assertRaises(ContractValidationError):
+                contracts.validate("batchMaterialDeclarationsResponse", {**response, **patch})
+
+    def test_history_numeric_cursor_time_and_current_consistency(self):
+        contracts, row = FirstBatchContracts(), self.current()
+        contracts.validate("materialHistoryQuery", {"afterRevision": 0, "pageSize": 50})
+        with self.assertRaises(ContractValidationError):
+            contracts.validate("materialHistoryQuery", {"afterRevision": 1001, "pageSize": 51})
+        revision = {"revision": 1, "declaration": row["declaration"], "objects": row["objects"], "recordedAt": "2026-10-01T00:00:00.123456789123Z", "status": row["status"]}
+        page = {"current": row, "revisions": [revision], "nextAfterRevision": 1}
+        contracts.validate("materialHistoryResponse", page)
+        contracts.validate("materialHistoryResponse", {"current": row, "revisions": [{**revision, "revision": 2, "recordedAt": row["recordedAt"]}], "nextAfterRevision": None})
+        for patch in ({"nextAfterRevision": None}, {"revisions": [{**revision, "recordedAt": "2026-10-01T00:00:01.123456789124Z"}]},
+                      {"revisions": [{**revision, "objects": [{**revision["objects"][0], "contentType": "image/png"}]}]},
+                      {"revisions": [revision, {**revision, "revision": 3}], "nextAfterRevision": None}, {"revisions": [{**revision, "revision": 2}], "nextAfterRevision": None}):
+            with self.assertRaises(ContractValidationError):
+                contracts.validate("materialHistoryResponse", {**page, **patch})

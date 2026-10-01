@@ -63,7 +63,32 @@ class FirstBatchContracts:
         return value
 
     def _validate_contract_semantics(self, name: str, value: Any) -> None:
-        if name in ("saveMaterialDeclarationRequest", "materialCurrentView", "saveMaterialDeclarationResponse"):
+        if name == "batchMaterialDeclarationsResponse":
+            for index, result in enumerate(value["results"]):
+                if result["index"] != index:
+                    raise ContractDataError(f"{name}: inconsistent item index")
+                if result["outcome"] == "saved":
+                    self._validate_contract_semantics("saveMaterialDeclarationResponse", result["material"])
+                    if result["material"]["projectId"].lower() != value["projectId"].lower():
+                        raise ContractDataError(f"{name}: inconsistent item project")
+        elif name == "materialHistoryResponse":
+            current, rows = value["current"], value["revisions"]
+            self._validate_contract_semantics("materialCurrentView", current)
+            last = rows[-1] if rows else None
+            cursor = last["revision"] if last and last["revision"] < current["currentRevision"] else None
+            if value["nextAfterRevision"] != cursor:
+                raise ContractDataError(f"{name}: inconsistent revision cursor")
+            for index, row in enumerate(rows):
+                self._validate_contract_semantics("materialCurrentView", {**current, **row, "currentRevision": row["revision"]})
+                if (row["revision"] > current["currentRevision"] or (index and row["revision"] != rows[index - 1]["revision"] + 1)
+                    or self._compare_timestamps(row["recordedAt"], current["recordedAt"]) > 0
+                    or (index and self._compare_timestamps(rows[index - 1]["recordedAt"], row["recordedAt"]) > 0)):
+                    raise ContractDataError(f"{name}: inconsistent revision sequence or time")
+            if (last and last["revision"] == current["currentRevision"]
+                and (self._compare_timestamps(last["recordedAt"], current["recordedAt"]) != 0
+                     or last["declaration"] != current["declaration"] or last["objects"] != current["objects"])):
+                raise ContractDataError(f"{name}: current revision differs from history")
+        elif name in ("saveMaterialDeclarationRequest", "materialCurrentView", "saveMaterialDeclarationResponse"):
             identity, declaration = value["identity"], value["declaration"]
             whitespace = "\u0009\u000a\u000b\u000c\u000d\u0020\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
             if ((identity["seriesId"] is None) != (identity["episodeNumber"] is None)

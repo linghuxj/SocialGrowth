@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { saveMaterialDeclarationRequestSchema, materialCurrentViewSchema, saveMaterialDeclarationResponseSchema } from "./material-registry.js";
+import { saveMaterialDeclarationRequestSchema, materialCurrentViewSchema, saveMaterialDeclarationResponseSchema, batchMaterialDeclarationsRequestSchema, batchMaterialDeclarationsResponseSchema, materialHistoryQuerySchema, materialHistoryResponseSchema } from "./material-registry.js";
 import { prepareMaterialUploadRequestSchema, materialUploadTicketViewSchema, prepareMaterialUploadResponseSchema, uploadMaterialBytesCommandSchema, uploadMaterialBytesResponseSchema } from "./material-upload.js";
 import { commissionCursorSchema, providerCommissionRecordSchema, listProviderCommissionsResponseSchema } from "./commission.js";
 import { deviceAssistanceTodoSummarySchema, listDeviceAssistanceTodosResponseSchema, recordDeviceAssistanceNoteRequestSchema, recordDeviceAssistanceNoteResponseSchema, providerDeviceAssistanceTodoSummarySchema, listProviderDeviceAssistanceTodosResponseSchema, deviceAssistanceNoteViewSchema, listDeviceAssistanceNotesResponseSchema } from "./device-assistance.js";
@@ -80,6 +80,10 @@ import {
 } from "./status.js";
 
 export const firstBatchContractRegistry = {
+  batchMaterialDeclarationsRequest: batchMaterialDeclarationsRequestSchema,
+  batchMaterialDeclarationsResponse: batchMaterialDeclarationsResponseSchema,
+  materialHistoryQuery: materialHistoryQuerySchema,
+  materialHistoryResponse: materialHistoryResponseSchema,
   saveMaterialDeclarationRequest: saveMaterialDeclarationRequestSchema,
   materialCurrentView: materialCurrentViewSchema,
   saveMaterialDeclarationResponse: saveMaterialDeclarationResponseSchema,

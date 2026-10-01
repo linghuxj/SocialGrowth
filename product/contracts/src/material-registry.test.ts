@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { contractVersion } from "./common.js";
-import { saveMaterialDeclarationRequestSchema, materialCurrentViewSchema, saveMaterialDeclarationResponseSchema } from "./material-registry.js";
+import { saveMaterialDeclarationRequestSchema, materialCurrentViewSchema, saveMaterialDeclarationResponseSchema, batchMaterialDeclarationsRequestSchema, batchMaterialDeclarationsResponseSchema, materialHistoryResponseSchema, materialHistoryQuerySchema } from "./material-registry.js";
 const id = "a0000000-0000-4000-8000-000000000001";
 const input = { metadata: { contractVersion, requestId: "request-material", idempotencyKey: "idempotency-material" }, projectId: id, contentUnitId: id,
   sourceId: id, sourceRecordId: id, variantId: id, languageTag: "en-US", expectedCurrentRevision: 0,
@@ -26,4 +26,29 @@ test("current material projection is pending-only and excludes storage, actor, i
     { objects: [{ ...current.objects[0], storageLocationId: id }] }, { objects: [{ ...current.objects[0], contentType: "image/png" }] },
     { recordedAt: "0000-01-01T00:00:00Z" }, { currentRevision: 0 }]) assert.equal(materialCurrentViewSchema.safeParse({ ...current, ...patch }).success, false);
   assert.equal(saveMaterialDeclarationResponseSchema.safeParse({ ...current, changed: true, replayed: true }).success, false);
+});
+function current() {
+  const { metadata: _metadata, objectIds: _objectIds, expectedCurrentRevision: _expected, ...common } = input;
+  return { ...common, languageTag: "en-us", currentRevision: 2, objects: [{ objectId: id, sha256: "a".repeat(64), bytes: 10, contentType: "video/mp4" }],
+    recordedAt: "2026-10-01T00:00:01.123456789123Z", status: "pending_validation" as const, candidateAllowed: false as const, publicationAllowed: false as const };
+}
+test("batch envelope is trace-only and each item result stays indexed, scoped and pending without whole-batch success", () => {
+  const metadata = { contractVersion, requestId: input.metadata.requestId };
+  batchMaterialDeclarationsRequestSchema.parse({ metadata, projectId: id, items: [null, { malformed: true }, input] });
+  assert.equal(batchMaterialDeclarationsRequestSchema.safeParse({ metadata: input.metadata, projectId: id, items: [input] }).success, false);
+  assert.equal(batchMaterialDeclarationsRequestSchema.safeParse({ metadata, projectId: id, items: Array(51).fill(input) }).success, false);
+  const saved = { ...current(), changed: true, replayed: false }, rejected = { index: 0, outcome: "rejected", error: { code: "INPUT_INVALID", message: "Fixed safe error", retryable: false } };
+  const response = { projectId: id, results: [rejected, { index: 1, outcome: "saved", material: saved }] }; batchMaterialDeclarationsResponseSchema.parse(response);
+  for (const patch of [{ allSaved: true }, { results: [{ ...rejected, index: 1 }] }, { results: [{ index: 0, outcome: "saved", material: { ...saved, projectId: "b0000000-0000-4000-8000-000000000001" } }] }])
+    assert.equal(batchMaterialDeclarationsResponseSchema.safeParse({ ...response, ...patch }).success, false);
+});
+test("revision history has exact continuous numeric page/cursor/time and current snapshot semantics", () => {
+  materialHistoryQuerySchema.parse({ afterRevision: 0, pageSize: 50 }); assert.equal(materialHistoryQuerySchema.safeParse({ afterRevision: 1001, pageSize: 51 }).success, false);
+  const row = current(), revision = { revision: 1, declaration: row.declaration, objects: row.objects, recordedAt: "2026-10-01T00:00:00.123456789123Z", status: row.status };
+  const page = { current: row, revisions: [revision], nextAfterRevision: 1 }; materialHistoryResponseSchema.parse(page);
+  materialHistoryResponseSchema.parse({ current: row, revisions: [{ ...revision, revision: 2, recordedAt: row.recordedAt }], nextAfterRevision: null });
+  for (const patch of [{ nextAfterRevision: null }, { revisions: [{ ...revision, recordedAt: "2026-10-01T00:00:01.123456789124Z" }] },
+    { revisions: [{ ...revision, objects: [{ ...revision.objects[0], contentType: "image/png" }] }] },
+    { revisions: [revision, { ...revision, revision: 3 }], nextAfterRevision: null }, { revisions: [{ ...revision, revision: 2 }], nextAfterRevision: null }])
+    assert.equal(materialHistoryResponseSchema.safeParse({ ...page, ...patch }).success, false);
 });

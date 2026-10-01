@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { requestMetadataSchema, timestampSchema, uuidSchema } from "./common.js";
+import { compareTimestamps, requestMetadataSchema, requestTraceSchema, timestampSchema, uuidSchema } from "./common.js";
+import { productErrorResponseSchema } from "./errors.js";
 import { materialUploadContentTypeSchema } from "./material-upload.js";
 const text = (max: number) => z.string().min(1).max(max).refine(v => v.trim() === v && !Array.from(v).some(c => c.codePointAt(0)! < 32 || c.codePointAt(0) === 127));
 const uniqueIds = (ids: string[]) => new Set(ids.map(id => id.toLowerCase())).size === ids.length;
@@ -23,3 +24,21 @@ function validObjects(v: { identity: { mediaKind: string }; objects: { objectId:
 }
 export const materialCurrentViewSchema = z.strictObject(fields).refine(validObjects, "Invalid explicit current object list");
 export const saveMaterialDeclarationResponseSchema = z.strictObject({ ...fields, changed: z.boolean(), replayed: z.boolean() }).refine(v => validObjects(v) && !(v.changed && v.replayed), "Inconsistent material save result");
+// Each item has its own metadata/idempotency key; the envelope is a trace only.
+// Unknown items are intentionally validated independently, not eager all-or-none.
+export const batchMaterialDeclarationsRequestSchema = z.strictObject({ metadata: requestTraceSchema, projectId: uuidSchema, items: z.array(z.unknown()).min(1).max(50) });
+export const batchMaterialDeclarationsResponseSchema = z.strictObject({ projectId: uuidSchema, results: z.array(z.discriminatedUnion("outcome", [
+  z.strictObject({ index: z.int().min(0).max(49), outcome: z.literal("saved"), material: saveMaterialDeclarationResponseSchema }),
+  z.strictObject({ index: z.int().min(0).max(49), outcome: z.literal("rejected"), error: productErrorResponseSchema.shape.error }),
+])).min(1).max(50) }).refine(v => v.results.every((r, index) => r.index === index && (r.outcome !== "saved" || r.material.projectId.toLowerCase() === v.projectId.toLowerCase())), "Invalid explicit batch results");
+export const materialHistoryQuerySchema = z.strictObject({ afterRevision: z.int().min(0).max(1000), pageSize: z.int().min(1).max(50) });
+const revisionView = z.strictObject({ revision: fields.currentRevision, declaration: fields.declaration, objects: fields.objects, recordedAt: fields.recordedAt, status: fields.status });
+export const materialHistoryResponseSchema = z.strictObject({ current: materialCurrentViewSchema, revisions: z.array(revisionView).max(50), nextAfterRevision: fields.currentRevision.nullable() }).refine(v => {
+  const last = v.revisions.at(-1);
+  if (v.nextAfterRevision !== (last && last.revision < v.current.currentRevision ? last.revision : null)) return false;
+  if (!v.revisions.every((r, i) => r.revision <= v.current.currentRevision && (!i || r.revision === v.revisions[i - 1]!.revision + 1)
+    && validObjects({ identity: v.current.identity, objects: r.objects }) && compareTimestamps(r.recordedAt, v.current.recordedAt)! <= 0
+    && (!i || compareTimestamps(v.revisions[i - 1]!.recordedAt, r.recordedAt)! <= 0))) return false;
+  return !last || last.revision !== v.current.currentRevision || (compareTimestamps(last.recordedAt, v.current.recordedAt) === 0
+    && JSON.stringify(last.declaration) === JSON.stringify(v.current.declaration) && JSON.stringify(last.objects) === JSON.stringify(v.current.objects));
+}, "Inconsistent material history page");

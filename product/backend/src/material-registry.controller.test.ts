@@ -35,3 +35,20 @@ test("material controller auth/preflight and malformed server result fail safely
   assert.equal(saves, 0);
   await assert.rejects(controller.read(id, id, request), e => e instanceof HttpException && e.getStatus() === 500 && productErrorResponseSchema.parse(e.getResponse()).error.code === "INTERNAL_ERROR");
 });
+test("material batch validates each item independently and retains explicit input order without auto grouping", async () => {
+  let calls = 0;
+  const controller = new MaterialRegistryController({ registry: () => ({ authorizeWrite: async () => {}, save: async () => { calls++; return saved; } }) } as unknown as MaterialRuntime);
+  const body = { metadata: { contractVersion, requestId: "request-material-batch" }, projectId: id, items: [null, input, { ...input, projectId: "b0000000-0000-4000-8000-000000000001" }, input] };
+  const result = await controller.batch(id, body, request, "csrf"); assert.equal(calls, 2);
+  assert.deepEqual(result.results.map(r => [r.index, r.outcome]), [[0, "rejected"], [1, "saved"], [2, "rejected"], [3, "saved"]]);
+  assert.ok(!("allSaved" in result));
+});
+test("material history defaults, numeric query bounds and terminal cursor preserve minimal ordered revision facts", async () => {
+  const controller = new MaterialRegistryController({ registry: () => ({ read: async () => saved }) } as unknown as MaterialRuntime);
+  const result = await controller.history(id, id, {}, request); assert.equal(result.revisions.length, 1); assert.equal(result.nextAfterRevision, null);
+  assert.ok(!JSON.stringify(result).includes("internal-never-emit"));
+  assert.equal((await controller.history(id, id, { afterRevision: "1", pageSize: "1" }, request)).revisions.length, 0);
+  for (const query of [{ afterRevision: "01" }, { pageSize: "51" }, { pageSize: ["1", "2"] }, { injected: "extra" }])
+    await assert.rejects(controller.history(id, id, query, request), e => e instanceof HttpException && e.getStatus() === 400);
+  await assert.rejects(controller.history(id, id, { afterRevision: "2" }, request), e => e instanceof HttpException && e.getStatus() === 409);
+});

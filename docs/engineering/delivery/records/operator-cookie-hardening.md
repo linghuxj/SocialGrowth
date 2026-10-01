@@ -18,6 +18,8 @@
 
 ## 自有环境、清理与下一门禁
 
+8c2固定16文件原非作者60行与原QA完整73行`artifacts/acceptance/product/B1/20260930T235359Z-operator-cookie-8c2bc97/acceptance-report.md`均已全文读取：有限新增/remaining0，双方指定7unit/新3真实AppModulePG及原7独立；原非作者新oracle、QA仅guard-only复跑新oracle0。65536UTF16为一个组内case，真假转发/认证分层；14表hash/邀请/原key/真实logout覆盖。不认领作者356/256、bf513或父来源13。QA实际PG17.11 Debian/复核17.10 Alpine分别保留，两方完整cluster归属/自身清理0|0|0；首lint/manifest/QA守卫SQL引号及cwd诊断保留。可仅记本增量G1，不外推全站或父来源清零；Developeraf14不动。下文作者“待原QA”是固定8c2形成时状态，以本接续原完整报告为准。
+
 pnpm8.14.0/项目Node24.16.0实际路径及SQLite OK；作者Python3.11.7与原窗口3.12分开。PG实际17.10 Alpine/缓存镜像sha256:93aa428db0aeeb71d24dcad1491bef6e1396a4255697e4bfc4c725bfeb981b74，完整CID ae58417120ff8c7c5ef29a2ab400dbd6970af30302095dba53df5f21ff395bf0/sg-operator-cookie-pg，回环32871/sg_cookie_fixture，唯一匿名卷996e0a01051d86079c9510c84712d107d48d83cbcb3e95fe98a5667f37b46122，无host挂载。最终schema/其他连接/deadlocks=0|0|0；完整ID/name/image/端口/AutoRemove/唯一卷归属核验后stop及rm-v仅本fixture，after容器/卷文件为空。合成数据不可恢复但可重建；原服务、原9000、复核自身32870/32904未动，源码/日志保留。复现新PG脚本必须确切127.0.0.1:32871/sg_cookie_fixture及ALLOW_RESET=1，先独立核验实例归属；运行后退出/清理自身。
 
 原bf5完整74行报告`artifacts/review/wp15-byte-bf5c8cf.md`已读取：局部WP15-1486-01同窗实际清零、新增/remaining0，指定12BE/3TS/3Python/13联合、原1～7 guard-only及新9通过；仅bf5material控制器，不包含本统一helper。原8第8的裸object PUT404事实上仍可通过，但旧组名“无bytes routes”不再准确；新第9组单独验证`/bytes`200及仍未实现路由404，不能把8整体记当前bytes覆盖。原窗口首次筛选意外跑8、首次自有lint警告及仅变量命名修正均按报告保留，不改原RED。原QA组合复验与本切片独立复核仍需固定提交；原父pending1/Developeraf14/浏览器管理员限制保持。下一可独立工程为素材登记API，真实配置/媒体/真人批准、页面、Task、手机及全AC/G3仍未验，不报全站生产安全或全部开发完成。
