@@ -2,6 +2,14 @@
 
 2026-10-01；基线1921d586b1847b1b55f5f0d583836c1ed87f652c。实际交接/职责/补验队列，不把已提交等同G1/业务AC/G3或全部开发完成。模式见根memory.md，[质量手册](../quality-gates.md)、[分工](../work-packages.md)、[主台账](../delivery-tracker.md)保持权威。
 
+## 最新读取与接续（2026-10-01）
+
+cc41881原QA完整报告已全文读取，SHA7227ae9f4a4950a50b490063e796ecf971734ae394a97f98bc3bcd30d518ad24，2/旧14/真实PG-Redis13/原独立12分别首次过、新0/阶段remaining0，有限双工程。原非作者前三批完整报告已读：backup546新0、calendar-a761原P3同oracle清零/新0，已交原QA对应两个新固定批次（严格8及日历限定原546基底并集7），与本清单整改并行不受其依赖阻停；未改窗口模式、不重发已完成报告读取。
+
+第三批inventory63发现REV-WP27-INHERIT-01 P2/remaining1：真实普通继承边改变而指纹未变。原独立4首2PASS2FAIL中的另一项是复核方snapshot失效SQLSTATE错期待，必须分开保留，不计第二产品缺陷。第四批v2尚未复核、等价依赖暂不签。[整改](WP-27-inheritance-remediation.md)作者拒绝所有涉及域内父或子的继承（跨schema也关闭），相同真实PG12首9PASS3FAIL→12PASS、根414；固定凝聚提交交同原复核，先原oracle清零再接第四批，之后按完整报告提原QA。作者自检不能自签P2关闭。
+
+上一主窗口结束是交接后的推进疏漏，不是所有开发的技术阻断；此记录明确继续读取→整改→原窗复验，人工/平台/环境缺口只阻各自范围，其他工程继续。下方“已发送/待接续”为前次状态，原报告和首失败均保留，父pending1/Developeraf14/browser/SEC及真实资源待办不变。
+
 ## 原完整报告已读取
 
 cc41881原非作者完整67行`artifacts/review/wp16-pending-outbox-cc41881.md`全文已读，SHA1e75a457f1280c06fad5d752055b7bba501bcb1026dc1583904f9d441ba71128：严格9文件新增0/阶段remaining0，pure2/旧registry14/实际PG-Redis13/独立12最终分别通过。首独立12=11PASS1FAIL因非法fixture enum youtube_short，改为合法youtube_shorts且原FACT_VERSION_STALE与全正文断言不变；后续CAS当时未执行，不说九绑定子例均失败。旧14两次CJS/ESM入口加载零业务断言、快照未解包安装等辅助诊断保留；40作者/145c32+24/9f28+10指纹及所有RED不改，不认领作者391/全PG256。

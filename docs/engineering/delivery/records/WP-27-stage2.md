@@ -1,5 +1,7 @@
 # WP-27 第二阶段：只读一致快照恢复清单
 
+2026-10-01非作者完整报告已全文读取：REV-WP27-INHERIT-01 P2/remaining1，普通表继承未拒绝/计入指纹，实际结构变化仍sameSchemaAndRows=true；状态退回开发中，不能凭原8/407签完整结构等价。[整改记录](WP-27-inheritance-remediation.md)增加同snapshot早期pg_inherits双端点守卫，任何域内父或子（含另一端在外部schema）关闭；相同实际PG12首9PASS3FAIL→12PASS，根414。作者已修但尚待同原窗口原oracle复验；另一首红是复核方SQLSTATE预期错误，保留不冒充第二产品缺陷或通过。下文是原阶段历史，未知关系声明不能覆盖此新发现。
+
 2026-10-01；基线9f5812f，feature/wp-27-restore-inventory-stage2；OPS/BE实施代理Codex；正式OPS/TL/EX/AND/原非作者/QA真人待签。[第一阶段](WP-27.md)、[质量手册](../quality-gates.md)。
 
 领取维护端只读一致快照/范围受限指纹及恢复比较，补第一演练只有测试中行/约束/触发器对照的工程缺口。无HTTP/自动backup/restore/生产fs/Worker/消费fence或真实发布，不取代RES-WP27-01～03密钥/部署/频率保留/RPO-RTO/当前外部事实/Android签名升级。计划strict清单→自管RR READ ONLY事务＋同snapshot pg_dump callback→实际ownPG恢复与结构/行差异反例→产品检查/凝聚提交/原门禁。

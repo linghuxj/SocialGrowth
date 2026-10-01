@@ -1,5 +1,7 @@
 # WP-27 第三阶段：加密包认证绑定恢复清单
 
+2026-10-01原清单批发现继承漏检P2，v2第四批尚未复核，依赖等价保证暂不签通过；不据此判独立crypto失败或已验证。[小整改](WP-27-inheritance-remediation.md)只加清单早期双端点继承拒绝、不改v2/v1格式/crypto，作者实际PG原9＋新3从首9PASS3FAIL到12PASS/根414，仍待原非作者确认清零后接续第四批，再交原QA。以下作者9/414保持当时证据，不改为原非作者/QA通过。
+
 2026-10-01；基线a761ea4，feature/wp-27-inventory-bound-backup-stage3；OPS/BE实施代理Codex，正式OPS/TL/原非作者/QA真人待签。[清单阶段](WP-27-stage2.md)、[第一加密包](WP-27.md)、[质量手册](../quality-gates.md)。
 
 领取独立v2格式，将实际dump摘要/bytes与受限inventory-v1放同一AES256GCM AAD，避免维护端将未认证sidecar误当可信expected；V1格式严格独立且行为保持。只trusted server显式key/SQL与维护来源，无HTTP/fs/restore/Worker/授权或自动consumer；认证不证明实际capture与dump同snapshot、完整备份、当前外部事实或真实批准，始终reconciliation/双false。计划纯篡改/格式兼容→实际ownPG同snapshot清单＋v2 seal/open→恢复/目标未变反例→完整产品检查/凝聚提交/原门禁。RES-WP27-01～03/父pending1/Developeraf14/browser/SEC/保护脚本路径状态及原窗口模式不变，默认服务/Samsung与人工记录继续授权，全部开发/AC/G3未完成。

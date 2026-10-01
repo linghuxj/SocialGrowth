@@ -30,6 +30,10 @@ async function inventory(c: PoolClient): Promise<DatabaseRestoreInventory> {
   if (Math.floor(version / 10000) !== 17) throw new DatabaseInventoryError("INVENTORY_UNAVAILABLE");
   const relations = (await c.query(`SELECT c.relname,c.relkind,c.relpersistence,c.relrowsecurity,c.relforcerowsecurity,c.relreplident,c.reloptions FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=$1 ORDER BY c.relname COLLATE "C"`, [schema])).rows as { relname: string; relkind: string }[];
   if (!relations.length || relations.length > 5000 || relations.some(r => !identifier.safeParse(r.relname).success || !["r", "i"].includes(r.relkind))) throw new DatabaseInventoryError("INVENTORY_UNAVAILABLE");
+  // Ordinary inheritance changes schema/query semantics too. Reject either
+  // endpoint in scope, including parents or children in another schema,
+  // before row aggregation/export; do not fingerprint a partial hierarchy.
+  if ((await c.query(`SELECT count(*)::text count FROM pg_inherits i JOIN pg_class c ON c.oid=i.inhrelid OR c.oid=i.inhparent JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=$1`, [schema])).rows[0].count !== "0") throw new DatabaseInventoryError("INVENTORY_UNAVAILABLE");
   const tables: DatabaseRestoreInventory["tables"] = []; let totalRows = 0, totalBytes = 0;
   for (const r of relations.filter(v => v.relkind === "r")) {
     // Never receive raw row values before bounded aggregate preflight. Same

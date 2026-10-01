@@ -113,3 +113,46 @@ test("actual oversized row byte preflight closes before transferring values or i
   } finally { await target.query(`DROP TABLE ${s}.synthetic_large`); }
   assert.equal(callbacks, 0); assert.equal(same(expected, await capture(target)), true);
 });
+test("actual ordinary-table inheritance is unsupported, even when empty rows and column definitions match", async () => {
+  await guard(); await target.query(`CREATE TABLE ${s}.synthetic_parent(payload text)`); await target.query(`CREATE TABLE ${s}.synthetic_child(payload text)`);
+  let callbacks = 0;
+  try {
+    const baseline = await capture(target);
+    assert.equal((await target.query(`SELECT count(*)::text count FROM pg_inherits WHERE inhrelid='${s}.synthetic_child'::regclass`)).rows[0].count, "0");
+    await guard(); await target.query(`ALTER TABLE ${s}.synthetic_child INHERIT ${s}.synthetic_parent`);
+    assert.equal((await target.query(`SELECT count(*)::text count FROM pg_inherits WHERE inhrelid='${s}.synthetic_child'::regclass`)).rows[0].count, "1");
+    await assert.rejects(withDatabaseInventorySnapshot(target, async () => { callbacks++; }), unavailable);
+    assert.equal(callbacks, 0);
+    await guard(); await target.query(`ALTER TABLE ${s}.synthetic_child NO INHERIT ${s}.synthetic_parent`);
+    assert.deepEqual(await capture(target), baseline);
+  } finally { await guard(); await target.query(`DROP TABLE ${s}.synthetic_child`); await target.query(`DROP TABLE ${s}.synthetic_parent`); }
+  assert.equal(same(expected, await capture(target)), true);
+});
+test("actual in-scope child inheriting from an external-schema parent closes before callback", async () => {
+  await guard(); await target.query("CREATE SCHEMA inventory_external_fixture"); let callbacks = 0;
+  try {
+    await target.query("CREATE TABLE inventory_external_fixture.synthetic_parent(payload text)");
+    await target.query(`CREATE TABLE ${s}.synthetic_child(payload text)`);
+    const baseline = await capture(target);
+    await guard(); await target.query(`ALTER TABLE ${s}.synthetic_child INHERIT inventory_external_fixture.synthetic_parent`);
+    assert.equal((await target.query(`SELECT count(*)::text count FROM pg_inherits WHERE inhrelid='${s}.synthetic_child'::regclass`)).rows[0].count, "1");
+    await assert.rejects(withDatabaseInventorySnapshot(target, async () => { callbacks++; }), unavailable); assert.equal(callbacks, 0);
+    await guard(); await target.query(`ALTER TABLE ${s}.synthetic_child NO INHERIT inventory_external_fixture.synthetic_parent`);
+    assert.deepEqual(await capture(target), baseline);
+  } finally { await guard(); await target.query(`DROP TABLE IF EXISTS ${s}.synthetic_child`); await target.query("DROP SCHEMA inventory_external_fixture CASCADE"); }
+  assert.equal(same(expected, await capture(target)), true);
+});
+test("actual in-scope parent with an external-schema child also closes before callback", async () => {
+  await guard(); await target.query("CREATE SCHEMA inventory_external_fixture"); let callbacks = 0;
+  try {
+    await target.query(`CREATE TABLE ${s}.synthetic_parent(payload text)`);
+    await target.query("CREATE TABLE inventory_external_fixture.synthetic_child(payload text)");
+    const baseline = await capture(target);
+    await guard(); await target.query(`ALTER TABLE inventory_external_fixture.synthetic_child INHERIT ${s}.synthetic_parent`);
+    assert.equal((await target.query(`SELECT count(*)::text count FROM pg_inherits WHERE inhparent='${s}.synthetic_parent'::regclass`)).rows[0].count, "1");
+    await assert.rejects(withDatabaseInventorySnapshot(target, async () => { callbacks++; }), unavailable); assert.equal(callbacks, 0);
+    await guard(); await target.query(`ALTER TABLE inventory_external_fixture.synthetic_child NO INHERIT ${s}.synthetic_parent`);
+    assert.deepEqual(await capture(target), baseline);
+  } finally { await guard(); await target.query("DROP SCHEMA inventory_external_fixture CASCADE"); await target.query(`DROP TABLE IF EXISTS ${s}.synthetic_parent`); }
+  assert.equal(same(expected, await capture(target)), true);
+});
