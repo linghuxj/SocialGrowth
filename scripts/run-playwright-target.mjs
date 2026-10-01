@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 
-const productScripts = { materials: "scripts/verify-product-materials-playwright.mts", projects: "scripts/verify-product-projects-playwright.mts", "project-viewports": "scripts/verify-product-project-viewports.mts", identity: "scripts/verify-product-web-readiness.mts" };
+const productScripts = { planning: "scripts/verify-product-planning-playwright.mts", materials: "scripts/verify-product-materials-playwright.mts", projects: "scripts/verify-product-projects-playwright.mts", "project-viewports": "scripts/verify-product-project-viewports.mts", identity: "scripts/verify-product-web-readiness.mts" };
 const target = process.env.SG_WEB_TARGET ?? "demo";
 const scope = process.env.SG_PRODUCT_WEB_SCOPE ?? "identity";
 if (target === "product" && !(scope in productScripts)) { console.error("[playwright] Unknown product scope"); process.exit(2); }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { contractVersion, saveMaterialDeclarationRequestSchema } from "@socialgrowth/product-contracts";
 import { ArrowClockwise, FileVideo, UploadSimple } from "@phosphor-icons/react";
-import { listProjectMaterials, type MaterialCurrentView } from "./material-api.js";
+import { listProjectMaterials, readProjectMaterial, type MaterialCurrentView } from "./material-api.js";
 import { PreparedMaterialDeclaration } from "./material-save-api.js";
 import { MaterialFileTransfer } from "./material-file-transfer.js";
 import { isDefinitiveProjectRejection, newIdempotencyKey, ProductApiError } from "./operator-api.js";
@@ -159,7 +159,7 @@ export function MaterialWorkspace({ projectId, active, readOnly, onExpired }: {
     // Only read; do not silently replace the unresolved original command.
     const read = revision.current;
     try {
-      const { readProjectMaterial } = await import("./material-api.js"); const current = await readProjectMaterial(projectId, r.id);
+      const current = await readProjectMaterial(projectId, r.id);
       if (alive.current && read === revision.current) update(r.id, value => ({ ...value, observed: current }));
     } catch (e) { if (alive.current && read === revision.current && !expired(e)) setError("当前版本未读到，原输入保留。"); }
   }

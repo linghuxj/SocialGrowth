@@ -5,6 +5,14 @@
   font-synthesis: none;
 }
 * { box-sizing: border-box; }
+.planning-workspace { margin-top: 24px; }
+.planning-workspace fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.planning-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 24px; }
+.planning-form-grid label { display: grid; gap: 8px; min-width: 0; }
+.planning-form-grid textarea { min-height: 86px; resize: vertical; }
+.planning-form-grid .material-inline-check { display: flex; }
+.planning-workspace pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 700px) { .planning-form-grid { grid-template-columns: minmax(0, 1fr); } }
 [hidden] { display: none !important; }
 .project-workspace { max-width: 1220px; margin: 0 auto; font-size: 14px; line-height: 1.6; }
 .project-workspace h2 { font-size: 24px; font-weight: 600; }

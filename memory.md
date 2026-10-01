@@ -1,5 +1,9 @@
 # SocialGrowth 协作窗口记忆
 
+2026-10-02继续推进实际批次：C1固定f3b1→6cb22d3d98c73c8e31184f340b8e1cd037eb7e75/strict13已实际交两原窗（不是重发旧报告），原非作者cursor195/turn01a0f8c3-c3f2-7d13-9977-3d9aa94d34eb、QA cursor92/turn01a0f8c3-c52a-7452-846a-0f4bf555224c在途，不当验收通过。主窗C2a已接目标/范围/周期草案真实页面与原接口，10新/77Web/根524及构建工程通过，浏览器/视觉未验。C2a记录core-automation-loop-c2.md；不复制运行周期图为筹备事实、不把草案批准/AI/任务启动。Artemis提交前调用模块正在实现，尚无生产中央许可/journal/物理fence接线，默认不启动真机，不把其合成端口测试当Artemis实绩。新发现外来未跟踪ADR0012保留，不纳入本批。PAUSED调度状态未更改；本次为前台实际推进。
+
+2026-10-02用户质询后的措辞纠正：本轮实际原错误为CUA/IAB browser security check unavailable / admin-enforced policy could not be verified / access was not granted。这是自动化工具在访问前无法完成策略验证而未准入；**无证据管理员主动封禁、用户手动拒绝或产品HTTP403**，也未证明用户普通浏览器不可访问。具体策略校验不可用原因尚未确认，不能擅自归因配置、网络或权限。原始工具文本与证据文件保持不改；下方“管理员拒绝”仅为历史简写，应按此精确口径解读。仅该工具实际Web/视觉验收未完成，其他核心开发继续。
+
 2026-10-02最新用户优先级（覆盖下方旧接续候选）：管理前端＋Artemis核心链“项目创建→素材准备→真实AI排期→入队派发→Artemis识别动作”；真实短信/第二手机暂搁置，WP27/部署观测备份恢复更新回滚留业务完成后上线前，不继续深挖。当前分支codex/core-automation-loop-stage1，Developer仍af14/父pending不隐藏。新C1工程见`docs/engineering/delivery/records/core-automation-loop.md`，后台素材票据/bytes/保存已连接实际页面，默认许可不放开。C2下阶段先接既有筹备目标/周期接口，不将草案称批准或模板称真实AI。已read ADB Samsung RFCW40MYYCV device/SM_S9110，无真机写操作。
 
 三原模式：主窗01a0ea7e-3321-7821-a204-fde34ac43491作者/协调；原复核01a0ea96-b115-7d63-b70b-0ca34972b92e只读非作者；原QA01a0eab9-278f-72e0-ae80-e0a2edef2c89真实验收。原整改09146→f3b1afd strict3已全文读完整报告SHA058bb0320b2cd39be67aed1468f0ba504c1ac4403bf67cac5d57e03b0d31e385，16PASS/新0余0、P2清零，仅工程，cursor193/idle。原QA6555→3c0完整518PASS报告SHA78cc8369d8528aacfa95fdbb4e4d0a5711981609ad732c3939dfd98ce419373d、cursor90/idle；不重复发旧报告、不把读/发送进度当通过。新C1固定阶段再交原窗。

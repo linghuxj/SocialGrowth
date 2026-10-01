@@ -1,3 +1,15 @@
+# 核心闭环 C2a 当前设计门禁
+
+2026-10-02。source visual truth：`docs/design/workbench/project-settings-v1.png`1464×1074及全文原prompt（已打开），DESIGN/页面规格§3/索引修正语义。源为运行项目的下周期变更；本批真实接口是筹备草案，故不伪造当前周期/示例数值/生效预览，不把状态不同误作像素一致。沿用既有字体、Phosphor、浅色tokens，无新增栅格资产需求。
+
+implementation screenshot：无；实际viewport/state/density归一化、并排全图和聚焦图均未取得。原CUA访问因策略验证不可用未准入，不是已确定管理员主动拒绝或页面403。本轮没有重新尝试不同入口/CLI绕过，也没有从源码写视觉QA结论。Fonts/typography、Spacing/layout rhythm、Colors/tokens、Image fidelity、Copy五面及响应式/键盘/console/真实交互都未验证。10单元/77Web/构建只是补充工程。
+
+按image-to-code/design-qa，视觉交付保持blocked；依用户人工/环境缺口记录继续的明确要求，工程编码继续。恢复后原QA以筹备草案实际创建/填写/保存/冲突/原请求接续/手机只读捕获，在1464×1074及窄屏与同类骨架比对，记录源运行状态与实现筹备状态差异，不复制示例成功。历史C1及旧门禁证据保留。
+
+final result: blocked
+
+---
+
 # 核心闭环 C1 当前设计门禁
 
 2026-10-02。用户重新指定推进管理前端与 Artemis，允许缺口记录后继续其它可执行内容。按 image-to-code 复用既有浅色工作台、Phosphor 与中文系统字体；已打开素材参考 `docs/design/workbench/materials-batch-v1.png`（1487×1058）和准备清单 `project-readiness-v1.png`（1464×1074），完整读取两份原提示词。示例候选/数量/日期/权利不复制为运行事实。新增项目内素材页真实上传/资料接口连接，但不称视觉交付通过。
