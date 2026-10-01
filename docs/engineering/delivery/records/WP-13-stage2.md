@@ -1,5 +1,11 @@
 # WP-13 第二阶段：受控媒体凭据与初始化前保护
 
+## 原非作者完整复核接续（2026-10-02）
+
+固定a42bc1501d2b12784ae5208031d1646398d25d02→6555a5aa5cb34dbd781893fe8a9478cb713972cd，strict13=6产品7docs；原只读窗口completed/cursor187，完整`artifacts/review/wp13-credentials-6555.md`已全文读取，SHA3b8fbd22109a5d2ca46a1f8e26c21237c22e6f6cd9bef2d1682f64beb40a1d00。限定新0/余0，486根+原12PG+新独立8PG+新独立6crypto=512首次过，作者5不另叠加；包括独立Node AES-GCM/raw HMAC/实际deferred COMMIT故障及绑定约束/等待DBclock/元数据实际SELECT护栏。旧613证据/18完整报告、作者所有首RED及辅助失败保持。复核helper lint旧3unused/deny exit1、初manifest错TAP文本、generator inverse前置失败、最终报告验证属性未引号SyntaxError均原源/工具诊断保留，有限字面量逆proof，不重跑业务洗绿；final-manifest及report-validation-final为终核。
+
+自有CID4f97571e3705a32817cbcd0b090c23122cf9e93fd282ae5f58a372b8036954c2/卷9a8bed76f8b1f743e33498608b0b9fff094557559ac79ced88f0186db8d80dc7/32888/cluster7691726923750375462、快照tgoZ6Y/dev16777223/ino177500027/UID501精确gone，foreign仅metadata核验。已向用户汇报，并在原窗口完成后实际交同原QA新固定a42→6555严格13；QA等待完整报告，不把发送当通过。阶段三在作者分支继续且不纳本固定范围。此门禁仅非UI工程，可进入相同工程QA，不签真实页面/真机、完整G1/AC21/22/G3/生产/全部开发，不解除父pending或合Developer。
+
 ## 本次凝聚子范围（优先于下方早期开工检查点）
 
 交付server-only加密及持久凭据原语，不是完整vault/初始化。基线a42bc15，新增0023三表和内部MediaCredentialStore：一个媒体登录account对应一个不可变credential UUID/平台，current head指向不可变加密revision历史；invalidated revision无envelope/密钥ID。history双向FK以deferred首次原子创建，不允许同credential跨account/平台换绑；head只能递增1，revision/command不可UPDATE/DELETE。旧22迁移、resource guard、引用与预留不改，既有媒体company/platform状态不被凭据写入证明。加密历史会保留旧密文供受控恢复/审计，不是物理擦除或平台注销；历史保留/毁钥政策必须OPS/TL实际落实。

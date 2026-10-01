@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { mediaCredentialMetadataSchema, readMediaCredentialResponseSchema, writeMediaCredentialRequestSchema, writeMediaCredentialResponseSchema } from "./media-credentials.js";
 import { registerMediaIdentityRequestSchema, registerMediaIdentityResponseSchema, reserveResourcePreparationRequestSchema, resourcePreparationResponseSchema } from "./resource-preparation.js";
 import { centralPublicationTaskSchema, taskDispatchNoticeSchema, taskExecutionObservationSchema } from "./task-dispatch.js";
 import { saveMaterialDeclarationRequestSchema, materialCurrentViewSchema, saveMaterialDeclarationResponseSchema, batchMaterialDeclarationsRequestSchema, batchMaterialDeclarationsResponseSchema, materialHistoryQuerySchema, materialHistoryResponseSchema, materialLibraryQuerySchema, materialLibraryResponseSchema } from "./material-registry.js";
@@ -82,6 +83,10 @@ import {
 } from "./status.js";
 
 export const firstBatchContractRegistry = {
+  mediaCredentialMetadata: mediaCredentialMetadataSchema,
+  readMediaCredentialResponse: readMediaCredentialResponseSchema,
+  writeMediaCredentialRequest: writeMediaCredentialRequestSchema,
+  writeMediaCredentialResponse: writeMediaCredentialResponseSchema,
   registerMediaIdentityRequest: registerMediaIdentityRequestSchema,
   registerMediaIdentityResponse: registerMediaIdentityResponseSchema,
   reserveResourcePreparationRequest: reserveResourcePreparationRequestSchema,
