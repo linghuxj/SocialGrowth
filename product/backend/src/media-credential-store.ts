@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requestMetadataSchema, uuidSchema } from "@socialgrowth/product-contracts";
 import { OperatorAuthService } from "./operator-auth-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
+import { MediaCredentialKeyCustodian } from "./media-credential-key-custodian.js";
 import { maxMediaCredentialPayloadBytes, sealMediaCredentialPayload, type MediaCredentialKey } from "./media-credential-envelope.js";
 
 const s = "socialgrowth_product", id = uuidSchema.length(36).refine(v => v === v.toLowerCase());
@@ -29,8 +30,8 @@ function snapshotKeys(input: MediaCredentialWriteKeys | null): MediaCredentialWr
     const key = Buffer.from(v.key); keys.push(key); return { keyId: v.keyId, key };
   };
   try {
-    if (!input || input.digestKeys.length < 1 || input.digestKeys.length > 16) throw unavailable();
-    const encryption = copy(input.encryption), digestKeys = input.digestKeys.map(copy);
+    if (!input || !Array.isArray(input.digestKeys) || input.digestKeys.length < 1 || input.digestKeys.length > 16) throw unavailable();
+    const encryption = copy(input.encryption), digestKeys = Array.from(input.digestKeys, copy);
     if (new Set(digestKeys.map(v => v.keyId)).size !== digestKeys.length || !digestKeys.some(v => v.keyId === input.currentDigestKeyId)
       || digestKeys.some(v => v.key.equals(encryption.key))) throw unavailable();
     return { encryption, digestKeys, currentDigestKeyId: input.currentDigestKeyId };
@@ -52,7 +53,7 @@ function intentDigest(r: z.infer<typeof commandSchema>, payload: Buffer | undefi
 // through this port. A future sink needs current authorization/revision again.
 export class MediaCredentialStore {
   constructor(private readonly pool: Pool, private readonly auth: OperatorAuthService,
-    private readonly keys: MediaCredentialWriteKeys | null = null) {}
+    private readonly keys: MediaCredentialWriteKeys | MediaCredentialKeyCustodian | null = null) {}
   private async transaction<T>(token: string, csrf: string | null,
     fn: (client: PoolClient, actor: string) => Promise<T>): Promise<T> {
     let client: PoolClient;
@@ -99,7 +100,10 @@ export class MediaCredentialStore {
       } else if (payloadInput !== undefined) throw invalid();
       // Snapshot owned keys before any await, but report unavailability only
       // AFTER actual operator/CSRF authentication below. Reads need no keys.
-      try { keys = snapshotKeys(this.keys); } catch { keys = undefined; }
+      try {
+        if (this.keys instanceof MediaCredentialKeyCustodian) this.keys.withWriteKeys(input => { keys = snapshotKeys(input); });
+        else keys = snapshotKeys(this.keys);
+      } catch { keys = undefined; }
       return await this.transaction(token, csrf, async (client, actor) => {
         if (!keys) throw unavailable();
         const ownedKeys = keys;
