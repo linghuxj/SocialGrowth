@@ -1,5 +1,7 @@
 # WP-15 第八阶段：显式逐项批量登记与有界历史
 
+2026-10-01后续：原QA完整68行`artifacts/acceptance/product/B3/20261001T004244Z-wp15-batch-02a030a/acceptance-report.md`已全文读，指定9/4/4/14/9、原7与原stage8独立9 guard-only通过/new0/remaining0/QA新oracle0；固定17文件双有限增量通过，不清父pending1/Developeraf14或UI/业务准入。QA17.11 Debian/原非作者17.10分别留证，原首不存在docs命令和SHA常量漏抄辅助诊断保留；原第8断言不改且未执行/不计GREEN，原45语义case一组，own资源逐次归属网络cluster及最终0|0|0/三合成桶卷清理完成，不冒称全PG256/作者368复跑。未来e006/2639/任务队列不入旧门禁。
+
 2026-10-01接续：原78行`artifacts/review/wp15-batch-history-02a030a.md`已全文读，SHA cde1127817f325babf4e73c7613a1a2e9e0c6c0f66245a642780aa45696be4aa；固定14cc..02a17文件，新增0/增量remaining0，9BE/TS4/Py4/旧PG14/newjoint9/旧1～7guard-only＋新独立9（45语义case一组）通过。旧第8路由不存在断言保持/未执行不计GREEN，首次辅助lint重复变量及未执行初稿/原旧RED与manifest首败SHA保留；实际9首次pass。原自有PG17.10 Alpine/MinIO3合成桶/两个own容器匿名卷清理0|0|0，原服务未动。已交原QA相同17文件，未来e006列表和stage10不入本门禁；父pending1/Developeraf14、browser/SEC、真实业务/UI/准入/Task/手机门禁仍开放，不报全开发完成。
 
 2026-10-01；基线14cc7aa，feature/wp-15-batch-history-api-stage8。BE实施代理Codex；原复核/原QA固定门禁，WEB/OPS/BIZ/EX真人待签。[单项API](WP-15-stage7.md)、[内部历史](WP-15-stage3.md)、[质量手册](../quality-gates.md)。

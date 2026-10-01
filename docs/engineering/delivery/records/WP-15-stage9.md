@@ -1,5 +1,7 @@
 # WP-15 第九阶段：认证项目素材列表
 
+2026-10-01后续：原非作者74行`artifacts/review/wp15-material-library-e006851.md`已全文读取，SHA9ef9307d533eecc986258c967c9dc47369a32b72c6cf6786591cc620a43b8e03，固定02a..e00616文件、10BE/5TS/5Py/旧PG14/newreader8/新独立9增量0。27语义case属一组、新9实际selected1000合成history/UUID边界/live新增低ID须从头重查/最终钟/坏所选闭合，ticket0/storagecalls0，不是实际bytes或准入。原14cc联合1～7此阶段未再跑，旧第8断言不改/不计，list新路由独立适配。首次aux文案/未装eslint及措辞检查诊断保留，仅证据工具修正；ownPG17.10与唯一卷0|0|0精确清理。已交原QA同16文件，不纳2639/b0b8/未来queue；父来源pending1/Developeraf14及真实业务/UI/手机门禁不清。
+
 2026-10-01；基线02a030a，feature/wp-15-material-library-api-stage9。BE实施代理Codex；原非作者/QA固定门禁，WEB/OPS/BIZ/EX协作真人待签。[单项](WP-15-stage7.md)、[批量/历史](WP-15-stage8.md)、[质量手册](../quality-gates.md)。
 
 领取当前operator/实际project的素材variant稳定ID分页，显式pageSize/default20/max50与同project cursor；每项仍完整历史核对后只返回必要current pending视图、false权限，语言variant同unit不新增名额。不按filename/hash猜身份、不提供全部项目已合格或总数默认、公开下载/提供者入口；只本页选中variant的历史校核，不将分页视图冒作全项目准入。ID升序仅稳定技术游标，不推定上传/发布时间或最终页面设计排序。
