@@ -10,6 +10,8 @@
 
 ## 备份恢复工程边界
 
+[采集接线](../../docs/engineering/delivery/records/WP-27-stage6.md)使用自持只读快照，在有效期把snapshot交显式trusted archive回调，只读COMMIT回执成功后返回原v2加密包，成功转交dump最终清零；异步前固定metadata/key。维护caller须保证真实源/同snapshot/SQL可信及回调失败前的内部buffer清理；函数不核生产migration provenance或批准。文件保存另调原包，UNKNOWN不能自动重dump新nonce；无生产CLI/HTTP/scheduler/restore/consumer。合成PG4/431不是生产RPO-RTO/联合灾备或真实Web验收。
+
 [故障接续阶段](../../docs/engineering/delivery/records/WP-27-stage5.md)实际验证文件落地后丢响应/部分写/权限失效/自己的pending未能清理等场景，UNKNOWN保留原ID和原包核对，不创建替代ID或自动信任两链接文件。IO端口仅trusted服务端代码、缺省真实fs，不能从HTTP/config提供；不实现自动orphan清理/chmod。作者fs14为真实合成文件故障补充，不是本轮PG/断电/生产灾备/当前批准/真实Web或真机验收。
 
 当前仅有server维护加密包组件与独占合成PG的实际导出/恢复演练，见[WP-27阶段记录](../../docs/engineering/delivery/records/WP-27.md)。不是自动生产备份、生产恢复CLI或联合对象/队列/密钥备份方案；不得将示例Compose配置或加密包的false字段当已部署恢复fence。

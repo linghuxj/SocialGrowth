@@ -1,5 +1,7 @@
 # SocialGrowth 协作窗口记忆
 
+2026-10-01最新持续闭环：原stage4完整46行报告SHA9ccff673f852f3a18bf1852628b20e4bcf9abf938c49d29d3e989cc0cc87ca10全文读取，原8/新6/真实unlinkEACCES1/PG12/最小PG1分别首过、新0/剩余0、资源和原指纹保持；仅新固定525交原QA，新固定4e1827e严格10交同非作者，均执行中，不重发旧读取/不混未来stage6。主窗口feature/wp-27-snapshot-capture-stage6基线4e继续actualsnapshot/dump→只读COMMIT→v2准备，async key-metadata固定/dump清零/另调原file保存，作者新3/实际PG4/root431/静态过；类型predicate首TS18046和bootstrap未ready诊断保留，自己的新b3d906CID@32879/d8841d卷/cluster7691643226085675046每DDL/reset/restore全守卫三库0|0|0|0后精确CID卷清理/端口关闭。原fs14/crypto-SQL/PG12/契约/deps不改，不借非UI签业务/生产/全部开发。三窗口模式与默认服务Samsung授权/人工记录/Developeraf14/父pending1/browser/SEC/保护脚本只路径状态保持，详细证据职责见WP-27-stage6，不在交接处停。
+
 2026-10-01最新接续：原QA B完整报告SHA63cf830d99a93cbcb610baa48b30cd00f3686d2807933d1db41f584a5f43f279已全文读，原1921继承RED历史不改、最小组合实际PG12/同oracle4/declaration1过、新0/剩余0/有限双闭合，自有资源精确清理。原非作者只执行固定525，快照取证缓冲区首错误零产品检查保留并修自有工具；不将作者stage5工作混入或重发旧报告读取。主窗口feature/wp-27-file-store-fault-recovery-stage5基线525继续真实晚期IO故障/原ID接续，新6加原8=fs14/root428/静态过，首13业务过/TS2322明确类型修复保留first源日志；未启动服务/重跑PG/改旧crypto-SQL，默认真实fs/无生产入口/断电未验。初次文档patch标题误猜校验失败零落地，核对后重做。完整结果/职责/下一固定门禁见docs/engineering/delivery/records/WP-27-stage5.md，三窗口模式/默认服务Samsung授权/人工记录/父pending1/Developeraf14/browser/SEC/保护脚本只路径状态保持，不以交接结束或签全开发ACG3。
 
 更新：2026-10-01。本文件记录本项目对话窗口的职责边界，避免把开发与非作者复核混在同一窗口。
