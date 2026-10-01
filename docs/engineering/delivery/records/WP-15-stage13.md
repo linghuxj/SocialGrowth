@@ -1,5 +1,7 @@
 # WP-15 第十三阶段：原对象上传票据准备/读取客户端
 
+2026-10-01最新交接：49f保存原非作者完整报告已全文读取/新增0/剩余0，原QA7f读取完整报告亦全文读取/限定双工程清零。确认两窗完成后已向同原非作者实际发送49f2142→430c565严格8路径票据客户端新任务，按原只读模式独立快照与负向oracle复核，不导入c8f字节或现场脏文件。保存49f已交原QA严格12。仅发送，不预报票据复核通过；主窗口字节c8f4bb3已提交7/root463作者工程证据，待票据门禁后顺序接独立复核与QA。真人资源/管理员解除/真实Web和手机仍单独补验，下方此前窗口进度保留为历史。
+
 2026-10-01；基线49f2142b76a07748e1dd2ea3440955c44715925b，feature/wp-15-upload-ticket-client-stage13；WEB/BE代理Codex，原非作者/QA固定门禁，BIZ/OPS/WEB/EX资源责任沿用原卡。[声明保存](WP-15-stage12.md)、[字节HTTP](WP-15-stage6.md)、[票据恢复列表](WP-15-stage10.md)、[质量手册](../quality-gates.md)。
 
 非UI基础接线：严格共享descriptor构造时深解析，原objectId/project/hash/bytes/声明MIME/metadata/key固定；复用原会话运营相对POST保护，无自动请求/重试/换key或对象，当前单票据GET严格项目/对象回显。准备成功仅pending_bytes或既有verified_bytes票据；新建changed=true不能伪称verified，原key replay允许后来verified但两个许可始终false。哈希/时间是响应声明一致性不是客户端实际hash/物理存在/可解码或权利准入证明。

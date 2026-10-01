@@ -4,6 +4,12 @@
 
 ## 最新读取与接续（2026-10-01）
 
+调度补充（优先于下方创建前状态）：已为本对话实际创建每小时线程heartbeat `socialgrowth`（ACTIVE，“SocialGrowth 持续开发与原窗口闭环”），并view确认调度卡。依据用户持续推进要求自动接续读取原窗口完整报告、用户汇报、整改/阶段提交/原固定复验和未阻断开发，不创建新独立窗口；状态不变不重复通知。首次缺线程目标参数明确校验失败零创建，补齐destination/target后Created成功。运行依赖本机与应用运行，不等于无间断或离线后台执行，不扩大服务/设备/发布授权，不绕管理员/安全/父门禁。完成或用户停止时关闭，真实业务AC/G3和全部开发仍未签。
+
+当前优先于下方历史：原QA stage11完整报告SHA82ca92b1bfdb8b8b106b4e0cf35a222edefacfc822e90d8f9394a0ee9e5a366e全文读/确认完成，原8/复用独立10/operator实际11首过/new0-rem0/QA新oracle0，own首取证timeout/null-status、unused repo警告及cleanup早读保留。原非作者stage12完整报告SHA97e3343936c5845e74a2dd94a0ddb44d37c82dc8338122dc7d11c34e5e9d4d07全文读/确认完成，原11/独立12/旧19首过/new0-rem0，own取证早读保留；两窗自有快照精确清理/完整实际旧Web与原指纹维持。已向用户实际汇报，随后发送同原QA7f→49f strict12保存、同原非作者49f→430 strict8票据新任务。字节c8f4bb3 strict12已提交作者7/root463/静态首过，待票据之后独立门禁；不混未来、不重发旧读取或把任务发送当报告完成。全部真实HTTP/素材/UI/Playwright/手机/准入/ACG3仍按原缺口处理。
+
+本次用户问“其他窗口为什么没有汇报/没有继续”已明确：此前主窗口交接后过早结束、报告未及时汇总是推进疏漏，非全工程阻断。此次已完成stage11～14四个客户端阶段提交并主动完整读取两个最新报告/交接下一固定批。未配置主窗口Goal/heartbeat，不能承诺普通回合结束后自动继续；新消息发送仅启动对应原窗口任务。当前模式/默认自有服务Samsung授权与所有父/管理员/安全边界不变。
+
 已全文读取并确认两窗完成：采集stage6原QA57行SHA42f0cf18f951f2a4a5d3093f0c6fcc6ec13a485dc12a1a243755706759f603d8，限定双new0/rem0/QA新oracle0，原3及重跑不双计/两PG4首过，取证顺序/helper路径/动态status及own unused show警告保留、own PG32881/卷/三库0|0|0|0及snapshot精确清理。素材读取7f原非作者37行SHA8f18ba10e4028cc2d6d608e74ec9ecf747abe70ea4339724c4afb9622e0dc130/new0/rem0，原8/独立10/operator实际11首过，静态App/styles误路径与早cleanup诊断保留，旧269指纹保持/own snapshot清理。已汇报用户，原QA接c397→7f strict14，原非作者接7f→49f strict12，非重发旧读取/不混未来430/本字节。
 
 主窗口继续[stage14](WP-15-stage14.md)原字节同步快照/实际hash/Blob固定/会话在await前捕获/专用PUT/原key接续，作者新7/root463/静态首过，只非UI/无真实HTTP-S3-UI-手机。旧backend/contract/21SQL/deps不动；当前加强遍历实际所有旧Web文件逐blob和逆剥离新增seam证明，旧App.tsx/styles.css非实际路径的作者helper证据不改。430票据已strict8凝聚、本字节完成后strict12提交顺序接原门禁；人工/管理员缺口记录原真实输入职责/解除/补验继续，不把发送作停点或代签全部开发。

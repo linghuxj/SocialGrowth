@@ -1,5 +1,7 @@
 # WP-15 第十二阶段：原请求/原会话人工声明保存客户端
 
+2026-10-01最新原非作者完整报告`artifacts/review/wp15-save-client-49f2.md`已全文读取，SHA97e3343936c5845e74a2dd94a0ddb44d37c82dc8338122dc7d11c34e5e9d4d07；strict12/1195允许blob/17实际旧Web/POST全文逆剥离/123链接过，原11/独立12/旧operator11+GET8首次过（42组），new0/remaining0。原first10/449与final11/450、20作者项/旧313指纹和原首RED保持，不由非作者重跑根或代认领；只有取证早读ENOENT保留，独立源码lint零警告。own快照lsZR8n/dev16777223/ino176707859/UID501按身份精确清理，无服务/业务写。已向用户汇报，并向同原QA发送7f→49f严格12新固定工程复验；原非作者接49f→430票据严格8，不改变模式、不重发旧报告读取或混未来字节。QA/真实HTTP保存/Web/手机/持久未决/素材准入和全部AC仍未签。
+
 最新接续：原stage6完整50行`artifacts/review/wp27-capture-c397.md`已全文读取，SHA0f07c7359bb060deab567793ac3f0ab797dd05b80d2e128118905b3df699f45b，新0/remaining0/原3+原PG4+独立PG4首次过；独立最小1表不当66表、COMMIT code是UNAVAILABLE非新UNKNOWN枚举、只清转交Buffer view范围/provider拒绝前自清。33own/21author与旧215指纹保持，新746801 PG32880/2f870卷/cluster7691652632562597926三库归零后精确清理，旧首诊断保留。已向原QA发新固定4e→c397严格10，向原非作者发新固定c397→7f08c79严格14读取客户端；不重发旧读取、不混本未提交批。下方此前收尾为历史进度。
 
 2026-10-01；基线7f08c79a44a360158fd5f8cfc3ff85e522823d14，feature/wp-15-material-save-client-stage12；WEB/BE实施代理Codex，原复核/QA固定工程门禁，BIZ/OPS/WEB/EX真人资源职责不变。[只读客户端](WP-15-stage11.md)、[现有单项API](WP-15-stage7.md)、[分工](../work-packages.md)、[质量手册](../quality-gates.md)。
