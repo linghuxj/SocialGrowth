@@ -16,6 +16,7 @@ import {
   type ListOperatorDeviceFactsResponse,
   type ProductErrorResponse,
   listProjectsResponseSchema, projectResponseSchema, type ProjectBasics, type ProjectView,
+  uploadMaterialBytesCommandSchema,
 } from "@socialgrowth/product-contracts";
 
 const csrfStorageKey = "socialgrowth.operator.csrf";
@@ -109,6 +110,23 @@ export function prepareOperatorPost<T>(url: string, body: string, schema: { pars
   return async () => {
     if (!originalCsrf || csrfToken() !== originalCsrf) throw new OperatorWriteSessionChangedError();
     const result = await request(url, schema, { method: "POST", headers: { "x-csrf-token": originalCsrf }, body });
+    if (csrfToken() !== originalCsrf) throw new OperatorWriteSessionChangedError();
+    return result;
+  };
+}
+
+// Purpose-specific immutable octet body. Route and trace headers come only
+// from the strict command, never an external upload URL or storage locator.
+export function prepareOperatorMaterialBytes<T>(rawCommand: unknown, rawBytes: Uint8Array, schema: { parse(input: unknown): T }): () => Promise<T> {
+  const parsed = uploadMaterialBytesCommandSchema.safeParse(rawCommand);
+  if (!parsed.success || !(rawBytes instanceof Uint8Array) || rawBytes.byteLength < 1 || rawBytes.byteLength > 16 * 1024 * 1024
+    || ![parsed.data.metadata.requestId, parsed.data.metadata.idempotencyKey].every(v => /^[\x20-\x7E]+$/.test(v) && v.trim() === v)) throw new OperatorWriteRequestInvalidError();
+  const command = parsed.data, originalCsrf = csrfToken(), body = new Blob([new Uint8Array(rawBytes)], { type: "application/octet-stream" });
+  const url = `/api/operator/projects/${command.projectId.toLowerCase()}/material-uploads/${command.objectId.toLowerCase()}/bytes`;
+  return async () => {
+    if (!originalCsrf || csrfToken() !== originalCsrf) throw new OperatorWriteSessionChangedError();
+    const result = await request(url, schema, { method: "PUT", body, headers: { "content-type": "application/octet-stream", "x-csrf-token": originalCsrf,
+      "x-sg-contract-version": command.metadata.contractVersion, "x-request-id": command.metadata.requestId, "x-idempotency-key": command.metadata.idempotencyKey } });
     if (csrfToken() !== originalCsrf) throw new OperatorWriteSessionChangedError();
     return result;
   };
