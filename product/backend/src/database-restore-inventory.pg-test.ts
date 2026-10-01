@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFile, readdir } from "node:fs/promises";
+import { readFile, readdir, mkdtemp, realpath, lstat, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { before, after, test } from "node:test";
 import { Pool } from "pg";
 import { withDatabaseInventorySnapshot, compareDatabaseRestoreInventories, DatabaseInventoryError, type DatabaseRestoreInventory } from "./database-restore-inventory.js";
 import { DatabaseBackupError, type DatabaseBackupMetadata } from "./database-backup-envelope.js";
 import { sealInventoryBoundDatabaseBackup, openInventoryBoundDatabaseBackup, type InventoryBoundDatabaseBackup } from "./database-backup-inventory-envelope.js";
+import { EncryptedDatabaseBackupFileStore } from "./database-backup-file-store.js";
 const cid = process.env.SG_PRODUCT_TEST_INVENTORY_CONTAINER_ID;
 if (!cid || !/^[a-f0-9]{64}$/.test(cid) || process.env.SG_PRODUCT_TEST_ALLOW_RESET !== "1") throw new Error("Requires explicitly owned isolated inventory fixture");
 const docker = (args: string[], input?: Buffer) => execFileSync("docker", args, { input, timeout: 30000, maxBuffer: 128 * 1024 * 1024 });
@@ -50,8 +53,20 @@ test("actual owned read-only snapshot and same-snapshot dump restore preserve 66
     const dump = docker(["exec", cid!, "pg_dump", "-U", "sg_inventory", "-d", "sg_inventory_source", "-Fc", "--no-owner", "--no-acl", `--snapshot=${v.snapshotId}`]);
     try { return sealInventoryBoundDatabaseBackup(dump,metadata,v.inventory,backupKey); } finally { dump.fill(0); }
   });
-  const opened = openInventoryBoundDatabaseBackup(envelope,backupKey); assert.deepEqual(opened.manifest.inventory,expected);
-  try { await guard(); docker(["exec", "-i", cid!, "pg_restore", "-U", "sg_inventory", "-d", "sg_inventory_restore", "--single-transaction", "--exit-on-error", "--no-owner", "--no-acl"], opened.dump); } finally { opened.dump.fill(0); }
+  const directory = await realpath(await mkdtemp(join(tmpdir(), "sg-backup-pg-file-"))), identity = await lstat(directory);
+  try {
+    const stored = await new EncryptedDatabaseBackupFileStore({ directory }).save(envelope,backupKey); assert.equal(stored.status,"stored");
+    // A new maintenance client actually reads the authenticated disk artifact;
+    // this is not a PG-server restart or production disaster-recovery claim.
+    const loaded = await new EncryptedDatabaseBackupFileStore({ directory }).load(metadata.backupId,backupKey);
+    assert.equal(loaded.envelopeSha256,stored.envelopeSha256); assert.deepEqual(loaded.envelope,envelope);
+    assert.deepEqual(await readdir(directory),[`${metadata.backupId}.sgbackup.json`]);
+    const opened = openInventoryBoundDatabaseBackup(loaded.envelope,backupKey); assert.deepEqual(opened.manifest.inventory,expected);
+    try { await guard(); docker(["exec", "-i", cid!, "pg_restore", "-U", "sg_inventory", "-d", "sg_inventory_restore", "--single-transaction", "--exit-on-error", "--no-owner", "--no-acl"], opened.dump); } finally { opened.dump.fill(0); }
+  } finally {
+    const current = await lstat(directory); assert.equal(current.dev,identity.dev); assert.equal(current.ino,identity.ino); assert.ok(current.isDirectory()); assert.equal(current.uid,process.getuid!());
+    await rm(directory,{ recursive: true }); // Only this freshly created, identity-checked encrypted fixture directory.
+  }
   assert.equal(same(expected, await capture(target)), true); assert.equal(same(expected, await capture(source)), false);
   const result = compareDatabaseRestoreInventories(expected, await capture(target)); assert.equal(result.requiresReconciliation, true); assert.equal(result.executionAllowed, false); assert.equal(result.publicationAllowed, false);
 });

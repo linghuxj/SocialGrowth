@@ -17,3 +17,5 @@
 [只读恢复清单阶段](../../docs/engineering/delivery/records/WP-27-stage2.md)提供维护端一致快照与同snapshot dump回调、受限schema/行指纹比较；不会调用生产pg_restore/写文件/开Worker。技术行/字节上限和SQL/idle超时不是生产容量/RTO，sameSchemaAndRows也不是可重新执行；未知关系/类型/RLS不可读关闭。清单摘要仅维护端敏感元数据，不通过HTTP或日志公开，正式backup清单绑定、跨cluster/globals/ACL及联合当前事实/恢复fence仍须另验。
 
 [v2认证清单组件](../../docs/engineering/delivery/records/WP-27-stage3.md)将inventory与真实dump同一AAD认证，仍只显式trusted维护caller、无自动生产runner。manifest清单是明文认证元数据，含敏感表名/行数/hash，须受控文件权限/密钥保管，不公开。认证不证明caller用了同一snapshot或SQL可信；实际producer/恢复验证/current事实/fence和正式OPS灾备验收仍需落实，不自动接受v1未认证sidecar作为v2。
+
+[文件存储阶段](../../docs/engineering/delivery/records/WP-27-stage4.md)提供显式配置/默认关闭的server-only维护接口：canonical绝对路径、当前UID独占0700目录/0600文件，先认证v2，再真实exclusive staging/file sync/不覆盖hardlink/目录sync；原ID相同包可核对重放，不同包冲突。只落加密包（manifest仍敏感明文），不落dump明文/key，不自动建目录/修权限/保留清理/生产restore。load有界真实FD/NOFOLLOW/UTF8及GCM/ID校验，UNKNOWN保留原ID重新核对。只支持受信任POSIX维护owner独占目录及祖先，不抵抗恶意同UID路径交换；fsync成功不是断电或生产联合灾备证据，默认服务授权不等于批准生产目录/密钥/保留/SQL来源。

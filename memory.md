@@ -22,8 +22,11 @@
 8. 用户再次要求持续推进全部开发：按编码依赖领取可独立工作，阶段性凝聚提交→原窗口复核→对应工程／真实验收→G1 合并；缺资源的人工作业写明真实输入、责任职责、解除条件和补验步骤，继续未受阻项。不得把延期、关闭适配或单元 fixture 计作实现完毕／业务通过；完成度以台账与实际代码／证据为准。
 9. 无关脏文件只核对路径/状态，不输出内容或diff；原复核曾意外回显无关发布脚本的令牌候选值，实际安全需求记录SEC-WP14-01，不复述、不使用、不验证、不擅自轮换。只对本任务显式文件列表检查差异，未知凭据有效性或日志处置不报已完成，继续不依赖该凭据的工程。
 10. 原QA与复核窗口均实际收到管理员浏览器策略校验服务不可用的控制拒绝；不得通过换入口/CLI/Chrome/代理绕过。独立UI及新的设计页面在RES-WP14-03中保留阻断，先继续不依赖浏览器的后端/契约/事务开发。工程G1合并可早于真实验收，必须单独记录范围，不能将非UI核验或历史作者截图写成原QA真实页面通过。
+11. 持续推进时发送交接不等于本任务完成：主窗口主动读取原窗口完整完成/缺陷报告，向用户汇总每窗结论/问题/下一步，落实整改与固定复验；原窗运行期间继续无依赖工程，不能只说“窗口在执行”就结束并等待用户再催。仅进度不当签收，真正人工/平台缺口记录对应范围继续，其边界不能绕过。
 
 ## 2026-09-30 工程检查点
+
+2026-10-01持续接续及汇报：已全文读取backup546 QA（2be157…）、calendar-a761 QA（cf6afe…）/有限双新0与日历P3同oracle清零；原A继承非作者484160…/QA c4213e…双P2实际清零，原63RED/22023错预期/A首hook42P04零业务及原指纹保持。原B完整4f2dbf…全文读，原1921继承依赖RED历史保留、两文件组合new0/remaining0/原4=3PASS1RED→组合4PASS和PG12，已交原QA A→B新固定且B中。没有重发既有报告读取/改三窗口模式。主窗口基线c147已继续feature/wp-27-encrypted-file-store-stage4，真实trusted POSIX私有0700/0600加密文件store/load/规范重放冲突/有界FD/GCM-ID核对，默认null配置/key关闭、manifest敏感明文/不落plain dump-key/无restore或consumer；新8/实际PG12/根422首次过，own80f637 PG32878/96aefac卷/cluster7691633029027745825每reset/restore守卫final两库0|0|0|0后精确CID卷清理/端口关闭，加密临时目录逐inode-UID核验仅清自己新建fixture。真实生产配置/密钥/retention/RPO-RTO/fence/断电晚期I/O未验证，不把技术fsync当灾备；详细报告SHA/分工/原失败和下一固定门禁见WP-27-stage4。父pending1/Developeraf14/browser/SEC/保护脚本路径状态、默认服务Samsung及人工记录继续不变，全开发ACG3未完成。
 
 2026-10-01继续推进纠偏：上一轮主窗口在交接后结束，不是全局技术阻断，原两窗口实际继续并已完成。已全文读cc41881原QA（SHA7227ae9f4a4950a50b490063e796ecf971734ae394a97f98bc3bcd30d518ad24）及backup546/calendar-a761/inventory63三份完整原复核：cc有限双新0，backup新0、calendar原P3同oracle清零，已交原QA两个新固定8/并集7；inventory REV-WP27-INHERIT-01 P2/remaining1及复核方错误SQLSTATE首红分开，v2未复核。fix/wp-27-inheritance-inventory基线e4988c0仅早期拒绝涉及域内任一端点的真实继承；新同schema/跨schema父与子三个实际回归首12=9PASS3FAIL→相同源12GREEN/root414，原9/格式/许可不改；own167a637 PG32878/8fda298卷/cluster7691618540281544737全守卫双库final各0|0|0|0、精确清理/端口关闭，首次镜像ID误写registry digest零业务启动诊断保留。新固定整改交同原复核再接v2，非作者及QA未签整改；三窗口仍开发/只读非作者/真实环境QA，仅读原报告不重发与发送新固定分开。详见WP-27-inheritance-remediation；默认服务Samsung授权/人工记录继续不变，父pending1/Developeraf14/browser/SEC/保护脚本路径状态保持，未报全开发/AC G3完成。
 

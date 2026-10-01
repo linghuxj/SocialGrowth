@@ -1,5 +1,7 @@
 # WP-27 恢复清单继承漏检整改
 
+2026-10-01最新：已全文读取A完整原非作者与QA报告，原REV-WP27-INHERIT-01 P2双实际清零/new0/remaining0。原63首RED、错SQLSTATE、A工具hook首错误及正确新源均保留。B原完整非作者报告也已全文读，原1921继承RED历史不改，1921+c147两文件最小组合new0/remaining0、PG12/同oracle4通过；原QA B正在独立复验，不由A或作者自签B通过。报告SHA/分层与[下一文件阶段](WP-27-stage4.md)记录，下面pending为此前历史状态。
+
 2026-10-01；基线`e4988c005f74c2794732c902e8b5bdf24bf7cd85`，分支`fix/wp-27-inheritance-inventory`。OPS/BE 实施代理 Codex；原非作者窗口复验、原 QA 独立工程复验；正式 OPS/TL 真人待签。[清单原阶段](WP-27-stage2.md)、[v2 依赖](WP-27-stage3.md)、[质量手册](../quality-gates.md)。
 
 ## 实际报告与受影响范围
