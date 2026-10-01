@@ -63,7 +63,16 @@ class FirstBatchContracts:
         return value
 
     def _validate_contract_semantics(self, name: str, value: Any) -> None:
-        if name == "batchMaterialDeclarationsResponse":
+        if name == "materialLibraryResponse":
+            ids = [material["variantId"].lower() for material in value["materials"]]
+            for material in value["materials"]:
+                self._validate_contract_semantics("materialCurrentView", material)
+                if material["projectId"].lower() != value["projectId"].lower():
+                    raise ContractDataError(f"{name}: inconsistent material project")
+            if (any(ids[index - 1] >= identifier for index, identifier in enumerate(ids) if index)
+                or (value["nextAfterVariantId"] is not None and (not ids or value["nextAfterVariantId"].lower() != ids[-1]))):
+                raise ContractDataError(f"{name}: inconsistent variant order or cursor")
+        elif name == "batchMaterialDeclarationsResponse":
             for index, result in enumerate(value["results"]):
                 if result["index"] != index:
                     raise ContractDataError(f"{name}: inconsistent item index")

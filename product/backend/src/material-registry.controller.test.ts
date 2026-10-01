@@ -52,3 +52,13 @@ test("material history defaults, numeric query bounds and terminal cursor preser
     await assert.rejects(controller.history(id, id, query, request), e => e instanceof HttpException && e.getStatus() === 400);
   await assert.rejects(controller.history(id, id, { afterRevision: "2" }, request), e => e instanceof HttpException && e.getStatus() === 409);
 });
+test("material library forwards exact current Cookie and query but omits actor/storage/history and masks bad output", async () => {
+  let seen: unknown;
+  const registry = { list: async (session: string, project: string, query: unknown) => { seen = { session, project, query }; return { projectId: id, materials: [saved], nextAfterVariantId: null }; } };
+  const controller = new MaterialRegistryController({ registry: () => registry } as unknown as MaterialRuntime);
+  const result = await controller.list(id, {}, request); assert.deepEqual(seen, { session: token, project: id, query: { afterVariantId: null, pageSize: 20 } });
+  assert.equal(result.materials.length, 1); assert.ok(!JSON.stringify(result).includes("internal-never-emit"));
+  await assert.rejects(controller.list(id, { pageSize: "51" }, request), e => e instanceof HttpException && e.getStatus() === 400);
+  registry.list = async () => ({ projectId: id, materials: [{ ...saved, currentRevision: 2 }], nextAfterVariantId: null });
+  await assert.rejects(controller.list(id, {}, request), e => e instanceof HttpException && e.getStatus() === 500);
+});

@@ -42,3 +42,7 @@ export const materialHistoryResponseSchema = z.strictObject({ current: materialC
   return !last || last.revision !== v.current.currentRevision || (compareTimestamps(last.recordedAt, v.current.recordedAt) === 0
     && JSON.stringify(last.declaration) === JSON.stringify(v.current.declaration) && JSON.stringify(last.objects) === JSON.stringify(v.current.objects));
 }, "Inconsistent material history page");
+export const materialLibraryQuerySchema = z.strictObject({ afterVariantId: uuidSchema.nullable(), pageSize: z.int().min(1).max(50) });
+export const materialLibraryResponseSchema = z.strictObject({ projectId: uuidSchema, materials: z.array(materialCurrentViewSchema).max(50), nextAfterVariantId: uuidSchema.nullable() }).refine(v =>
+  v.materials.every((m, i) => m.projectId.toLowerCase() === v.projectId.toLowerCase() && (!i || v.materials[i - 1]!.variantId.toLowerCase() < m.variantId.toLowerCase()))
+  && (v.nextAfterVariantId === null || v.nextAfterVariantId.toLowerCase() === v.materials.at(-1)?.variantId.toLowerCase()), "Inconsistent material library page");

@@ -2,7 +2,7 @@ import { Body, Controller, Get, Header, Headers, Inject, Param, Post, Query, Req
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { contractVersion, materialCurrentViewSchema, saveMaterialDeclarationRequestSchema, saveMaterialDeclarationResponseSchema, productErrorResponseSchema,
-  batchMaterialDeclarationsRequestSchema, batchMaterialDeclarationsResponseSchema, materialHistoryQuerySchema, materialHistoryResponseSchema } from "@socialgrowth/product-contracts";
+  batchMaterialDeclarationsRequestSchema, batchMaterialDeclarationsResponseSchema, materialHistoryQuerySchema, materialHistoryResponseSchema, materialLibraryQuerySchema, materialLibraryResponseSchema, uuidSchema } from "@socialgrowth/product-contracts";
 import { MaterialRuntime } from "./material-runtime.js";
 import { MaterialRegistryError } from "./material-registry-store.js";
 import { operatorSessionTokenFrom } from "./operator-session-cookie.js";
@@ -11,6 +11,7 @@ import { requestIdFrom, requireSupportedContract, rethrowHttp } from "./product-
 import { mapProductException } from "./product-exception.filter.js";
 interface Request { headers: Record<string, string | string[] | undefined> }
 const querySchema = z.strictObject({ afterRevision: z.string().regex(/^(?:0|[1-9][0-9]{0,3})$/).optional(), pageSize: z.string().regex(/^[1-9][0-9]?$/).optional() });
+const libraryQuerySchema = z.strictObject({ afterVariantId: uuidSchema.optional(), pageSize: z.string().regex(/^[1-9][0-9]?$/).optional() });
 function view(saved: Awaited<ReturnType<ReturnType<MaterialRuntime["registry"]>["read"]>>) {
   const last = saved.revisions.at(-1);
   if (!last || last.revision !== saved.currentRevision) throw new ProductTransactionError("INTERNAL_ERROR", "Material result is unavailable");
@@ -32,6 +33,16 @@ function fail(error: unknown, requestId: string): never {
 @Controller("api/operator/projects/:projectId/materials")
 export class MaterialRegistryController {
   constructor(@Inject(MaterialRuntime) private readonly runtime: MaterialRuntime) {}
+  @Get() @Header("Cache-Control", "no-store")
+  async list(@Param("projectId") projectId: string, @Query() query: unknown, @Req() request: Request) {
+    try {
+      const q = libraryQuerySchema.parse(query), input = materialLibraryQuerySchema.parse({ afterVariantId: q.afterVariantId ?? null, pageSize: q.pageSize === undefined ? 20 : Number(q.pageSize) });
+      const saved = await this.runtime.registry().list(operatorSessionTokenFrom(request.headers.cookie), projectId, input);
+      const result = materialLibraryResponseSchema.safeParse({ projectId: saved.projectId, materials: saved.materials.map(view), nextAfterVariantId: saved.nextAfterVariantId });
+      if (!result.success) throw new ProductTransactionError("INTERNAL_ERROR", "Material library result is unavailable");
+      return result.data;
+    } catch (error) { fail(error, `request-${randomUUID()}`); }
+  }
   @Post() @Header("Cache-Control", "no-store")
   async save(@Param("projectId") projectId: string, @Body() body: unknown, @Req() request: Request, @Headers("x-csrf-token") csrf: string | undefined) {
     try {

@@ -84,3 +84,17 @@ class MaterialRegistryContractsTest(unittest.TestCase):
                       {"revisions": [revision, {**revision, "revision": 3}], "nextAfterRevision": None}, {"revisions": [{**revision, "revision": 2}], "nextAfterRevision": None}):
             with self.assertRaises(ContractValidationError):
                 contracts.validate("materialHistoryResponse", {**page, **patch})
+
+    def test_library_scope_order_and_cursor(self):
+        contracts, first = FirstBatchContracts(), self.current()
+        contracts.validate("materialLibraryQuery", {"afterVariantId": None, "pageSize": 50})
+        with self.assertRaises(ContractValidationError):
+            contracts.validate("materialLibraryQuery", {"afterVariantId": first["variantId"], "pageSize": 51})
+        second = {**first, "variantId": "a0000000-0000-4000-8000-000000000002", "languageTag": "zh-cn"}
+        page = {"projectId": first["projectId"], "materials": [first, second], "nextAfterVariantId": second["variantId"]}
+        contracts.validate("materialLibraryResponse", page)
+        contracts.validate("materialLibraryResponse", {"projectId": first["projectId"], "materials": [], "nextAfterVariantId": None})
+        for patch in ({"nextAfterVariantId": first["variantId"]}, {"materials": [second, first], "nextAfterVariantId": None}, {"materials": [first, first], "nextAfterVariantId": None},
+                      {"materials": [{**first, "projectId": "b0000000-0000-4000-8000-000000000001"}], "nextAfterVariantId": None}, {"materials": [], "nextAfterVariantId": first["variantId"]}):
+            with self.assertRaises(ContractValidationError):
+                contracts.validate("materialLibraryResponse", {**page, **patch})

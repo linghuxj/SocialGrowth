@@ -183,6 +183,8 @@ WP-10 新增内部 `endpoint-report-core` 只校验签名完整双用途快照�
 
 第八阶段`POST .../materials/batch`最多50显式items，trace-only wrapper/每项原key及独立结果，无整体成功或准入；认证/事务逐项重核，坏项不阻后项、已提交项不自动回滚。默认100KiB JSON仍有限额，合法超大批次安全413，按字节拆批/每项原ID-key恢复；中断不当无写。`GET .../:variantId/revisions`数值afterRevision/default0、pageSize/default20/max50，live append-only分页及current同次读，无冻结多请求快照承诺；原完整历史先核验，off-page损坏仍关闭，不仅看末版。作者368/14PG/新9联合分别过；见[边界/复现/实际缺口](../../docs/engineering/delivery/records/WP-15-stage8.md)。
 
+第九阶段认证`GET .../materials`，同project现存UUID cursor、default20/max50及DB UUID升序lookahead；每个本页variant完整历史先核验再最小current pending/false权限投影。未知project/cursor409，格式/重复query400、会话最后DB钟复查；各运营原同权，项目过滤非成员权限隔离或全项目已合格。配置关闭仍可读历史，不证当前物理文件/准入；作者371/旧14PG/新实际AppModule历史reader8分开（新8仅合成pending元数据，不预置成功）；见[列表边界、实际测试及缺口](../../docs/engineering/delivery/records/WP-15-stage9.md)。
+
 ## WP-25 内部分佣核对（无实际收入或付款）
 
 `commission-core`只对明确到账/产生期间/承接及历史统一比例作BigInt精确核对；跨承接/比例不能可靠拆分、配置未定或未知保持pending。确认空档归公司不是缺记录默认，不公开到本人；币种/精度/舍入显式无生产默认。internal_calculation_only没有真实producer、持久去重、本人API或支付，不能将重复纯计算累计为新应付。78位金额/0～12位精度/18位比例只是技术边界，图稿数字不是配置，详见[分佣任务卡](../../docs/engineering/delivery/records/WP-25.md)。

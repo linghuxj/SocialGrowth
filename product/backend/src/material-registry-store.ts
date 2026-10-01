@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { Pool, PoolClient } from "pg";
-import { compareTimestamps, timestampSchema, uuidSchema } from "@socialgrowth/product-contracts";
+import { compareTimestamps, timestampSchema, uuidSchema, materialLibraryQuerySchema } from "@socialgrowth/product-contracts";
 import { materialSaveSchema, materialDeclarationSchema, materialIdentitySchema, materialObjectReferenceSchema, canonicalMaterial, type MaterialSave } from "./material-registry-core.js";
 import { OperatorAuthService, type OperatorSessionContext } from "./operator-auth-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
@@ -77,6 +77,21 @@ export class MaterialRegistryStore {
     if (!uuidSchema.safeParse(projectId).success || !uuidSchema.safeParse(variantId).success) throw new ProductTransactionError("INPUT_INVALID", "Invalid material locator");
     return this.tx(token, null, async c => { await this.project(c, projectId.toLowerCase()); const saved = await this.load(c, variantId.toLowerCase());
       if (!saved || saved.projectId !== projectId.toLowerCase()) throw stale(); return saved; });
+  }
+  async list(token: string, projectId: string, input: unknown) {
+    const p = materialLibraryQuerySchema.safeParse(input), project = uuidSchema.safeParse(projectId);
+    if (!p.success || !project.success) throw new ProductTransactionError("INPUT_INVALID", "Invalid material library query");
+    const id = project.data.toLowerCase(), cursor = p.data.afterVariantId?.toLowerCase() ?? null;
+    return this.tx(token, null, async c => {
+      await this.project(c, id);
+      if (cursor && (await c.query(`SELECT 1 FROM ${s}.material_variants WHERE variant_id=$1 AND project_id=$2`, [cursor, id])).rowCount !== 1) throw stale();
+      const rows = (await c.query<{ variant_id: string }>(`SELECT variant_id FROM ${s}.material_variants WHERE project_id=$1 AND ($2::uuid IS NULL OR variant_id>$2) ORDER BY variant_id LIMIT $3`, [id, cursor, p.data.pageSize + 1])).rows;
+      const page = rows.slice(0, p.data.pageSize), materials = [];
+      // Authenticate/project/guard remain held for one DB-only consistent page.
+      // Validate full histories for selected variants; no object IO or grants.
+      for (const row of page) { const saved = await this.load(c, row.variant_id); if (!saved || saved.projectId !== id) return invalid(); materials.push(saved); }
+      return { projectId: id, materials, nextAfterVariantId: rows.length > p.data.pageSize ? page.at(-1)!.variant_id : null };
+    });
   }
   // HTTP authentication preflight also runs when storage is unconfigured.
   // It does not grant a lease: save/read reauthenticate in their own tx.

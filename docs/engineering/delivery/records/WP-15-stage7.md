@@ -24,6 +24,8 @@ Nest原默认JSON大小未改；合法单项字段最坏Unicode编码仍小于10
 
 ## 自有资源与补验分工
 
+原非作者76行`artifacts/review/wp15-registry-api-14cc7aa.md`已全文读取，固定19文件有限新增/remaining0；指定7BE/2TS/2Python/旧14PG/新9联合、新8独立最终过。首独立5过3失败是前置bytes PUT已有manifest被自身夹具误期待0，原401/登记计数零不变，最终只改基线manifest1，原失败/首源/SHA保留，不虚称首轮覆盖全部子case。新44语义case为组内，真实preauth后失效/IO期间撤销/最终钟/COMMIT合成ACK/current第12版/早期损坏和无配置旧key503均实际验证；原PG17.10/自身648e9c、944633及卷已0|0|0清理，作者362/全PG256未认领。已交原QA固定19文件，未用未来batch/history/list404变化修改本固定旧oracle；父pending1/Developeraf14保持。
+
 作者PG实际17.10 Alpine/缓存sha256:93aa428db0aeeb71d24dcad1491bef6e1396a4255697e4bfc4c725bfeb981b74，完整CID be2d63cf657330f5ff35af89d5e8799ce7986bf071304b098ff8b4c5b4019c22/sg-wp15-registry-api-pg@127.0.0.1:32872/sg_registry_api，唯一匿名卷74e0fa32c08d57108cd9ab6ac29a624c9ab1325e604a1c9ea2025f4f11cb0908。MinIO实际RELEASE.2025-09-07T16-13-09Z/commit07c3a429/缓存sha256:69b2ec208575b69597784255eec6fa6a2985ee9e1a47f4411a51f7f5fdd193a9，完整CID 5cfbbcd753671c8fac468b24dc5005c479e6cfc161357b145b3a78f3a35fa633/sg-wp15-registry-api-storage@127.0.0.1:32905，唯一匿名卷9d3e80da1ec9e006d491a0b765a48247dc6150f3de6662ee58f4e068e470b7c5；均--rm/无host mount，显式合成凭据/随机私有桶/非媒体bytes，仅删除自有对象用于负向，不触原9000或原窗32870/32904/32871。实际清理结果补在下面，不按启动即宣称清理完成。
 
 最后真实schema/其他连接/deadlocks=0|0|0，完整CID/name/image/端口/AutoRemove/两卷全实例独占核验后stop仅本两--rm容器；after容器与卷各0字节，已自动移除自有合成DB/两轮随机桶和对象，不可恢复但可复现重建。源码/首失败/6初轮/9最终/14PG及根日志全保留，原窗与其他实例未动。

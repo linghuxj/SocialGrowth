@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { contractVersion } from "./common.js";
-import { saveMaterialDeclarationRequestSchema, materialCurrentViewSchema, saveMaterialDeclarationResponseSchema, batchMaterialDeclarationsRequestSchema, batchMaterialDeclarationsResponseSchema, materialHistoryResponseSchema, materialHistoryQuerySchema } from "./material-registry.js";
+import { saveMaterialDeclarationRequestSchema, materialCurrentViewSchema, saveMaterialDeclarationResponseSchema, batchMaterialDeclarationsRequestSchema, batchMaterialDeclarationsResponseSchema, materialHistoryResponseSchema, materialHistoryQuerySchema, materialLibraryQuerySchema, materialLibraryResponseSchema } from "./material-registry.js";
 const id = "a0000000-0000-4000-8000-000000000001";
 const input = { metadata: { contractVersion, requestId: "request-material", idempotencyKey: "idempotency-material" }, projectId: id, contentUnitId: id,
   sourceId: id, sourceRecordId: id, variantId: id, languageTag: "en-US", expectedCurrentRevision: 0,
@@ -51,4 +51,13 @@ test("revision history has exact continuous numeric page/cursor/time and current
     { revisions: [{ ...revision, objects: [{ ...revision.objects[0], contentType: "image/png" }] }] },
     { revisions: [revision, { ...revision, revision: 3 }], nextAfterRevision: null }, { revisions: [{ ...revision, revision: 2 }], nextAfterRevision: null }])
     assert.equal(materialHistoryResponseSchema.safeParse({ ...page, ...patch }).success, false);
+});
+test("material library is scoped, stable ordered variant pagination rather than new quotas or overall eligibility", () => {
+  materialLibraryQuerySchema.parse({ afterVariantId: null, pageSize: 50 }); assert.equal(materialLibraryQuerySchema.safeParse({ afterVariantId: id, pageSize: 51 }).success, false);
+  const first = current(), second = { ...first, variantId: "a0000000-0000-4000-8000-000000000002", languageTag: "zh-cn" };
+  const page = { projectId: id, materials: [first, second], nextAfterVariantId: second.variantId }; materialLibraryResponseSchema.parse(page);
+  materialLibraryResponseSchema.parse({ projectId: id, materials: [], nextAfterVariantId: null });
+  for (const patch of [{ nextAfterVariantId: id }, { materials: [second, first], nextAfterVariantId: null }, { materials: [first, first], nextAfterVariantId: null },
+    { materials: [{ ...first, projectId: "b0000000-0000-4000-8000-000000000001" }], nextAfterVariantId: null }, { materials: [], nextAfterVariantId: id }])
+    assert.equal(materialLibraryResponseSchema.safeParse({ ...page, ...patch }).success, false);
 });
