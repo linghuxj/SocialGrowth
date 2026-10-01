@@ -4,7 +4,7 @@ import { timestampSchema, uuidSchema } from "@socialgrowth/product-contracts";
 const format = "2026-10-01.database-backup-v1";
 export const maxDatabaseBackupBytes = 128 * 1024 * 1024; // Bounded in-memory component, NOT a production capacity target.
 const sha = z.string().regex(/^[a-f0-9]{64}$/), keyId = z.string().regex(/^[A-Za-z0-9_-]{1,100}$/);
-const metadataSchema = z.strictObject({ backupId: uuidSchema, createdAt: timestampSchema.max(512).refine(v => !v.startsWith("0000-")), postgresMajor: z.literal(17),
+export const metadataSchema = z.strictObject({ backupId: uuidSchema, createdAt: timestampSchema.max(512).refine(v => !v.startsWith("0000-")), postgresMajor: z.literal(17),
   migrationFiles: z.array(z.strictObject({ name: z.string().max(150).regex(/^[0-9]{4}_[a-z0-9_]+\.sql$/), sha256: sha })).min(1).max(1000)
 }).refine(v => v.migrationFiles.every((f, i) => i === 0 || f.name > v.migrationFiles[i - 1]!.name));
 const manifestSchema = z.strictObject({ metadata: metadataSchema, keyId, dumpBytes: z.int().min(5).max(maxDatabaseBackupBytes), dumpSha256: sha,

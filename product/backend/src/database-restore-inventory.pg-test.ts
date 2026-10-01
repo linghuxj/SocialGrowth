@@ -1,16 +1,19 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFile, readdir } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { before, after, test } from "node:test";
 import { Pool } from "pg";
 import { withDatabaseInventorySnapshot, compareDatabaseRestoreInventories, DatabaseInventoryError, type DatabaseRestoreInventory } from "./database-restore-inventory.js";
+import { DatabaseBackupError, type DatabaseBackupMetadata } from "./database-backup-envelope.js";
+import { sealInventoryBoundDatabaseBackup, openInventoryBoundDatabaseBackup, type InventoryBoundDatabaseBackup } from "./database-backup-inventory-envelope.js";
 const cid = process.env.SG_PRODUCT_TEST_INVENTORY_CONTAINER_ID;
 if (!cid || !/^[a-f0-9]{64}$/.test(cid) || process.env.SG_PRODUCT_TEST_ALLOW_RESET !== "1") throw new Error("Requires explicitly owned isolated inventory fixture");
 const docker = (args: string[], input?: Buffer) => execFileSync("docker", args, { input, timeout: 30000, maxBuffer: 128 * 1024 * 1024 });
 const source = new Pool({ connectionString: "postgresql://sg_inventory:synthetic-inventory-drill-only-00001@127.0.0.1:32878/sg_inventory_source", max: 1 });
 const target = new Pool({ connectionString: "postgresql://sg_inventory:synthetic-inventory-drill-only-00001@127.0.0.1:32878/sg_inventory_restore", max: 1 });
 const s = "socialgrowth_product", operatorId = randomUUID(), projectId = randomUUID(); let expected: DatabaseRestoreInventory, targetCreated = false;
+const backupKey = { keyId: "synthetic-inventory-v2-drill", key: randomBytes(32) }; let metadata: DatabaseBackupMetadata, envelope: InventoryBoundDatabaseBackup;
 async function guard() {
   const ids = docker(["ps", "-aq"]).toString().trim().split(/\s+/);
   // Explicit selected metadata only: do not retrieve any foreign Config.Env.
@@ -33,21 +36,31 @@ before(async () => {
   await guard(); await source.query(`DROP SCHEMA IF EXISTS ${s} CASCADE`);
   if (!(await source.query("SELECT 1 FROM pg_database WHERE datname='sg_inventory_restore'")).rowCount) await source.query("CREATE DATABASE sg_inventory_restore"); targetCreated = true; await guard(); await target.query(`DROP SCHEMA IF EXISTS ${s} CASCADE`);
   const dir = new URL("../migrations/", import.meta.url), names = (await readdir(dir)).filter(v => /^\d{4}.*\.sql$/.test(v)).sort(); for (const name of names) await source.query(await readFile(new URL(name, dir), "utf8"));
+  metadata = { backupId: randomUUID(), createdAt: new Date().toISOString(), postgresMajor: 17, migrationFiles: await Promise.all(names.map(async name => ({ name, sha256: createHash("sha256").update(await readFile(new URL(name, dir))).digest("hex") }))) };
   await source.query(`INSERT INTO ${s}.operators(operator_id,login_name,display_name,password_hash,status) VALUES($1,$2,'Synthetic inventory','not-a-password','active')`, [operatorId, `fixture-${operatorId}`]);
   await source.query(`INSERT INTO ${s}.projects(project_id,name,kind,created_by_operator_id) VALUES($1,'Snapshot original','company_owned',$2)`, [projectId, operatorId]);
 });
-after(async () => { try { await guard(); await source.query(`DROP SCHEMA IF EXISTS ${s} CASCADE`); if (targetCreated) await target.query(`DROP SCHEMA IF EXISTS ${s} CASCADE`); } finally { await target.end(); await source.end(); } });
+after(async () => { try { await guard(); await source.query(`DROP SCHEMA IF EXISTS ${s} CASCADE`); if (targetCreated) await target.query(`DROP SCHEMA IF EXISTS ${s} CASCADE`); } finally { backupKey.key.fill(0); await target.end(); await source.end(); } });
 test("actual owned read-only snapshot and same-snapshot dump restore preserve 66 tables plus column/index/function definitions", async () => {
-  const dump = await withDatabaseInventorySnapshot(source, async v => {
+  envelope = await withDatabaseInventorySnapshot(source, async v => {
     expected = structuredClone(v.inventory); assert.equal(expected.tables.length, 66);
     // Actual concurrent source mutation AFTER snapshot but BEFORE dump; use
     // a separate owned connection, not the held read-only pool connection.
     docker(["exec", cid!, "psql", "-U", "sg_inventory", "-d", "sg_inventory_source", "-Atc", `UPDATE ${s}.projects SET name='Source now newer' WHERE project_id='${projectId}'`]);
-    return docker(["exec", cid!, "pg_dump", "-U", "sg_inventory", "-d", "sg_inventory_source", "-Fc", "--no-owner", "--no-acl", `--snapshot=${v.snapshotId}`]);
+    const dump = docker(["exec", cid!, "pg_dump", "-U", "sg_inventory", "-d", "sg_inventory_source", "-Fc", "--no-owner", "--no-acl", `--snapshot=${v.snapshotId}`]);
+    try { return sealInventoryBoundDatabaseBackup(dump,metadata,v.inventory,backupKey); } finally { dump.fill(0); }
   });
-  await guard(); docker(["exec", "-i", cid!, "pg_restore", "-U", "sg_inventory", "-d", "sg_inventory_restore", "--single-transaction", "--exit-on-error", "--no-owner", "--no-acl"], dump); dump.fill(0);
+  const opened = openInventoryBoundDatabaseBackup(envelope,backupKey); assert.deepEqual(opened.manifest.inventory,expected);
+  try { await guard(); docker(["exec", "-i", cid!, "pg_restore", "-U", "sg_inventory", "-d", "sg_inventory_restore", "--single-transaction", "--exit-on-error", "--no-owner", "--no-acl"], opened.dump); } finally { opened.dump.fill(0); }
   assert.equal(same(expected, await capture(target)), true); assert.equal(same(expected, await capture(source)), false);
   const result = compareDatabaseRestoreInventories(expected, await capture(target)); assert.equal(result.requiresReconciliation, true); assert.equal(result.executionAllowed, false); assert.equal(result.publicationAllowed, false);
+});
+test("actual v2 inventory tampering and wrong key close before pg_restore, target inventory remains unchanged", async () => {
+  const before = await capture(target); let restoreCalls = 0; const changed = structuredClone(envelope); changed.manifest.inventory.definitions.functions = "d".repeat(64);
+  for (const [candidate,key] of [[changed,backupKey],[envelope,{ ...backupKey,key: randomBytes(32) }]] as const) {
+    assert.throws(() => { const opened = openInventoryBoundDatabaseBackup(candidate,key); restoreCalls++; opened.dump.fill(0); }, e => e instanceof DatabaseBackupError && e.message === "DATABASE_BACKUP_INVALID");
+  }
+  assert.equal(restoreCalls,0); assert.deepEqual(await capture(target),before); assert.equal(same(expected,before),true);
 });
 test("explicit canonical session formatting avoids host timezone/date/byte output accidents and restores local settings", async () => {
   await target.query("SET TimeZone='America/New_York'"); await target.query("SET DateStyle='SQL,DMY'"); await target.query("SET bytea_output='escape'");

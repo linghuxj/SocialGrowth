@@ -3,7 +3,7 @@ import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 const schema = "socialgrowth_product", format = "2026-10-01.database-inventory-v1";
 const identifier = z.string().regex(/^[a-z][a-z0-9_]{0,62}$/), digest = z.string().regex(/^[a-f0-9]{64}$/);
-const inventorySchema = z.strictObject({ format: z.literal(format), postgresMajor: z.literal(17),
+export const inventorySchema = z.strictObject({ format: z.literal(format), postgresMajor: z.literal(17),
   tables: z.array(z.strictObject({ table: identifier, rows: z.int().min(0).max(10000), bytes: z.int().min(0).max(8 * 1024 * 1024), sha256: digest })).min(1).max(1000),
   definitions: z.strictObject({ relations: digest, columns: digest, constraints: digest, triggers: digest, indexes: digest, functions: digest, policies: digest })
 }).refine(v => v.tables.every((t, i) => i === 0 || t.table > v.tables[i - 1]!.table)
