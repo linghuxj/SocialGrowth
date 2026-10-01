@@ -1,5 +1,7 @@
 # 正式产品本地依赖
 
+2026-10-01：WP15 stage11仅Web内部素材四GET读取基础，作者8/根439/静态通过；不启动服务/加载真实配置/实现UI，管理员browser与新UI设计门禁未解除，不能作为正式Web/手机验收。WP27 stage4已读原QA全文有限双清零，stage5已读原复核全文清零交原QA，stage6固定c397交原非作者；所有生产key/维护源/RPO-RTO/fence/真实存储等资源及父门禁仍开放，详情见[交付记录](../../docs/engineering/delivery/records/WP-15-stage11.md)。
+
 本目录只服务 `product/` 正式实现，不读取 Demo 的 SQLite、运行时队列或对象存储。
 
 1. 将 `.env.product.example` 复制为被 Git 忽略的 `.env.product`，替换示例密码。

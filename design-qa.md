@@ -1,3 +1,15 @@
+# WP-15 第十一阶段最新设计门禁：仅推进非UI客户端
+
+2026-10-01。source visual truth：`docs/design/workbench/materials-batch-v1.png`（已查看实际1487×1058）、原21行`materials-batch-prompt.txt`，以`docs/workbench-page-spec.md` §4及图稿索引约束业务。示例6行/候选/待补/失败/文件名日期不是当前事实；不可复制为准入许可。沿用现有Phosphor/字体与token，无需新栅格asset或独立prototype；user-context预检未保存上下文。
+
+RES-WP14-03管理员策略校验不可用仍无解除证据，按image-to-code/design-qa暂停新增UI组件/页面/样式/截图及视觉交付，不换入口绕过。当前仅GET客户端与8单元/根439/静态补充，没有运行态实现截图、并排比较或聚焦图，不能按源码推导视觉通过；Fonts/Spacing/Colors/Image fidelity/Copy五面、响应式、真实交互和console均未验证。不得把fetch合成端口结果算真实浏览器业务验收。
+
+运行环境管理员恢复原策略服务后，WEB按同源图/prompt/当前规格实现素材页面，QA从真实Web入口操作、捕获实际账号对象同状态同尺寸图并做全视图/聚焦对照；BIZ/OPS提供实际合法对象/声明与受控存储资料，资源需求和职责/解除/补验见WP15-stage11及RES-WP14-03。其他独立非UI工程继续。以下原阶段证据保留，不重新标绿。
+
+final result: blocked
+
+---
+
 # WP-14 第三阶段最新设计门禁：暂停新UI实现
 
 2026-09-30。目标是project-settings-v1.png及project-settings-prompt.txt的筹备目标/设置能力，以docs/workbench-page-spec.md §3与DESIGN.md校正生成稿示例；没有实现运行周期修改或复制示例数值。

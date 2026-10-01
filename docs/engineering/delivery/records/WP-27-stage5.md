@@ -1,5 +1,7 @@
 # WP-27 第五阶段：真实文件晚期故障与原 ID 接续
 
+2026-10-01最新完整43行原非作者报告`artifacts/review/wp27-file-fault-4e18.md`已全文读，SHA2c34628c82e59d5b0b94db770c58aa0972b14a50bc24bcf455ebb10dedd8c111，新增0/阶段remaining0。原14/复用6/真实OS EACCES1过，新port7首6PASS1FAIL为自有save错误预期UNAVAILABLE、既有策略为intent后UNKNOWN；另存只更正一个预期后7PASS，首源5ee957…/日志118f47…保持，load仍UNAVAILABLE；不是产品finding，也不把首次写全绿。默认实现逆剥离port逐字525、原8正文不改，156旧BE/21SQL/93schema保持；34own/12author及旧169指纹保持，35个新私有目录及固定snapshot按身份清理，无PG/service本轮。已向原QA发新固定525→4e18严格10复验，当前只待该门禁，不自签QA/生产/AC；下方前次执行中为历史。
+
 2026-10-01接续：4e1827e十文件凝聚提交已交原非作者新固定复核。原stage4完整报告9ccff673f852f3a18bf1852628b20e4bcf9abf938c49d29d3e989cc0cc87ca10全文读/新0/剩余0后交原QA新固定525；两窗当前执行，非重发既有读取。主窗口继续[同快照采集接线](WP-27-stage6.md)实际新3/PG4/root431，通过仅作者范围，下方此前stage4执行中保持历史。
 
 2026-10-01；基线 `525a0628cf58106d3edc05278841b6273ba167c3`，`feature/wp-27-file-store-fault-recovery-stage5`。OPS/BE 实施代理 Codex；原非作者固定复核后交原 QA 独立工程复验，正式 OPS/TL 真人待签。[文件存储阶段](WP-27-stage4.md)、[分工](../work-packages.md)、[质量手册](../quality-gates.md)。

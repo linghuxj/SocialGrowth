@@ -87,6 +87,12 @@ async function request<T>(url: string, schema: { parse(input: unknown): T }, ini
   return schema.parse(body);
 }
 
+// Internal GET-only seam for other operator resources. Shares the existing
+// Cookie/401-CSRF handling; never exports the token or accepts mutation init.
+export function readOperatorResource<T>(url: string, schema: { parse(input: unknown): T }): Promise<T> {
+  return request(url, schema);
+}
+
 export async function login(loginName: string, password: string): Promise<OperatorLoginResponse> {
   const response = await request("/api/operator/login", operatorLoginResponseSchema, {
     method: "POST",

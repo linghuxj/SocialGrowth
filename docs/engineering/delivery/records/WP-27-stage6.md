@@ -1,5 +1,7 @@
 # WP-27 第六阶段：同快照备份采集接线
 
+2026-10-01最新：stage4 QA完整63行SHAabee7a2a6a1b4d3f423a042f5d03a606337026fd5ff09787e02fcc015c5563f1已全文读/有限双新0；stage5复核完整43行SHA2c34628c82e59d5b0b94db770c58aa0972b14a50bc24bcf455ebb10dedd8c111已全文读/新增0/remaining0，port首错预期与最终另存保持。原QA已接新固定525→4e18，原非作者已接本批新固定4e18→c397严格10；不读取现场未来WP15客户端，不重发已有报告读取。作者3/PG4/root431仍仅作者范围，新非作者/QA未签；以下运行状态为历史。主窗口继续独立[素材读取客户端](WP-15-stage11.md)，新UI按设计门禁暂停，非UI工程不阻停。
+
 2026-10-01；基线4e1827e318da61eaad29d89db69cac60d637eb7a，feature/wp-27-snapshot-capture-stage6。OPS/BE实施代理Codex；原非作者/QA固定门禁，真人OPS/TL资源签收待提供。[上一阶段](WP-27-stage5.md)、[分工](../work-packages.md)、[质量手册](../quality-gates.md)。
 
 ## 领取范围与接续顺序
