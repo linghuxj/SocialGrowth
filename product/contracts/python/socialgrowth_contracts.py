@@ -63,7 +63,32 @@ class FirstBatchContracts:
         return value
 
     def _validate_contract_semantics(self, name: str, value: Any) -> None:
-        if name == "materialUploadInventoryResponse":
+        if name == "centralPublicationTask":
+            window, objects = value["window"], value["objects"]
+            ids = [item["objectId"].lower() for item in objects]
+            platform = "facebook" if value["form"].startswith("facebook_") else "youtube"
+            image = value["form"] == "facebook_image_text"
+            if (any(stamp.startswith("0000-") for stamp in (value["scheduledAt"], window["startsAt"], window["endsAt"]))
+                or platform != value["platform"] or self._compare_timestamps(window["startsAt"], window["endsAt"]) >= 0
+                or self._compare_timestamps(value["scheduledAt"], window["startsAt"]) < 0
+                or self._compare_timestamps(value["scheduledAt"], window["endsAt"]) >= 0
+                or len(set(ids)) != len(ids)
+                or (image and any(not item["contentType"].startswith("image/") for item in objects))
+                or (not image and (len(objects) != 1 or objects[0]["contentType"].startswith("image/")))):
+                raise ContractDataError(f"{name}: inconsistent central task boundary")
+            whitespace = "\u0009\u000a\u000b\u000c\u000d\u0020\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
+            if any(value[key].strip(whitespace) != value[key] or "\x00" in value[key] for key in ("title", "caption")):
+                raise ContractDataError(f"{name}: invalid publication text")
+        elif name == "taskExecutionObservation":
+            state, content, evidence = value["publicationState"], value["platformContentId"], value["evidenceIds"]
+            if (value["occurredAt"].startswith("0000-") or value["receivedAt"].startswith("0000-")
+                or self._compare_timestamps(value["occurredAt"], value["receivedAt"]) > 0
+                or len(set(item.lower() for item in evidence)) != len(evidence)
+                or (state == "reported_published" and (content is None or not evidence))
+                or (state != "reported_published" and content is not None)
+                or (state == "reported_not_published" and not evidence)):
+                raise ContractDataError(f"{name}: inconsistent source observation")
+        elif name == "materialUploadInventoryResponse":
             ids = [ticket["objectId"].lower() for ticket in value["tickets"]]
             for ticket in value["tickets"]:
                 self._validate_contract_semantics("materialUploadTicketView", ticket)

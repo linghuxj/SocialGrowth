@@ -19,6 +19,7 @@ export * from "./project.js";
 export * from "./project-planning.js";
 export * from "./registry.js";
 export * from "./status.js";
+export * from "./task-dispatch.js";
 
 export const productEnvironmentSchema = z.literal("product");
 

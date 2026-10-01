@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { centralPublicationTaskSchema, taskDispatchNoticeSchema, taskExecutionObservationSchema } from "./task-dispatch.js";
 import { saveMaterialDeclarationRequestSchema, materialCurrentViewSchema, saveMaterialDeclarationResponseSchema, batchMaterialDeclarationsRequestSchema, batchMaterialDeclarationsResponseSchema, materialHistoryQuerySchema, materialHistoryResponseSchema, materialLibraryQuerySchema, materialLibraryResponseSchema } from "./material-registry.js";
 import { prepareMaterialUploadRequestSchema, materialUploadTicketViewSchema, prepareMaterialUploadResponseSchema, uploadMaterialBytesCommandSchema, uploadMaterialBytesResponseSchema, materialUploadInventoryQuerySchema, materialUploadInventoryResponseSchema } from "./material-upload.js";
 import { commissionCursorSchema, providerCommissionRecordSchema, listProviderCommissionsResponseSchema } from "./commission.js";
@@ -80,6 +81,9 @@ import {
 } from "./status.js";
 
 export const firstBatchContractRegistry = {
+  centralPublicationTask: centralPublicationTaskSchema,
+  taskDispatchNotice: taskDispatchNoticeSchema,
+  taskExecutionObservation: taskExecutionObservationSchema,
   materialLibraryQuery: materialLibraryQuerySchema,
   materialLibraryResponse: materialLibraryResponseSchema,
   batchMaterialDeclarationsRequest: batchMaterialDeclarationsRequestSchema,
