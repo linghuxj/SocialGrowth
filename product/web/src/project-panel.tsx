@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { OperatorView, ProjectBasics, ProjectView } from "@socialgrowth/product-contracts";
 import { ArrowLeft, CalendarBlank, DeviceMobile, FileText, Folder, Info, Link, Plus, Target, UsersThree } from "@phosphor-icons/react";
 import { isDefinitiveProjectRejection, listProjects, newIdempotencyKey, ProductApiError, saveProject } from "./operator-api.js";
+import { MaterialWorkspace } from "./material-workspace.js";
 
 interface Draft { basics: ProjectBasics; base?: ProjectView; key: string | null; uncertain?: boolean }
 const empty = (): ProjectBasics => ({ name: "", kind: "company_owned", customerName: null, ownerOperatorId: null, notificationEmail: null });
@@ -18,6 +19,8 @@ export function ProjectPanel({ active, refreshVersion, operators, readOnly, onEx
 }) {
   const [projects, setProjects] = useState<ProjectView[] | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  const [tab, setTab] = useState<"overview" | "materials" | "settings">("overview");
+  const [materialProjects, setMaterialProjects] = useState<string[]>([]);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [loading, setLoading] = useState(false), [busy, setBusy] = useState(false), [message, setMessage] = useState("");
   const alive = useRef(true), revision = useRef(0);
@@ -41,7 +44,11 @@ export function ProjectPanel({ active, refreshVersion, operators, readOnly, onEx
     setDrafts(prev => ({ ...prev, [selected]: { ...draft, basics: { ...draft.basics, ...value }, key: null } }));
     setMessage("");
   }
-  function open(id: string) { setSelected(id); setMessage(""); }
+  function open(id: string) { setSelected(id); setTab("overview"); setMessage(""); }
+  function showMaterials() {
+    if (!current) return;
+    setMaterialProjects(ids => ids.includes(current.projectId) ? ids : [...ids, current.projectId]); setTab("materials");
+  }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected || !draft || readOnly || busy) return;
@@ -83,21 +90,23 @@ export function ProjectPanel({ active, refreshVersion, operators, readOnly, onEx
     </section> : <>
       <div className="project-heading"><h1>{current?.name ?? "新建筹备项目"}</h1><span className="status">筹备中</span><button className="text-button" disabled={busy} onClick={() => openList()}><ArrowLeft size={18} />返回项目列表</button></div>
       {current && <>
-        <div className="project-tabs" aria-label="项目内导航"><span aria-current="page">概览</span><span>素材 · 待接入</span><span>发布安排 · 待接入</span><span>效果与复盘 · 待接入</span><span>设置 · 基本信息</span></div>
+        <div className="project-tabs" aria-label="项目内导航"><button className="text-button" aria-current={tab === "overview" ? "page" : undefined} onClick={() => setTab("overview")}>概览</button><button className="text-button" aria-current={tab === "materials" ? "page" : undefined} onClick={showMaterials}>素材</button><span>发布安排 · 待接入</span><span>效果与复盘 · 待接入</span><button className="text-button" aria-current={tab === "settings" ? "page" : undefined} onClick={() => setTab("settings")}>设置 · 基本信息</button></div>
+        <div hidden={tab !== "overview"}>
         <section className="project-direction-note"><Info size={24} /><div><h3>发布前确认方向，准备可并行推进</h3><p>当前尚无批准范围。保存资料不确认方向，也不启动发布；其他准备项按自身条件继续。</p></div></section>
         <section className="panel project-readiness"><h3>准备清单</h3><p className="muted">资料已保存、检查通过、方向确认与设备就绪分别判断，不手工勾选为通过。</p>
           <div className="table-wrap"><table><thead><tr><th>准备事项</th><th>当前事实</th><th>缺什么 / 影响范围</th><th>处理入口</th></tr></thead><tbody>
             <tr><td><Target size={18} aria-hidden />目标与自主范围</td><td>尚未配置</td><td>缺阶段目标及批准边界，不启动发布</td><td>后续接入方向草案</td></tr>
-            <tr><td><FileText size={18} aria-hidden />素材与业务资料</td><td>尚未接入</td><td>无素材事实，不能判断准入或名额</td><td>素材整理待接入</td></tr>
+            <tr><td><FileText size={18} aria-hidden />素材与业务资料</td><td>进入素材页读取当前事实</td><td>上传和资料保存不代表候选准入或名额通过</td><td><button className="text-button" onClick={showMaterials}>整理素材</button></td></tr>
             <tr><td><DeviceMobile size={18} aria-hidden />发布身份与手机</td><td>尚未分配</td><td>未建立项目专用、身份核验及执行条件</td><td>资源分配待接入</td></tr>
             <tr><td><Link size={18} aria-hidden />引流入口</td><td>尚未配置</td><td>未核验有效路径，不计作引流完成</td><td>后续接入入口管理</td></tr>
             <tr><td><CalendarBlank size={18} aria-hidden />周期与运行规则</td><td>尚未配置</td><td>时区、起点、最低要求及观察条件待补</td><td>后续接入周期设置</td></tr>
             <tr><td><UsersThree size={18} aria-hidden />负责人及提醒</td><td>{owner ? `${owner.displayName}${owner.status === "disabled" ? "（已停用，历史保留）" : ""}` : current.ownerOperatorId ? "负责人资料待读取" : "尚未指定"}<small>{current.notificationEmail ? "提醒邮箱已保存；尚未发送" : "提醒邮箱未配置"}</small></td><td>配置不代表送达；其他运营可代办</td><td><a href="#project-basics">编辑基本信息</a></td></tr>
           </tbody></table></div>
         </section>
-        <div className="project-followthrough"><section className="panel"><h3>当前可推进</h3><p>可分批补充基本信息、负责人和提醒邮箱。目标、素材和资源准备能力按后续阶段接入，不推断已就绪。</p></section><section className="panel"><h3>确认后的执行方式</h3><p>后续确认明确方向后，就绪任务可在批准范围内自主执行；未就绪条件保留阻断，不增加独立启动审批。</p></section></div>
+        <div className="project-followthrough"><section className="panel"><h3>当前可推进</h3><p>补充基本信息、负责人和提醒邮箱，进入素材页上传成品及整理人工资料。目标和资源准备继续分段接入，不推断已就绪。</p></section><section className="panel"><h3>确认后的执行方式</h3><p>后续确认明确方向后，就绪任务可在批准范围内自主执行；未就绪条件保留阻断，不增加独立启动审批。</p></section></div>
+        </div>
       </>}
-      {draft && <section className="panel" id="project-basics"><div className="section-heading"><div><h3>{current ? "基本信息" : "建立项目"}</h3><p className="muted">仅保存名称、类型、客户、负责人及提醒邮箱，不保存目标或批准。</p></div><span>{hasDraft ? "本窗口有未保存输入" : current ? `已保存版本 ${current.factVersion}` : "尚未保存"}</span></div>
+      {draft && <section className="panel" id="project-basics" hidden={!!current && tab === "materials"}><div className="section-heading"><div><h3>{current ? "基本信息" : "建立项目"}</h3><p className="muted">仅保存名称、类型、客户、负责人及提醒邮箱，不保存目标或批准。</p></div><span>{hasDraft ? "本窗口有未保存输入" : current ? `已保存版本 ${current.factVersion}` : "尚未保存"}</span></div>
         {readOnly ? <dl className="project-facts"><dt>项目名称</dt><dd>{draft.basics.name || "尚未填写"}</dd><dt>项目类型</dt><dd>{draft.basics.kind === "company_owned" ? "公司自营" : "客户代运营"}</dd><dt>客户</dt><dd>{draft.basics.customerName ?? "不适用"}</dd><dt>提醒邮箱</dt><dd>{draft.basics.notificationEmail ?? "尚未配置"}</dd></dl> : <form className="project-form" onSubmit={event => void submit(event)}>
           <fieldset disabled={busy || draft.uncertain}><label>项目名称<input required maxLength={150} value={draft.basics.name} onChange={e => change({ name: e.target.value })} /></label>
             <label>项目类型<select value={draft.basics.kind} onChange={e => change({ kind: e.target.value as ProjectBasics["kind"], customerName: null })}><option value="company_owned">公司自营</option><option value="client_managed">客户代运营</option></select></label>
@@ -114,6 +123,7 @@ export function ProjectPanel({ active, refreshVersion, operators, readOnly, onEx
         {draft.uncertain && <p role="status" className="form-note">提交结果尚未确认，暂不改写输入或更换请求。请重试原保存操作，读取同一请求的实际结果。</p>}
       </section>}
     </>}
+    {materialProjects.map(id => <MaterialWorkspace key={id} projectId={id} active={active && selected === id && tab === "materials"} readOnly={readOnly} onExpired={onExpired} />)}
   </div>;
   function openList() { setSelected(null); setMessage(""); }
 }

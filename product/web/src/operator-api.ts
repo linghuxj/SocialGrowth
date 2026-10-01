@@ -100,6 +100,12 @@ export class OperatorWriteSessionChangedError extends Error {
 export class OperatorWriteRequestInvalidError extends Error {
   constructor() { super("OPERATOR_WRITE_REQUEST_INVALID"); }
 }
+// Opaque guard for asynchronous File reads/hashing. Never expose the token or
+// allow an intent started by one login to be prepared under a different login.
+export function captureOperatorWriteSession(): () => void {
+  const original = csrfToken();
+  return () => { if (!original || csrfToken() !== original) throw new OperatorWriteSessionChangedError(); };
+}
 // A caller-owned prepared POST keeps its original body and login session.
 // No token is exported and a later login cannot silently consume this intent.
 export function prepareOperatorPost<T>(url: string, body: string, schema: { parse(input: unknown): T }): () => Promise<T> {
