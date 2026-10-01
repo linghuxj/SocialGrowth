@@ -8,7 +8,8 @@ export class TaskQueueError extends Error {
 }
 const configuration = z.strictObject({ endpoint: z.url(), username: z.string().min(1).max(100), password: z.string().min(1),
   queueName: z.string().regex(/^[a-z][a-z0-9-]{0,63}$/), prefix: z.string().regex(/^[a-z][a-z0-9-]{0,63}$/), requestTimeoutMs: z.int().min(100).max(30000) }).refine(v => {
-  const u = new URL(v.endpoint);
+  let u: URL;
+  try { u = new URL(v.endpoint); } catch { return false; }
   return ["redis:", "rediss:"].includes(u.protocol) && !u.username && !u.password && !u.search && !u.hash && /^[0-9]+$/.test(u.port)
     && Number(u.port) >= 1 && Number(u.port) <= 65535 && /^\/(?:[0-9]|1[0-5])$/.test(u.pathname)
     && (u.protocol === "rediss:" || ["127.0.0.1", "[::1]", "localhost"].includes(u.hostname));
