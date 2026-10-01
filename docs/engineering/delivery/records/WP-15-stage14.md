@@ -1,5 +1,9 @@
 # WP-15 第十四阶段：原字节/原键/原会话上传客户端
 
+2026-10-01原非作者`artifacts/review/wp15-bytes-client-c8f4.md`完整报告已全文读，SHA8dc7ac70c076468a7a90fb425d6283b7600b3f41f116fd28e9e72b76b12bc899，原7/新独立12/旧36共55首次业务通过/new0-rem0；strict12/1201blob/21旧Web及完整operator逆提取/130links/402旧+11reports保持。独立helper首TS7060泛型仅另存<T,>修复，完整逆向还原原断言，原源和首diagnostic保留；快照Da7BBs/dev16777223/ino177060046/UID501精确gone。
+
+原QA`artifacts/acceptance/product/B3/20261001T132641Z-wp15-bytes-client-c8f4/acceptance-report.md`完整报告已全文读，SHA663f275255dbc1f5ad64ec7464a969fed7b8032e18038ef2f0d22c0c23c22759；原7/复用12/旧36同55首过/new0-rem0/QA新oracle0，限定双工程0。prepare实际退出0后install，10辅助工具全文路径适配、driver仅输入final路径，source120秒wrapper原样未执行/active300在首执行前设置；15 own helper lint0/3实际dist对照，source49及402旧+11reports/先前QA434不变。snapshot sYJtcT/dev16777223/ino177137071/UID501精确gone，无服务；旧stage13辅助偏差没有被这批修复后的顺序抹掉。两窗报告已向用户汇报，均无真实HTTP/S3/Browser/File/手机操作或全AC签收；非作者已完成后续批量复核，原QA已接批量新固定，已有报告不重发。
+
 2026-10-01；基线430c56544b8d30a1db87d05e11dc30ee8eb833d5，feature/wp-15-material-bytes-client-stage14；WEB/BE代理Codex，原非作者/QA固定门禁，OPS/BIZ/EX真人资源职责保持。[票据客户端](WP-15-stage13.md)、[原HTTP边界](WP-15-stage6.md)、[质量手册](../quality-gates.md)。
 
 非UI原字节PUT接线：严格ticket+upload command、同project/object及实际byteLength/现有16MiB技术上限；同步复制bytes/解析完整metadata/捕获原CSRF会话，在任何hash await前固定。Web Crypto SHA256实际核对本地副本与ticket声明，不相等零网络；缺secure context/subtle固定UNAVAILABLE而不跳hash。Blob是固定副本，每次显式send相同对象/原完整metadata/幂等键及bytes；无自动重试、换key/对象或认证切换，未知保存原包。purpose-specific route只从严格UUID命令构造，无外部URL/header/公开ACL/存储locator，唯一same-origin Cookie与CSRF/旧401时序。

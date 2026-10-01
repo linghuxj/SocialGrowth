@@ -1,5 +1,9 @@
 # 正式产品本地依赖
 
+2026-10-01 [WP13筹备后台](../../docs/engineering/delivery/records/WP-13.md)已接正式AppModule：运营Cookie/CSRF的POST `/api/operator/resources/identities`、POST `/api/operator/resources/reservations`，GET `/api/operator/resources/preparation`；新增0022 media_registry_commands与四strict共享schema。只登记运营声明的来源引用/初始筹备，registered_unverified/pending_initialization及两false，不读取旧媒体凭据、不调用平台或初始化/Artemis/队列。作者481产品/14实际HTTP-PG/旧资源13PG和静态通过，非UI补充，需原固定门禁；真实资源与受控凭据/R145承接producer/UI仍缺。自有PG17.10@127.0.0.1:32882/cluster7691693773417799713已核空schema/连接/upgrade库后精确CID和匿名卷清理、只读终核端口关且外来三实例不动；首辅助和产品fixture诊断保留，详见卡。未采用生产Compose/真实账号或手机联调，本次默认授权不扩大。
+
+最新原两窗完整报告已全文读：票据双46/工程0、字节双55/工程0、批量非作者78/工程0，辅助首诊断与warning保留，已交同原QA批量固定18b7。均不能关闭真实HTTP/S3/页面/权利/手机验收或父pending1；发送不是验收完成。
+
 首轮heartbeat新增WP15 stage15批量客户端，仅逐项原key/body/session与100KiB UTF8技术护栏、未知结果显式原包、strict部分反馈；作者最终9/root472/静态过，首lint1warning日志保留后改等价if。未新增后台配置或启服务/PG/UI/手机，不称真实批量保存。原stage12 QA/13复核完整报告已全文读/限定工程0，当前原QA票据430、非作者字节c8f；真实资源和父/安全/管理员门禁不变。详见[阶段交付](../../docs/engineering/delivery/records/WP-15-stage15.md)。
 
 最新原两窗报告已完整读取/汇报：素材GET stage11原QA8/10/旧11首过、限定双工程0；声明保存stage12非作者原11/新12/旧19首过、0。取证首timeout/警告/早读保留，精确自有快照清理不影响服务。已实际交同QA保存49f strict12、同非作者票据430 strict8，字节c8f strict12已提交作者7/root463通过；真实HTTP/S3/Browser/File/手机/生产配置及业务验收未据此关闭。无需为上述非UI批次启动服务，默认隔离服务/指定Samsung授权仅在必要范围使用，不扩大到正式发布。

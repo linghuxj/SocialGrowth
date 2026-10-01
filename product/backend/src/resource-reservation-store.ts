@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
-import { requestMetadataSchema } from "@socialgrowth/product-contracts";
+import { contractVersion, registerMediaIdentityRequestSchema, registerMediaIdentityResponseSchema, requestMetadataSchema } from "@socialgrowth/product-contracts";
 import { OperatorAuthService } from "./operator-auth-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
 import { initialReservationSchema, parseResourceReservations, reserveInitialResources, ResourceReservationError,
@@ -22,10 +22,9 @@ async function load(client: PoolClient): Promise<ResourceReservationSnapshot> {
   const bindings = await client.query(`SELECT identity_id AS "identityId",account_id AS "accountId",platform,device_id AS "deviceId",project_id AS "projectId",state FROM ${schema}.project_identity_reservations ORDER BY identity_id`);
   return parseResourceReservations({ accounts: accounts.rows, identities: identities.rows, phones: phones.rows, accountUses: accountUses.rows, bindings: bindings.rows });
 }
-// Internal authenticated initial-reservation primitive only. No HTTP endpoint,
-// UI, registry producer or executor consumes it in this phase. A future broker
-// must load fresh ownership/network/control/identity facts before assignment or
-// initialization. A reservation below NEVER grants those permissions.
+// Authenticated preparation ledger. HTTP exposes declaration/reservation, not
+// actual execution assignment. A broker must still load current ownership,
+// network/control/identity facts before initialization or any phone operation.
 export class ResourceReservationStore {
   constructor(private readonly pool: Pool, private readonly auth: OperatorAuthService) {}
   private async transaction<T>(token: string, csrf: string | null, fn: (client: PoolClient, actor: string, sessionId: string) => Promise<T>): Promise<T> {
@@ -59,6 +58,51 @@ export class ResourceReservationStore {
   }
   async read(token: string): Promise<ResourceReservationResult> {
     return this.transaction(token, null, async client => ({ version: await this.version(client), snapshot: await load(client), replayed: false }));
+  }
+  async registerIdentity(token: string, csrf: string, input: unknown) {
+    const parsed = registerMediaIdentityRequestSchema.safeParse(input);
+    if (!parsed.success) throw new ProductTransactionError("INPUT_INVALID", "Invalid media reference registration");
+    const r = parsed.data, { requestId: _requestId, ...metadata } = r.metadata;
+    const digest = createHash("sha256").update(JSON.stringify({ ...r, metadata })).digest();
+    return this.transaction(token, csrf, async (client, actor) => {
+      const version = await this.version(client), g = r.registration;
+      const command = await client.query<{ payload_digest: Buffer; identity_id: string }>(`SELECT payload_digest,identity_id FROM ${schema}.media_registry_commands WHERE actor_id=$1 AND request_key=$2`, [actor, metadata.idempotencyKey]);
+      const response = (changed: boolean, replayed: boolean, appliedVersion: number) => registerMediaIdentityResponseSchema.parse({ contractVersion,
+        version: appliedVersion, registration: g, changed, replayed, state: "registered_unverified", actionPermissionGranted: false, acceptanceStarted: false });
+      // Guard serializes registry writers and reservations. All four immutable
+      // columns must match even on replay; missing/damaged rows fail closed.
+      const accounts = await client.query<{ account_id: string; platform: string; canonical_account_ref: string }>(`SELECT account_id,platform,canonical_account_ref FROM ${schema}.media_accounts WHERE account_id=$1 OR (platform=$2 AND canonical_account_ref=$3)`, [g.accountId, g.platform, g.canonicalAccountRef]);
+      const identities = await client.query<{ identity_id: string; account_id: string; platform: string; canonical_identity_ref: string }>(`SELECT identity_id,account_id,platform,canonical_identity_ref FROM ${schema}.publishing_identities WHERE identity_id=$1 OR (platform=$2 AND canonical_identity_ref=$3)`, [g.identityId, g.platform, g.canonicalIdentityRef]);
+      const accountMatches = accounts.rows.length === 1 && accounts.rows[0]!.account_id === g.accountId
+        && accounts.rows[0]!.platform === g.platform && accounts.rows[0]!.canonical_account_ref === g.canonicalAccountRef;
+      const identityMatches = identities.rows.length === 1 && identities.rows[0]!.identity_id === g.identityId
+        && identities.rows[0]!.account_id === g.accountId && identities.rows[0]!.platform === g.platform && identities.rows[0]!.canonical_identity_ref === g.canonicalIdentityRef;
+      if (command.rows[0]) {
+        if (!command.rows[0].payload_digest.equals(digest)) throw new ProductTransactionError("IDEMPOTENCY_KEY_REUSED", "Media reference request key already used");
+        if (!accountMatches || !identityMatches || command.rows[0].identity_id !== g.identityId) throw stale();
+        return response(false, true, version);
+      }
+      if (version !== r.expectedResourceVersion) throw stale();
+      if ((accounts.rowCount && !accountMatches) || (identities.rowCount && !identityMatches)) {
+        throw new ProductTransactionError("FACT_VERSION_STALE", "Media references conflict; check current records without replacing an identity");
+      }
+      const changed = !accountMatches || !identityMatches;
+      if (changed && version === Number.MAX_SAFE_INTEGER) throw stale();
+      const write = async (sql: string, values: unknown[]) => {
+        if ((await client.query(sql, values)).rowCount !== 1) throw new ProductTransactionError("INTERNAL_ERROR", "Media reference journal write was not confirmed", true);
+      };
+      if (!accountMatches) await write(`INSERT INTO ${schema}.media_accounts(account_id,platform,canonical_account_ref) VALUES($1,$2,$3)`, [g.accountId, g.platform, g.canonicalAccountRef]);
+      if (!identityMatches) await write(`INSERT INTO ${schema}.publishing_identities(identity_id,account_id,platform,canonical_identity_ref) VALUES($1,$2,$3,$4)`, [g.identityId, g.accountId, g.platform, g.canonicalIdentityRef]);
+      const appliedVersion = version + (changed ? 1 : 0);
+      if (changed) {
+        await write(`UPDATE ${schema}.resource_reservation_guard SET version=version+1 WHERE singleton=true`, []);
+        await write(`INSERT INTO ${schema}.audit_records(audit_record_id,actor_type,actor_id,action,object_type,object_id,request_id,facts)
+          VALUES($1,'operator',$2,'resource.media_reference_registered','publishing_identity',$3,$4,$5)`, [randomUUID(), actor, g.identityId, r.metadata.requestId,
+          { accountId: g.accountId, platform: g.platform, resourceVersion: appliedVersion, state: "registered_unverified" }]);
+      }
+      await write(`INSERT INTO ${schema}.media_registry_commands(actor_id,request_key,payload_digest,identity_id,applied_version) VALUES($1,$2,$3,$4,$5)`, [actor, metadata.idempotencyKey, digest, g.identityId, appliedVersion]);
+      return response(changed, false, appliedVersion);
+    });
   }
   async reserve(token: string, csrf: string, input: unknown): Promise<ResourceReservationResult> {
     const parsed = requestSchema.safeParse(input);

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { registerMediaIdentityRequestSchema, registerMediaIdentityResponseSchema, reserveResourcePreparationRequestSchema, resourcePreparationResponseSchema } from "./resource-preparation.js";
 import { centralPublicationTaskSchema, taskDispatchNoticeSchema, taskExecutionObservationSchema } from "./task-dispatch.js";
 import { saveMaterialDeclarationRequestSchema, materialCurrentViewSchema, saveMaterialDeclarationResponseSchema, batchMaterialDeclarationsRequestSchema, batchMaterialDeclarationsResponseSchema, materialHistoryQuerySchema, materialHistoryResponseSchema, materialLibraryQuerySchema, materialLibraryResponseSchema } from "./material-registry.js";
 import { prepareMaterialUploadRequestSchema, materialUploadTicketViewSchema, prepareMaterialUploadResponseSchema, uploadMaterialBytesCommandSchema, uploadMaterialBytesResponseSchema, materialUploadInventoryQuerySchema, materialUploadInventoryResponseSchema } from "./material-upload.js";
@@ -81,6 +82,10 @@ import {
 } from "./status.js";
 
 export const firstBatchContractRegistry = {
+  registerMediaIdentityRequest: registerMediaIdentityRequestSchema,
+  registerMediaIdentityResponse: registerMediaIdentityResponseSchema,
+  reserveResourcePreparationRequest: reserveResourcePreparationRequestSchema,
+  resourcePreparationResponse: resourcePreparationResponseSchema,
   centralPublicationTask: centralPublicationTaskSchema,
   taskDispatchNotice: taskDispatchNoticeSchema,
   taskExecutionObservation: taskExecutionObservationSchema,

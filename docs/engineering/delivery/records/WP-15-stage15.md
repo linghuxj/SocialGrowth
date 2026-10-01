@@ -1,5 +1,7 @@
 # WP-15 第十五阶段：逐项原请求批量声明客户端
 
+2026-10-01实际独立门禁更新：原非作者`artifacts/review/wp15-batch-client-18b7.md`完整报告全文读取，SHAb7960a5cd078c47d67663c943dc69159a1b19c769c5d2746b38c6c881dd3f1f9，原9/新独立14/复用原单项12/旧operator-read-save-ticket-bytes43共78首次业务PASS/new0-rem0。strict11/1204blob/23旧Web（save完整逆提取）/123links/3实际dist、455旧指纹及14完整报告、43 own/20 author保持；没有root472重跑或真实HTTP。自有稀疏数组负向夹具lint exit0但1warning保留；首evidence误假定0warning、第二另存helper引号语法失败原源/空输出/诊断保留，第三verified-evidence仅修元数据/输出自排除/状态，全文逆向相等，业务断言未改或重跑。只读误路径/截断重读和作者首8/471等所有历史诊断保持。snapshotz91ghP/dev16777223/ino177137151/UID501精确gone，无服务/产品或正式台账写入。用户已获汇报，确认原QA stage14完成且全文读后已实际交同原QA新固定947efef→18b7cbb严格11；非作者有限0只允许工程QA，QA完整结果尚待读取，页面/素材/业务G1-G3未通过，父pending1/Developeraf14不变。
+
 2026-10-01；基线947efef（包含已提交字节c8f4bb3与最新报告调度文档），分支feature/wp-15-material-batch-client-stage15。WP15/R-007/022～025/125，AC27～29仅人工资料保存接线子范围；主责BE/WEB实施代理Codex，原非作者复核与原QA固定工程门禁，BIZ/OPS/EX/WEB真人输入与业务补验待实际签署。[分工](../work-packages.md)、[质量手册](../quality-gates.md)、[已有批量API](WP-15-stage8.md)、[单项客户端](WP-15-stage12.md)。
 
 ## 范围及设计依据

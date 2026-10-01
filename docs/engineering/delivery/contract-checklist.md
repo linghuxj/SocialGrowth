@@ -130,6 +130,8 @@
 
 主责 WP-13/21/25/27；BE+OPS；AC-21、43、50～53。
 
+2026-10-01 [WP13筹备子阶段](records/WP-13.md)：运营声明媒体账号/Page/频道来源引用与初始预留HTTP已接实际AppModule，新增四strict共享schema/0022命令journal，作者14实际HTTP-PG及旧资源13PG通过。登记registered_unverified、预留pending_initialization、actionPermissionGranted/acceptanceStarted固定false；同guard/原会话-CSRF/版本/原key重放不覆盖身份。BE交EX/WEB/AND消费职责，原固定非作者与QA门禁待签，真人消费者确认仍待实际；未实现受控凭据/逐身份Artemis核验/有效承接producer。下列承接与恢复验收项不因此勾选。
+
 - [ ] 承接起点按逐账号初始化/身份核验/执行就绪，终点按退出受理停派；暂停/掉线不截断。交接事实与收入时间粒度独立核对。
 - [ ] 收入以产生期间和来源记录标识归集，到账是可结算条件；比例按历史生效期间匹配；明确金额精度、币种及舍入，不猜测兑换或跨币种相加。
 - [ ] 无人承接与资料缺失分开；跨边界无法可靠拆分保持待核对，不均摊，不整体归公司/前任/后任；重复导入、补录和更正不重复计佣。

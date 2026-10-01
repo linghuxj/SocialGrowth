@@ -17,6 +17,8 @@ import { ProviderAuthService } from "./provider-auth-service.js";
 import { ProviderController } from "./provider.controller.js";
 import { ProjectService } from "./project-service.js";
 import { ProjectController } from "./project.controller.js";
+import { ResourceReservationStore } from "./resource-reservation-store.js";
+import { ResourcePreparationController } from "./resource-preparation.controller.js";
 import { ProjectPlanningController } from "./project-planning.controller.js";
 import { ProjectPlanningService } from "./project-planning-service.js";
 import { DeviceAssistanceFeedService } from "./device-assistance-feed-service.js";
@@ -123,6 +125,7 @@ const providerAuthProvider = {
     OperatorController,
     ProviderController,
     ProjectController,
+    ResourcePreparationController,
     ProjectPlanningController,
     DeviceAssistanceFeedController,
     ProviderAssistanceFeedController,
@@ -140,6 +143,7 @@ const providerAuthProvider = {
     providerAuthProvider,
     { provide: MaterialRuntime, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new MaterialRuntime(pool, auth, readMaterialRuntimeConfig()) },
     { provide: ProjectService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ProjectService(pool, auth) },
+    { provide: ResourceReservationStore, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ResourceReservationStore(pool, auth) },
     { provide: ProjectPlanningService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ProjectPlanningService(pool, auth) },
     { provide: DeviceAssistanceFeedService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new DeviceAssistanceFeedService(pool, auth) },
     { provide: ProviderAssistanceFeedService, inject: [Pool, ProviderAuthService], useFactory: (pool: Pool, auth: ProviderAuthService) => new ProviderAssistanceFeedService(pool, auth) },
