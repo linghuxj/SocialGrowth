@@ -93,6 +93,27 @@ export function readOperatorResource<T>(url: string, schema: { parse(input: unkn
   return request(url, schema);
 }
 
+export class OperatorWriteSessionChangedError extends Error {
+  constructor() { super("OPERATOR_WRITE_SESSION_CHANGED"); }
+}
+export class OperatorWriteRequestInvalidError extends Error {
+  constructor() { super("OPERATOR_WRITE_REQUEST_INVALID"); }
+}
+// A caller-owned prepared POST keeps its original body and login session.
+// No token is exported and a later login cannot silently consume this intent.
+export function prepareOperatorPost<T>(url: string, body: string, schema: { parse(input: unknown): T }): () => Promise<T> {
+  // Never forward the captured CSRF to external origins, query credentials,
+  // encoded traversal or a caller-supplied non-operator route.
+  if (typeof url !== "string" || !/^\/api\/operator\/(?:[A-Za-z0-9-]+\/)*[A-Za-z0-9-]+$/.test(url) || typeof body !== "string") throw new OperatorWriteRequestInvalidError();
+  const originalCsrf = csrfToken();
+  return async () => {
+    if (!originalCsrf || csrfToken() !== originalCsrf) throw new OperatorWriteSessionChangedError();
+    const result = await request(url, schema, { method: "POST", headers: { "x-csrf-token": originalCsrf }, body });
+    if (csrfToken() !== originalCsrf) throw new OperatorWriteSessionChangedError();
+    return result;
+  };
+}
+
 export async function login(loginName: string, password: string): Promise<OperatorLoginResponse> {
   const response = await request("/api/operator/login", operatorLoginResponseSchema, {
     method: "POST",

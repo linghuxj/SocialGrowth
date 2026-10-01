@@ -1,5 +1,9 @@
 # 正式产品本地依赖
 
+最新stage6原非作者50行完整报告已全文读/new0/remaining0，实际原PG4/独立最小PG4首过、ownPG32880/卷全身份精确清理，已交原QA固定c397；同原非作者接素材读取7f，保存接线stage12待下一固定门禁。不是生产部署或真实业务签收，父/管理员/真人资源不关闭。
+
+2026-10-01接续：WP15 stage12仅原会话/原请求的声明POST客户端，最终11/根450/静态过，首10/449及自查运营路径加固前证据保留，未开服务/执行真实HTTP或增加UI；不是生产写或素材准入。WP27 stage5已全文读原QA限定双清零，stage6原复核收尾、尚待完整读取再交QA。真实存储/合法对象/管理员UI/生产维护资源与父门禁仍开放，详见[保存客户端交付](../../docs/engineering/delivery/records/WP-15-stage12.md)。
+
 2026-10-01：WP15 stage11仅Web内部素材四GET读取基础，作者8/根439/静态通过；不启动服务/加载真实配置/实现UI，管理员browser与新UI设计门禁未解除，不能作为正式Web/手机验收。WP27 stage4已读原QA全文有限双清零，stage5已读原复核全文清零交原QA，stage6固定c397交原非作者；所有生产key/维护源/RPO-RTO/fence/真实存储等资源及父门禁仍开放，详情见[交付记录](../../docs/engineering/delivery/records/WP-15-stage11.md)。
 
 本目录只服务 `product/` 正式实现，不读取 Demo 的 SQLite、运行时队列或对象存储。

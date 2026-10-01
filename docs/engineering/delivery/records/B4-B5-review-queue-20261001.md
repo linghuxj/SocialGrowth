@@ -4,6 +4,10 @@
 
 ## 最新读取与接续（2026-10-01）
 
+原stage6报告50行/SHA0f07c7359bb060deab567793ac3f0ab797dd05b80d2e128118905b3df699f45b已全文读，有限new0/rem0，原3/原实际PG4/独立最小1表PG4首过、未root431/旧PG12/fs14；COMMIT工程未知code实际UNAVAILABLE、Buffer view所有权及provider拒绝前责任严格，own新PG32880/CID卷三库final各0|0|0|0、文件与snapshot精确身份清理，33own/21author及旧215指纹保留。原QA新固定4e→c397严格10已发送，原非作者新固定c397→7f素材读取严格14已发送；两窗口顺序新任务，非重发已有报告读取，不导入当前未提交stage12。主窗口继续完成保存客户端11/根450/静态及凝聚提交，原窗口报告主动读取汇报，真人/管理员缺口只阻对应范围。
+
+原stage5 QA完整63行SHAa2ffbfa552376d7aec49fff0aec9e91c767202857926bd3b77456d7b03817a4a已全文读取/限定双new0/remaining0；原14/复用6/OS1/更正port7过，QA新oracle0、错误首7依然6PASS1FAIL，历史34vs新增path-status第35项计数及过早读日志诊断保留，39来源SHA不变、自有35dirs/snapshot精确清理，无PG/root428。原非作者c397仍收尾，不用进度交QA；读取完整报告后安排同原QA。主窗口素材读取7f08c79严格14已提交/待接原非作者下批，继续[保存客户端](WP-15-stage12.md)原会话/原key仅运营POST，作者11/根450/静态过，首次10/根449及加固前源码保留；没有新UI/业务写/真实Web或真机验收。原三窗口模式、保护脚本/父/真人资源边界保持，后续按固定读取→保存逐批门禁，不重新发起已完成报告读取。
+
 原QA第四525完整63行全文读，SHAabee7a2a6a1b4d3f423a042f5d03a606337026fd5ff09787e02fcc015c5563f1，限定双new0/remaining0，原8/复用6/OS EACCES1/PG12/最小PG1首过，QA新oracle0/root未重跑/3own lint warning保留、自有02c8 PG/卷/snapshot全身份精确清理。原复核第五4e完整43行全文读，SHA2c34628c82e59d5b0b94db770c58aa0972b14a50bc24bcf455ebb10dedd8c111，new0/remaining0，原14/复用6/EACCES1/最终新port7过，首6PASS1FAIL错误save预期与只更正一项后的最终7分开保留；全默认源码等价/原断言与指纹保持、35 own dirs/snapshot精确清理，无PG本轮。两个完整结论已向用户汇报。
 
 原QA新固定525→4e1827e、同原非作者新固定4e1827e→c397e6c均严格10路径已发送，不新建/打断/换模式或重发旧报告读取，不混现场未来实现。主窗口已继续[WP15 stage11](WP-15-stage11.md)：原设计图/prompt/spec核对，但image-to-code/design-qa暂停新UI门禁仍有效，仅四个运营GET客户端、作者8/根439/静态过，非UI工程不能代真实Web/手机或全开发验收。本批固定提交后排原窗，不因待复核结束主任务；人工/管理员输入职责及解除/补验沿用下表，父pending1/Developeraf14/SEC/保护脚本路径状态保持。以下均此前历史状态。
