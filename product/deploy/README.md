@@ -1,5 +1,7 @@
 # 正式产品本地依赖
 
+首轮heartbeat新增WP15 stage15批量客户端，仅逐项原key/body/session与100KiB UTF8技术护栏、未知结果显式原包、strict部分反馈；作者最终9/root472/静态过，首lint1warning日志保留后改等价if。未新增后台配置或启服务/PG/UI/手机，不称真实批量保存。原stage12 QA/13复核完整报告已全文读/限定工程0，当前原QA票据430、非作者字节c8f；真实资源和父/安全/管理员门禁不变。详见[阶段交付](../../docs/engineering/delivery/records/WP-15-stage15.md)。
+
 最新原两窗报告已完整读取/汇报：素材GET stage11原QA8/10/旧11首过、限定双工程0；声明保存stage12非作者原11/新12/旧19首过、0。取证首timeout/警告/早读保留，精确自有快照清理不影响服务。已实际交同QA保存49f strict12、同非作者票据430 strict8，字节c8f strict12已提交作者7/root463通过；真实HTTP/S3/Browser/File/手机/生产配置及业务验收未据此关闭。无需为上述非UI批次启动服务，默认隔离服务/指定Samsung授权仅在必要范围使用，不扩大到正式发布。
 
 WP15 stage14原字节PUT客户端作者7/root463/静态首过（Node真实hash/Blob，fetch端口非UI）；没有真实HTTP/S3/Browser/File picker/手机验收或发布，16MiB/ASCII trace是现有传输护栏。采集c397原QA已全文读限定双清零，素材读取7f复核全文读/new0已交QA、原复核接保存49f，票据430已提交，字节随后原固定门禁；真实资源与父/UI门禁不关闭，详见[字节接线](../../docs/engineering/delivery/records/WP-15-stage14.md)。

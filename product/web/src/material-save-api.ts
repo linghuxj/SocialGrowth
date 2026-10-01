@@ -20,6 +20,10 @@ function currentMatches(input: SaveInput, value: MaterialSaveResult): boolean {
     && JSON.stringify(declaration) === JSON.stringify(returned)
     && value.objects.length === input.objectIds.length && value.objects.every((o, i) => sameId(o.objectId, input.objectIds[i]!));
 }
+// Shared correlation only; callers still parse the strict response schema.
+export function materialSaveResponseMatches(input: SaveInput, result: MaterialSaveResult): boolean {
+  return identityMatches(input, result) && (result.replayed ? result.currentRevision >= Math.max(1, input.expectedCurrentRevision) : currentMatches(input, result));
+}
 // Runtime-private prepared request, held in memory only. Every explicit send
 // uses identical body/key. No automatic retries, key rotation, batch or UI.
 // All errors leave it unresolved: caller must not treat a retryable flag or
@@ -36,7 +40,7 @@ export class PreparedMaterialDeclaration {
         const result = saveMaterialDeclarationResponseSchema.parse(rawResponse);
         // Original-key replay returns today's current revision, which may have
         // later declarations/objects. It does not claim this body is current.
-        if (!identityMatches(input, result) || (result.replayed ? result.currentRevision < Math.max(1, input.expectedCurrentRevision) : !currentMatches(input, result))) throw new Error();
+        if (!materialSaveResponseMatches(input, result)) throw new Error();
         return result;
       } catch { throw new MaterialWriteError("MATERIAL_WRITE_PROTOCOL_INVALID"); }
     } });
