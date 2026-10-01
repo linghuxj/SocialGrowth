@@ -1,5 +1,7 @@
 # WP-24 第三阶段：版本固定的运行时日历边界
 
+2026-10-01作者后续发现输入offset标签年与实际civil日期范围不一致，[范围整改](WP-24-calendar-range-remediation.md)新增一行civil year守卫、两新组：首10=9PASS+1RED→同10GREEN、根409；历史NY2006/2007及Apia2022规则实证。原8/403保留但不覆盖该范围缺陷，原阶段及整改尚待固定原门禁，不作者报问题已独立清零。
+
 2026-10-01；基线546d35b，feature/wp-24-runtime-calendar-stage3，BE实施代理Codex；AI/BIZ/OPS/EX/WEB/原非作者/QA真人待签。[原观察窗](WP-24-stage2.md)、[质量手册](../quality-gates.md)、[CT09](../contract-checklist.md#ct-09-反馈周期与业务-ai)。
 
 领取server-only ICU实际日历转换，explicit sourceTimeZone/dayStartsAt/tzdataVersion及calendarId/days/实际publishedAt声明；无默认午夜/手机时区/平台规则批准，不创建真实publication或比较资格。只支持明确列举六时区及2000～2099技术范围，gap/overlap截止关闭不自行选择，366日界限沿原技术护栏。OPS扩展实际支持区/日期与更新版本需补测试；BIZ确认平台统计日截止/历史规则、EX核验真实发布、BE固定批准policy/FK与历史版本仍需实际producer。

@@ -43,6 +43,7 @@ export function buildRuntimeSourceCalendar(input: unknown) {
   // seconds to locate a civil date; exact original fractions select boundaries.
   const whole = r.publishedAt.replace(/\.\d+(?=Z|[+-][0-9]{2}:[0-9]{2}$)/, ""), publishedSecond = Date.parse(whole) / 1000;
   const local = civil(publishedSecond), [hour, minute, second] = r.dayStartsAt.split(":").map(Number);
+  if (local.year < 2000 || local.year > 2099) throw new RuntimeCalendarError("CIVIL_BOUNDARY_UNRESOLVED");
   let day = { ...local, hour: hour!, minute: minute!, second: second! };
   if (compareTimestamps(r.publishedAt, utc(boundary(day)))! < 0) day = shifted(day, -1);
   const publicationDayStartsAt = utc(boundary(day)), publicationDayEndsAt = utc(boundary(shifted(day, 1)));

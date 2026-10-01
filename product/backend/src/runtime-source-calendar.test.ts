@@ -42,3 +42,19 @@ test("actual calendar output fits original platform-day guard but still cannot c
     publicationId: randomUUID(), taskId: randomUUID(), contentUnitId: randomUUID(), variantId: randomUUID(), publishedAt: "2026-03-08T05:00:00Z", startsAt: calendar.startsAt, endsAt: calendar.endsAt, policy: { kind: "platform_days", days: 1 }, calendar: calendar.calendar };
   assert.equal(parseObservationWindow({ projectId, configVersion: 1, defaultWindow: window.policy, overrides: [] }, window).endsAt, calendar.endsAt); assert.equal(calendar.publicationAllowed, false);
 });
+test("offset labels cannot admit a containing civil date outside the declared 2000..2099 profile", () => {
+  for (const publishedAt of ["2000-01-01T00:00:00+14:00", "2099-12-31T23:59:59-14:00"])
+    assert.throws(() => buildRuntimeSourceCalendar(fixture("UTC", publishedAt)), code("CIVIL_BOUNDARY_UNRESOLVED"));
+  assert.equal(buildRuntimeSourceCalendar(fixture("UTC", "2000-01-01T00:00:00Z")).startsAt, "2000-01-01T00:00:00.000Z");
+  assert.equal(buildRuntimeSourceCalendar(fixture("Asia/Shanghai", "2000-01-01T00:00:00+08:00")).startsAt, "1999-12-31T16:00:00.000Z");
+});
+test("actual ICU historical rules are retained instead of applying current DST dates to all years", () => {
+  const march2006 = buildRuntimeSourceCalendar(fixture("America/New_York", "2006-03-12T05:00:00Z"));
+  const april2006 = buildRuntimeSourceCalendar(fixture("America/New_York", "2006-04-02T05:00:00Z"));
+  const march2007 = buildRuntimeSourceCalendar(fixture("America/New_York", "2007-03-11T05:00:00Z"));
+  assert.equal(Date.parse(march2006.endsAt) - Date.parse(march2006.startsAt), 24 * 3600000);
+  assert.equal(Date.parse(april2006.endsAt) - Date.parse(april2006.startsAt), 23 * 3600000);
+  assert.equal(Date.parse(march2007.endsAt) - Date.parse(march2007.startsAt), 23 * 3600000);
+  const apia = buildRuntimeSourceCalendar(fixture("Pacific/Apia", "2022-09-24T11:00:00Z"));
+  assert.equal(Date.parse(apia.endsAt) - Date.parse(apia.startsAt), 24 * 3600000); assert.equal(apia.publicationAllowed, false);
+});
