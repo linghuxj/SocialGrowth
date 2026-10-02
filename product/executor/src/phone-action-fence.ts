@@ -17,6 +17,7 @@ const proofSchema = z.strictObject({
 });
 const ticketSchema = phoneActionRequestSchema.extend({ serial: z.string().min(1).max(128),
   checkedAt: timestampSchema, validUntil: timestampSchema, replayed: z.literal(false) });
+export type PhoneTransportTicket = z.infer<typeof ticketSchema>;
 const originalEndSchema = phoneActionRequestSchema.extend({ serial: z.string().min(1).max(128),
   stopRequestId: uuidSchema, stopGeneration: admissionGenerationSchema,
   checkedAt: timestampSchema, evidenceId: uuidSchema, status: z.literal("ended") });
@@ -45,7 +46,7 @@ export interface PhoneFenceTransport<T> {
   // Synchronous handoff is required: start must issue the transport call before
   // returning. Deferred callbacks and an unguarded raw driver violate this port.
   // Result must resolve only after the underlying operation has actually ended.
-  start(request: PhoneActionRequest, serial: string): Promise<T>;
+  start(request: PhoneActionRequest, serial: string, ticket: Readonly<PhoneTransportTicket>): Promise<T>;
 }
 export class PhoneFenceError extends Error {
   constructor(readonly code: "INVALID_BOUNDARY" | "DENIED" | "BUSY" | "UNKNOWN" | "STORAGE_UNAVAILABLE") {
@@ -225,7 +226,7 @@ export class PhoneActionFence<T = unknown> {
         this.requireGrant(this.state(), r);
         if (!fresh(ticket.data.checkedAt, this.now()) || Date.parse(ticket.data.validUntil) <= this.now()) deny();
         // Same SQLite writer lock as requestStop. No await/deferred handoff here.
-        const started = this.transport.start(r, this.serial);
+        const started = this.transport.start(r, this.serial, Object.freeze({ ...ticket.data }));
         // A post-handoff storage failure must not leave a later transport
         // rejection unhandled, or cause a retry of the physical operation.
         void started.catch(() => undefined);

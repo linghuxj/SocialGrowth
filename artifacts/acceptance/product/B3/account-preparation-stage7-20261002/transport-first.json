@@ -1,0 +1,9 @@
+{
+  "tests": 8,
+  "passed": 0,
+  "failed": 8,
+  "code": "INVALID_BOUNDARY",
+  "cause": "Synthetic executable fixture used macOS /var temp alias instead of canonical /private/var path. Production binary guard refused it before any subprocess. Fixture corrected with realpath; guard retained.",
+  "source": "first command tool output retained in task history",
+  "phoneOperations": 0
+}

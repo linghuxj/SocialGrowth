@@ -1,0 +1,14 @@
+{
+  "removedOwnFailedFixtureDirectories": [
+    "/var/folders/60/rfdt0hdd6gn93vbsr13_jb740000gn/T/sg-adb-read-component-tGj6H3",
+    "/var/folders/60/rfdt0hdd6gn93vbsr13_jb740000gn/T/sg-adb-read-component-XcGUCs",
+    "/var/folders/60/rfdt0hdd6gn93vbsr13_jb740000gn/T/sg-adb-read-component-MuVw3x",
+    "/var/folders/60/rfdt0hdd6gn93vbsr13_jb740000gn/T/sg-adb-read-component-QpeQtW",
+    "/var/folders/60/rfdt0hdd6gn93vbsr13_jb740000gn/T/sg-adb-read-component-jg2S8d",
+    "/var/folders/60/rfdt0hdd6gn93vbsr13_jb740000gn/T/sg-adb-read-component-Bx1Oit",
+    "/var/folders/60/rfdt0hdd6gn93vbsr13_jb740000gn/T/sg-adb-read-component-5I7Szo",
+    "/var/folders/60/rfdt0hdd6gn93vbsr13_jb740000gn/T/sg-adb-read-component-2QbEtT"
+  ],
+  "matchingRule": "exact canonical executable prefix, sole synthetic-adb file, current date; no running child or ledger",
+  "count": 8
+}

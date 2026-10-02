@@ -1,0 +1,12 @@
+{
+  "checkedAt": "2026-10-02T13:20:49.987Z",
+  "binaryPath": "/Users/linghuxj/Library/Android/sdk/platform-tools/adb",
+  "binarySha256": "9e78ca23f20ce357d156704d0eb706f90056d15310524881a1aec532be3acec3",
+  "realBinaryConstructorAccepted": true,
+  "scope": "host executable file inspection only; synthetic non-device binding",
+  "adbInvoked": false,
+  "transportStarted": false,
+  "deviceOperation": false,
+  "networkOrTargetVerified": false,
+  "allPathsFenced": false
+}
