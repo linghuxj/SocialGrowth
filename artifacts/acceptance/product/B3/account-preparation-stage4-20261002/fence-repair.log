@@ -1,0 +1,18 @@
+✔ first contact is fenced; confirmation and holder installation start no transport (32.044277ms)
+✔ two ledger connections share one in-flight slot; stop blocks reads without claiming quiescence (11.064119ms)
+✔ pause arriving while central authorization waits prevents transport handoff (8.226485ms)
+✔ unknown transport outcome survives restart and is not cleared by stop, expiry or new holder (8.967155ms)
+✔ lost receipt acknowledgement never repeats the physical action (8.848215ms)
+✔ scope, generation, forbidden kinds, extra fields, lease expiry and authority loss fail before transport (8.44533ms)
+✔ a stale or false stop probe and an old-generation holder cannot reopen the fence (9.531865ms)
+✔ one physical serial cannot be rebound to another logical device in the same ledger (13.391782ms)
+✔ original unknown can be reconciled only by matching recovery evidence; control stays revoked (13.664777ms)
+✔ independent OS workers share the local call fence and observe pause while a call is running (564.437338ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1035.813561

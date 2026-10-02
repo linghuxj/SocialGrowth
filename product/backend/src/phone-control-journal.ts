@@ -3,7 +3,7 @@ import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import { admissionGenerationSchema, phoneActionRequestSchema, timestampSchema, uuidSchema } from "@socialgrowth/product-contracts";
 import {
-  ActionPermissionError, beginPhoneCall, confirmPhoneStopped, parsePhoneControlRecord,
+  ActionPermissionError, acquirePhoneHolder, beginPhoneCall, confirmPhoneStopped, parsePhoneControlRecord, phoneHolderRequestSchema,
   recordPhoneCallResult, requestPhoneStop,
   type ActionAuthorityFacts, type PhoneControlRecord,
 } from "./action-permission-core.js";
@@ -14,6 +14,7 @@ export class PhoneJournalError extends Error {
   }
 }
 const commandSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("acquire_holder"), request: phoneHolderRequestSchema }),
   z.strictObject({ kind: z.literal("begin_call"), request: phoneActionRequestSchema }),
   z.strictObject({ kind: z.literal("request_stop"), stopRequestId: uuidSchema }),
   z.strictObject({ kind: z.literal("call_result"), receipt: z.strictObject({
@@ -25,6 +26,15 @@ const commandSchema = z.discriminatedUnion("kind", [
     allPathsFenced: z.boolean(), controllerReleased: z.boolean(), targetQuiescent: z.boolean(),
   }) }),
 ]);
+const grantSchema = z.strictObject({
+  deviceId: uuidSchema, holderId: uuidSchema, controlGeneration: admissionGenerationSchema,
+  taskAttemptId: uuidSchema, authorizationId: uuidSchema,
+  holderKind: z.enum(["executor", "recovery", "operator", "cleanup"]),
+  purpose: phoneHolderRequestSchema.shape.purpose,
+  operation: z.enum(["publish", "collect", "verify_result", "initialize", "withdraw", "recovery_check", "exit_cleanup", "operator_takeover"]),
+  allowedKinds: z.array(phoneActionRequestSchema.shape.kind).min(1),
+  leaseUntil: timestampSchema, validUntil: timestampSchema, stopEvidenceId: z.string().min(1).max(128),
+});
 export type PhoneJournalCommand = z.infer<typeof commandSchema>;
 export interface PhoneJournalResult { record: PhoneControlRecord; replayed: boolean }
 const schema = "socialgrowth_product";
@@ -103,8 +113,8 @@ async function recordCommand(client: PoolClient, record: PhoneControlRecord, key
 
 // Internal storage primitive, deliberately NOT a permission service. Trusted
 // facts/evidence may never come from HTTP bodies. No current caller consumes this
-// as permission or performs ADB. Fresh authoritative fact loading, holder
-// acquisition and the physical start/stop fence remain unimplemented.
+// as permission or performs ADB. Fresh authoritative fact loading and the
+// physical start/stop fence remain required before a real worker can use it.
 export class PhoneControlJournal {
   constructor(private readonly pool: Pool) {}
 
@@ -148,9 +158,39 @@ export class PhoneControlJournal {
       const now = await clock(client);
       let next: PhoneControlRecord;
       switch (command.kind) {
+        case "acquire_holder": {
+          if (!trustedFacts) invalid();
+          next = acquirePhoneHolder(record, trustedFacts, command.request, now);
+          const { protocolVersion: _protocol, ...identity } = command.request;
+          const grant = grantSchema.parse({ ...identity,
+            holderKind: trustedFacts.holder.kind, operation: trustedFacts.task.operation,
+            allowedKinds: trustedFacts.task.allowedKinds, leaseUntil: trustedFacts.holder.leaseUntil,
+            validUntil: trustedFacts.task.validUntil, stopEvidenceId: record.stopEvidenceId });
+          const inserted = await client.query(
+            `INSERT INTO ${schema}.phone_control_holder_grants(holder_id,device_id,control_generation,granted_version,record)
+               VALUES($1,$2,$3,$4,$5) ON CONFLICT(holder_id) DO NOTHING`,
+            [next.holderId, id, next.controlGeneration, next.version, grant],
+          );
+          if (inserted.rowCount !== 1) stale();
+          break;
+        }
         case "begin_call":
           if (!trustedFacts) invalid();
           next = beginPhoneCall(record, trustedFacts, command.request, now);
+          // Current facts may narrow a grant, but cannot expand its original
+          // scope or renew an expired lease without a confirmed stop/new holder.
+          {
+            const saved = await client.query<{ record: unknown }>(
+              `SELECT record FROM ${schema}.phone_control_holder_grants WHERE holder_id=$1 AND device_id=$2`, [record.holderId, id]);
+            const grant = grantSchema.safeParse(saved.rows[0]?.record);
+            if (!grant.success) stale();
+            const g = grant.data, f = trustedFacts, r = command.request;
+            if (g.holderId !== r.holderId || g.deviceId !== r.deviceId || g.controlGeneration !== r.controlGeneration
+              || g.taskAttemptId !== r.taskAttemptId || g.authorizationId !== r.authorizationId || g.purpose !== r.purpose
+              || g.holderKind !== f.holder.kind || g.operation !== f.task.operation || !g.allowedKinds.includes(r.kind)
+              || Date.parse(now) >= Date.parse(g.leaseUntil) || Date.parse(now) >= Date.parse(g.validUntil)
+              || Date.parse(f.holder.leaseUntil) > Date.parse(g.leaseUntil) || Date.parse(f.task.validUntil) > Date.parse(g.validUntil)) stale();
+          }
           break;
         case "request_stop": next = requestPhoneStop(record, command.stopRequestId); break;
         case "call_result": next = recordPhoneCallResult(record, command.receipt, now); break;

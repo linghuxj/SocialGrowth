@@ -40,7 +40,9 @@ Page／频道准备无需切片素材，不消耗内容分发名额。创建个�
 - 已接入“核验执行条件”与中央不可变核验记录：读取当前任务／资源版本、实际预留、设备暂停、入网记录、控制日志及原未决操作；未实现的本机参与、准确 ADB 授权、每动作保护和可信消费者如实阻断。这是执行准入核验，**不创建 dispatch／任务队列**，也不改变原任务版本。丢响应接续原键；较早任务或资源版本的记录不能成为当前许可，最新记录按中央提交序号排序。
 - Artemis 会话适配及 PostgreSQL 启动意图 journal 已实现内部端口：先持久记录原操作，再调用一次 `mobile_run_task`；原 trace 不可替换，启动结果不明、旧操作未决和暂停时先核实原操作。该端口没有注册到正式 worker／dispatcher，没有取得物理许可；模型报告仍是待核验观察，不能激活身份。
 - 正式 Web 已可只读查看中央保存的原启动意图、绑定 trace 和最新回执状态／证据引用数量。读取不调用 Artemis／ADB、不产生新截图；服务核对任务／分配／父登录／目标／操作及摘要，损坏或越界回执拒绝展示。`reported` 仍是“执行端报告完成，证据待核验”，未接入独立证据解析或人工反馈消费，不授予身份就绪和发布权限。
+- 内部控制日志已增加 `acquire_holder`：只有确认停止、当前内部授权与新 holder 一致时才能取得控制权，授予与不可变范围、命令和审计原子保存。重放返回当前状态，不是新的动作许可；原 holder 不可跨设备或停止后重用，后续事实不能扩大原动作范围或延长原租约。此接口不对 HTTP 开放，真实权威事实加载器尚未接线。
+- 执行侧已增加私有 SQLite 逐动作 fence：同一物理序列号不能换逻辑设备，持久动作意图先于受保护 transport 的同步交接；交接与暂停共用写锁。读屏同样需要新的中央动作许可，中央重放不放行；在途／unknown 跨进程重建保留，停止核实还要求实际路径封闭、控制交还及目标静止的可信证据。按原动作核实结束和回执重放均不能重新开启控制。该组件只保护通过其端口的调用，**尚未包住真实 Artemis 的 raw ADB、读屏、人工补图等所有路径**，不得据此开放 worker。
 - 尚未接线：实际资源分配到该页面的完整流程、每次底层动作的物理许可实现、正式派发与消费者组合、可信证据解析与绑定激活、可信安装及登录安全人工协助。正式手机执行入口仍保持关闭，不能把 Web 保存请求解释为已触发真机操作。当前原任务范围不可变，变更范围／结束任务的后续协议也未实现。
 - 真实验收须由 Playwright 从实际 Web 填表、检查、触发，Artemis 自主观察手机，必要反馈仍由 Web 提交。分别验证已有复用、缺少创建、App 缺少、父登录不符、创建确认丢失、暂停与恢复、两平台及网站／系统界面边界；最后核对平台真实身份和管理权。纯组件测试只验证编排约束，没有创建 Page／频道、模拟业务成功或发布内容。
 
-组件登记的历史检查见[第一阶段记录](../engineering/delivery/records/account-preparation-library-20261002.md)；Web 与持久任务的固定检查点见[第二阶段记录](../engineering/delivery/records/account-preparation-stage2-20261002.md)；当前执行条件核验和原回执读取见[第三阶段记录](../engineering/delivery/records/account-preparation-stage3-20261002.md)。
+组件登记的历史检查见[第一阶段记录](../engineering/delivery/records/account-preparation-library-20261002.md)；Web 与持久任务的固定检查点见[第二阶段记录](../engineering/delivery/records/account-preparation-stage2-20261002.md)；执行条件核验和原回执读取见[第三阶段记录](../engineering/delivery/records/account-preparation-stage3-20261002.md)；控制权与执行侧逐动作存储边界见[第四阶段记录](../engineering/delivery/records/account-preparation-stage4-20261002.md)。

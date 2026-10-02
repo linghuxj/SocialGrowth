@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { controlProtocolVersion, type PhoneActionRequest } from "@socialgrowth/product-contracts";
 import {
-  ActionPermissionError, beginPhoneCall, checkActionPermission, confirmPhoneStopped, recordPhoneCallResult, requestPhoneStop,
+  ActionPermissionError, acquirePhoneHolder, beginPhoneCall, checkActionPermission, confirmPhoneStopped, recordPhoneCallResult, requestPhoneStop,
   type ActionAuthorityFacts, type PhoneControlRecord,
 } from "./action-permission-core.js";
 
@@ -210,4 +210,26 @@ test("cross-device completion cannot release a call even when holder, action and
   denies(() => beginPhoneCall(second, { ...secondFacts, controlVersion: second.version }, { ...f.request, deviceId: deviceB, actionId: randomUUID() }, at(1)), "BUSY");
   assert.equal(second.calls[0]?.status, "running");
   assert.equal(recordPhoneCallResult(second, { ...receiptA, deviceId: deviceB }, at(1)).calls[0]?.status, "ended");
+});
+
+test("holder acquisition requires confirmed stop plus current internal authority and grants no call", () => {
+  const f = fixture();
+  const { actionId: _action, kind: _kind, ...request } = f.request;
+  const stopping = requestPhoneStop(f.record, randomUUID());
+  const stopped = confirmPhoneStopped(stopping, stopEvidence(stopping), at(2));
+  const facts = { ...f.facts, controlVersion: stopped.version, controlGeneration: stopped.controlGeneration,
+    holder: { ...f.facts.holder, controlGeneration: stopped.controlGeneration },
+    localConfirmation: { ...f.facts.localConfirmation, controlGeneration: stopped.controlGeneration, checkedAt: at(2) } };
+  const scoped = { ...request, controlGeneration: stopped.controlGeneration };
+  const granted = acquirePhoneHolder(stopped, facts, scoped, at(2));
+  assert.equal(granted.holderId, scoped.holderId);
+  assert.equal(granted.disposition, "enabled");
+  assert.equal(granted.calls.length, 0);
+  assert.equal(granted.version, stopped.version + 1);
+  denies(() => acquirePhoneHolder(stopping, { ...facts, controlVersion: stopping.version }, scoped, at(2)), "STOP_UNCONFIRMED");
+  denies(() => acquirePhoneHolder(granted, { ...facts, controlVersion: granted.version }, scoped, at(2)), "STOP_UNCONFIRMED");
+  denies(() => acquirePhoneHolder(stopped, { ...facts, networkAdmitted: false }, scoped, at(2)));
+  denies(() => acquirePhoneHolder(stopped, { ...facts, localConfirmation: { ...facts.localConfirmation, checkedAt: at(-8) } }, scoped, at(2)));
+  denies(() => acquirePhoneHolder(stopped, f.facts, request, at(2)), "AUTHORITY_CHANGED");
+  denies(() => acquirePhoneHolder(stopped, facts, { ...scoped, allowed: true }, at(2)), "INVALID_BOUNDARY");
 });

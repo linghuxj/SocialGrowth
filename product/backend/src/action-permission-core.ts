@@ -10,8 +10,8 @@ export class ActionPermissionError extends Error {
   }
 }
 
-// Internal authoritative facts, NEVER a client body. HTTP, persistent control
-// arbitration and the Artemis/ADB wrappers are not wired in this stage.
+// Internal authoritative facts, NEVER a client body. Physical authority loading
+// and Artemis/ADB transport enforcement are separate required boundaries.
 const factsSchema = z.strictObject({
   deviceId: uuidSchema, controlVersion: z.int().min(0), controlGeneration: admissionGenerationSchema,
   providerIntent: z.enum(["active", "pause_requested", "paused", "restore_pending", "exit_pending", "exited"]),
@@ -36,6 +36,8 @@ const factsSchema = z.strictObject({
   }),
 });
 export type ActionAuthorityFacts = z.infer<typeof factsSchema>;
+export const phoneHolderRequestSchema = phoneActionRequestSchema.omit({ actionId: true, kind: true });
+export type PhoneHolderRequest = z.infer<typeof phoneHolderRequestSchema>;
 
 function fail(code: ActionPermissionError["code"]): never { throw new ActionPermissionError(code); }
 function before(left: string, right: string): boolean { return compareTimestamps(left, right) === -1; }
@@ -125,6 +127,23 @@ export function parsePhoneControlRecord(input: unknown): PhoneControlRecord {
 function nextVersion(record: PhoneControlRecord): number {
   if (!Number.isSafeInteger(record.version) || record.version < 0 || record.version >= Number.MAX_SAFE_INTEGER) fail("INVALID_BOUNDARY");
   return record.version + 1;
+}
+
+// Acquiring a holder grants no action. The internal broker must load current
+// authoritative facts; a fresh local confirmation is required even after stop.
+export function acquirePhoneHolder(record: PhoneControlRecord, facts: ActionAuthorityFacts, input: unknown, now: string): PhoneControlRecord {
+  validateRecord(record);
+  const parsed = phoneHolderRequestSchema.safeParse(input);
+  if (!parsed.success) fail("INVALID_BOUNDARY");
+  const request = parsed.data;
+  checkActionPermission(facts, { ...request, actionId: request.holderId, kind: "read_screen" }, now);
+  if (record.deviceId !== facts.deviceId || record.version !== facts.controlVersion
+    || record.controlGeneration !== facts.controlGeneration) fail("AUTHORITY_CHANGED");
+  if (record.disposition !== "stopped" || record.holderId !== null
+    || record.calls.some(call => call.status !== "ended")) fail("STOP_UNCONFIRMED");
+  if (record.calls.some(call => call.holderId === request.holderId)) fail("AUTHORITY_CHANGED");
+  return { ...record, version: nextVersion(record), holderId: request.holderId,
+    disposition: "enabled", stopRequestId: null, stopEvidenceId: null };
 }
 
 export function beginPhoneCall(record: PhoneControlRecord, facts: ActionAuthorityFacts, request: PhoneActionRequest, now: string): PhoneControlRecord {
