@@ -1,0 +1,15 @@
+{
+  "checkedAt": "2026-10-02T14:58:47.062Z",
+  "serial": "RFCW40MYYCV",
+  "androidRelease": "16",
+  "sdk": 36,
+  "secureLocked": false,
+  "foregroundPackage": "com.sec.android.app.launcher",
+  "packages": {
+    "com.socialgrowth.product": true,
+    "com.facebook.katana": true,
+    "com.google.android.youtube": true,
+    "com.tailscale.ipn": true
+  },
+  "readonly": true
+}

@@ -225,8 +225,10 @@ export class WebVerification {
           "mobile_run_task",
           {
             device_serial: cfg.serial,
-            locked_app_package:
-              job.platform === "facebook" ? "com.facebook.katana" : "com.google.android.youtube",
+            // SDK app lock performs an initial launch outside model decisions.
+            // Observation must retain the current screen, even if another App
+            // is foreground. Package restriction remains on preflight tasks.
+            ...(job.mode === "preflight" ? { locked_app_package: "com.facebook.katana" } : {}),
             model: "Pro",
             verification_level: "final",
             task_desc:

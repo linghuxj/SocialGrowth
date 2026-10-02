@@ -12,7 +12,7 @@ const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
   "base64",
 );
-function fixture(result: unknown) {
+function fixture(result: unknown, mode: "preflight" | "observe" = "preflight") {
   const directory = mkdtempSync(join(tmpdir(), "sg-web-verify-")),
     mediaPath = join(directory, "test.mp4");
   const bytes = Buffer.from("0000ftyp0000");
@@ -39,7 +39,13 @@ function fixture(result: unknown) {
         call: async (name, args) => {
           if (name === "mobile_run_task") {
             starts++;
-            assert.ok(String(args.task_desc).includes("Share now visible and UNTOUCHED"));
+            if (mode === "observe") {
+              assert.equal(Object.hasOwn(args, "locked_app_package"), false);
+              assert.ok(String(args.task_desc).includes("Observe current device screen only"));
+            } else {
+              assert.equal(args.locked_app_package, "com.facebook.katana");
+              assert.ok(String(args.task_desc).includes("Share now visible and UNTOUCHED"));
+            }
             return { trace_id: randomUUID() };
           }
           return { status: "completed", result };
@@ -53,6 +59,7 @@ function fixture(result: unknown) {
     expectedProfileId: "123456789",
     caption: "DO NOT PUBLISH",
     acknowledgeNoPublication: true,
+    mode,
   };
   return {
     store,
@@ -77,6 +84,21 @@ function fixture(result: unknown) {
     },
   };
 }
+test("observe mode never asks the SDK to implicitly launch the target App or accepts identity readiness", async () => {
+  const f = fixture(
+    { resultCode: "PREFLIGHT_READY", loginSubmitCount: 0, finalSubmitClicked: false },
+    "observe",
+  );
+  try {
+    f.hold();
+    f.verification.start(f.input);
+    const done = await f.finish();
+    assert.equal(f.starts(), 1);
+    assert.equal(done.resultCode, "UNCONFIRMED");
+  } finally {
+    await f.close();
+  }
+});
 test("Web initiated task requires held device and explicit no-publication acknowledgement; duplicate click launches once", async () => {
   const f = fixture({
     resultCode: "LOGIN_BLOCKED",

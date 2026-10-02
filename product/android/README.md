@@ -49,3 +49,5 @@ WP-09第一阶段新增`NativeEndpointDiscovery`（RequiresApi34）及`EndpointD
 每四秒请求一次独立的参与 nonce（中心有效期六秒），再确认十秒参与事实。新 challenge 保留上一条尚未过期 pulse；重放不能延长原期限。撤回先终止本机后续确认，再提交原 run 撤回；撤回失败或进程被杀时，当前 pulse 到期失效。中央撤权请求与撤回事实在一个事务中提交，均不表示物理停止已证实。停止中不开第二条 worker；旧 run 的迟到心跳或撤回不影响后继 run。前台服务需要 Android 对该服务类型的系统准入，参考 [Android 官方规则](https://developer.android.com/develop/background-work/services/fgs/service-types#connected-device)。
 
 本实现的 APK 构建和 JVM 契约检查通过，不代表本机已安装新 APK、真实后台保活或 Web→Artemis 设备验收通过。服务不执行 ADB／App 操作、不授予控制权，也不确认接入或平台身份。Debug 的 127.0.0.1 中心地址仍需既有明确网络接线，未以 USB 在线替代网络准入证据。
+
+2026-10-02 已在 Samsung SM-S9110／Android 16 更新安装包含本机参与实现的 Debug APK，使用 `install -r` 保留主包，包 UID 未变化；真实 Keystore 补充检查 10/10 通过，仅删除本次随机测试密钥及本次安装的测试包。没有通过固定手机 UI 脚本操作业务，也未启动参与服务。该结果确认候选已安装及本机签名基础，真实关联、显式参与／撤回、后台运行及正式 Web→Artemis 仍未验收；见[本轮真机记录](../../docs/engineering/delivery/records/account-preparation-stage10-live-20261002.md)。

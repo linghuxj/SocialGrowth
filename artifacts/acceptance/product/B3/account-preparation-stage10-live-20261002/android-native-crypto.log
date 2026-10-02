@@ -1,0 +1,6 @@
+INSTRUMENTATION_RESULT: failed=0
+INSTRUMENTATION_RESULT: passed=10
+INSTRUMENTATION_RESULT: stream=Native enrollment crypto checks: 10 passed; no business admission asserted.
+
+INSTRUMENTATION_RESULT: testKeysRemoved=true
+INSTRUMENTATION_CODE: -1
