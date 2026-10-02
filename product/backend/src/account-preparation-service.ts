@@ -2,10 +2,14 @@ import { createHash, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { accountPreparationIntentSchema, accountPreparationTaskViewSchema, accountPreparationWorkspaceSchema,
   requestAccountPreparationSchema, recheckAccountPreparationSchema, executionLibraryVersion, planAccountPreparation,
+  reviewAccountPreparationExecutionSchema, accountPreparationExecutionReviewSchema, accountPreparationOriginalOperationSchema,
+  artemisPreparationAssignmentSchema, artemisPreparationObservationSchema,
   uuidSchema, type AccountPreparationIntent, type AccountPreparationTaskView } from "@socialgrowth/product-contracts";
 import { OperatorAuthService } from "./operator-auth-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
 import { canonicalMaterial } from "./material-registry-core.js";
+import { parsePhoneControlRecord } from "./action-permission-core.js";
+import { parseAdmissionRecord } from "./network-admission-record.js";
 const s = "socialgrowth_product";
 const digest = (v: unknown) => createHash("sha256").update(canonicalMaterial(v)).digest("hex");
 const unavailable = () => new ProductTransactionError("INTERNAL_ERROR", "Preparation service unavailable", true);
@@ -52,8 +56,92 @@ export class AccountPreparationService {
     // Bound this first surface honestly; never silently drop tasks/resources.
     const accounts = await c.query(`SELECT a.account_id AS "accountId",a.platform FROM ${s}.media_accounts a JOIN ${s}.project_account_reservations r ON r.account_id=a.account_id WHERE r.project_id=$1 ORDER BY a.account_id LIMIT 101`, [projectId]);
     const devices = await c.query(`SELECT device_id AS "deviceId" FROM ${s}.project_device_reservations WHERE project_id=$1 ORDER BY device_id LIMIT 101`, [projectId]);
+    const reviews = await c.query<{ record: unknown }>(`SELECT DISTINCT ON (r.task_id) r.record FROM ${s}.account_preparation_execution_reviews r
+      JOIN ${s}.account_preparation_tasks t ON t.task_id=r.task_id WHERE t.project_id=$1 ORDER BY r.task_id,r.review_sequence DESC`, [projectId]);
+    const executionReviews = reviews.rows.map(r => accountPreparationExecutionReviewSchema.parse(r.record));
+    if (executionReviews.some(r => r.projectId !== projectId || !rows.rows.some(t => t.task_id === r.taskId))) throw unavailable();
+    const originalOperations = await this.originalOperations(c, projectId);
     return accountPreparationWorkspaceSchema.parse({ protocolVersion: executionLibraryVersion, projectId, projectVersion, resourceVersion,
-      tasks: rows.rows.map(view), accounts: accounts.rows, devices: devices.rows });
+      tasks: rows.rows.map(view), accounts: accounts.rows, devices: devices.rows, executionReviews, originalOperations });
+  }
+  private async originalOperations(c: PoolClient, projectId: string) {
+    const rows = await c.query<{ task_id: string; task_version: string; task_attempt_id: string; operation_id: string;
+      fingerprint: string; assignment: unknown; trace_id: string | null; claimed_at: Date; observation: unknown | null; received_at: Date | null; observation_fingerprint: string | null;
+      intent: unknown; selected_account_id: string | null; selected_device_id: string | null }>(`SELECT i.*,t.intent,t.selected_account_id,t.selected_device_id,o.record AS observation,o.received_at,o.fingerprint AS observation_fingerprint
+      FROM ${s}.artemis_preparation_intents i JOIN ${s}.account_preparation_tasks t ON t.task_id=i.task_id
+      LEFT JOIN LATERAL (SELECT record,received_at,fingerprint FROM ${s}.artemis_preparation_observations
+        WHERE task_attempt_id=i.task_attempt_id ORDER BY received_at DESC,observation_id DESC LIMIT 1) o ON true
+      WHERE t.project_id=$1 ORDER BY i.claimed_at,i.task_attempt_id LIMIT 101`, [projectId]);
+    return rows.rows.map(r => {
+      const a = artemisPreparationAssignmentSchema.parse(r.assignment), intent = accountPreparationIntentSchema.parse(r.intent);
+      if (createHash("sha256").update(JSON.stringify(a)).digest("hex") !== r.fingerprint || a.taskId !== r.task_id
+        || a.taskAttemptId !== r.task_attempt_id || a.taskVersion !== Number(r.task_version) || a.operationId !== r.operation_id
+        || a.input.projectId !== projectId || a.input.accountId !== r.selected_account_id || a.input.deviceId !== r.selected_device_id
+        || a.input.parentLoginRef !== intent.parentLoginRef || canonicalMaterial(a.input.target) !== canonicalMaterial(intent.target)
+        || a.input.mode !== intent.mode || a.input.requestedScope.scopeRef !== intent.scopeRef
+        || a.input.requestedScope.allowTrustedInstall !== intent.allowTrustedInstall || a.input.requestedScope.allowIdentityCreation !== intent.allowIdentityCreation) throw unavailable();
+      const observation = r.observation === null ? null : artemisPreparationObservationSchema.parse(r.observation);
+      if (observation !== null && r.observation_fingerprint !== r.fingerprint) throw unavailable();
+      // A lost bind ACK may report null; it never erases an already-bound trace.
+      if (observation?.traceId !== undefined && observation.traceId !== null && observation.traceId !== r.trace_id) throw unavailable();
+      return accountPreparationOriginalOperationSchema.parse({ taskId: r.task_id, taskVersion: Number(r.task_version), taskAttemptId: r.task_attempt_id,
+        operationId: r.operation_id, traceId: r.trace_id, claimedAt: r.claimed_at.toISOString(),
+        latestObservation: observation === null ? null : { state: observation.state, receivedAt: r.received_at?.toISOString(), evidenceIds: observation.evidenceIds },
+        identityVerified: false, publicationAllowed: false });
+    });
+  }
+  async reviewExecution(token: string, csrf: string, raw: unknown) {
+    const parsed = reviewAccountPreparationExecutionSchema.safeParse(raw);
+    if (!parsed.success) throw new ProductTransactionError("INPUT_INVALID", "Invalid execution review");
+    const r = { ...parsed.data, projectId: parsed.data.projectId.toLowerCase(), taskId: parsed.data.taskId.toLowerCase() };
+    const { requestId: _requestId, ...metadata } = r.metadata, payload = digest({ ...r, metadata });
+    return this.tx(token, csrf, async (c, actor) => {
+      await this.project(c, r.projectId);
+      const old = (await c.query<{ payload_digest: string; task_id: string; record: unknown }>(`SELECT payload_digest,task_id,record
+        FROM ${s}.account_preparation_execution_reviews WHERE actor_id=$1 AND request_key=$2`, [actor, r.metadata.idempotencyKey])).rows[0];
+      const oldCommand = (await c.query(`SELECT 1 FROM ${s}.account_preparation_commands WHERE actor_id=$1 AND request_key=$2`, [actor, r.metadata.idempotencyKey])).rowCount;
+      if (oldCommand || (old && (old.payload_digest !== payload || old.task_id !== r.taskId))) throw new ProductTransactionError("IDEMPOTENCY_KEY_REUSED", "Preparation key belongs to different input");
+      if (old) { accountPreparationExecutionReviewSchema.parse(old.record); return this.workspace(c, r.projectId); }
+      const task = (await c.query<Row>(`SELECT * FROM ${s}.account_preparation_tasks WHERE task_id=$1 AND project_id=$2 FOR UPDATE`, [r.taskId, r.projectId])).rows[0];
+      const resourceVersion = Number((await c.query<{ version: string }>(`SELECT version::text FROM ${s}.resource_reservation_guard`)).rows[0]?.version);
+      if (!task || Number(task.task_version) !== r.expectedTaskVersion || resourceVersion !== r.expectedResourceVersion) throw stale();
+      const current = view(task), intent = { ...current.intent, accountId: current.selectedAccountId, deviceId: current.selectedDeviceId };
+      const checked = await this.check(c, r.projectId, intent), blockers = [...checked.blockers];
+      if (intent.deviceId !== null) {
+        const network = (await c.query<{ record: unknown; phase: string }>(`SELECT record,phase FROM ${s}.network_enrollments WHERE device_id=$1 AND phase<>'reclaimed'`, [intent.deviceId])).rows;
+        if (network.length > 1) throw unavailable();
+        if (!network[0]) blockers.push("NETWORK_ADMISSION_REQUIRED");
+        else {
+          const record = parseAdmissionRecord(network[0].record);
+          if (record.authority.deviceId !== intent.deviceId || record.phase !== network[0].phase) throw unavailable();
+          blockers.push(record.phase === "admitted" && record.authority.eligible ? "CURRENT_NETWORK_PATH_RECHECK_REQUIRED" : "NETWORK_ADMISSION_REQUIRED");
+        }
+        const control = (await c.query<{ record: unknown }>(`SELECT record FROM ${s}.phone_control_journals WHERE device_id=$1 FOR UPDATE`, [intent.deviceId])).rows[0];
+        if (!control) blockers.push("PHONE_CONTROL_HOLDER_REQUIRED");
+        else {
+          const record = parsePhoneControlRecord(control.record);
+          if (record.deviceId !== intent.deviceId) throw unavailable();
+          if (record.disposition !== "enabled") blockers.push("PHONE_STOP_CONFIRMATION_REQUIRED");
+          if (record.holderId === null) blockers.push("PHONE_CONTROL_HOLDER_REQUIRED");
+          if (record.calls.some(call => call.status !== "ended")) blockers.push("VERIFY_ORIGINAL_DEVICE_CALL");
+        }
+      }
+      // No HTTP flags/config fallbacks can fill absent authoritative loaders or
+      // every-action protection. This admission report creates no dispatch.
+      blockers.push("CURRENT_ADB_TARGET_AUTHORIZATION_REQUIRED", "CURRENT_LOCAL_PARTICIPATION_CONFIRMATION_REQUIRED",
+        "CURRENT_HOLDER_TASK_SCOPE_REQUIRED", "CURRENT_DEVICE_ACTION_FENCE_REQUIRED", "PREPARATION_EXECUTOR_NOT_CONNECTED",
+        "TRUSTED_PLATFORM_EVIDENCE_CONSUMER_REQUIRED");
+      const now = (await c.query<{ now: Date }>("SELECT clock_timestamp() AS now")).rows[0]!.now.toISOString();
+      const record = accountPreparationExecutionReviewSchema.parse({ reviewId: randomUUID(), projectId: r.projectId, taskId: r.taskId,
+        taskVersion: current.taskVersion, resourceVersion, reviewedBy: actor, reviewedAt: now, state: "blocked", nextOperationId: checked.next,
+        blockers: [...new Set(blockers)], actionPermissionGranted: false, dispatchCreated: false, publicationAllowed: false });
+      await c.query(`INSERT INTO ${s}.account_preparation_execution_reviews(review_id,task_id,task_version,actor_id,request_key,payload_digest,reviewed_at,record)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, [record.reviewId, r.taskId, current.taskVersion, actor, r.metadata.idempotencyKey, payload, now, record]);
+      await c.query(`INSERT INTO ${s}.audit_records(audit_record_id,actor_type,actor_id,action,object_type,object_id,request_id,facts)
+        VALUES($1,'operator',$2,'account_preparation.execution_review','account_preparation_task',$3,$4,$5)`,
+        [randomUUID(), actor, r.taskId, r.metadata.requestId, { reviewId: record.reviewId, taskVersion: current.taskVersion, dispatchCreated: false }]);
+      return this.workspace(c, r.projectId);
+    });
   }
   async read(token: string, id: string) {
     const projectId = uuidSchema.safeParse(id); if (!projectId.success) throw new ProductTransactionError("INPUT_INVALID", "Invalid project");
@@ -75,7 +163,6 @@ export class AccountPreparationService {
     const control = (await c.query<{ record: unknown }>(`SELECT record FROM ${s}.phone_control_journals WHERE device_id=$1 FOR UPDATE`, [intent.deviceId])).rows[0];
     // Even when no phone holder exists we can record a check, but never launch.
     if (control) {
-      const { parsePhoneControlRecord } = await import("./action-permission-core.js");
       const record = parsePhoneControlRecord(control.record);
       if (record.calls.some(call => call.status !== "ended")) return { state: "needs_reconciliation" as const, next: null, blockers: ["VERIFY_ORIGINAL_DEVICE_CALL"] };
     }
@@ -96,6 +183,8 @@ export class AccountPreparationService {
     const payloadDigest = digest({ ...r, metadata });
     return this.tx(token, csrf, async (c, actor) => {
       const projectVersion = await this.project(c, r.projectId);
+      if ((await c.query(`SELECT 1 FROM ${s}.account_preparation_execution_reviews WHERE actor_id=$1 AND request_key=$2`, [actor, r.metadata.idempotencyKey])).rowCount)
+        throw new ProductTransactionError("IDEMPOTENCY_KEY_REUSED", "Preparation key belongs to an execution review");
       const old = (await c.query<{ payload_digest: string; task_id: string; kind: string }>(`SELECT * FROM ${s}.account_preparation_commands WHERE actor_id=$1 AND request_key=$2`, [actor, r.metadata.idempotencyKey])).rows[0];
       if (old) {
         if (old.payload_digest !== payloadDigest || old.kind !== kind) throw new ProductTransactionError("IDEMPOTENCY_KEY_REUSED", "Preparation key belongs to different input");

@@ -9,7 +9,7 @@ const base = process.env.SG_PRODUCT_WEB_URL ?? "http://127.0.0.1:3100";
 if (new URL(base).hostname !== "127.0.0.1" || process.env.SG_PRODUCT_PREPARATION_OWNED_ENV !== "1") throw new Error("Owned isolated loopback product Web required");
 await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ headless: true }), page = await browser.newPage({ locale: "zh-CN", viewport: { width: 1464, height: 1074 } });
-const results: string[] = [], errors: string[] = []; let taskIds: string[] = [], checkVersion = 0;
+const results: string[] = [], errors: string[] = []; let taskIds: string[] = [], checkVersion = 0, reviewId: string | null = null;
 page.on("pageerror", () => errors.push("pageerror"));
 try {
   await page.goto(base); await page.getByLabel("登录名", { exact: true }).fill(login); await page.getByLabel("密码", { exact: true }).fill(password);
@@ -31,10 +31,34 @@ try {
   assert.equal(first.tasks[0].actionPermissionGranted, false); assert.equal(first.tasks[0].state, "waiting_resources");
   await panel.getByText("检查请求已记录，当前阻断已保存；尚未操作手机或创建 Page／频道。", { exact: true }).waitFor();
   await panel.getByText("等待项目账号与手机分配", { exact: true }).waitFor(); results.push("实际提交保存原任务，页面展示资源阻断，无虚构就绪");
+  let reviewAckDropped = false;
+  await page.route("**/account-preparation/execution-review", async route => {
+    if (reviewAckDropped) { await route.continue(); return; } reviewAckDropped = true;
+    const actual = await route.fetch(); assert.equal(actual.status(), 201); const saved = await actual.json();
+    reviewId = saved.executionReviews[0].reviewId;
+    assert.equal(saved.executionReviews[0].dispatchCreated, false); assert.equal(saved.executionReviews[0].actionPermissionGranted, false);
+    assert.equal(saved.tasks[0].taskVersion, 0); assert.deepEqual(saved.originalOperations, []);
+    await route.abort("failed"); // Actual committed review; lose only the transport ACK.
+  });
+  await panel.getByRole("button", { name: "核验执行条件", exact: true }).click(); await panel.getByText(/本次请求结果尚未确认/).waitFor();
+  assert.equal(await panel.getByLabel("父登录账号记录标识", { exact: true }).isDisabled(), true);
+  await panel.getByRole("button", { name: "读取初始化记录", exact: true }).click();
+  await panel.getByText("执行条件核验记录 · v0", { exact: true }).click();
+  await panel.getByText("等待手机本机当前参与确认", { exact: true }).waitFor();
+  await panel.getByText("本次核验未派发手机动作。", { exact: true }).waitFor();
+  await panel.getByText("尚无原手机操作记录；没有派发手机动作。", { exact: true }).waitFor();
+  results.push("执行条件从真实服务保存并读取，缺失许可阻断，不虚构派发或回执");
+  const reviewRecovered = page.waitForResponse(r => new URL(r.url()).pathname.endsWith("/account-preparation/execution-review") && r.status() === 201);
+  await panel.getByRole("button", { name: "接续原初始化请求", exact: true }).click(); const reviewed = await (await reviewRecovered).json();
+  assert.equal(reviewed.executionReviews.length, 1); assert.equal(reviewed.executionReviews[0].reviewId, reviewId); assert.equal(reviewed.tasks[0].taskVersion, 0);
+  await panel.getByText("执行条件核验已记录；条件未满足，本次未派发手机动作。", { exact: true }).waitFor();
+  await page.unroute("**/account-preparation/execution-review"); results.push("执行核验丢响应后接续原键，保留同一核验记录与任务版本");
   const rechecked = page.waitForResponse(r => new URL(r.url()).pathname.endsWith("/account-preparation/recheck"));
   await panel.getByRole("button", { name: "重新检查原任务", exact: true }).click(); const next = await (await rechecked).json();
   assert.equal(next.tasks[0].taskId, taskIds[0]); checkVersion = next.tasks[0].taskVersion; assert.equal(checkVersion, 1);
-  await panel.getByText(/· v1/).waitFor(); results.push("重新检查同一任务，原身份和历史保留，检查版本递增");
+  assert.equal(next.executionReviews[0].reviewId, reviewId); assert.equal(next.executionReviews[0].taskVersion, 0);
+  await panel.getByText(/· v1/).waitFor(); await panel.getByText("该记录对应较早事实，请重新核验当前条件。", { exact: true }).waitFor();
+  results.push("重新检查同一任务，原身份和历史保留，检查版本递增，旧核验不会被伪装为当前许可");
   await panel.getByLabel("平台", { exact: true }).selectOption("youtube"); await panel.getByLabel("父登录账号记录标识", { exact: true }).fill("synthetic_parent_youtube");
   await panel.getByLabel("Page／频道准确名称", { exact: true }).fill("合成验证频道不实际创建");
   await panel.getByLabel("初始化范围", { exact: true }).selectOption("prepare_if_missing"); await panel.getByRole("checkbox", { name: "允许确认缺少时创建一个 Page／频道" }).check();
@@ -57,9 +81,11 @@ try {
   await page.reload(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor(); await page.getByRole("button", { name: "项目", exact: true }).click();
   await project.getByRole("row").filter({ hasText: projectName }).getByRole("button", { name: "准备清单" }).click(); await project.getByRole("button", { name: "设置 · 目标与周期" }).click();
   await panel.getByRole("row").filter({ hasText: "合成验证频道不实际创建" }).waitFor(); assert.equal(await panel.getByRole("button", { name: "重新检查原任务" }).count(), 2);
+  await panel.getByText("执行条件核验记录 · v0", { exact: true }).waitFor();
   results.push("重载保留两平台任务与原检查状态");
   await page.setViewportSize({ width: 390, height: 844 }); await panel.getByText("转电脑处理", { exact: true }).first().waitFor();
   assert.equal(await panel.getByRole("button", { name: "发起初始化检查" }).count(), 0);
+  assert.equal(await panel.getByRole("button", { name: "核验执行条件" }).count(), 0);
   const width = await page.evaluate(() => ({ content: document.documentElement.scrollWidth, viewport: innerWidth })); assert.ok(width.content <= width.viewport + 1);
   await panel.screenshot({ path: `${output}/preparation-mobile.png` }); results.push("390px 可读、写操作关闭，无横向溢出"); assert.deepEqual(errors, []);
 } catch (e) {
@@ -68,6 +94,6 @@ try {
   if (await panel.isVisible()) { await panel.screenshot({ path: `${output}/failure-panel.png` }); console.log(JSON.stringify({ panelLabels: await panel.locator("label").allTextContents() })); }
 }
 finally {
-  await writeFile(`${output}/result.json`, JSON.stringify({ results, errors, taskIds, checkVersion, phoneOperations: 0, createdPlatformAssets: 0, publications: 0, platformReadinessVerified: false }, null, 2));
+  await writeFile(`${output}/result.json`, JSON.stringify({ results, errors, taskIds, checkVersion, reviewId, phoneOperations: 0, createdPlatformAssets: 0, publications: 0, platformReadinessVerified: false }, null, 2));
   console.log(JSON.stringify({ results, errors, taskCount: taskIds.length })); await browser.close();
 }

@@ -18,6 +18,24 @@ export const recheckAccountPreparationSchema = z.strictObject({ metadata,
   protocolVersion: z.literal(executionLibraryVersion), projectId: uuidSchema, taskId: uuidSchema, expectedTaskVersion: version,
   expectedResourceVersion: version, selectedAccountId: uuidSchema.nullable(), selectedDeviceId: uuidSchema.nullable(),
 });
+// A durable admission review, NOT a device dispatch or a caller permission.
+export const reviewAccountPreparationExecutionSchema = z.strictObject({ metadata,
+  protocolVersion: z.literal(executionLibraryVersion), projectId: uuidSchema, taskId: uuidSchema,
+  expectedTaskVersion: version, expectedResourceVersion: version,
+});
+export const accountPreparationExecutionReviewSchema = z.strictObject({
+  reviewId: uuidSchema, projectId: uuidSchema, taskId: uuidSchema, taskVersion: version, resourceVersion: version,
+  reviewedBy: uuidSchema, reviewedAt: timestampSchema, state: z.literal("blocked"),
+  nextOperationId: preparationOperationIdSchema.nullable(), blockers: z.array(ref).min(1).max(20),
+  actionPermissionGranted: z.literal(false), dispatchCreated: z.literal(false), publicationAllowed: z.literal(false),
+});
+export const accountPreparationOriginalOperationSchema = z.strictObject({
+  taskId: uuidSchema, taskVersion: version, taskAttemptId: uuidSchema, operationId: preparationOperationIdSchema,
+  traceId: uuidSchema.nullable(), claimedAt: timestampSchema,
+  latestObservation: z.strictObject({ state: z.enum(["running", "launch_unknown", "reported", "needs_human", "result_unknown", "stop_unconfirmed"]),
+    receivedAt: timestampSchema, evidenceIds: z.array(uuidSchema).max(20) }).nullable(),
+  identityVerified: z.literal(false), publicationAllowed: z.literal(false),
+});
 export const accountPreparationTaskViewSchema = z.strictObject({
   taskId: uuidSchema, projectId: uuidSchema, taskVersion: version, intent: accountPreparationIntentSchema,
   selectedAccountId: uuidSchema.nullable(), selectedDeviceId: uuidSchema.nullable(),
@@ -32,7 +50,10 @@ export const accountPreparationWorkspaceSchema = z.strictObject({
   tasks: z.array(accountPreparationTaskViewSchema).max(50),
   accounts: z.array(z.strictObject({ accountId: uuidSchema, platform: z.enum(["facebook", "youtube"]) })).max(100),
   devices: z.array(z.strictObject({ deviceId: uuidSchema })).max(100),
+  executionReviews: z.array(accountPreparationExecutionReviewSchema).max(50),
+  originalOperations: z.array(accountPreparationOriginalOperationSchema).max(100),
 });
 export type AccountPreparationIntent = z.infer<typeof accountPreparationIntentSchema>;
 export type AccountPreparationTaskView = z.infer<typeof accountPreparationTaskViewSchema>;
 export type AccountPreparationWorkspace = z.infer<typeof accountPreparationWorkspaceSchema>;
+export type AccountPreparationExecutionReview = z.infer<typeof accountPreparationExecutionReviewSchema>;

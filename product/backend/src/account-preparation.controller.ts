@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Header, Headers, Inject, Param, Post, Req } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { AccountPreparationService } from "./account-preparation-service.js";
-import { requestAccountPreparationSchema, recheckAccountPreparationSchema } from "@socialgrowth/product-contracts";
+import { requestAccountPreparationSchema, recheckAccountPreparationSchema, reviewAccountPreparationExecutionSchema } from "@socialgrowth/product-contracts";
 import { operatorSessionTokenFrom } from "./operator-session-cookie.js";
 import { requireSupportedContract, requestIdFrom, rethrowHttp } from "./product-http.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
@@ -21,6 +21,13 @@ export class AccountPreparationController {
   @Post("recheck") @Header("Cache-Control", "no-store")
   async recheck(@Param("projectId") id: string, @Body() body: unknown, @Req() req: Request, @Headers("x-csrf-token") csrf: string | undefined) {
     return this.write(id, body, req, csrf, "recheck");
+  }
+  @Post("execution-review") @Header("Cache-Control", "no-store")
+  async review(@Param("projectId") id: string, @Body() body: unknown, @Req() req: Request, @Headers("x-csrf-token") csrf: string | undefined) {
+    try { requireSupportedContract(body); const r = reviewAccountPreparationExecutionSchema.parse(body);
+      if (r.projectId.toLowerCase() !== id.toLowerCase()) throw new ProductTransactionError("INPUT_INVALID", "Project path must match preparation scope");
+      return await this.service.reviewExecution(operatorSessionTokenFrom(req.headers.cookie), csrf ?? "", r);
+    } catch (e) { rethrowHttp(e, requestIdFrom(body)); }
   }
   private async write(id: string, body: unknown, req: Request, csrf: string | undefined, kind: "request" | "recheck") {
     try { requireSupportedContract(body);

@@ -169,3 +169,81 @@ test("rechecking after a committed launch preserves original uncertainty and pre
   await assert.rejects(journal.claim(newAttempt, hash(newAttempt)), /UNAVAILABLE/);
   assert.deepEqual(await journal.read(a, hash(a)), { traceId: null });
 });
+const executionReview = (f: Fixture, w: ReturnType<typeof workspace>) => ({ metadata: metadata(), protocolVersion: executionLibraryVersion,
+  projectId: f.projectId, taskId: w.tasks[0]!.taskId, expectedTaskVersion: w.tasks[0]!.taskVersion, expectedResourceVersion: w.resourceVersion });
+async function reviewTotals() { return (await pool.query(`SELECT (SELECT count(*)::int FROM ${s}.account_preparation_execution_reviews) reviews,
+  (SELECT count(*)::int FROM ${s}.artemis_preparation_intents) intents,(SELECT count(*)::int FROM ${s}.audit_records) audits`)).rows[0]; }
+test("concurrent execution admission reviews persist once, create no dispatch and never alter the original task", async () => {
+  const f = await fixture(), w = workspace(await request(f, "request", input(f))), r = executionReview(f, w), before = await reviewTotals();
+  const responses = await Promise.all([request(f, "execution-review", r), request(f, "execution-review", { ...r, metadata: { ...r.metadata, requestId: metadata().requestId } })]);
+  const reviews = responses.map(r => workspace(r).executionReviews[0]!); assert.equal(reviews[0]!.reviewId, reviews[1]!.reviewId);
+  assert.deepEqual(workspace(responses[0]!).tasks, w.tasks); assert.equal(reviews[0]!.dispatchCreated, false); assert.equal(reviews[0]!.actionPermissionGranted, false);
+  assert.ok(reviews[0]!.blockers.includes("RESOURCE_ASSIGNMENT_REQUIRED")); assert.ok(reviews[0]!.blockers.includes("CURRENT_DEVICE_ACTION_FENCE_REQUIRED"));
+  assert.deepEqual(await reviewTotals(), { reviews: before.reviews + 1, intents: before.intents, audits: before.audits + 1 });
+  const current = await reviewTotals(); await app.close(); await start();
+  assert.equal(workspace(await request(f)).executionReviews[0]!.reviewId, reviews[0]!.reviewId); assert.deepEqual(await reviewTotals(), current);
+});
+test("review keys cannot be reused across commands, scope or versions; forged permissions and CSRF cannot create a review", async () => {
+  const f = await fixture(), original = input(f), w = workspace(await request(f, "request", original)), r = executionReview(f, w), before = await reviewTotals();
+  code(await request(f, "execution-review", { ...r, metadata: original.metadata }), 409, "IDEMPOTENCY_KEY_REUSED");
+  code(await request(f, "execution-review", { ...r, expectedTaskVersion: 4 }), 409, "FACT_VERSION_STALE");
+  code(await request(f, "execution-review", { ...r, expectedResourceVersion: 4 }), 409, "FACT_VERSION_STALE");
+  code(await request(f, "execution-review", { ...r, actionPermissionGranted: true }), 400, "INPUT_INVALID");
+  code(await request(f, "execution-review", { ...r, taskId: randomUUID() }), 409, "FACT_VERSION_STALE");
+  code(await request(f, "execution-review", r, { "x-csrf-token": randomBytes(32).toString("base64url") }), 401, "AUTHENTICATION_REQUIRED");
+  assert.deepEqual(await reviewTotals(), before);
+  workspace(await request(f, "execution-review", r));
+  code(await request(f, "request", { ...original, metadata: r.metadata }), 409, "IDEMPOTENCY_KEY_REUSED");
+  code(await request(f, "execution-review", { ...r, taskId: randomUUID() }), 409, "IDEMPOTENCY_KEY_REUSED");
+});
+test("original SDK completion stays unverified; review uses current pause and preserves the original attempt", async () => {
+  const { f, w, t, a, hash, journal } = await reservedTask(), trace = randomUUID(), evidence = randomUUID();
+  await journal.claim(a, hash(a)); await journal.bindTrace(a.taskAttemptId, hash(a), trace);
+  await journal.record(a.taskAttemptId, hash(a), { traceId: trace, state: "reported", evidenceIds: [evidence], identityVerified: false, publicationAllowed: false });
+  await pool.query(`UPDATE ${s}.devices SET state='paused' WHERE device_id=$1`, [a.input.deviceId]);
+  const before = await reviewTotals(), current = workspace(await request(f, "execution-review", executionReview(f, w))), review = current.executionReviews[0]!;
+  assert.equal(current.tasks[0]!.taskId, t.taskId); assert.equal(current.tasks[0]!.taskVersion, t.taskVersion);
+  assert.ok(review.blockers.includes("DEVICE_PARTICIPATION_RECHECK_REQUIRED")); assert.ok(review.blockers.includes("NETWORK_ADMISSION_REQUIRED"));
+  assert.ok(review.blockers.includes("PHONE_CONTROL_HOLDER_REQUIRED")); assert.equal(review.nextOperationId, null);
+  assert.equal(current.originalOperations[0]!.taskAttemptId, a.taskAttemptId); assert.equal(current.originalOperations[0]!.traceId, trace);
+  assert.equal(current.originalOperations[0]!.latestObservation!.state, "reported"); assert.deepEqual(current.originalOperations[0]!.latestObservation!.evidenceIds, [evidence]);
+  assert.equal(current.originalOperations[0]!.identityVerified, false); assert.equal((await reviewTotals()).intents, before.intents);
+});
+test("read-only original-operation projection preserves bound trace after lost ACK and rejects corrupt receipt scope", async () => {
+  const { f, a, hash, journal } = await reservedTask(), trace = randomUUID(); await journal.claim(a, hash(a)); await journal.bindTrace(a.taskAttemptId, hash(a), trace);
+  await journal.record(a.taskAttemptId, hash(a), { traceId: null, state: "launch_unknown", evidenceIds: [], identityVerified: false, publicationAllowed: false });
+  const before = await reviewTotals(), current = workspace(await request(f)); assert.equal(current.originalOperations[0]!.traceId, trace);
+  assert.equal(current.originalOperations[0]!.latestObservation!.state, "launch_unknown"); assert.deepEqual(await reviewTotals(), before);
+  const other = await fixture(); assert.equal(workspace(await request(other)).originalOperations.length, 0);
+  // Explicitly corrupt the supplemental fixture, never a business/UI result.
+  await pool.query(`INSERT INTO ${s}.artemis_preparation_observations(observation_id,task_attempt_id,fingerprint,record) VALUES($1,$2,$3,$4)`,
+    [randomUUID(), a.taskAttemptId, "0".repeat(64), { traceId: randomUUID(), state: "running", evidenceIds: [], identityVerified: false, publicationAllowed: false }]);
+  const rejected = await request(f); code(rejected, 500, "INTERNAL_ERROR"); assert.ok(!JSON.stringify(rejected.body).includes(trace));
+});
+test("execution review audit failure rolls back; committed history cannot be rewritten", async () => {
+  const f = await fixture(), w = workspace(await request(f, "request", input(f))), r = executionReview(f, w), before = await reviewTotals();
+  await pool.query(`CREATE FUNCTION ${s}.prep_test_review_audit_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'private-review-error'; END $$;
+    CREATE TRIGGER prep_test_review_audit_failure BEFORE INSERT ON ${s}.audit_records FOR EACH ROW EXECUTE FUNCTION ${s}.prep_test_review_audit_failure()`);
+  try { code(await request(f, "execution-review", r), 500, "INTERNAL_ERROR"); assert.deepEqual(await reviewTotals(), before); }
+  finally { await pool.query(`DROP TRIGGER prep_test_review_audit_failure ON ${s}.audit_records; DROP FUNCTION ${s}.prep_test_review_audit_failure()`); }
+  const reviewed = workspace(await request(f, "execution-review", r)).executionReviews[0]!;
+  await assert.rejects(pool.query(`DELETE FROM ${s}.account_preparation_execution_reviews WHERE review_id=$1`, [reviewed.reviewId]));
+  await assert.rejects(pool.query(`UPDATE ${s}.account_preparation_execution_reviews SET record=record||'{"dispatchCreated":true}'::jsonb WHERE review_id=$1`, [reviewed.reviewId]));
+});
+test("a later recheck does not erase the saved older review or allow its key to create a new review", async () => {
+  const f = await fixture(), w = workspace(await request(f, "request", input(f))), r = executionReview(f, w);
+  const first = workspace(await request(f, "execution-review", r)).executionReviews[0]!;
+  const next = workspace(await request(f, "recheck", { ...r, metadata: metadata(), selectedAccountId: null, selectedDeviceId: null }));
+  assert.equal(next.tasks[0]!.taskVersion, 1); assert.equal(next.executionReviews[0]!.taskVersion, 0);
+  const before = await reviewTotals(); assert.equal(workspace(await request(f, "execution-review", r)).executionReviews[0]!.reviewId, first.reviewId);
+  assert.deepEqual(await reviewTotals(), before);
+  code(await request(f, "execution-review", { ...r, expectedTaskVersion: 1 }), 409, "IDEMPOTENCY_KEY_REUSED");
+});
+test("reviews with identical timestamps use committed sequence, not UUID order, to project the latest facts", async () => {
+  const f = await fixture(), w = workspace(await request(f, "request", input(f))), r = executionReview(f, w);
+  const record = workspace(await request(f, "execution-review", r)).executionReviews[0]!, ids = [randomUUID(), randomUUID()].sort().reverse();
+  // Supplemental fixture deliberately shares the timestamp and inverts UUID order.
+  for (const id of ids) await pool.query(`INSERT INTO ${s}.account_preparation_execution_reviews(review_id,task_id,task_version,actor_id,request_key,payload_digest,reviewed_at,record)
+    VALUES($1,$2,0,$3,$4,$5,$6,$7)`, [id, r.taskId, f.actor, `synthetic-review-${id}`, "a".repeat(64), record.reviewedAt, { ...record, reviewId: id }]);
+  assert.equal(workspace(await request(f)).executionReviews[0]!.reviewId, ids[1]);
+});

@@ -10,8 +10,18 @@ const reasons: Record<string, string> = {
   BOUND_IDENTITY_MUST_BE_PRESERVED: "已有绑定身份必须保留，请核对准确 ID",
   CURRENT_DEVICE_ACTION_FENCE_REQUIRED: "等待手机当前授权与独占控制接通",
   PREPARATION_EXECUTOR_NOT_CONNECTED: "等待 Artemis 初始化执行端接通",
+  NETWORK_ADMISSION_REQUIRED: "等待手机网络准入核验",
+  CURRENT_NETWORK_PATH_RECHECK_REQUIRED: "已有入网记录，仍需核验当前实际连接",
+  PHONE_CONTROL_HOLDER_REQUIRED: "等待取得手机独占控制权",
+  PHONE_STOP_CONFIRMATION_REQUIRED: "先确认手机原控制已停止并交还",
+  CURRENT_ADB_TARGET_AUTHORIZATION_REQUIRED: "等待核验当前调试授权与准确手机",
+  CURRENT_LOCAL_PARTICIPATION_CONFIRMATION_REQUIRED: "等待手机本机当前参与确认",
+  CURRENT_HOLDER_TASK_SCOPE_REQUIRED: "等待核对控制权与本任务的对应关系",
+  TRUSTED_PLATFORM_EVIDENCE_CONSUMER_REQUIRED: "等待可信证据核验链路接通",
 };
 const statuses = { waiting_resources: "等待资源条件", waiting_executor: "等待执行条件", needs_reconciliation: "原操作待核实" };
+const observations = { running: "执行观察待核实", launch_unknown: "启动结果待核实", reported: "执行端报告完成，证据待核验",
+  needs_human: "执行端报告需人工协助，待核验", result_unknown: "原结果待核实", stop_unconfirmed: "停止尚未确认" };
 export function AccountPreparationPanel({ projectId, active, readOnly, onExpired }: {
   projectId: string; active: boolean; readOnly: boolean; onExpired: (error: unknown) => void;
 }) {
@@ -24,20 +34,24 @@ export function AccountPreparationPanel({ projectId, active, readOnly, onExpired
   const [category, setCategory] = useState(""), [description, setDescription] = useState(""), [handle, setHandle] = useState("");
   const [scope, setScope] = useState(""), [install, setInstall] = useState(false), [create, setCreate] = useState(false);
   const pending = useRef<PreparedAccountPreparation | null>(null), readEpoch = useRef(0);
+  const pendingKind = useRef<"request" | "recheck" | "execution-review">("request");
   async function refresh() {
     const epoch = ++readEpoch.current;
     try { const next = await readAccountPreparation(projectId); if (epoch === readEpoch.current) setView(next); }
     catch (e) { if (epoch !== readEpoch.current) return; if (e instanceof ProductApiError && e.status === 401) onExpired(e); else setMessage("检查记录暂时无法读取，请重试；没有更改原任务。"); }
   }
   useEffect(() => { if (active) void refresh(); return () => { readEpoch.current++; }; }, [active, projectId]); // eslint-disable-line react-hooks/exhaustive-deps
-  async function send(kind: "request" | "recheck", task?: AccountPreparationTaskView) {
+  async function send(kind: "request" | "recheck" | "execution-review", task?: AccountPreparationTaskView) {
     if (!view || readOnly || busy) return;
     setBusy(true); setMessage("");
     try {
       if (!pending.current) {
+        pendingKind.current = kind;
         const metadata = { contractVersion, requestId: `request-${crypto.randomUUID()}`, idempotencyKey: newIdempotencyKey() };
         const base = { metadata, protocolVersion: executionLibraryVersion, projectId };
-        pending.current = new PreparedAccountPreparation(kind, kind === "recheck" && task
+        pending.current = new PreparedAccountPreparation(kind, kind === "execution-review" && task
+          ? { ...base, taskId: task.taskId, expectedTaskVersion: task.taskVersion, expectedResourceVersion: view.resourceVersion }
+          : kind === "recheck" && task
           ? { ...base, taskId: task.taskId, expectedTaskVersion: task.taskVersion, expectedResourceVersion: view.resourceVersion,
             selectedAccountId: task.selectedAccountId ?? (account || null), selectedDeviceId: task.selectedDeviceId ?? (device || null) }
           : { ...base, expectedProjectVersion: view.projectVersion, expectedResourceVersion: view.resourceVersion,
@@ -47,7 +61,8 @@ export function AccountPreparationPanel({ projectId, active, readOnly, onExpired
               scopeRef: scope, allowTrustedInstall: mode === "prepare_if_missing" && install, allowIdentityCreation: mode === "prepare_if_missing" && create } });
       }
       readEpoch.current++; const next = await pending.current.send(); setView(next); pending.current = null; setUnresolved(false);
-      setMessage("检查请求已记录，当前阻断已保存；尚未操作手机或创建 Page／频道。");
+      setMessage(pendingKind.current === "execution-review" ? "执行条件核验已记录；条件未满足，本次未派发手机动作。"
+        : "检查请求已记录，当前阻断已保存；尚未操作手机或创建 Page／频道。");
     } catch (e) {
       if (e instanceof ProductApiError && e.status === 401) { onExpired(e); return; }
       if (isDefinitiveProjectRejection(e) || (!pending.current && !(e instanceof ProductApiError))) {
@@ -77,7 +92,23 @@ export function AccountPreparationPanel({ projectId, active, readOnly, onExpired
         <div className="project-save-actions"><button disabled={busy || unresolved} type="submit">{busy ? "检查中…" : "发起初始化检查"}</button>{unresolved && <button className="outline-button" type="button" disabled={busy} onClick={() => void send("request")}>接续原初始化请求</button>}</div>
       </form>}
       <h4>检查记录与下一步</h4>
-      {view.tasks.length === 0 ? <p>尚无初始化检查记录。</p> : <div className="table-wrap"><table><thead><tr><th>发布身份</th><th>当前状态</th><th>下一步／缺少条件</th><th>处理</th></tr></thead><tbody>{view.tasks.map(t => <tr key={t.taskId}><td>{t.intent.target.name}<small>{t.intent.target.platform === "facebook" ? "Facebook Page" : "YouTube 频道"} · 任务 {t.taskId.slice(0, 8)} · v{t.taskVersion}</small></td><td>{statuses[t.state]}</td><td>{t.nextOperationId && <p>下一步：{preparationExecutionLibrary.find(o => o.id === t.nextOperationId)?.name}</p>}{t.blockers.map(b => <p key={b}>{reasons[b] ?? "条件需要核对"}</p>)}</td><td>{readOnly ? "转电脑处理" : <button className="text-button" disabled={busy || unresolved} onClick={() => void send("recheck", t)}>重新检查原任务</button>}</td></tr>)}</tbody></table></div>}
+      {view.tasks.length === 0 ? <p>尚无初始化检查记录。</p> : <div className="table-wrap"><table><thead><tr><th>发布身份</th><th>当前状态</th><th>下一步／缺少条件</th><th>处理</th></tr></thead><tbody>{view.tasks.map(t => {
+        const review = view.executionReviews.find(r => r.taskId === t.taskId);
+        return <tr key={t.taskId}><td>{t.intent.target.name}<small>{t.intent.target.platform === "facebook" ? "Facebook Page" : "YouTube 频道"} · 任务 {t.taskId.slice(0, 8)} · v{t.taskVersion}</small></td><td>{statuses[t.state]}</td><td>{t.nextOperationId && <p>下一步：{preparationExecutionLibrary.find(o => o.id === t.nextOperationId)?.name}</p>}{t.blockers.map(b => <p key={b}>{reasons[b] ?? "条件需要核对"}</p>)}
+          {review && <details><summary>执行条件核验记录 · v{review.taskVersion}</summary>
+            {(review.taskVersion !== t.taskVersion || review.resourceVersion !== view.resourceVersion) && <p>该记录对应较早事实，请重新核验当前条件。</p>}
+            {review.blockers.map(b => <p key={b}>{reasons[b] ?? "条件需要核对"}</p>)}<p>本次核验未派发手机动作。</p></details>}
+        </td><td>{readOnly ? "转电脑处理" : <><button className="text-button" disabled={busy || unresolved} onClick={() => void send("recheck", t)}>重新检查原任务</button>
+          <button className="text-button" disabled={busy || unresolved} onClick={() => void send("execution-review", t)}>核验执行条件</button></>}</td></tr>;
+      })}</tbody></table></div>}
+      <h4>原操作与回执</h4>
+      {view.originalOperations.length === 0 ? <p>尚无原手机操作记录；没有派发手机动作。</p> : <ul>{view.originalOperations.map(o => <li key={o.taskAttemptId}>
+        原任务 {o.taskId.slice(0, 8)} · v{o.taskVersion} · {preparationExecutionLibrary.find(v => v.id === o.operationId)?.name}：
+        {o.latestObservation ? observations[o.latestObservation.state] : "启动意图已保存，原结果待核实"}。
+        {o.traceId ? ` 原 trace ${o.traceId.slice(0, 8)}。` : " 原 trace 尚未确认。"}
+        {o.latestObservation && ` 已登记 ${o.latestObservation.evidenceIds.length} 项证据引用，尚未可信核验。`}
+      </li>)}</ul>}
+      <p className="form-note">读取记录只查看已保存事实，不产生手机截图；执行端回执不等于平台身份或管理权限已核验。</p>
       <p className="form-note">请求受理和检查记录不代表手机已执行、身份已核验或可以发布；未知结果继续核实原操作。</p>
     </>}
   </section>;

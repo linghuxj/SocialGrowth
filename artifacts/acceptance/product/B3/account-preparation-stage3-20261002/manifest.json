@@ -1,0 +1,215 @@
+{
+  "generatedAt": "2026-10-02T08:48:31.045261+00:00",
+  "baseCommit": "ad8c7e8975f87425de1146b5192ce8050c9ab715",
+  "branch": "codex/core-automation-loop-stage1",
+  "candidate": "scoped execution-admission review and original-operation projection checkpoint",
+  "sourceFiles": [
+    {
+      "path": "docs/specs/2026-10-02-account-preparation-execution-library.md",
+      "bytes": 7640,
+      "sha256": "a870ac867b4c57d15aca50ef895538e1ff90c4a999318a1508c415b80d79e064"
+    },
+    {
+      "path": "docs/engineering/delivery/records/account-preparation-stage3-20261002.md",
+      "bytes": 8505,
+      "sha256": "13567035e53811f892282327c463e6759862559d8146d42105a2f8c836bfaa31"
+    },
+    {
+      "path": "product/backend/migrations/0028_preparation_execution_reviews.sql",
+      "bytes": 1770,
+      "sha256": "e018a4413920ff43463068de8634d6decd5f5afbb5d6b1ad18971c63a43ab46c"
+    },
+    {
+      "path": "product/backend/src/account-preparation-service.ts",
+      "bytes": 24982,
+      "sha256": "1c614cf412355254f0fca4fa338515a8ffb0d4923b0cde137ba31287946d5778"
+    },
+    {
+      "path": "product/backend/src/account-preparation.controller.ts",
+      "bytes": 2954,
+      "sha256": "a9268b7d575248feebf0043fefae6b19ca1fcf3dd02de7b379f62e8039a75078"
+    },
+    {
+      "path": "product/backend/src/account-preparation-api.pg-test.ts",
+      "bytes": 27756,
+      "sha256": "6849bc2cc87db04c3c6ad0425757f82bce890c9cb0f8337bb84916d58f8d56d1"
+    },
+    {
+      "path": "product/contracts/src/account-preparation.ts",
+      "bytes": 4420,
+      "sha256": "9d573198b5dd189846cbb3eaa8a76f48cd52aeda73b3ea5920fbe93d6e934334"
+    },
+    {
+      "path": "product/web/src/account-preparation-api.ts",
+      "bytes": 2430,
+      "sha256": "4740efcedbb127190f6ee81d0dc0cf9a95e5d3fdfb8fb07c4c60092a3411dae7"
+    },
+    {
+      "path": "product/web/src/account-preparation-panel.tsx",
+      "bytes": 13291,
+      "sha256": "8663a7444498e418a09a21e41ed27e352d7ce4231555b79dde54ab5b509c8e72"
+    },
+    {
+      "path": "scripts/verify-product-account-preparation-playwright.mts",
+      "bytes": 11333,
+      "sha256": "2591ccb09e414f76a67d73229945f3b190439c5b09785078ca7fe0fe8a193d9e"
+    }
+  ],
+  "evidenceFiles": [
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage3-20261002/backend-build-final.log",
+      "bytes": 142,
+      "sha256": "d34e875db7ed0afe97cf7ccf50282fdd8c339c6048c8b8093f33d7919ab2bd82"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage3-20261002/backend-lint-final.log",
+      "bytes": 851,
+      "sha256": "144c0e33697403034f70c17de7f97fa2d143448d3ef487d53c7f2882dbf94151"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage3-20261002/environment.log",
+      "bytes": 224,
+      "sha256": "fa7ea2631eeebb77628bb0609323a0b4f71a0bb88e1c33cff824f8bda368a5a1"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage3-20261002/postgres-final.log",
+      "bytes": 2210,
+      "sha256": "95cf5eeaac8370b0fbd68bafd45989bfb57394780cba17a33792ab416192df76"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage3-20261002/postgres-first.log",
+      "bytes": 2101,
+      "sha256": "4a764d79dccef3b1a7b6328796ce74f7c235cc93aef1d8b5026b4b7ac92c1bbd"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage3-20261002/product-build.log",
+      "bytes": 1323,
+      "sha256": "74a7b9a41f3599c83cdccd10da5a9739498a477f52d5be5743b6234fcb4fea39"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage3-20261002/product-check.log",
+      "bytes": 1393,
+      "sha256": "2c88c5d3eb13ea6a2724ef1ded3aacfef8b2140d6e2c08859401efd1e2b60e6f"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage3-20261002/product-lint.log",
+      "bytes": 1459,
+      "sha256": "0a46326ec0c10d4cd9c6e881e7cd921ccccea928e7863c6606ff8675583de7f9"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage3-20261002/product-tests.log",
+      "bytes": 57582,
+      "sha256": "97915009a12f604b9cebe0da095db76d7359a208b38a604ac621e99411ad74bd"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage3-20261002/resource-closure.json",
+      "bytes": 686,
+      "sha256": "b597c77624c266769c3d407746743e95a3c5bb418bb51624c960604e5c7e2b7b"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage3-20261002/sql-readonly-final.json",
+      "bytes": 1540,
+      "sha256": "a51890452405b2352b4a9014cd1cec93d7d9d83a7e22058fabacfe9c6b795526"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage3-20261002/ui-final/playwright.log",
+      "bytes": 829,
+      "sha256": "c7fcffd8135c19e253e94b4f1e89450dbf522167c38114afaeab72d2568e585c"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage3-20261002/ui-final/preparation-desktop.png",
+      "bytes": 232407,
+      "sha256": "20a302edd41aa7cd8fe95cc3e8eabfdb08f30f02dc95a43d38a98014797a2169"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage3-20261002/ui-final/preparation-mobile.png",
+      "bytes": 84850,
+      "sha256": "44ee8f81b08d38a7b3e6663408ee1fae495b048f0eb2d0ec2141631572b1698d"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage3-20261002/ui-final/result.json",
+      "bytes": 987,
+      "sha256": "c3b1632af6cf8ece9b77b3828d02207df2ca80956da42b3633be56d7260ea378"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage3-20261002/ui-first/playwright.log",
+      "bytes": 829,
+      "sha256": "c7fcffd8135c19e253e94b4f1e89450dbf522167c38114afaeab72d2568e585c"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage3-20261002/ui-first/preparation-desktop.png",
+      "bytes": 230750,
+      "sha256": "ae521a13c9acbc634e2df7f41f15dcaf1e883c49c861d61ec70d70c6fdea7308"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage3-20261002/ui-first/preparation-mobile.png",
+      "bytes": 84566,
+      "sha256": "1864d208f20a96a01ddfb454a7c355b6432b2c3bf81083d1a967b34e9110c654"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage3-20261002/ui-first/result.json",
+      "bytes": 987,
+      "sha256": "88103463e27d2bfb6ca247875a011cb51fd8445935c61dc6c1fffaffac0ed494"
+    }
+  ],
+  "checks": {
+    "productTypeCheck": "passed",
+    "productLint": "passed with 2 pre-existing backend warnings",
+    "productTests": {
+      "contractsTypescript": 66,
+      "contractsPython": 38,
+      "backend": 339,
+      "executor": 29,
+      "web": 86,
+      "totalPassed": 558,
+      "failed": 0
+    },
+    "productBuild": "passed",
+    "finalBackendBuildAndLint": "passed after review-sequence correction",
+    "isolatedPostgresHttpSupplemental": {
+      "passed": 18,
+      "failed": 0,
+      "receiptFixturesSynthetic": true,
+      "notRealPhoneAcceptance": true
+    },
+    "playwrightWeb": {
+      "results": [
+        "默认仅检查；必要输入缺少时真实表单阻止提交",
+        "实际提交保存原任务，页面展示资源阻断，无虚构就绪",
+        "执行条件从真实服务保存并读取，缺失许可阻断，不虚构派发或回执",
+        "执行核验丢响应后接续原键，保留同一核验记录与任务版本",
+        "重新检查同一任务，原身份和历史保留，检查版本递增，旧核验不会被伪装为当前许可",
+        "实际保存后丢响应：锁输入、读记录、原键接续，无重复任务",
+        "重载保留两平台任务与原检查状态",
+        "390px 可读、写操作关闭，无横向溢出"
+      ],
+      "errors": [],
+      "taskIds": [
+        "fbbc8f85-0d53-4026-98a6-a8001aa21cac",
+        "4638fa50-05bf-4d2b-963d-7b8f578562a5"
+      ],
+      "checkVersion": 1,
+      "reviewId": "505216f8-1516-45f2-b5a7-41877857624d",
+      "phoneOperations": 0,
+      "createdPlatformAssets": 0,
+      "publications": 0,
+      "platformReadinessVerified": false
+    },
+    "sourceDiffWhitespace": "passed; original tool logs retain whitespace"
+  },
+  "acceptance": {
+    "executionAdmissionWebPersistenceAndRecoveryVerified": true,
+    "originalReceiptProjectionVerifiedBySupplementalFixturesOnly": true,
+    "webOriginalOperationRealReceiptAcceptance": false,
+    "dispatchCreated": false,
+    "centralArtemisDispatchConnected": false,
+    "perActionPhysicalPermissionConnected": false,
+    "trustedEvidenceConsumerConnected": false,
+    "realArtemisInvocations": 0,
+    "createdPlatformAssets": 0,
+    "publications": 0,
+    "platformReadinessVerified": false,
+    "independentReviewSigned": false
+  },
+  "resourceClosure": "resource-closure.json"
+}
