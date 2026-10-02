@@ -1,6 +1,6 @@
 # 接手推进：真实模型方向、持久确认与 Artemis 协作
 
-日期：2026-10-02。沿用 `codex/core-automation-loop-stage1`，基线 `c01b64758729fabe33f9eeba52cef45094f21812`。候选是本记录所属提交；源字节、脚本与证据见 [manifest](../../../../artifacts/acceptance/product/B3/core-loop-stage3-takeover/candidate-manifest.json)。这是作者检查点，未代替原非作者复核或独立 QA，未合入 Developer，父 pending 保留。
+日期：2026-10-02。沿用 `codex/core-automation-loop-stage1`，基线 `c01b64758729fabe33f9eeba52cef45094f21812`。固定代码候选为 `fd9e0dd3c9aa8e0ec9500cfc03578164ef62d48e`；manifest 指纹对应该提交，后续资源收尾文档另留痕；源字节、脚本与证据见 [manifest](../../../../artifacts/acceptance/product/B3/core-loop-stage3-takeover/candidate-manifest.json)。这是作者检查点，未代替原非作者复核或独立 QA，未合入 Developer，父 pending 保留。
 
 用户已确认：Demo 切片及已登记 FB/YouTube 账号可使用；优先停在最终提交前，必要时允许一次测试发布。本批实际公开发布次数为 **0**。用户随后明确确认两份原件此前从未公开发布；这是用户首次使用声明，仍不等于系统核验、Page/频道身份、分成资格或当前物理许可。
 
@@ -93,3 +93,5 @@ SG_PRODUCT_CORE_REAL_MATERIAL_AUTHORIZED=1 SG_PRODUCT_CORE_REAL_MATERIAL_FIRST_U
 SG_PRODUCT_CORE_REAL_MATERIAL_FILES='<两份获准原件绝对路径的JSON数组>' \
 SG_PRODUCT_CORE_OUTPUT=<新输出目录> pnpm exec node scripts/verify-product-core-loop-local.mjs
 ```
+
+资源收尾补充：详见 [资源核对](../../../../artifacts/acceptance/product/B3/core-loop-stage3-takeover/takeover-resource-closure.json)。自有 Demo 3000/4318 与正式临时3100/4320均关闭，运行任务0、本人接管0，原unknown1及4暂停保留；临时浏览器标签已关闭。关闭后普通只读SQLite查询出现CANTOPEN；确认无WAL、用不可变只读快照后quick_check=ok并核对上述数量，没有改库。原unknown关联SHA `2b426…2168` 的二创原件，用户首次未发布声明不自动替代该原任务的结构化核实。Demo旧语言声明zh/zh-CN、rights/source标签可作追溯线索，未查到真实制作/业务证明文档；不能以这些字符串建立外部证明或伪造UUID。已向用户请求制作／提供方、业务资料及已登记YT/Page记录位置。后续C2b→C2d→C3→C4保持，未把这一检查点写成全链完成。

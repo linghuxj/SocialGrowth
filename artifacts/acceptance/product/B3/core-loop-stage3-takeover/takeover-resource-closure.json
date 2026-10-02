@@ -1,0 +1,47 @@
+{
+  "candidate": "fd9e0dd3c9aa8e0ec9500cfc03578164ef62d48e",
+  "checkedAt": "2026-10-02T06:34:55.909180+00:00",
+  "ownedTemporaryPortsClosed": {
+    "3000": true,
+    "4318": true,
+    "3100": true,
+    "4320": true
+  },
+  "readonlyDatabaseSnapshot": "mode=ro&immutable=1 after service closure and absence of WAL; quick_check=ok; ordinary readonly closed-WAL query previously CANTOPEN",
+  "demoRunningTaskCount": 0,
+  "demoUnknownTasksPreserved": [
+    {
+      "taskId": "d634e4c6-4266-4cc7-a784-3a31a1737cac",
+      "sha256": "2b426251ca5b1547612fd80309bcd3f449bdd17aa0319004b54020ef4eaf2168",
+      "state": "unknown preserved"
+    }
+  ],
+  "demoDeviceHoldCount": 0,
+  "demoPauseCountPreserved": 4,
+  "browserAgentTabsClosed": true,
+  "sourceDeclarationStatus": {
+    "bothOriginalsUserDeclaredNeverPublic": true,
+    "systemSourceVerification": false,
+    "recordedDemoLanguageDeclarations": [
+      "zh",
+      "zh-CN"
+    ],
+    "recordedDemoRightsLabels": [
+      "exclusive-license-2026-jiangmen",
+      "rights://drama-exclusive-2026"
+    ],
+    "labelsAreNotVerifiedExternalEvidence": true
+  },
+  "publicationCount": 0,
+  "remainingImplementation": [
+    "C2b source/candidate producer",
+    "C2c/d authoritative model facts and atomic plan/task/quota/outbox",
+    "C3 production task/current physical fence/file preparation/independent receipts",
+    "C4 production unknown/human/resume chain"
+  ],
+  "pendingBusinessInputs": [
+    "maker/provider and business/source records",
+    "registered YouTube channel/Facebook Page location"
+  ],
+  "independentGates": "not signed; Developer not merged"
+}
