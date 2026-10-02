@@ -1,0 +1,24 @@
+{
+  "taskId": "cb799e90-aa04-460c-b1fd-59dc5caff8dc",
+  "traceId": "8f391fd7-5848-4306-a440-ac8975d7079d",
+  "deviceSerial": "127.0.0.1:34322",
+  "sdkStatus": "completed",
+  "checker": {
+    "task_status": "completed",
+    "passed": 1,
+    "failed": 0,
+    "inconclusive": 0,
+    "unchecked": 0,
+    "failed_items": [],
+    "retired": 0,
+    "retired_items": []
+  },
+  "strictWebResult": "UNCONFIRMED",
+  "expiredActiveSamples": 6,
+  "backgroundContinuousAccepted": false,
+  "withdrawalObserved": true,
+  "historicalResultRewritten": false,
+  "taskRelaunched": false,
+  "businessReady": false,
+  "allPathsFenced": false
+}

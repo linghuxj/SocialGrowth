@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-02T18:54:27.551390+00:00",
+  "sha256": "947c80278445b06d37a3b5dbbfe575f4acaddf676df2e9f222e74bfa4b095d39",
+  "bytes": 5370896,
+  "tests": 38,
+  "failures": 0,
+  "errors": 0,
+  "remoteEndpoint": "127.0.0.1:34322",
+  "installed": true,
+  "usbTransportAbsent": true,
+  "usbFallback": false,
+  "installationDataCleared": false
+}

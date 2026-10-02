@@ -1,0 +1,13 @@
+{
+  "checkedAt": "2026-10-02T18:41:55.855Z",
+  "taskId": "cb799e90-aa04-460c-b1fd-59dc5caff8dc",
+  "traceId": "8f391fd7-5848-4306-a440-ac8975d7079d",
+  "result": "The input did not match the regular expression /finished · CLIENT_TEST_COMPLETED/. Input:",
+  "cleanupConfirmed": true,
+  "initiatedThrough": "pnpm test:playwright / actual Demo Web",
+  "backendWithdrawalIndependentlyRequired": true,
+  "businessQueueConsumed": false,
+  "oldUnknownResolved": false,
+  "physicalStopConfirmed": false,
+  "publicationAttempted": false
+}

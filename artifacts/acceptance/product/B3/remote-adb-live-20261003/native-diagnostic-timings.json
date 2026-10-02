@@ -1,0 +1,208 @@
+{
+  "scope": "debug_phase_timing_only",
+  "rows": [
+    {
+      "deviceTime": "10-03 02:38:02.894",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 225
+    },
+    {
+      "deviceTime": "10-03 02:38:07.182",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 223
+    },
+    {
+      "deviceTime": "10-03 02:38:11.604",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 361
+    },
+    {
+      "deviceTime": "10-03 02:38:16.013",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 349
+    },
+    {
+      "deviceTime": "10-03 02:38:20.379",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 307
+    },
+    {
+      "deviceTime": "10-03 02:38:24.713",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 274
+    },
+    {
+      "deviceTime": "10-03 02:38:29.119",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 339
+    },
+    {
+      "deviceTime": "10-03 02:38:33.658",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 482
+    },
+    {
+      "deviceTime": "10-03 02:38:41.171",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 3456
+    },
+    {
+      "deviceTime": "10-03 02:38:49.021",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 3801
+    },
+    {
+      "deviceTime": "10-03 02:38:53.306",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 229
+    },
+    {
+      "deviceTime": "10-03 02:38:57.750",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 377
+    },
+    {
+      "deviceTime": "10-03 02:39:02.062",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 252
+    },
+    {
+      "deviceTime": "10-03 02:39:06.383",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 259
+    },
+    {
+      "deviceTime": "10-03 02:39:10.712",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 276
+    },
+    {
+      "deviceTime": "10-03 02:39:15.053",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 291
+    },
+    {
+      "deviceTime": "10-03 02:39:19.393",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 287
+    },
+    {
+      "deviceTime": "10-03 02:39:23.813",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 361
+    },
+    {
+      "deviceTime": "10-03 02:39:28.144",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 269
+    },
+    {
+      "deviceTime": "10-03 02:39:32.465",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 263
+    },
+    {
+      "deviceTime": "10-03 02:39:36.820",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 293
+    },
+    {
+      "deviceTime": "10-03 02:39:41.430",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 560
+    },
+    {
+      "deviceTime": "10-03 02:39:45.870",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 383
+    },
+    {
+      "deviceTime": "10-03 02:39:50.188",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 281
+    },
+    {
+      "deviceTime": "10-03 02:39:54.498",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 255
+    },
+    {
+      "deviceTime": "10-03 02:39:58.762",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 205
+    },
+    {
+      "deviceTime": "10-03 02:40:03.010",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 191
+    },
+    {
+      "deviceTime": "10-03 02:40:47.341",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 333
+    },
+    {
+      "deviceTime": "10-03 02:40:51.912",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 517
+    },
+    {
+      "deviceTime": "10-03 02:40:56.144",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 168
+    },
+    {
+      "deviceTime": "10-03 02:41:00.428",
+      "event": "pulse_confirmed",
+      "phase": "confirm",
+      "elapsedMs": 216
+    },
+    {
+      "deviceTime": "10-03 02:41:01.674",
+      "event": "withdraw_requested",
+      "phase": "visible_client",
+      "elapsedMs": 0
+    },
+    {
+      "deviceTime": "10-03 02:41:01.737",
+      "event": "loop_ended",
+      "phase": "withdraw_requested",
+      "elapsedMs": 0
+    }
+  ],
+  "selection": {
+    "fromDeviceTime": "10-03 02:38:00",
+    "throughDeviceTime": "10-03 02:42:00",
+    "scope": "diagnostic_event_and_timing_only"
+  }
+}

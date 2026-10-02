@@ -1,0 +1,10 @@
+{
+  "checkedAt": "2026-10-02T18:33:12.533916+00:00",
+  "remoteEndpoint": "127.0.0.1:34322",
+  "physicalSerialMatches": true,
+  "usbTransportAbsent": true,
+  "reversePort": 4320,
+  "usbFallback": false,
+  "firstPairingCodeFlowVerified": false,
+  "scope": "actual wireless TLS ADB through Tailscale daemon; no formal network admission"
+}

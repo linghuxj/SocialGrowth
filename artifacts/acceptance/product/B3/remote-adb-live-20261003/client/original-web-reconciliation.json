@@ -1,0 +1,9 @@
+{
+  "checkedAt": "2026-10-02T18:43:54.181Z",
+  "taskId": "cb799e90-aa04-460c-b1fd-59dc5caff8dc",
+  "originalWebText": "Web 验收任务：cb799e90-aa04-460c-b1fd-59dc5caff8dc\nfinished · UNCONFIRMED\n\n目标：SocialGrowth 自有客户端 / com.socialgrowth.product；模式：client_test；平台：socialgrowth\n\n错误码：INSPECT_DEVICE_EVIDENCE\n\nArtemis 检查：completed；通过 1，失败 0，待确认 0。执行结束不代表业务完成。\n\nArtemis：8f391fd7-5848-4306-a440-ac8975d7079d；登录提交：尚未核实；内容提交：尚未核实\n\n查看最终真机截图",
+  "acceptance": "failed",
+  "taskRelaunched": false,
+  "backendStateWritten": false,
+  "historicalResultRewritten": false
+}

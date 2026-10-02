@@ -6,12 +6,37 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { RuntimeStore } from "./store.ts";
 import { HumanAssistance } from "./human-assistance.ts";
-import { WebVerification } from "./web-verification.ts";
+import { WebVerification, clientDiagnosticResult } from "./web-verification.ts";
 
 const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
   "base64",
 );
+test("native report adapter accepts only one bounded final diagnostic JSON, never conflicting or business results", () => {
+  const result = { resultCode: "CLIENT_TEST_COMPLETED", loginSubmitCount: 0, finalSubmitClicked: false,
+    backgroundObserved: true, withdrawalObserved: true };
+  const report = `Native UI observations\n${JSON.stringify(result)}`;
+  assert.deepEqual(clientDiagnosticResult({ result: report }), result);
+  for (const value of [
+    `${JSON.stringify(result)}\n${report}`,
+    `UNCONFIRMED\n${JSON.stringify(result)}`,
+    `Native UI\n${JSON.stringify({ ...result, resultCode: "PREFLIGHT_READY" })}`,
+    `Native UI\n${JSON.stringify({ ...result, finalSubmitClicked: true })}`,
+    `Native UI\n${JSON.stringify({ ...result, permissionGranted: true })}`,
+    `Native UI\n${JSON.stringify(result)}\nTrailing text`,
+    `${"x".repeat(16_384)}\n${JSON.stringify(result)}`,
+  ]) assert.throws(() => clientDiagnosticResult({ result: value }));
+});
+test("SDK prose containing native JSON still requires successful independent checker counts", async () => {
+  const result = `Native observations\n${JSON.stringify({ resultCode: "CLIENT_TEST_COMPLETED", loginSubmitCount: 0,
+    finalSubmitClicked: false, backgroundObserved: true, withdrawalObserved: true })}`;
+  for (const failed of [0, 1]) {
+    const f = fixture({ result, test_summary: { task_status: "completed", passed: 1, failed, inconclusive: 0 } }, "client_test");
+    try { f.hold(); f.verification.start(f.input);
+      assert.equal((await f.finish()).resultCode, failed ? "UNCONFIRMED" : "CLIENT_TEST_COMPLETED");
+    } finally { await f.close(); }
+  }
+});
 function fixture(result: unknown, mode: "preflight" | "observe" | "client_test" = "preflight") {
   const directory = mkdtempSync(join(tmpdir(), "sg-web-verify-")),
     mediaPath = join(directory, "test.mp4");
@@ -43,6 +68,7 @@ function fixture(result: unknown, mode: "preflight" | "observe" | "client_test" 
               assert.equal(Object.hasOwn(args, "locked_app_package"), false);
               assert.ok(String(args.task_desc).includes("撤回本机参与 ONCE"));
               assert.ok(String(args.task_desc).includes("Never click 确认当前参与"));
+              assert.ok(String(args.task_desc).includes("Never use manage_app"));
             } else if (mode === "observe") {
               assert.equal(Object.hasOwn(args, "locked_app_package"), false);
               assert.ok(String(args.task_desc).includes("Observe current device screen only"));

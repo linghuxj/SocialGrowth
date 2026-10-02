@@ -16,7 +16,7 @@ test("client test scope denies credentials, installation, identity and publicati
     for (const category of ["publish", "install", "create_identity", "login_submit", "correct_account", "unmanaged"])
       assert.throws(() => human.supervision.gate(session.sessionId, { action: "test", category }), /CLIENT_TEST_ACTION_NOT_AUTHORIZED/);
     assert.equal(human.supervision.gate(session.sessionId, { action: "click", category: "navigate" }).allowed, true);
-    assert.equal(human.supervision.gate(session.sessionId, { action: "manage_app", category: "recovery" }).allowed, true);
+    assert.throws(() => human.supervision.gate(session.sessionId, { action: "manage_app", category: "recovery" }), /CLIENT_TEST_ACTION_NOT_AUTHORIZED/);
   } finally { human.close(); store.close(); }
 });
 const png =

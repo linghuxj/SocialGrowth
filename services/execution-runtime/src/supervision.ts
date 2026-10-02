@@ -224,7 +224,7 @@ export class Supervision {
     requireFact(c.state === "active", "AGENT_ACTIONS_FROZEN");
     requireFact(c.policy.mode !== "observe", "OBSERVE_ONLY");
     if (c.policy.mode === "client_test") {
-      requireFact(input.category === "navigate" || (input.category === "recovery" && input.action === "manage_app"), "CLIENT_TEST_ACTION_NOT_AUTHORIZED");
+      requireFact(input.category === "navigate", "CLIENT_TEST_ACTION_NOT_AUTHORIZED");
     }
     if (input.category === "create_identity") {
       requireFact(c.policy.mode === "onboarding" && c.policy.allowIdentityCreation && !c.identityCreationAttempts, "IDENTITY_CREATION_NOT_AUTHORIZED");

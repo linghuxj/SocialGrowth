@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { ScreenshotStore } from "./storage/screenshot-store.ts";
 
-test("ScreenshotStore converts PNG to WebP and uploads to MinIO", async () => {
+test("ScreenshotStore roundtrips WebP in MinIO with an encoded wireless ADB object key", async () => {
   const store = new ScreenshotStore();
 
   // Create a minimal 1x1 8-bit PNG buffer in memory
@@ -19,12 +19,12 @@ test("ScreenshotStore converts PNG to WebP and uploads to MinIO", async () => {
   // Test upload to MinIO
   const result = await store.uploadScreenshot(minimalPng, {
     workerId: "worker01",
-    deviceId: "phone01",
+    deviceId: "127.0.0.1:34322",
     sessionId: "test-session",
     step: 1,
   });
 
-  assert.match(result.imageKey, /^screenshots\/worker01\/phone01\/test-session\/step_1\.webp$/);
+  assert.equal(result.imageKey, "screenshots/worker01/127.0.0.1:34322/test-session/step_1.webp");
   assert.equal(result.contentType, "image/webp");
   assert.ok(result.size > 0);
 

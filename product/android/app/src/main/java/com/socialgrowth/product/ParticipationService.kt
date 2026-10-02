@@ -12,6 +12,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.IBinder
 import android.os.SystemClock
+import android.util.Log
 import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
@@ -34,10 +35,16 @@ class ParticipationService : Service() {
     private val main=Handler(Looper.getMainLooper())
     private var lastStartId=0
     private var workerActive=false // Main-thread owned; blocks restart until withdrawal finishes.
+    // Debug diagnostics contain only bounded phase/timing facts. No run/session
+    // token, device identity, challenge, HTTP body or exception message.
+    private fun diagnostic(event: String, phase: String, elapsedMs: Long = 0) {
+        if(BuildConfig.DEBUG) Log.i("SGParticipation", "event=$event phase=$phase elapsedMs=$elapsedMs")
+    }
     override fun onBind(intent: Intent?): IBinder? = null
     override fun onStartCommand(intent: Intent?,flags: Int,startId: Int): Int {
         lastStartId=startId
         if(intent?.action==STOP) {
+            diagnostic("withdraw_requested", "visible_client")
             live.set(false); running=false;confirmedUntil=0L;phase="已停止后续参与确认；中心撤权和手机停止仍待核实。"
             if(!workerActive) stopSelf()
             return START_NOT_STICKY
@@ -67,27 +74,50 @@ class ParticipationService : Service() {
         val identity=store.load()
         val token=identity?.activeSessionToken()
         val api=ParticipationApiClient(ProviderApiClient(BuildConfig.API_BASE_URL))
+        var stage="start"
+        var roundStarted=SystemClock.elapsedRealtime()
+        var ending="session_unavailable"
+        val freshness=ParticipationFreshness()
         try {
             if(token==null || !live.get()) return
             val run=api.start(token,runId)
             require(run.runId==runId && run.scope.installationId==requireNotNull(identity).installationId && run.scope.installationGeneration==identity.generation.toString())
+            ending="withdraw_requested"
             while(live.get()) {
+                if(!freshness.canContinue(SystemClock.elapsedRealtime())) { ending="participation_expired";break }
+                stage="identity"
                 require(store.load()?.activeSessionToken()==token)
                 val before=SystemClock.elapsedRealtime()
+                roundStarted=before
+                stage="challenge"
                 val challenge=api.challenge(token,runId)
                 // A scope/epoch change requires another visible local decision,
                 // never an automatic restoration after pause/replacement.
                 require(challenge.runId==runId && challenge.scope==run.scope)
-                if(!live.get() || SystemClock.elapsedRealtime()-before>=6_000L) break
+                if(!live.get()) break
+                if(!freshness.canContinue(SystemClock.elapsedRealtime())) { ending="participation_expired";break }
+                if(SystemClock.elapsedRealtime()-before>=6_000L) { ending="challenge_deadline";break }
+                stage="confirm"
                 api.confirm(token,challenge)
-                if(!live.get() || SystemClock.elapsedRealtime()-before>=10_000L) break
+                if(!live.get()) break
+                if(!freshness.canContinue(SystemClock.elapsedRealtime())) { ending="participation_expired";break }
+                if(SystemClock.elapsedRealtime()-before>=10_000L) { ending="confirm_deadline";break }
+                freshness.confirmed(before)
                 confirmedUntil=before+10_000L
                 phase="当前确认已过期；等待下一次中心确认。"
-                var wait=0
-                while(live.get() && wait<40) { Thread.sleep(100);wait++ }
+                diagnostic("pulse_confirmed", stage, SystemClock.elapsedRealtime()-before)
+                stage="wait"
+                // Network latency is part of the four-second cadence, not an
+                // additional delay after confirmation. Never extend freshness.
+                val nextRound=SystemClock.elapsedRealtime()+freshness.nextRoundDelay(before,SystemClock.elapsedRealtime())
+                while(live.get() && SystemClock.elapsedRealtime()<nextRound) { Thread.sleep(100) }
             }
-        } catch (_: Exception) { /* No raw messages, tokens or request bodies in logs. */ }
+        } catch (_: Exception) {
+            ending="request_or_scope_rejected"
+            diagnostic("loop_rejected", stage, SystemClock.elapsedRealtime()-roundStarted)
+        }
         finally {
+            diagnostic("loop_ended", ending)
             live.set(false); running=false;confirmedUntil=0L;phase="本机参与确认已结束；中心撤权和手机停止仍待核实。"
             if(token!=null) { try { api.withdraw(token,runId) } catch (_: Exception) { /* Pulse expires; stop is still unconfirmed. */ } }
             main.post {

@@ -1,8 +1,5 @@
 import { createHash, createHmac } from "node:crypto";
-import { execFile, spawn } from "node:child_process";
-import { promisify } from "node:util";
-
-const exec = promisify(execFile);
+import { spawn } from "node:child_process";
 
 import { resolve } from "node:path";
 import { existsSync } from "node:fs";
@@ -31,6 +28,14 @@ export class ScreenshotStore {
   private readonly region: string;
   private readonly pythonPath: string;
   private bucketChecked = false;
+
+  // S3 canonical URI must match the encoded wire path, including wireless
+  // ADB serials such as 127.0.0.1:34322. Preserve object-key slash separators.
+  private objectUri(imageKey: string): string {
+    return `/${this.bucket}/${imageKey.replace(/^\//, "")}`.split("/")
+      .map(segment => encodeURIComponent(segment).replace(/[!'()*]/g,
+        char => `%${char.charCodeAt(0).toString(16).toUpperCase()}`)).join("/");
+  }
 
   constructor(options: ScreenshotStoreOptions = {}) {
     this.endpoint = (options.endpoint ?? process.env.SG_MINIO_ENDPOINT ?? "http://127.0.0.1:9000").replace(/\/$/, "");
@@ -118,7 +123,7 @@ export class ScreenshotStore {
       if (!putRes.ok && putRes.status !== 409) {
         throw new Error(`Failed to create MinIO bucket ${this.bucket}: HTTP ${putRes.status}`);
       }
-    }
+    } else if (!headRes.ok) throw new Error(`Failed to inspect MinIO bucket ${this.bucket}: HTTP ${headRes.status}`);
     this.bucketChecked = true;
   }
 
@@ -184,7 +189,7 @@ except Exception:
     }
 
     const imageKey = `screenshots/${meta.workerId}/${meta.deviceId}/${meta.sessionId}/step_${meta.step}.${ext}`;
-    const uri = `/${this.bucket}/${imageKey}`;
+    const uri = this.objectUri(imageKey);
     const payloadSha = this.sha256(finalBuffer);
     const headers: Record<string, string> = {
       "content-type": contentType,
@@ -212,7 +217,7 @@ except Exception:
 
   async getScreenshot(imageKey: string): Promise<{ buffer: Buffer; contentType: string } | null> {
     await this.ensureBucket();
-    const uri = `/${this.bucket}/${imageKey.replace(/^\//, "")}`;
+    const uri = this.objectUri(imageKey);
     const headers: Record<string, string> = {};
     this.sign("GET", uri, "", headers, this.sha256(""), new Date());
 

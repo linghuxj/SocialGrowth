@@ -1,0 +1,11 @@
+{
+  "jvm": {
+    "tests": 36,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "apkSha256": "2bc63937968fcc350272ebc461e46c35d706214b172e17969d0c40ebfc85deec",
+  "buildSuccess": true,
+  "supplementalOnly": true
+}
