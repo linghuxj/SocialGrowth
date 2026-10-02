@@ -35,6 +35,17 @@ data class StoredInstallationIdentity(
         if (!Instant.parse(expiry).isAfter(now)) return null
         return AssociationSession(UUID.fromString(id), code, expiry)
     }
+
+    fun withAuth(auth: InstallationAuth): StoredInstallationIdentity {
+        val sameInstallation = installationId == auth.installationId.toString() && generation == auth.generation
+        return copy(
+            installationId = auth.installationId.toString(), generation = auth.generation,
+            sessionToken = auth.sessionToken, sessionExpiresAt = auth.sessionExpiresAt,
+            associationSessionId = if (sameInstallation) associationSessionId else null,
+            associationCode = if (sameInstallation) associationCode else null,
+            associationExpiresAt = if (sameInstallation) associationExpiresAt else null,
+        )
+    }
 }
 
 class InstallationIdentityStore(context: Context) {
@@ -45,6 +56,7 @@ class InstallationIdentityStore(context: Context) {
 
     fun ensureCredential(): StoredInstallationIdentity {
         load()?.let { return it }
+        check(!exists()) { "Existing installation identity cannot be decrypted; refusing replacement" }
         val bytes = ByteArray(32).also(SecureRandom()::nextBytes)
         val credential = "sginst_v1_" + Base64.encodeToString(
             bytes,
@@ -56,12 +68,7 @@ class InstallationIdentityStore(context: Context) {
     }
 
     fun saveAuth(current: StoredInstallationIdentity, auth: InstallationAuth): StoredInstallationIdentity {
-        val next = current.copy(
-            installationId = auth.installationId.toString(),
-            generation = auth.generation,
-            sessionToken = auth.sessionToken,
-            sessionExpiresAt = auth.sessionExpiresAt,
-        )
+        val next = current.withAuth(auth)
         save(next)
         return next
     }
@@ -87,7 +94,7 @@ class InstallationIdentityStore(context: Context) {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(
             Cipher.DECRYPT_MODE,
-            getOrCreateKey(),
+            requireNotNull(existingKey()),
             GCMParameterSpec(128, Base64.decode(iv, Base64.NO_WRAP)),
         )
         val json = JSONObject(String(cipher.doFinal(Base64.decode(payload, Base64.NO_WRAP)), Charsets.UTF_8))
@@ -144,8 +151,7 @@ class InstallationIdentityStore(context: Context) {
     }
 
     private fun getOrCreateKey(): SecretKey {
-        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        (keyStore.getKey(alias, null) as? SecretKey)?.let { return it }
+        existingKey()?.let { return it }
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
         generator.init(
             KeyGenParameterSpec.Builder(
@@ -157,5 +163,10 @@ class InstallationIdentityStore(context: Context) {
                 .build(),
         )
         return generator.generateKey()
+    }
+
+    private fun existingKey(): SecretKey? {
+        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        return keyStore.getKey(alias, null) as? SecretKey
     }
 }

@@ -874,6 +874,26 @@ export class ExecutionRuntime {
           t.status === "running" ||
           (t.status === "blocked" && t.receipt?.failureCode === "IDENTITY_CHALLENGE"),
       );
+      // A content outcome review cannot release a scope while a separate
+      // initialization/identity operation on that scope remains unresolved.
+      // The optional table belongs to IdentityOnboarding and may not exist in
+      // a runtime that has never composed that service.
+      const identityTable = this.store.db
+        .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='identity_jobs'")
+        .get();
+      const pendingIdentities = identityTable
+        ? this.store.db.prepare("SELECT body FROM identity_jobs").all().map((row) => {
+            let body: unknown;
+            try { body = JSON.parse(row.body as string); }
+            catch { throw new RuntimeError("IDENTITY_REVIEW_REQUIRED"); }
+            const parsed = z.object({
+              deviceId: z.string(), serial: z.string(), accountId: z.string(),
+              projectId: z.string(), status: z.string(),
+            }).safeParse(body);
+            requireFact(parsed.success, "IDENTITY_REVIEW_REQUIRED");
+            return parsed.data;
+          }).filter((job) => ["unknown", "running", "interrupted"].includes(job.status))
+        : [];
       for (const [kind, value] of [
         ["device", d.deviceId],
         ["account", d.accountId],
@@ -886,7 +906,12 @@ export class ExecutionRuntime {
           project: "projectId",
           content: "contentIdentityId",
         }[kind] as keyof PublishTaskDirective;
-        if (!outstanding.some((t) => t.task.directive[property] === value))
+        const identityPending = pendingIdentities.some((job) =>
+          kind === "device" ? job.deviceId === value || job.serial === record.task.binding.serial
+            : kind === "account" ? job.accountId === value
+              : kind === "project" ? job.projectId === value : false,
+        );
+        if (!identityPending && !outstanding.some((t) => t.task.directive[property] === value))
           this.store.db.prepare("DELETE FROM pauses WHERE scope=?").run(`${kind}:${value}`);
       }
       const { state } = this.store.snapshot();

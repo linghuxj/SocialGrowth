@@ -1,0 +1,10 @@
+{
+  "checkedAt": "2026-10-02T16:53:11.245Z",
+  "invitationId": "397eac1e-0efb-4e18-bac4-221b5df7ad55",
+  "actualAppRegistrationObservedInWeb": true,
+  "consumedInvitationUses": 1,
+  "providerCount": 1,
+  "smsMode": "development_capture",
+  "actualSmsDeliveryVerified": false,
+  "phoneExecutionReady": false
+}

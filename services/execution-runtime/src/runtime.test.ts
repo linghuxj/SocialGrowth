@@ -573,6 +573,41 @@ test("unknown cannot be cleared by not_submitted; manual review requires evidenc
     f.store.close();
   }
 });
+for (const scope of ["same", "other", "malformed"] as const) {
+  test(`manual content review respects ${scope} unresolved identity scope without rerunning work`, () => {
+    const f = setup();
+    try {
+      claim(f);
+      f.runtime.receive(receipt(f), "phone");
+      const original = f.runtime.tasks()[0];
+      const evidence = f.runtime.archiveEvidence(original.taskId, "phone", "text/plain", Buffer.from("independent confirmed rejection"));
+      f.store.db.exec("CREATE TABLE identity_jobs(id TEXT PRIMARY KEY, body TEXT NOT NULL)");
+      const same = scope === "same";
+      f.store.db.prepare("INSERT INTO identity_jobs VALUES(?,?)").run(randomUUID(), scope === "malformed" ? "invalid private record" : JSON.stringify({
+        deviceId: same ? original.task.binding.deviceId : "other-device",
+        serial: same ? original.task.binding.serial : "other-serial",
+        accountId: same ? original.task.directive.accountId : "other-account",
+        projectId: same ? original.task.directive.projectId : "other-project", status: "unknown",
+      }));
+      const review = () => f.runtime.review({ taskId: original.taskId, publishStatus: "confirmed_not_published",
+        evidenceRefs: [evidence], reason: "content outcome reviewed; identity outcome remains unknown",
+        relatedScopeReviewed: true, authorizationRechecked: true }, "reviewer");
+      if (scope === "malformed") {
+        assert.throws(review, /IDENTITY_REVIEW_REQUIRED/);
+        assert.equal(f.runtime.tasks()[0].status, "unknown");
+        assert.equal(f.store.db.prepare("SELECT * FROM pauses").all().length, 4);
+      } else {
+        review();
+        assert.equal(f.runtime.tasks()[0].receipt?.publishStatus, "confirmed_not_published");
+        const pauses = f.store.db.prepare("SELECT scope FROM pauses").all().map(row => row.scope);
+        assert.equal(pauses.length, same ? 3 : 0);
+        if (same) assert.ok(pauses.includes(`device:${original.task.binding.deviceId}`));
+        assert.equal(f.store.db.prepare("SELECT body FROM identity_jobs").all().length, 1);
+        assert.equal(f.runtime.pull("phone"), null);
+      }
+    } finally { f.store.close(); }
+  });
+}
 test("command idempotency, optimistic revision, whitelist and server-owned actor", () => {
   const store = new RuntimeStore(":memory:");
   const runtime = new ExecutionRuntime(store, {

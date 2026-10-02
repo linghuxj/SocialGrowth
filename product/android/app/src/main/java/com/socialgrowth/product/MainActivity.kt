@@ -429,7 +429,7 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    private fun showInstallationLoading() {
+    private fun showInstallationLoading(refreshSession: Boolean = false) {
         val generation = ++screenGeneration
         backAction = null
         managementSessionToken = null
@@ -445,7 +445,7 @@ class MainActivity : ComponentActivity() {
             try {
                 var stored = installationStore.ensureCredential()
                 var token = stored.activeSessionToken()
-                if (token == null) {
+                if (token == null || refreshSession) {
                     val auth = associationApi.bootstrap(stored.credential, newIdempotencyKey("installation-bootstrap"))
                     stored = installationStore.saveAuth(stored, auth)
                     token = stored.activeSessionToken() ?: error("inactive installation session")
@@ -472,7 +472,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             } catch (error: ProviderApiException) {
-                mainHandler.post { if (generation == screenGeneration) showInstallationFailure(error.message) }
+                mainHandler.post { if (generation == screenGeneration) showInstallationFailure(error.message, error.code == "AUTHENTICATION_REQUIRED") }
             } catch (_: Exception) {
                 mainHandler.post { if (generation == screenGeneration) showInstallationFailure("无法连接服务，请检查网络后重试。") }
             }
@@ -683,7 +683,7 @@ class MainActivity : ComponentActivity() {
         })
     }
 
-    private fun showInstallationFailure(message: String) {
+    private fun showInstallationFailure(message: String, sessionRejected: Boolean = false) {
         ++screenGeneration
         backAction = null
         val root = vertical(24).apply {
@@ -693,6 +693,12 @@ class MainActivity : ComponentActivity() {
         root.addView(label("暂时无法准备关联码", 24f, ink, Typeface.BOLD), wrapWrap().apply { topMargin = dp(120) })
         root.addView(label(message, 14f, danger).apply { gravity = Gravity.CENTER }, matchWrap().apply { topMargin = dp(14) })
         root.addView(primaryButton("重试").apply { setOnClickListener { showInstallationLoading() } }, matchHeight(54).apply { topMargin = dp(24) })
+        if (sessionRejected) {
+            root.addView(label("本机会话已失效。可使用原本机安全身份重新验证；不会自动认领旧设备、解除暂停或恢复参与。", 14f, secondary), matchWrap().apply { topMargin = dp(16) })
+            root.addView(secondaryButton("重新验证本机身份").apply {
+                setOnClickListener { showInstallationLoading(refreshSession = true) }
+            }, matchHeight(54).apply { topMargin = dp(12) })
+        }
         setContentView(root)
     }
 

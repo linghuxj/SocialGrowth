@@ -1,0 +1,17 @@
+{
+  "checkedAt": "2026-10-02T16:09:02.501550+00:00",
+  "apkSha256": "b5a5c1e687e211ba23a96b6fa60905817930c17af46a848f1842352bd50a7f15",
+  "mainAppDataClearRequested": false,
+  "devices": [
+    {
+      "serial": "RFCW40MYYCV",
+      "installExit": 0
+    },
+    {
+      "serial": "emulator-5556",
+      "installExit": 0
+    }
+  ],
+  "managementDeepLinkOpened": true,
+  "samsungUiActionsIssued": false
+}
