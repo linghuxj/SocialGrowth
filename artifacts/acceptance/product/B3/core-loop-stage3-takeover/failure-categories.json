@@ -1,0 +1,25 @@
+{
+  "schemaInvalid": {
+    "directory": "ui-telemetry-final",
+    "categories": [
+      "BUSINESS_MODEL_SCHEMA_INVALID"
+    ],
+    "modelAttempts": [
+      {
+        "outcome": "unavailable",
+        "elapsedMs": 16489
+      },
+      {
+        "outcome": "unavailable",
+        "elapsedMs": 12480
+      }
+    ]
+  },
+  "uploadFailures": [
+    "UI raw body wrapper still limited16MiB",
+    "Chromium inspector response cache eviction after successful PUT",
+    "APIRequest local Secure Cookie did not authenticate supplemental GET"
+  ],
+  "finalOriginals": "ui-originals-human-declaration-final",
+  "finalModel": "ui-originals-browser-read-final"
+}

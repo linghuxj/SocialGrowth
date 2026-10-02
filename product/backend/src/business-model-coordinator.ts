@@ -12,8 +12,8 @@ const responseSchema = z.strictObject({ responseId: z.string().regex(/^[a-zA-Z0-
 type ModelInput = { context: BusinessSuggestionContext; descriptions: z.infer<typeof description>[] };
 export interface BusinessModelFactsReader { read(projectId: string, signal: AbortSignal): Promise<unknown>; }
 export interface BusinessModelPort {
-  // The future adapter, not model output, must choose configured provider/model
-  // and keep credentials outside the input. No production HTTP adapter exists.
+  // The adapter, not model output, chooses configured provider/model and keeps
+  // credentials outside the input. This port grants no task/action permission.
   generate(request: { attemptId: string; providerKey: string; modelKey: string; input: ModelInput }, signal: AbortSignal): Promise<unknown>;
 }
 type Provenance = { attemptId: string; providerKey: string; modelKey: string; startedAt: string; modelRequested: boolean };
@@ -38,8 +38,9 @@ function parseInput(input: unknown, projectId: string, now: string): ModelInput 
   for (const d of p.data.descriptions) if (!context.facts.some(f => f.factId === d.factId && f.version === d.version)) throw new Error("invalid-facts");
   return structuredClone({ context, descriptions: p.data.descriptions });
 }
-// INTERNAL coordination only. Default ports/policy are absent. No real model
-// service/producer, route, task writer or fallback/template is registered.
+// INTERNAL coordination only. Default ports/policy are absent. The separate
+// initial-direction flow has a real configured Artemis adapter; this autonomous
+// arrangement coordinator still needs its authoritative facts and task writer.
 export class BusinessModelCoordinator {
   constructor(private readonly facts: BusinessModelFactsReader | null = null, private readonly model: BusinessModelPort | null = null,
     private readonly policy: unknown = null, private readonly clock: () => string = () => new Date().toISOString()) {}

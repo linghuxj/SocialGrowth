@@ -1,0 +1,13 @@
+
+> @socialgrowth/product-web@0.0.0 build /Users/linghuxj/Documents/myproject/project/SocialGrowth/product/web
+> tsc -b && vite build
+
+vite v8.0.13 building client environment for production...
+[2Ktransforming...✓ 4692 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.41 kB │ gzip:   0.30 kB
+dist/assets/index-CEcwZKtu.css   22.35 kB │ gzip:   5.25 kB
+dist/assets/index-BuPmRBQ3.js   469.68 kB │ gzip: 136.62 kB
+
+✓ built in 456ms

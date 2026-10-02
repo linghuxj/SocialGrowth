@@ -1,5 +1,6 @@
 // Opt-in temporary LOCAL acceptance environment. No Demo/historical secrets,
-// business seeds, device worker, real model calls or platform publication.
+// business seeds, device worker or platform publication. Direction scope uses
+// the user's explicitly selected existing Artemis model environment.
 // Run only with authorized temporary services and admitted browser access.
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
@@ -17,9 +18,15 @@ const { Pool } = backendRequire("pg");
 const { S3Client, CreateBucketCommand } = backendRequire("@aws-sdk/client-s3");
 const output = resolve(process.env.SG_PRODUCT_CORE_OUTPUT ?? join(repo, "artifacts/acceptance/product/B3", `core-local-${Date.now()}`));
 const consent = process.env.SG_PRODUCT_CORE_BROWSER_ADMITTED;
-if (consent !== "1") throw new Error("First confirm actual browser policy admission; this runner cannot bypass a browser refusal");
+const sqlOnly = process.env.SG_PRODUCT_CORE_SQL_ONLY === "1";
+if (!sqlOnly && consent !== "1") throw new Error("First confirm actual browser policy admission; this runner cannot bypass a browser refusal");
 const scopes = (process.env.SG_PRODUCT_CORE_SCOPES ?? "materials,planning").split(",");
-assert.ok(scopes.length > 0 && scopes.every(scope => ["materials", "planning"].includes(scope)) && new Set(scopes).size === scopes.length);
+assert.ok(scopes.length > 0 && scopes.every(scope => ["materials", "planning", "direction", "real-material-bytes"].includes(scope)) && new Set(scopes).size === scopes.length);
+if (sqlOnly) assert.deepEqual(scopes, ["direction"], "SQL-only supplemental scope must be explicit");
+const artemisRoot = scopes.includes("direction") && !sqlOnly ? process.env.SG_PRODUCT_CORE_ARTEMIS_ROOT : null;
+if (scopes.includes("direction") && !sqlOnly) assert.ok(artemisRoot && artemisRoot.startsWith("/"), "Direction requires an explicitly selected existing Artemis environment");
+const realMaterialFiles = scopes.includes("real-material-bytes") ? process.env.SG_PRODUCT_CORE_REAL_MATERIAL_FILES : null;
+if (scopes.includes("real-material-bytes")) assert.ok(realMaterialFiles && process.env.SG_PRODUCT_CORE_REAL_MATERIAL_AUTHORIZED === "1", "Actual files require explicit existing authorization");
 const ambient = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("SG_") && !key.startsWith("AWS_")));
 const secrets = [randomBytes(32).toString("hex"), randomBytes(32).toString("hex"), randomBytes(32).toString("hex"), randomBytes(24).toString("hex")];
 const redact = text => secrets.reduce((value, secret) => value.replaceAll(secret, "[redacted]"), String(text));
@@ -78,6 +85,9 @@ try {
   const pg = containers.find(c => c.kind === "pg"), storage = containers.find(c => c.kind === "storage");
   const url = `postgres://sg_core_local:${secrets[0]}@127.0.0.1:${pg.port}/sg_core_local`;
   pool = new Pool({ connectionString: url, max: 2 }); await waitFor(async () => (await pool.query("SELECT 1")).rowCount === 1);
+  await writeFile(join(output, "environment.json"), JSON.stringify({ scope: sqlOnly ? "synthetic non-UI PostgreSQL supplemental only" : "temporary environment starting", containers }, null, 2));
+  if (scopes.includes("direction")) await run("direction-postgres", "pnpm", ["--filter", "@socialgrowth/product-backend", "exec", "tsx", "--test", "src/project-direction-service.postgres-test.ts"], { SG_PRODUCT_TEST_DATABASE_URL: url, SG_PRODUCT_TEST_ALLOW_RESET: "1" });
+  if (!sqlOnly) {
   const migrations = (await readdir(join(repo, "product/backend/migrations"))).filter(f => /^\d{4}.*\.sql$/.test(f)).sort();
   for (const file of migrations) await pool.query(await readFile(join(repo, "product/backend/migrations", file), "utf8"));
   const endpoint = `http://127.0.0.1:${storage.port}`, bucket = `sg-core-${suffix}`;
@@ -89,8 +99,9 @@ try {
     SG_PRODUCT_BACKEND_HOST: "127.0.0.1", SG_PRODUCT_BACKEND_PORT: "4320", SG_PRODUCT_MATERIAL_MODE: "configured",
     SG_PRODUCT_MATERIAL_LOCATION_ID: randomUUID(), SG_PRODUCT_MATERIAL_ENDPOINT: endpoint, SG_PRODUCT_MATERIAL_BUCKET: bucket,
     SG_PRODUCT_MATERIAL_REGION: "us-east-1", SG_PRODUCT_MATERIAL_FORCE_PATH_STYLE: "true", SG_PRODUCT_MATERIAL_ACCESS_KEY: "sg-core-local",
-    SG_PRODUCT_MATERIAL_SECRET_KEY: secrets[1], SG_PRODUCT_MATERIAL_MAX_OBJECT_BYTES: "16777216", SG_PRODUCT_MATERIAL_REQUEST_TIMEOUT_MS: "5000",
+    SG_PRODUCT_MATERIAL_SECRET_KEY: secrets[1], SG_PRODUCT_MATERIAL_MAX_OBJECT_BYTES: realMaterialFiles ? "67108864" : "16777216", SG_PRODUCT_MATERIAL_REQUEST_TIMEOUT_MS: "5000",
     SG_PRODUCT_TEST_LOGIN_NAME: "core-local-operator", SG_PRODUCT_TEST_PASSWORD: secrets[3], SG_PRODUCT_WEB_URL: "http://127.0.0.1:3100",
+    ...(artemisRoot ? { SG_PRODUCT_BUSINESS_MODEL_MODE: "artemis_configured", SG_PRODUCT_ARTEMIS_ROOT: artemisRoot } : {}),
   };
   await run("operator-initialize", "pnpm", ["--filter", "@socialgrowth/product-backend", "operator:admin", "initialize", "--login-name", "core-local-operator", "--display-name", "合成验收运营", "--request-id", `init-${suffix}`], environment, secrets[3]);
   service("backend", "pnpm", ["--filter", "@socialgrowth/product-backend", "start"], environment);
@@ -101,16 +112,22 @@ try {
   await writeFile(fixture, Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j7QAAAABJRU5ErkJggg==", "base64"));
   const declaration = { name: "合成页面验收素材", language: "en", businessEntityId: randomUUID(), sourceId: randomUUID(), sourceRecordId: randomUUID(),
     description: "合成 PNG；仅验上传和声明页面", businessFacts: "非真实商品事实", sourceStatement: "本次生成的合成文件，非真实来源证明", sourceEvidenceIds: randomUUID() };
-  await writeFile(join(output, "environment.json"), JSON.stringify({ scope: "synthetic local UI only", containers, migrations, web: environment.SG_PRODUCT_WEB_URL,
+  await writeFile(join(output, "environment.json"), JSON.stringify({ scope: realMaterialFiles ? "authorized actual original bytes; synthetic operator/project only; no first-use/source assertion" : "synthetic local UI only", containers, migrations, web: environment.SG_PRODUCT_WEB_URL,
     sourceReferences: "synthetic UUIDs, not verified rights", browserAdmission: "actual IAB localhost navigation succeeded before runner" }, null, 2));
   if (scopes.includes("materials")) await run("materials-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "materials",
     SG_PRODUCT_MATERIAL_TEST_FILE: fixture, SG_PRODUCT_MATERIAL_SCREENSHOT_DIR: join(output, "materials"), SG_PRODUCT_MATERIAL_TEST_DECLARATION: JSON.stringify(declaration) });
+  if (realMaterialFiles) await run("real-material-bytes-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "real-material-bytes", SG_PRODUCT_REAL_MATERIAL_FILES: realMaterialFiles, SG_PRODUCT_REAL_MATERIAL_AUTHORIZED: "1", SG_PRODUCT_REAL_MATERIAL_FIRST_USE_CONFIRMED: process.env.SG_PRODUCT_CORE_REAL_MATERIAL_FIRST_USE_CONFIRMED ?? "0", SG_PRODUCT_REAL_MATERIAL_OUTPUT: join(output, "real-material-bytes") });
   if (scopes.includes("planning")) await run("planning-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "planning", SG_PRODUCT_PLANNING_SCREENSHOT_DIR: join(output, "planning") });
+  if (scopes.includes("direction")) await run("direction-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "direction", SG_PRODUCT_DIRECTION_SCREENSHOT_DIR: join(output, "direction") });
   const facts = (await pool.query(`SELECT (SELECT count(*)::int FROM socialgrowth_product.projects) projects,
     (SELECT count(*)::int FROM socialgrowth_product.material_variant_revisions) material_revisions,
-    (SELECT count(*)::int FROM socialgrowth_product.project_planning_drafts WHERE status='unapproved_draft') unapproved_drafts`)).rows[0];
+    (SELECT count(*)::int FROM socialgrowth_product.project_planning_drafts WHERE status='unapproved_draft') unapproved_drafts,
+    (SELECT count(*)::int FROM socialgrowth_product.project_direction_proposals) direction_proposals,
+    (SELECT count(*)::int FROM socialgrowth_product.project_direction_approvals) direction_approvals,
+    (SELECT count(*)::int FROM socialgrowth_product.material_upload_tickets WHERE status='verified_bytes') verified_byte_tickets`)).rows[0];
   await writeFile(join(output, "readonly-facts.json"), JSON.stringify(facts, null, 2));
-  console.log(JSON.stringify({ passed: true, scope: "C1/C2a author real UI checks; synthetic business inputs", scopes, facts, output }));
+  console.log(JSON.stringify({ passed: true, scope: realMaterialFiles ? "actual authorized original bytes; no declaration/eligibility" : "author real UI checks; synthetic business inputs", scopes, facts, output }));
+  } else console.log(JSON.stringify({ passed: true, scope: "isolated PostgreSQL supplemental only; no browser, real model or phone" }));
 } finally {
   for (const { child } of children.toReversed()) {
     if (child.exitCode === null) { const ended = once(child, "exit"); process.kill(-child.pid, "SIGTERM"); await ended; }

@@ -1,0 +1,15 @@
+
+> socialgrowth-monorepo@1.0.0 test:playwright /Users/linghuxj/Documents/myproject/project/SocialGrowth
+> node scripts/run-playwright-target.mjs
+
+[playwright] target=product
+/Users/linghuxj/Documents/myproject/project/SocialGrowth/scripts/verify-product-direction-playwright.mts:34
+  throw new Error("Configured model unavailable after one explicit UI recovery; business acceptance blocked");
+        ^
+
+Error: Configured model unavailable after one explicit UI recovery; business acceptance blocked
+    at generate (/Users/linghuxj/Documents/myproject/project/SocialGrowth/scripts/verify-product-direction-playwright.mts:34:9)
+    at async <anonymous> (/Users/linghuxj/Documents/myproject/project/SocialGrowth/scripts/verify-product-direction-playwright.mts:52:111)
+
+Node.js v24.16.0
+ ELIFECYCLE  Command failed with exit code 1.

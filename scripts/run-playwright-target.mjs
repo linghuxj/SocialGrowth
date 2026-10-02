@@ -1,11 +1,13 @@
 import { spawn } from "node:child_process";
 
-const productScripts = { planning: "scripts/verify-product-planning-playwright.mts", materials: "scripts/verify-product-materials-playwright.mts", projects: "scripts/verify-product-projects-playwright.mts", "project-viewports": "scripts/verify-product-project-viewports.mts", identity: "scripts/verify-product-web-readiness.mts" };
+const productScripts = { "real-material-bytes": "scripts/verify-product-real-material-bytes-playwright.mts", direction: "scripts/verify-product-direction-playwright.mts", planning: "scripts/verify-product-planning-playwright.mts", materials: "scripts/verify-product-materials-playwright.mts", projects: "scripts/verify-product-projects-playwright.mts", "project-viewports": "scripts/verify-product-project-viewports.mts", identity: "scripts/verify-product-web-readiness.mts" };
 const target = process.env.SG_WEB_TARGET ?? "demo";
 const scope = process.env.SG_PRODUCT_WEB_SCOPE ?? "identity";
+const demoScope = process.env.SG_DEMO_WEB_SCOPE ?? "readiness";
+if (target === "demo" && !["readiness", "observation"].includes(demoScope)) { console.error("[playwright] Unknown demo scope"); process.exit(2); }
 if (target === "product" && !(scope in productScripts)) { console.error("[playwright] Unknown product scope"); process.exit(2); }
 const targets = {
-  demo: ["tsx", "scripts/verify-web-publication-readiness.mts"],
+  demo: ["tsx", demoScope === "observation" ? "scripts/verify-demo-observation-playwright.mts" : "scripts/verify-web-publication-readiness.mts"],
   product: ["tsx", productScripts[scope]],
 };
 

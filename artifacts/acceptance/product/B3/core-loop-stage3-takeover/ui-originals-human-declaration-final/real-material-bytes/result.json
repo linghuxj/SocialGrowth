@@ -1,0 +1,22 @@
+{
+  "passed": true,
+  "evidence": [
+    {
+      "file": "将门逆子-8.13-chh (2).mp4",
+      "bytes": 41927996,
+      "sha256": "6564ad3fd4573e103b66e32ace7455dac41ee8ca4f00c640f129a4a97db347ac",
+      "objectId": "5c08e8b9-17f6-4829-bc4d-00d55a7c977c"
+    },
+    {
+      "file": "将门逆子-pxy-8.15-二创 (7).mp4",
+      "bytes": 17066476,
+      "sha256": "2b426251ca5b1547612fd80309bcd3f449bdd17aa0319004b54020ef4eaf2168",
+      "objectId": "70f7e422-331b-4049-8440-47291312cb55"
+    }
+  ],
+  "declarationWrites": 0,
+  "firstUseHumanConfirmed": true,
+  "sourceRecordVerified": false,
+  "scope": "authorized original Web upload and verified hash/size; human first-use input when explicitly confirmed; missing real references block declaration; reload has no fabricated registry entry",
+  "publication": false
+}

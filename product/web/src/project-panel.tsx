@@ -92,17 +92,17 @@ export function ProjectPanel({ active, refreshVersion, operators, readOnly, onEx
         {!readOnly && <button disabled={busy} onClick={() => open("new")}><Plus size={18} />新建项目</button>}</div>
       {projects === null ? <p>项目事实尚未读取；请刷新，不把加载失败当作无项目。</p> : projects.length === 0 ? <div className="empty-state"><Folder size={34} /><h3>尚无项目</h3><p>先建立筹备项目，再按实际资料到位顺序准备。</p></div>
         : <div className="table-wrap"><table><thead><tr><th>项目</th><th>类型 / 客户</th><th>当前事实</th><th>负责人</th><th>更新时间</th><th>查看</th></tr></thead>
-          <tbody>{projects.map(p => <tr key={p.projectId}><td><strong>{p.name}</strong>{drafts[p.projectId] && <small>有未保存输入</small>}</td><td>{p.kind === "company_owned" ? "公司自营" : "客户代运营"}<small>{p.customerName}</small></td><td><span className="status">筹备中</span><small>方向尚未确认</small></td><td>{operators.find(o => o.operatorId === p.ownerOperatorId)?.displayName ?? (p.ownerOperatorId ? "负责人资料待读取" : "尚未指定")}</td><td>{time(p.updatedAt)}</td><td><button className="text-button" disabled={busy} onClick={() => open(p.projectId)}>准备清单</button></td></tr>)}</tbody></table></div>}
+          <tbody>{projects.map(p => <tr key={p.projectId}><td><strong>{p.name}</strong>{drafts[p.projectId] && <small>有未保存输入</small>}</td><td>{p.kind === "company_owned" ? "公司自营" : "客户代运营"}<small>{p.customerName}</small></td><td><span className="status">筹备中</span><small>方向范围见项目设置</small></td><td>{operators.find(o => o.operatorId === p.ownerOperatorId)?.displayName ?? (p.ownerOperatorId ? "负责人资料待读取" : "尚未指定")}</td><td>{time(p.updatedAt)}</td><td><button className="text-button" disabled={busy} onClick={() => open(p.projectId)}>准备清单</button></td></tr>)}</tbody></table></div>}
       {drafts.new && <button className="text-button" disabled={busy} onClick={() => open("new")}>继续未保存的新建项目</button>}
     </section> : <>
       <div className="project-heading"><h1>{current?.name ?? "新建筹备项目"}</h1><span className="status">筹备中</span><button className="text-button" disabled={busy} onClick={() => openList()}><ArrowLeft size={18} />返回项目列表</button></div>
       {current && <>
         <div className="project-tabs" aria-label="项目内导航"><button className="text-button" aria-current={tab === "overview" ? "page" : undefined} onClick={() => setTab("overview")}>概览</button><button className="text-button" aria-current={tab === "materials" ? "page" : undefined} onClick={showMaterials}>素材</button><span>发布安排 · 待接入</span><span>效果与复盘 · 待接入</span><button className="text-button" aria-current={tab === "settings" ? "page" : undefined} onClick={showPlanning}>设置 · 目标与周期</button></div>
         <div hidden={tab !== "overview"}>
-        <section className="project-direction-note"><Info size={24} /><div><h3>发布前确认方向，准备可并行推进</h3><p>当前尚无批准范围。保存资料不确认方向，也不启动发布；其他准备项按自身条件继续。</p></div></section>
+        <section className="project-direction-note"><Info size={24} /><div><h3>发布前确认方向，准备可并行推进</h3><p>进入设置读取已确认方向与范围。保存资料不确认方向，也不启动发布；其他准备项按自身条件继续。</p></div></section>
         <section className="panel project-readiness"><h3>准备清单</h3><p className="muted">资料已保存、检查通过、方向确认与设备就绪分别判断，不手工勾选为通过。</p>
           <div className="table-wrap"><table><thead><tr><th>准备事项</th><th>当前事实</th><th>缺什么 / 影响范围</th><th>处理入口</th></tr></thead><tbody>
-            <tr><td><Target size={18} aria-hidden />目标与自主范围</td><td>进入设置读取草案；尚无批准范围</td><td>草案保存不等于方向确认，不启动发布</td><td><button className="text-button" onClick={showPlanning}>编辑目标草案</button></td></tr>
+            <tr><td><Target size={18} aria-hidden />目标与自主范围</td><td>进入设置读取草案与方向确认记录</td><td>草案保存不等于方向确认，不启动发布</td><td><button className="text-button" onClick={showPlanning}>编辑目标草案</button></td></tr>
             <tr><td><FileText size={18} aria-hidden />素材与业务资料</td><td>进入素材页读取当前事实</td><td>上传和资料保存不代表候选准入或名额通过</td><td><button className="text-button" onClick={showMaterials}>整理素材</button></td></tr>
             <tr><td><DeviceMobile size={18} aria-hidden />发布身份与手机</td><td>尚未分配</td><td>未建立项目专用、身份核验及执行条件</td><td>资源分配待接入</td></tr>
             <tr><td><Link size={18} aria-hidden />引流入口</td><td>尚未配置</td><td>未核验有效路径，不计作引流完成</td><td>后续接入入口管理</td></tr>

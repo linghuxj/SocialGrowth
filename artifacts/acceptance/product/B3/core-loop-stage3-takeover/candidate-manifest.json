@@ -1,0 +1,422 @@
+{
+  "baseline": "c01b64758729fabe33f9eeba52cef45094f21812",
+  "recordedAt": "2026-10-02T06:17:24.219438+00:00",
+  "candidate": "commit containing this manifest; not merged or independently approved",
+  "ownedSources": [
+    {
+      "path": "docs/engineering/delivery/delivery-tracker.md",
+      "sha256": "b14cf439cec8b266384612add92d2dfc6d2a0afa821750d001738af3806ce6f3"
+    },
+    {
+      "path": "docs/engineering/delivery/records/core-automation-loop-direction-artemis-20261002.md",
+      "sha256": "14f4c9736d2a7aa98a0861cda67031523d1485c4b78205560196697451e62c3e"
+    },
+    {
+      "path": "product/backend/README.md",
+      "sha256": "784894183e9d7fc023b5f9314bd1cbd144e77daeb8fb75ff2def1afec60f0694"
+    },
+    {
+      "path": "product/backend/migrations/0024_project_direction.sql",
+      "sha256": "24388e30c0474b88473015bcb732a1d5af81aea9bebd71f8bae8f388464bdeda"
+    },
+    {
+      "path": "product/backend/migrations/0025_artemis_preflight_journal.sql",
+      "sha256": "70b244212a8690ea5a56c8b66f87f770e8855e3d35310000ab9e3f559f2a85ca"
+    },
+    {
+      "path": "product/backend/src/app.module.ts",
+      "sha256": "4b6041717d676bf75c60f46885b60d03a4498dc26a7d5c6a6d77dcafd4c91337"
+    },
+    {
+      "path": "product/backend/src/business-model-coordinator.ts",
+      "sha256": "aefc57ee0225ea2084412ca6ce088c154d85caa2bb505f8b8e94c08afefc894b"
+    },
+    {
+      "path": "product/backend/src/artemis-business-model.ts",
+      "sha256": "ec06aa1c513a4e8b07e5c4a2e1a8848ba08f80d6a99de825bf57ec2b271355c4"
+    },
+    {
+      "path": "product/backend/src/artemis-preflight-journal.ts",
+      "sha256": "6f4d9361fa7188886d283eb221559ac5b1fc7cc60cbbb2f6ed6d4dd0baae2b45"
+    },
+    {
+      "path": "product/backend/src/project-direction-service.postgres-test.ts",
+      "sha256": "82fd3540b2ca991130ba71b23db905a6bbe3c5122ef295fe9174f718b9347780"
+    },
+    {
+      "path": "product/backend/src/project-direction-service.ts",
+      "sha256": "378d6b52a75f9cad41e9c811c293f7d1e952a4e094d82bee3f4af84e2c91ec52"
+    },
+    {
+      "path": "product/backend/src/project-direction.controller.ts",
+      "sha256": "4c7b7a2d2a7b1e0da77a61e60de648f41dbf7df0826ff093f77b4c5e90e25455"
+    },
+    {
+      "path": "product/backend/src/material-byte-transport.ts",
+      "sha256": "c94db81f76a1f1af0b575ceacbadc5f9d3d40a01b65e2559450fd8047d875f5d"
+    },
+    {
+      "path": "product/backend/src/material-byte-transport.test.ts",
+      "sha256": "8de29f2a993eadfb948c15590b0abd8ca97e13becbcd8312ef2db357849c6bbc"
+    },
+    {
+      "path": "product/contracts/generated/first-batch-contracts.v1.json",
+      "sha256": "02b46f13185480c9399e3660b9c10e87eea80e1cb3fa4ddde277b609d08e5ba5"
+    },
+    {
+      "path": "product/contracts/src/index.ts",
+      "sha256": "a9168467ffcbbd48d97ab77441c698de5170f949f417296df7251b9bcbf7d494"
+    },
+    {
+      "path": "product/contracts/src/registry.ts",
+      "sha256": "501891e7bea75659ff87b3b3b36f89a773cd382fafeeddd32810e4f883f3b060"
+    },
+    {
+      "path": "product/contracts/src/artemis-preflight.ts",
+      "sha256": "3fe383f91fc7345f9dffaae0a7520134e043a6b4e7a937a9d541ec6e3a68c963"
+    },
+    {
+      "path": "product/contracts/src/project-direction.ts",
+      "sha256": "9c8fe52ffc0aeed4c839f0af1d5da83594df686c00401ccdcfa098ceca501bbf"
+    },
+    {
+      "path": "product/contracts/src/material-upload.ts",
+      "sha256": "27f3b844d48764ccf3198b58c667af44e10f6aea6a52513238064f369e92791f"
+    },
+    {
+      "path": "product/executor/src/artemis-preflight-session.ts",
+      "sha256": "f62a49b8163c8ff5973373f66ace9ff34c6f931f19e3bd799c85e05eb3190638"
+    },
+    {
+      "path": "product/web/src/project-panel.tsx",
+      "sha256": "f3a3d017555b9813c67e5208b4a52da00287cb66974e861fda4d9130a97ea80c"
+    },
+    {
+      "path": "product/web/src/project-planning-panel.tsx",
+      "sha256": "bd15a5be121ca64cca76f08bf4d2386630ef39b36e700531638ddee7714d49aa"
+    },
+    {
+      "path": "product/web/src/style.css",
+      "sha256": "39bc69f67f356d59754e2c5edd3f060b3fa24348418a992e5d48baaad987836b"
+    },
+    {
+      "path": "product/web/src/project-direction-api.test.ts",
+      "sha256": "37f22171634bbff3b38ebe99f05f38317011956fd39d6dcd20b55cee2dd6ebc0"
+    },
+    {
+      "path": "product/web/src/project-direction-api.ts",
+      "sha256": "073be09f2d96acce6a9613969bd44c3a990ca98ca4906a3b53ac87904825866c"
+    },
+    {
+      "path": "product/web/src/project-direction-panel.tsx",
+      "sha256": "a7005baf238269062fa94c97a8a9871e0fb854211eb6cf80f6e5258eb92ad501"
+    },
+    {
+      "path": "product/web/src/material-upload-api.ts",
+      "sha256": "f7c797ebab9fc8166e7af886d29fe2730dede051b8af794dc2bdac38b7b27550"
+    },
+    {
+      "path": "product/web/src/material-upload-api.test.ts",
+      "sha256": "359607846bb18ed31a049b993b2c8a1ba0b9f85d1ff225d64bf09c92852bdb59"
+    },
+    {
+      "path": "product/web/src/material-bytes-api.test.ts",
+      "sha256": "9edd4c11196fb1b19fb003568c32f810a9e5d7afd5739e28c41b9ae64edd967b"
+    },
+    {
+      "path": "product/web/src/material-file-transfer.ts",
+      "sha256": "64abcf97fb4140c9c46cab4c8019369a94e95fece08279101be84ba580844ebc"
+    },
+    {
+      "path": "product/web/src/material-workspace.tsx",
+      "sha256": "acd3e864f7891f477b9b95104bcf202d5016bac81a19e5790eec10dd7218e4bd"
+    },
+    {
+      "path": "product/web/src/operator-api.ts",
+      "sha256": "5872c28e2a021803a253765e28bfd21c0d6bdca0ff0bb557d982b658f7b85a26"
+    },
+    {
+      "path": "scripts/artemis-business-model-test.py",
+      "sha256": "dcb5d77260852fcf66bbf314a0a35367aa3ae5c1f2a279398c3ae4b87f0dc36f"
+    },
+    {
+      "path": "scripts/artemis-business-model.py",
+      "sha256": "57b090ddacc2d5d2df815779331a14c8189682a5e6be5a81799cb81f8873ecde"
+    },
+    {
+      "path": "scripts/verify-demo-observation-playwright.mts",
+      "sha256": "4952d1b783cb560f528068c341fec1e7c67851183419fc08488ecba353a5b1e8"
+    },
+    {
+      "path": "scripts/verify-product-direction-playwright.mts",
+      "sha256": "ebe0da840104f9ebedaca0375a9211a78195afbc495d815674f6ffa24c4bdb78"
+    },
+    {
+      "path": "scripts/verify-product-real-material-bytes-playwright.mts",
+      "sha256": "f664b6d45c36288f6ec37fcc837bde1e0e37bb0e545073f7862af1deeb192e84"
+    },
+    {
+      "path": "scripts/run-playwright-target.mjs",
+      "sha256": "ce317f0bb803f223677befa0935355a0a9a5c197112abd5bd4d8ded92b4f8789"
+    },
+    {
+      "path": "scripts/verify-product-core-loop-local.mjs",
+      "sha256": "97b8ee4e9138f1a88299b18fc7439a19582bf42a7a8ede62de3b1098186ea784"
+    }
+  ],
+  "evidence": [
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/demo-observation-r4/result.json",
+      "sha256": "eb656cd9e041239361eaee502709536cfb3196952e6cf7340c7fffaf68b8c354"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/demo-observation-r4/web-observation-receipt.png",
+      "sha256": "d85c305f43f2fada0a8d827a5a814e1e4769cff80787bd16dafc8a3298535a94"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/demo-readiness/browser-readiness.json",
+      "sha256": "2ee12bbead6a7f2fc8e42b37a9416e167e460279a54f12c7b285aee3a36d6828"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/env-check.log",
+      "sha256": "fa7ea2631eeebb77628bb0609323a0b4f71a0bb88e1c33cff824f8bda368a5a1"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/failure-categories.json",
+      "sha256": "37a8942f7b6091dcc7136a9f3c0433653aa94eea3441f378ece25c8e1c4c3033"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/model-boundary-final.log",
+      "sha256": "1e43b905e11ca028139fe5078016515111aaf7cebf8d6a3e224b7d03b9cb6ac9"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/model-boundary-prompt-final.log",
+      "sha256": "b95b5805bef96b568b1b2424b637003cd6f306e6312d682e4f2e4e23f635b26a"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/model-format-diagnostic.json",
+      "sha256": "1555eafb6611356391831209e95cf3ed34ccdb38b93331653c3e94d1acdb3ae6"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/originals-source-summary.json",
+      "sha256": "f606491c4660918e115941076165311345f2ad5f0ed8b242a2ab0130bb178d50"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/product-build-actual-files-final.log",
+      "sha256": "ae5465d4f2753b9509bd326e1c550b241e7180435dc53af4755ed72bc50201fb"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/product-check-actual-files-final.log",
+      "sha256": "2c88c5d3eb13ea6a2724ef1ded3aacfef8b2140d6e2c08859401efd1e2b60e6f"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/product-lint-actual-files-final.log",
+      "sha256": "0a46326ec0c10d4cd9c6e881e7cd921ccccea928e7863c6606ff8675583de7f9"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/product-test-actual-files-final.log",
+      "sha256": "f8fc3ccd57eff5883cfa15b4259962ef32c9f26631b18848636f34215570de1a"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/scripts-check-human-declaration-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/scripts-lint-human-declaration-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/sql-readonly-final/cleanup.json",
+      "sha256": "1115e91f56f5e2fcc4c8739fbd196df479195094189d1c99516063985f5dac4f"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/sql-readonly-final/direction-postgres.log",
+      "sha256": "b07e25d569ebfcbe6dd3043a6d27c76d11e6090fef5d2aefaa25198add039a42"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/sql-readonly-final/environment.json",
+      "sha256": "8f0fec92c6e0510b50801abc18a44d8ea7fdb43e02d81a406ad9c34ac9f86b73"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-candidate-baseline-final/cleanup.json",
+      "sha256": "e25e038f731547043ba2189acbbc87ae02d0b5b8794ccea084a7b59942f35aff"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-candidate-baseline-final/environment.json",
+      "sha256": "52568a497f4c097a0a3893fdc00b96abdbe71d486f180ca6cf2afa5602d2aff2"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-candidate-baseline-final/materials-playwright.log",
+      "sha256": "3c7822b2b96ad47a6bf3e65a9a0122c91d9240a398ffef0b1da6ec383859372b"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-candidate-baseline-final/materials/material-read-race.png",
+      "sha256": "a1f637be9ffcec63f690cce636de80e46cf3eebaabecb680e2ebf0cef3c70e9a"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-candidate-baseline-final/materials/material-readonly-mobile.png",
+      "sha256": "daafb37dfa05ff2fd1c7b8c1cf397446cf90f4abab1119e6f65d2b026fd44069"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-candidate-baseline-final/materials/material-saved.png",
+      "sha256": "a93f0f71f3b420c324b5ff12e76b00671d70c26d7f300fc6df98a47648ceaf6d"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-candidate-baseline-final/planning-playwright.log",
+      "sha256": "ec13e9c35d6bf40ba9d84733bf8aca7c062a1e6de5660b8a57bb66acafedae06"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-candidate-baseline-final/planning/planning-unapproved-desktop.png",
+      "sha256": "181025c78fabc14e45a00e1e2578f73bdba7a638f55f9c71555527a98170014e"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-candidate-baseline-final/planning/planning-unapproved-mobile.png",
+      "sha256": "a3810f3079a94f451790c0529d5bfb3693d8ed343d083db113f3bba6e1749aae"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-candidate-baseline-final/readonly-facts.json",
+      "sha256": "2d6a003682ea899390f6439c870e2d5f39d99504af8c880b55f8427b2de3f248"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-candidate-baseline-final/web.log",
+      "sha256": "d75b3b907dbe84ac41ee6d269347df03c7f7a69aff392d27bb0cc105f3a64d72"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-originals-browser-read-final/cleanup.json",
+      "sha256": "017ff8905a4aeed3fc26c72d8ce8d8da20ee355931cf9d23dfff915f5e368256"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-originals-browser-read-final/direction-playwright.log",
+      "sha256": "15e5eeee4a50f1eec0f5652a2fcdd752e84e8020256125e4eb367ee0a9ff9658"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-originals-browser-read-final/direction-postgres.log",
+      "sha256": "2cb5a0893f605c95aae1d00276f9659fa77c0de76822f2f0dbe7fb5a86bff5a3"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-originals-browser-read-final/direction/direction-approved-desktop.png",
+      "sha256": "fee23ba79bdd8804802c25527cc06142ed22fabfe93ea15947c16cb5e08976ac"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-originals-browser-read-final/direction/direction-approved-mobile.png",
+      "sha256": "b651ed2d3bfe4f95e37ee86b2e081ac5e4fb23d3070b267673567a16977d447c"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-originals-browser-read-final/direction/model-attempts.json",
+      "sha256": "218e202b1f86fbcc8c8903be1c0e8ea3b65dcb073668899eb5e4fc45ea3004ca"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-originals-browser-read-final/direction/result.json",
+      "sha256": "bbd88d195a11e73a82242bebaa179d283f74c90a14b0b09f0dc3663e79bc6a3c"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-originals-browser-read-final/environment.json",
+      "sha256": "57076b319d3b29afcb066f652c7d3d91b63eb4e406b593b1c6daa4350f26879c"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-originals-browser-read-final/readonly-facts.json",
+      "sha256": "27c270a9c58ab9d88502a2c9827d07349c858519740b702c2257cef5c77b7b08"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-originals-browser-read-final/real-material-bytes-playwright.log",
+      "sha256": "04ab9ef20d731d8bcb06bce6e37a3f386cb7d2bcc389e133602290aa36dace90"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-originals-browser-read-final/real-material-bytes/original-bytes-verified.png",
+      "sha256": "1b56ceddb527a309cd0dba77c1fad4ee7a75a8202fe75c5636e660c959bd2fd8"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-originals-browser-read-final/real-material-bytes/result.json",
+      "sha256": "62d3e7cf0bdebdf2e4427f4b681b374f05fc1047cc3e396eaa2527543965087e"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-originals-browser-read-final/real-material-bytes/transport.json",
+      "sha256": "0223aa9b7ad153900571bb68e54e8cd2815323cdbf2f10f3df497bd0c4e9cabb"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-originals-browser-read-final/web.log",
+      "sha256": "9e608e2577e10c6c6a0bcf3e675acc58d6609d382ba67ac3ec66238a839dc25b"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-originals-human-declaration-final/cleanup.json",
+      "sha256": "74a4ab33e3b5389e3616637aa8218fe39fa0fce00d82e210359f8fab62346ba5"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-originals-human-declaration-final/environment.json",
+      "sha256": "d64ef434613eab41cc2c91e000f10027f08754ac7aa4c90d7d08a902a5124db9"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-originals-human-declaration-final/readonly-facts.json",
+      "sha256": "518fda2c22dc021d1b2c1384cc76ae67cea037bf29bf79a1d93de9f1a3ce8a99"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-originals-human-declaration-final/real-material-bytes-playwright.log",
+      "sha256": "04ab9ef20d731d8bcb06bce6e37a3f386cb7d2bcc389e133602290aa36dace90"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-originals-human-declaration-final/real-material-bytes/original-bytes-verified.png",
+      "sha256": "e1430bc32167b85b50f115556cdd2bbbb84e118877c042c1acc18d77bdf22f57"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-originals-human-declaration-final/real-material-bytes/result.json",
+      "sha256": "f0e7a65e6d8a64e17fe75bfc534aac676f19a42f6e050783bf2056d1bf971ae6"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-originals-human-declaration-final/real-material-bytes/transport.json",
+      "sha256": "0223aa9b7ad153900571bb68e54e8cd2815323cdbf2f10f3df497bd0c4e9cabb"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-originals-human-declaration-final/web.log",
+      "sha256": "eba9dbddac2f80729a6ac3b48d550396686ea93fe8f7fbc73a838fb5746de105"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-telemetry-final/cleanup.json",
+      "sha256": "1951cfae0322055193672ad4ccd02d5a70cf6c663504f4892456bc04d76903a7"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-telemetry-final/direction-playwright.log",
+      "sha256": "42635f46d25e862acff171cfe160fe27a12de917226c71018037270de95c6486"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-telemetry-final/direction-postgres.log",
+      "sha256": "5592a6f22ec842003748d2febd4cf27a1a9020db5820fe26636370995486c802"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-telemetry-final/direction/model-attempts.json",
+      "sha256": "8534a1347d888080723de33494c6928b736e7f417b8b2f36e7f947a8a2813ffc"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-telemetry-final/environment.json",
+      "sha256": "5898131ade298d80e0191e38dd81668e2a840c174aaf16043c9eef97116d2b44"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/ui-telemetry-final/web.log",
+      "sha256": "a64380ccda22a5bee9d9cb56be04b9d42a8f2d9e0fdd44991ef9b4bd3df031d5"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/web-build-shared-limit-final.log",
+      "sha256": "74e1c8ac4d236aa68fb3acd1793142462157a71e580add94dc14b807053b2352"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/web-check-shared-limit-final.log",
+      "sha256": "186396daa2c59bad4c5f7e8a4a124018e5e18f43b64c56fdfa3639ca80928587"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/web-lint-shared-limit-final.log",
+      "sha256": "52fd37efd84555aa8fd1b71abf7b7b1f1b29ed7d0edb0b5898b70e7cb2b8757a"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/web-test-shared-limit-final.log",
+      "sha256": "81904a06e064ce2d1df4528764c1da4d34e7838deb5d4bd5ffeb3cfcaaf120a7"
+    }
+  ],
+  "testBoundary": {
+    "productSupplemental": 543,
+    "postgresSupplemental": 17,
+    "modelStubBoundary": 6,
+    "publications": 0,
+    "allCoreAutomationComplete": false
+  },
+  "artemisCommit": "371aa6df56880643da57b30da936e9812fb0ec66",
+  "protectedAndForeign": "excluded without reading protected source"
+}

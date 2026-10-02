@@ -1,0 +1,25 @@
+✔ incomplete or identity-mismatched scope cannot invoke the model or claim an attempt (381.695468ms)
+✔ original concurrent generation claims once and rebuild replay cannot spend another model call (82.053912ms)
+✔ planning change while model is in flight discards its result instead of approving stale facts (52.61487ms)
+✔ unavailable real port does not synthesize a proposal; replay remains unavailable (49.741295ms)
+✔ confirmation is atomic, immutable, replayable after rebuild and leaves all execution blocked (84.56888ms)
+✔ stale confirmation and concurrent confirmations cannot replace the approved scope (128.911987ms)
+✔ expired advisory claim recovers to unavailable and rejects any late model result (51.637438ms)
+✔ revoked session during generation cannot persist a proposal, approval or raw provider error (35.392424ms)
+✔ audit error rolls confirmation and project version back together (113.581488ms)
+✔ an in-flight replacement direction cannot be bypassed by confirming the previous proposal (80.251398ms)
+✔ declared stage limits required goals and cannot be changed by original-key replay (95.96758ms)
+✔ durable preflight concurrent claim has one winner and rebuild preserves unknown launch intent (19.553099ms)
+✔ conflicting task/file intent is rejected without changing the persisted original (10.384596ms)
+✔ lost real PG claim COMMIT acknowledgement cannot turn restart into a fresh claim (9.284001ms)
+✔ trace is one-to-one immutable and lost binding ACK preserves the exact original trace (24.26203ms)
+✔ unknown observation cannot erase bound trace or promote model evidence into publication (22.421604ms)
+✔ journal rejects absent binding and corrupt stored assignments before returning a trace (13.3604ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1729.786803

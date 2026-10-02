@@ -4,6 +4,14 @@ WP-00 只提供 NestJS 进程骨架。`GET /health/live` 是进程存活检查�
 
 依赖就绪检查将在相应组件接入时单独实现，部署和流量入口不得把 `/health/live` 当作业务可用证明。
 
+## 初始方向与现有 Artemis 模型配置
+
+`GET /api/operator/projects/:projectId/direction`、`POST .../direction/generate` 与 `POST .../direction/confirm` 已连接正式 Web。生成要求已保存的适用阶段目标、周期与明确的 Page/频道范围；确认原子保存模型方向、输入范围、自主调整边界、操作人和时间。旧草案/事实变化后不得确认旧方向；结果未知先读原结果或沿原请求接续。确认不改变筹备状态，不生产可执行 Task 或公开发布许可。
+
+已有合法 Artemis 配置可由部署环境明确设置 `SG_PRODUCT_BUSINESS_MODEL_MODE=artemis_configured` 和 `SG_PRODUCT_ARTEMIS_ROOT=<已有 Artemis 的绝对目录>`，要求目录已有 `.env` 与 `.venv/bin/python`。默认模型不可用；不运行初始化、不修改既有配置、不返回凭据、不使用模板替代模型失败。适配器使用现有 `ModelFactory` 发出实际模型请求，不启用手机工具。兼容代理的配置模型名称不能作为官方提供方或官方模型版本证明；`responseId` 是本地关联编号，不是提供方回执。
+
+依次应用 `0024_project_direction.sql` 与 `0025_artemis_preflight_journal.sql`；正常启动没有自动迁移。后者是内部提交前 intent/trace/unknown observation 日志，仅保证重建、并发及丢失确认后不重复启动。尚未接入中央 Task、实际文件准备和每次手机动作的物理许可；不能因为 journal 已持久化而启动生产手机执行。作者真实模型/页面、真实 PG 和 Demo 人工协作证据见[本次接手记录](../../docs/engineering/delivery/records/core-automation-loop-direction-artemis-20261002.md)。
+
 WP-01 开始建立正式权威数据模型：
 
 - [首批身份与设备 ER 及事务边界](docs/identity-device-er.md)
@@ -175,7 +183,7 @@ WP-10 新增内部 `endpoint-report-core` 只校验签名完整双用途快照�
 
 第五阶段已实际注册MaterialRuntime及`POST /api/operator/projects/:projectId/material-uploads`/`GET .../:objectId`认证票据API。当前Cookie/CSRF/DB钟、最小共享TS/JSON/Python契约；只返必要bytes/status/时间与false许可，不返descriptor/位置/key/凭据。默认无配置新写503、历史read不重新证明当前bytes。显式SG_PRODUCT_MATERIAL_MODE=configured及所有受保护server字段才构造SDK，详见[配置/字段/实际测试及缺口](../../docs/engineering/delivery/records/WP-15-stage5.md)。shutdown关闭自有SDK，不自动发现/创建生产bucket。字节HTTP、素材登记HTTP、UI/准入/Task/手机仍未实现，不能把票据API当整个上传或媒体链路通过。
 
-第六阶段提供同object的`PUT .../material-uploads/:objectId/bytes`，raw application/octet-stream＋x-sg-contract-version/x-request-id/x-idempotency-key、Cookie/CSRF；先实际认证/票据binding，再锁外有界读取与原upload二次认证。HTTP prepare/PUT技术上限16MiB/总读15秒，内部128MiB不等HTTP支持；断开/超时/超量可能关闭连接，必须原ID/key查当前/重试，不自动删除或换ID。成功仅verified历史，两许可false，无下载/登记API/UI/媒体准入或手机Task。新Cookie保留完整值再精确校验，不截断`=`后缀；bf5局部原P3同窗实际清零、组合原QA仍待。见[真实测试/原失败/规模与人工缺口](../../docs/engineering/delivery/records/WP-15-stage6.md)。
+第六阶段提供同object的`PUT .../material-uploads/:objectId/bytes`，raw application/octet-stream＋x-sg-contract-version/x-request-id/x-idempotency-key、Cookie/CSRF；先实际认证/票据binding，再锁外有界读取与原upload二次认证。该阶段原HTTP上限16MiB；2026-10-02接手增量统一Web/BE为64MiB（仍有界，存储配置可更严格）/总读15秒，内部128MiB不等HTTP支持；断开/超时/超量可能关闭连接，必须原ID/key查当前/重试，不自动删除或换ID。成功仅verified历史，两许可false，无下载/登记API/UI/媒体准入或手机Task。新Cookie保留完整值再精确校验，不截断`=`后缀；bf5局部原P3同窗实际清零、组合原QA仍待。见[真实测试/原失败/规模与人工缺口](../../docs/engineering/delivery/records/WP-15-stage6.md)。
 
 后续六类运营控制器统一`operatorSessionTokenFrom`，完整43字符base64url且同名唯一，拒绝数组合并/后缀/名称畸形及控制字符，不改变auth、CSRF或响应Cookie属性。作者2unit/3实际AppModule认证回归及产品356/全PG256通过，原固定门禁另做；非真实浏览器登录、全站生产安全或媒体验收，见[Cookie统一整改](../../docs/engineering/delivery/records/operator-cookie-hardening.md)。
 

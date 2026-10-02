@@ -18,6 +18,8 @@ export * from "./operator.js";
 export * from "./provider-auth.js";
 export * from "./project.js";
 export * from "./project-planning.js";
+export * from "./project-direction.js";
+export * from "./artemis-preflight.js";
 export * from "./registry.js";
 export * from "./resource-preparation.js";
 export * from "./status.js";

@@ -4,6 +4,7 @@ import { ArrowClockwise, CalendarBlank, Target } from "@phosphor-icons/react";
 import { isDefinitiveProjectRejection, newIdempotencyKey, ProductApiError } from "./operator-api.js";
 import { PreparedPlanningDraft, readPlanningDraft, samePlanningInputs } from "./project-planning-api.js";
 import { numberFields, planningFormOf, planningInputOf, type PlanningForm } from "./project-planning-editor.js";
+import { ProjectDirectionPanel } from "./project-direction-panel.js";
 const zones = projectPlanningInputsSchema.shape.businessTimeZone.unwrap().options;
 const numericLabels = { reviewIntervalDays: "复盘间隔（天）", trafficMinimumPerCycle: "项目每周期引流最低任务数", observationWindowHours: "内容观察窗口（小时）", tailObservationDays: "结束后收尾观察（天）", maxPublicationsPerDay: "每日总发布上界" };
 const forms = { facebook_video: "Facebook 视频", facebook_image_text: "Facebook 图文", youtube_shorts: "YouTube Shorts", youtube_video: "YouTube 常规视频" };
@@ -86,5 +87,6 @@ export function ProjectPlanningPanel({ projectId, active, readOnly, onExpired, o
       {observed && <section className="project-conflict" aria-label="当前草案核对"><h3>当前保存：项目 v{observed.projectFactVersion}／草案 v{observed.draftVersion}</h3><pre>{JSON.stringify(observed.inputs, null, 2)}</pre><p>本人输入仍保留；采用最新版本仅更新保存基线，下一次保存仍提交表单全部字段。</p>{!readOnly && <button className="outline-button" disabled={busy || !!pending} onClick={() => { setBase(observed); setObserved(null); }}>已逐项核对，采用最新版本</button>}</section>}
       <p className="form-note">返回或切换项目保留本窗口输入；关闭页面未保存输入不会落盘。没有额外启动审批，也没有用草案保存代替初始方向确认。</p>
     </>}
+    <ProjectDirectionPanel projectId={projectId} active={active} readOnly={readOnly} onExpired={onExpired} onFactsChanged={onFactsChanged} unsaved={dirty || !!pending || busy} />
   </section>;
 }

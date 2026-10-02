@@ -53,9 +53,18 @@
 .material-editor fieldset { border: 0; padding: 0; }
 .material-editor pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .material-form-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px 24px; }
-.material-workspace textarea, .planning-form-grid textarea { font: inherit; color: #172b4d; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; resize: vertical; width: 100%; padding: 10px 12px; }
+.material-workspace textarea, .planning-form-grid textarea, .direction-panel textarea { font: inherit; color: #172b4d; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; resize: vertical; width: 100%; padding: 10px 12px; }
 .material-workspace textarea { min-height: 100px; }
-.material-workspace textarea:focus-visible, .planning-form-grid textarea:focus-visible { outline: 3px solid #bfd2ff; }
+.material-workspace textarea:focus-visible, .planning-form-grid textarea:focus-visible, .direction-panel textarea:focus-visible { outline: 3px solid #bfd2ff; }
+.direction-panel { margin-top: 32px; }
+.direction-panel label { display: grid; gap: 8px; }
+.direction-panel textarea { min-height: 86px; }
+.direction-copy { max-width: 75ch; white-space: pre-wrap; overflow-wrap: anywhere; }
+.direction-review { margin: 24px 0; }
+.direction-panel .project-facts { display: block; }
+.direction-panel .project-facts > div { display: grid; grid-template-columns: minmax(100px, 160px) minmax(0, 1fr); gap: 12px; margin: 12px 0; }
+.direction-panel li { overflow-wrap: anywhere; }
+@media (max-width: 700px) { .direction-panel .project-facts > div { grid-template-columns: minmax(0, 1fr); gap: 4px; } }
 .material-inline-check { display: flex; flex-direction: row; align-items: center; margin: 16px 0; }
 .material-preview { display: block; width: min(100%,480px); max-height: 270px; object-fit: contain; margin: 16px 0; }
 @media(max-width:700px) { .material-form-grid { grid-template-columns: 1fr; } .material-workspace .section-heading { align-items: flex-start; flex-wrap: wrap; } .material-table td:nth-child(3) { max-width: none; } }

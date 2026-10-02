@@ -18,7 +18,7 @@ test("ticket preparation preserves deep original descriptor/key across explicit 
   globalThis.fetch = async (url, init) => { assert.equal(String(url), `/api/operator/projects/${project}/material-uploads`); assert.equal(init?.method, "POST"); assert.equal(init?.credentials, "same-origin"); assert.equal(new Headers(init?.headers).get("x-csrf-token"), "C".repeat(43)); bodies.push(init?.body); if (bodies.length === 1) throw new Error("synthetic-unknown"); return response(result(), 201); };
   await assert.rejects(prepared.send(), fixed); assert.equal(bodies.length, 1); assert.equal((await prepared.send()).status, "pending_bytes"); assert.deepEqual(bodies, [body, body]); assert.equal(JSON.stringify(prepared), "{}");
 });
-test("invalid input and the existing 16MiB HTTP boundary close before fetch, without claiming the shared 128MiB object limit", async () => {
+test("invalid input and the bounded HTTP limit close before fetch, without claiming the shared 128MiB object limit", async () => {
   let calls = 0; globalThis.fetch = async () => { calls++; return response(result()); };
   for (const raw of [null, { ...input(), bytes: 0 }, { ...input(), bytes: materialUploadHTTPMaxBytes + 1 }, { ...input(), sha256: "invalid" }, { ...input(), endpoint: "synthetic-secret-locator" }]) assert.throws(() => new PreparedMaterialUploadTicket(raw), fixed);
   for (const pair of [["../../private", object], [project, "bad"]]) await assert.rejects(readProjectMaterialUpload(pair[0]!, pair[1]!), fixed);

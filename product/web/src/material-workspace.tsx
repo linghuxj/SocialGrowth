@@ -69,7 +69,7 @@ export function MaterialWorkspace({ projectId, active, readOnly, onExpired }: {
         input.objectIds = [transfer.objectId];
         // Filename is a label, not inferred business name/language/episode.
         added.push({ id: input.variantId, filename: file.name, preview: file, input, transfer, uploaded: false, dirty: true, error: "", firstUseConfirmed: false, evidenceText: "" });
-      } catch { setError("部分文件未加入：支持 MP4/JPEG/PNG/WebP，非空且单文件不超过 16 MiB。"); }
+      } catch { setError("部分文件未加入：支持 MP4/JPEG/PNG/WebP，非空且单文件不超过 64 MiB。"); }
     }
     setRows(prev => [...prev, ...added]);
   }

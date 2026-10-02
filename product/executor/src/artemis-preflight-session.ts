@@ -1,17 +1,8 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { centralPublicationTaskSchema, uuidSchema } from "@socialgrowth/product-contracts";
+import { artemisPreflightAssignmentSchema as assignmentSchema, uuidSchema, type ArtemisPreflightAssignment, type ArtemisPreflightJournal, type PreflightObservation } from "@socialgrowth/product-contracts";
+export type { ArtemisPreflightAssignment, ArtemisPreflightJournal, PreflightObservation } from "@socialgrowth/product-contracts";
 
-const assignmentSchema = z.strictObject({ task: centralPublicationTaskSchema,
-  serial: z.string().regex(/^[A-Za-z0-9._:-]{1,128}$/).refine(v => !v.startsWith("emulator-")),
-  platformIdentity: z.string().min(1).max(256),
-  // Trusted prepared-file references, NOT URLs or the latest gallery item.
-  media: z.array(z.strictObject({ objectId: uuidSchema, sha256: z.string().regex(/^[a-f0-9]{64}$/), path: z.string().regex(/^\/sdcard\/(?:Movies|Pictures)\/SocialGrowth\/[a-f0-9]{64}\.(?:mp4|png|jpg|webp)$/) })).min(1).max(20),
-}).superRefine((v, ctx) => {
-  if (v.media.length !== v.task.objects.length || v.media.some((m, i) => m.objectId.toLowerCase() !== v.task.objects[i]!.objectId.toLowerCase()
-    || m.sha256 !== v.task.objects[i]!.sha256 || !m.path.split("/").at(-1)!.startsWith(`${m.sha256}.`))) ctx.addIssue({ code: "custom", message: "Prepared objects do not match ordered task versions" });
-});
-export type ArtemisPreflightAssignment = z.infer<typeof assignmentSchema>;
 export interface ArtemisToolPort { call(name: string, args: Record<string, unknown>, timeoutMs?: number): Promise<unknown>; }
 export interface ArtemisPreflightGuard {
   // MUST resolve current central task/admission/local participation/exclusive
@@ -20,24 +11,12 @@ export interface ArtemisPreflightGuard {
   // Demo READ_ACTIONS early-return cannot implement this production port.
   requireCurrentFencedPreflight(assignment: ArtemisPreflightAssignment, fingerprint: string): Promise<void>;
 }
-export interface ArtemisPreflightJournal {
-  // Durable atomic claim must commit BEFORE the RPC. A previously claimed
-  // intent without a trace is unknown, NEVER permission to launch again.
-  claim(assignment: ArtemisPreflightAssignment, fingerprint: string): Promise<{ state: "new" } | { state: "existing"; traceId: string | null }>;
-  read(assignment: ArtemisPreflightAssignment, fingerprint: string): Promise<{ traceId: string | null } | null>;
-  bindTrace(taskAttemptId: string, fingerprint: string, traceId: string): Promise<void>;
-  // Append observation only; never erase an already-bound trace after ACK
-  // loss, or promote model reports into verified central task facts.
-  record(taskAttemptId: string, fingerprint: string, observation: PreflightObservation): Promise<void>;
-}
 const traceSchema = uuidSchema;
 const launchSchema = z.object({ trace_id: traceSchema, device_serial: z.string(), status: z.enum(["running", "pending"]).optional() });
 const statusSchema = z.object({ trace_id: traceSchema, device_serial: z.string(), status: z.enum(["pending", "running", "completed", "success", "failed", "cancelled"]), result: z.unknown().optional() });
 const reportSchema = z.strictObject({ taskAttemptId: uuidSchema, observedIdentity: z.string().max(256),
   identityKind: z.enum(["facebook_page", "youtube_channel", "unknown"]), stage: z.enum(["ready_before_submit", "human_required", "identity_mismatch"]),
   finalSubmitClicked: z.literal(false), publicationState: z.literal("not_submitted"), evidenceIds: z.array(uuidSchema).min(1).max(20) });
-export type PreflightObservation = { traceId: string | null; state: "running" | "launch_unknown" | "reported_ready" | "needs_human" | "result_unknown" | "stop_unconfirmed";
-  publicationState: "unverified"; publicationAllowed: false; evidenceIds: string[] };
 const observation = (traceId: string | null, state: PreflightObservation["state"], evidenceIds: string[] = []): PreflightObservation => ({ traceId, state, publicationState: "unverified", publicationAllowed: false, evidenceIds });
 export class ArtemisPreflightError extends Error {
   constructor(readonly code: "ARTEMIS_CONFIGURATION_REQUIRED" | "ARTEMIS_ASSIGNMENT_INVALID" | "ARTEMIS_PREFLIGHT_UNAVAILABLE") { super(code); }

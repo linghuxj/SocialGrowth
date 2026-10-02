@@ -16,7 +16,7 @@ export class MaterialFileTransfer {
   constructor(projectId: string, file: File) {
     this.#projectId = uuidSchema.parse(projectId);
     if (!(file instanceof File) || file.size < 1 || file.size > materialUploadHTTPMaxBytes || !materialUploadContentTypeSchema.safeParse(file.type).success) {
-      throw new Error("请选择支持的 MP4/JPEG/PNG/WebP 成品，单文件目前最多 16 MiB");
+      throw new Error("请选择支持的 MP4/JPEG/PNG/WebP 成品，单文件目前最多 64 MiB");
     }
     this.#file = file; this.#checkSession = captureOperatorWriteSession(); this.#checkSession();
   }

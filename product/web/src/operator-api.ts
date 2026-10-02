@@ -1,5 +1,5 @@
 import {
-  contractVersion,
+  materialUploadHttpMaxBytes, contractVersion,
   createInvitationResponseSchema,
   createOperatorResponseSchema,
   disableOperatorResponseSchema,
@@ -125,7 +125,7 @@ export function prepareOperatorPost<T>(url: string, body: string, schema: { pars
 // from the strict command, never an external upload URL or storage locator.
 export function prepareOperatorMaterialBytes<T>(rawCommand: unknown, rawBytes: Uint8Array, schema: { parse(input: unknown): T }): () => Promise<T> {
   const parsed = uploadMaterialBytesCommandSchema.safeParse(rawCommand);
-  if (!parsed.success || !(rawBytes instanceof Uint8Array) || rawBytes.byteLength < 1 || rawBytes.byteLength > 16 * 1024 * 1024
+  if (!parsed.success || !(rawBytes instanceof Uint8Array) || rawBytes.byteLength < 1 || rawBytes.byteLength > materialUploadHttpMaxBytes
     || ![parsed.data.metadata.requestId, parsed.data.metadata.idempotencyKey].every(v => /^[\x20-\x7E]+$/.test(v) && v.trim() === v)) throw new OperatorWriteRequestInvalidError();
   const command = parsed.data, originalCsrf = csrfToken(), body = new Blob([new Uint8Array(rawBytes)], { type: "application/octet-stream" });
   const url = `/api/operator/projects/${command.projectId.toLowerCase()}/material-uploads/${command.objectId.toLowerCase()}/bytes`;

@@ -1,5 +1,6 @@
 import type { Readable } from "node:stream";
-export const materialHttpMaxBytes = 16 * 1024 * 1024;
+import { materialUploadHttpMaxBytes } from "@socialgrowth/product-contracts";
+export const materialHttpMaxBytes = materialUploadHttpMaxBytes;
 export const materialHttpReadTimeoutMs = 15000;
 export class MaterialByteTransportError extends Error {
   constructor(readonly code: "INVALID_BYTES" | "INCOMPLETE_BYTES" | "BODY_TIMEOUT") { super(code); }

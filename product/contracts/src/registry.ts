@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { directionProposalSchema, directionApprovalSchema, projectDirectionResponseSchema, generateProjectDirectionRequestSchema, confirmProjectDirectionRequestSchema } from "./project-direction.js";
 import { mediaCredentialMetadataSchema, readMediaCredentialResponseSchema, writeMediaCredentialRequestSchema, writeMediaCredentialResponseSchema } from "./media-credentials.js";
 import { registerMediaIdentityRequestSchema, registerMediaIdentityResponseSchema, reserveResourcePreparationRequestSchema, resourcePreparationResponseSchema } from "./resource-preparation.js";
 import { centralPublicationTaskSchema, taskDispatchNoticeSchema, taskExecutionObservationSchema } from "./task-dispatch.js";
@@ -83,6 +84,11 @@ import {
 } from "./status.js";
 
 export const firstBatchContractRegistry = {
+  directionProposal: directionProposalSchema,
+  directionApproval: directionApprovalSchema,
+  projectDirectionResponse: projectDirectionResponseSchema,
+  generateProjectDirectionRequest: generateProjectDirectionRequestSchema,
+  confirmProjectDirectionRequest: confirmProjectDirectionRequestSchema,
   mediaCredentialMetadata: mediaCredentialMetadataSchema,
   readMediaCredentialResponse: readMediaCredentialResponseSchema,
   writeMediaCredentialRequest: writeMediaCredentialRequestSchema,

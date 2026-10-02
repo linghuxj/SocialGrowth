@@ -1,0 +1,4 @@
+
+> @socialgrowth/product-web@0.0.0 check /Users/linghuxj/Documents/myproject/project/SocialGrowth/product/web
+> tsc -b --pretty false
+

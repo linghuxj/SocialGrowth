@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Readable } from "node:stream";
-import { readMaterialByteStream, MaterialByteTransportError } from "./material-byte-transport.js";
+import { readMaterialByteStream, MaterialByteTransportError, materialHttpMaxBytes } from "./material-byte-transport.js";
 const code = (expected: string) => (e: unknown) => e instanceof MaterialByteTransportError && e.code === expected && !e.cause;
 test("raw byte stream copies offset buffers and preserves explicit chunk order", async () => {
   const backing = Buffer.from("_first_"), first = backing.subarray(1, 6);
@@ -9,7 +9,7 @@ test("raw byte stream copies offset buffers and preserves explicit chunk order",
   assert.deepEqual(await readMaterialByteStream(source, 11), Buffer.from("firstsecond"));
 });
 test("invalid bounds, incomplete body, excess body and string chunks never return successful bytes", async () => {
-  for (const size of [0, -1, 1.5, 17 * 1024 * 1024]) await assert.rejects(readMaterialByteStream(Readable.from([]), size), code("INVALID_BYTES"));
+  for (const size of [0, -1, 1.5, materialHttpMaxBytes + 1]) await assert.rejects(readMaterialByteStream(Readable.from([]), size), code("INVALID_BYTES"));
   await assert.rejects(readMaterialByteStream(Readable.from([Buffer.from("a")]), 2), code("INCOMPLETE_BYTES"));
   await assert.rejects(readMaterialByteStream(Readable.from([Buffer.from("ab")]), 1), code("INVALID_BYTES"));
   await assert.rejects(readMaterialByteStream(Readable.from(["a"]), 1), code("INVALID_BYTES"));

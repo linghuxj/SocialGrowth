@@ -23,6 +23,9 @@ import { MediaCredentialStore } from "./media-credential-store.js";
 import { MediaCredentialsController } from "./media-credentials.controller.js";
 import { ProjectPlanningController } from "./project-planning.controller.js";
 import { ProjectPlanningService } from "./project-planning-service.js";
+import { ProjectDirectionService } from "./project-direction-service.js";
+import { ProjectDirectionController } from "./project-direction.controller.js";
+import { readInitialDirectionModel } from "./artemis-business-model.js";
 import { DeviceAssistanceFeedService } from "./device-assistance-feed-service.js";
 import { DeviceAssistanceFeedController } from "./device-assistance-feed.controller.js";
 import { ProviderAssistanceFeedService } from "./provider-assistance-feed-service.js";
@@ -130,6 +133,7 @@ const providerAuthProvider = {
     ResourcePreparationController,
     MediaCredentialsController,
     ProjectPlanningController,
+    ProjectDirectionController,
     DeviceAssistanceFeedController,
     ProviderAssistanceFeedController,
     ProviderCommissionFeedController,
@@ -151,6 +155,7 @@ const providerAuthProvider = {
     // writes authenticate then fail closed. No ambient/historical key fallback.
     { provide: MediaCredentialStore, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new MediaCredentialStore(pool, auth, null) },
     { provide: ProjectPlanningService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ProjectPlanningService(pool, auth) },
+    { provide: ProjectDirectionService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ProjectDirectionService(pool, auth, readInitialDirectionModel()) },
     { provide: DeviceAssistanceFeedService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new DeviceAssistanceFeedService(pool, auth) },
     { provide: ProviderAssistanceFeedService, inject: [Pool, ProviderAuthService], useFactory: (pool: Pool, auth: ProviderAuthService) => new ProviderAssistanceFeedService(pool, auth) },
     { provide: ProviderCommissionFeedService, inject: [Pool, ProviderAuthService], useFactory: (pool: Pool, auth: ProviderAuthService) => new ProviderCommissionFeedService(pool, auth) },

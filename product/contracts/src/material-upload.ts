@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { compareTimestamps, requestMetadataSchema, timestampSchema, uuidSchema } from "./common.js";
 const id = uuidSchema;
+// Bounded private HTTP transport, below the 128MiB object schema ceiling.
+// Supports the authorized Demo originals; configured storage can be stricter.
+export const materialUploadHttpMaxBytes = 64 * 1024 * 1024;
 const iso = z.toJSONSchema(timestampSchema).pattern;
 if (typeof iso !== "string" || !iso.startsWith("^")) throw new Error("Expected anchored ISO timestamp grammar");
 const time = z.string().regex(new RegExp(iso.replace(/^\^/, "^(?!0000-)")));

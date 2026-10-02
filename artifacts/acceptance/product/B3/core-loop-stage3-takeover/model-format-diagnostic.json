@@ -1,0 +1,14 @@
+{
+  "exitCode": 0,
+  "reason": null,
+  "length": 378,
+  "startsWithFence": false,
+  "startsWithObject": true,
+  "jsonType": "dict",
+  "knownTypes": {
+    "direction": "str",
+    "rationale": "str",
+    "limitations": "list"
+  },
+  "unknownKeyCount": 0
+}

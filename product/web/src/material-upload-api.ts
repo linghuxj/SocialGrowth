@@ -1,10 +1,10 @@
-import { uuidSchema, prepareMaterialUploadRequestSchema, prepareMaterialUploadResponseSchema, materialUploadTicketViewSchema } from "@socialgrowth/product-contracts";
+import { uuidSchema, prepareMaterialUploadRequestSchema, prepareMaterialUploadResponseSchema, materialUploadTicketViewSchema, materialUploadHttpMaxBytes } from "@socialgrowth/product-contracts";
 import { ProductApiError, OperatorWriteSessionChangedError, prepareOperatorPost, readOperatorResource } from "./operator-api.js";
 export type MaterialUploadTicket = ReturnType<typeof materialUploadTicketViewSchema.parse>;
 export type MaterialUploadPreparation = ReturnType<typeof prepareMaterialUploadResponseSchema.parse>;
 // Existing backend HTTP transport guard, not the object's universal limit or
 // proof of production browser capacity. The shared object schema allows 128MiB.
-export const materialUploadHTTPMaxBytes = 16 * 1024 * 1024;
+export const materialUploadHTTPMaxBytes = materialUploadHttpMaxBytes;
 export class MaterialUploadClientError extends Error {
   constructor(readonly code: "MATERIAL_UPLOAD_CLIENT_INVALID" | "MATERIAL_UPLOAD_CLIENT_PROTOCOL_INVALID" | "MATERIAL_UPLOAD_CLIENT_UNAVAILABLE") { super(code); }
 }
