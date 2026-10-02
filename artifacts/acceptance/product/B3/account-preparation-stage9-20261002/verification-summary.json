@@ -1,0 +1,255 @@
+{
+  "backend.log": {
+    "counts": [],
+    "pythonResult": null
+  },
+  "build-final.log": {
+    "counts": [],
+    "pythonResult": null
+  },
+  "build-policy-final.log": {
+    "counts": [],
+    "pythonResult": null
+  },
+  "build.log": {
+    "counts": [],
+    "pythonResult": null
+  },
+  "check-final.log": {
+    "counts": [],
+    "pythonResult": null
+  },
+  "check-policy-final.log": {
+    "counts": [],
+    "pythonResult": null
+  },
+  "check.log": {
+    "counts": [],
+    "pythonResult": null
+  },
+  "environment.log": {
+    "counts": [],
+    "pythonResult": null
+  },
+  "lint-final.log": {
+    "counts": [],
+    "pythonResult": null
+  },
+  "lint-policy-final.log": {
+    "counts": [],
+    "pythonResult": null
+  },
+  "lint.log": {
+    "counts": [],
+    "pythonResult": null
+  },
+  "operator-initialize.log": {
+    "counts": [],
+    "pythonResult": null
+  },
+  "playwright.log": {
+    "counts": [],
+    "pythonResult": null
+  },
+  "product-tests.log": {
+    "counts": [
+      {
+        "kind": "tests",
+        "count": 69
+      },
+      {
+        "kind": "pass",
+        "count": 69
+      },
+      {
+        "kind": "fail",
+        "count": 0
+      },
+      {
+        "kind": "tests",
+        "count": 340
+      },
+      {
+        "kind": "pass",
+        "count": 340
+      },
+      {
+        "kind": "fail",
+        "count": 0
+      },
+      {
+        "kind": "tests",
+        "count": 61
+      },
+      {
+        "kind": "pass",
+        "count": 61
+      },
+      {
+        "kind": "fail",
+        "count": 0
+      },
+      {
+        "kind": "tests",
+        "count": 86
+      },
+      {
+        "kind": "pass",
+        "count": 86
+      },
+      {
+        "kind": "fail",
+        "count": 0
+      }
+    ],
+    "pythonResult": "Ran 38 tests in 0.527s\n\nOK"
+  },
+  "python-regression.log": {
+    "counts": [],
+    "pythonResult": "Ran 15 tests in 1.683s\n\nOK"
+  },
+  "sdk-final.log": {
+    "counts": [
+      {
+        "kind": "tests",
+        "count": 7
+      },
+      {
+        "kind": "pass",
+        "count": 7
+      },
+      {
+        "kind": "fail",
+        "count": 0
+      }
+    ],
+    "pythonResult": null
+  },
+  "session-candidate-final.log": {
+    "counts": [
+      {
+        "kind": "tests",
+        "count": 12
+      },
+      {
+        "kind": "pass",
+        "count": 12
+      },
+      {
+        "kind": "fail",
+        "count": 0
+      }
+    ],
+    "pythonResult": null
+  },
+  "session-final.log": {
+    "counts": [
+      {
+        "kind": "tests",
+        "count": 10
+      },
+      {
+        "kind": "pass",
+        "count": 10
+      },
+      {
+        "kind": "fail",
+        "count": 0
+      }
+    ],
+    "pythonResult": null
+  },
+  "session-policy-final.log": {
+    "counts": [
+      {
+        "kind": "tests",
+        "count": 11
+      },
+      {
+        "kind": "pass",
+        "count": 11
+      },
+      {
+        "kind": "fail",
+        "count": 0
+      }
+    ],
+    "pythonResult": null
+  },
+  "session-sdk-fourth.log": {
+    "counts": [
+      {
+        "kind": "tests",
+        "count": 5
+      },
+      {
+        "kind": "pass",
+        "count": 5
+      },
+      {
+        "kind": "fail",
+        "count": 0
+      }
+    ],
+    "pythonResult": null
+  },
+  "session-sdk-second.log": {
+    "counts": [
+      {
+        "kind": "tests",
+        "count": 5
+      },
+      {
+        "kind": "pass",
+        "count": 2
+      },
+      {
+        "kind": "fail",
+        "count": 3
+      }
+    ],
+    "pythonResult": null
+  },
+  "session-sdk-third.log": {
+    "counts": [
+      {
+        "kind": "tests",
+        "count": 5
+      },
+      {
+        "kind": "pass",
+        "count": 2
+      },
+      {
+        "kind": "fail",
+        "count": 3
+      }
+    ],
+    "pythonResult": null
+  },
+  "session-sdk.log": {
+    "counts": [
+      {
+        "kind": "tests",
+        "count": 5
+      },
+      {
+        "kind": "pass",
+        "count": 2
+      },
+      {
+        "kind": "fail",
+        "count": 3
+      }
+    ],
+    "pythonResult": null
+  },
+  "web-runner.log": {
+    "counts": [],
+    "pythonResult": null
+  },
+  "web.log": {
+    "counts": [],
+    "pythonResult": null
+  }
+}

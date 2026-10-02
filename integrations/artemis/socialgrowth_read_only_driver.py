@@ -69,10 +69,10 @@ class ReadOnlyArtemisDriver(BaseDeviceDriver):
     async def disconnect(self) -> None:
         self._closed = True  # Refuses new reads; does not claim phone stop.
 
-    async def get_screen_data(self, skip_settling: bool = False) -> ScreenData:
+    async def get_screen_data(self, skip_settling: bool = False, *, request_id: str | None = None) -> ScreenData:
         if self._closed:
             raise PhysicalPathDenied()
-        screen = await asyncio.to_thread(self._bridge.capture)
+        screen = await asyncio.to_thread(self._bridge.capture, request_id)
         if self._closed:
             raise PhysicalPathDenied()
         self._size = (screen.width, screen.height)

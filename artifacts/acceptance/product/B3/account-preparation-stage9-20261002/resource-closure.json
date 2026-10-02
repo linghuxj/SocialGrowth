@@ -1,0 +1,23 @@
+{
+  "checkedAt": "2026-10-02T14:45:39.981Z",
+  "ports": [
+    3100,
+    4320,
+    32925
+  ],
+  "portListeners": "",
+  "remainingPrivateFixtureNames": [],
+  "ownedSdkChildrenEndedByComponentAssertions": true,
+  "ownedScratchRemovedWithPrivateFixtureCleanup": true,
+  "otherContainersPreserved": [
+    "nestar-music-backend-20261001 127.0.0.1:32865->5432/tcp",
+    "nestar-stage1-20261001 127.0.0.1:55449->5432/tcp",
+    "minio-test 0.0.0.0:9000-9001->9000-9001/tcp, [::]:9000-9001->9000-9001/tcp"
+  ],
+  "modelAndMcpCalls": 0,
+  "realPhoneOperations": 0,
+  "platformAssetsCreated": 0,
+  "publications": 0,
+  "privateCapabilitiesNotStored": true,
+  "protectedPublicationScriptPathStatusOnly": true
+}

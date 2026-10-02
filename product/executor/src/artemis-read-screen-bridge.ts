@@ -67,6 +67,14 @@ export class ArtemisReadScreenBridge {
       && grant.allowedKinds.length === 1 && grant.allowedKinds[0] === "read_screen" && Date.parse(grant.leaseUntil) > Date.now()
       && Object.entries(this.scope).every(([key, value]) => grant[key as keyof typeof grant] === value);
   }
+  // Trusted dedicated-process startup checks the very same listener/scope.
+  // An access object from another bridge or a stopped/expired holder is denied.
+  requireCurrentAccess(access: ReadScreenBridgeAccess): void {
+    if (!this.server?.listening || this.closing || !this.currentScope()
+      || access.socketPath !== this.socketPath || access.serial !== this.scope.serial
+      || access.scopeDigest !== this.scopeDigest || access.token !== this.token) throw new ReadScreenBridgeError();
+  }
+  requestProcessStop(stopRequestId: string): void { this.fence.requestStop(stopRequestId); }
   private accept(socket: Socket): void {
     if (this.closing || this.sockets.size >= 16) { socket.destroy(); return; }
     this.sockets.add(socket); socket.once("close", () => this.sockets.delete(socket)); socket.on("error", () => undefined);

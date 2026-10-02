@@ -1,0 +1,4 @@
+
+> @socialgrowth/product-executor@0.0.0 check /Users/linghuxj/Documents/myproject/project/SocialGrowth/product/executor
+> tsc -p tsconfig.json --noEmit
+

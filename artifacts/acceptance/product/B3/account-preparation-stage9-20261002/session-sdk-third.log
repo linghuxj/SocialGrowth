@@ -1,0 +1,48 @@
+✖ actual SDK context boots inside macOS sandbox, original observer crosses fence once, close records child exit only (1372.25811ms)
+✔ reconstructed host reads original launch intent without spawning or claiming phone stop (20.368567ms)
+✔ stale scope and changed pinned source refuse before original launch intent or subprocess (30.681266ms)
+✖ current local withdrawal prevents observer and child exit does not restore holder (861.161822ms)
+✖ transport unknown closes original child, retains unresolved read and never repeats it (956.685062ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 2
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3674.714912
+
+✖ failing tests:
+
+test at src/artemis-read-session-process.sdk-test.ts:21:1
+✖ actual SDK context boots inside macOS sandbox, original observer crosses fence once, close records child exit only (1372.25811ms)
+  Error: READ_SESSION_UNAVAILABLE
+      at fail (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/executor/src/artemis-read-session-process.ts:23:32)
+      at ArtemisReadSessionProcess.start (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/executor/src/artemis-read-session-process.ts:130:64)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/executor/src/artemis-read-session-process.sdk-test.ts:24:19)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3)
+
+test at src/artemis-read-session-process.sdk-test.ts:54:1
+✖ current local withdrawal prevents observer and child exit does not restore holder (861.161822ms)
+  Error: READ_SESSION_UNAVAILABLE
+      at fail (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/executor/src/artemis-read-session-process.ts:23:32)
+      at ArtemisReadSessionProcess.start (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/executor/src/artemis-read-session-process.ts:130:64)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/executor/src/artemis-read-session-process.sdk-test.ts:56:9)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at src/artemis-read-session-process.sdk-test.ts:59:1
+✖ transport unknown closes original child, retains unresolved read and never repeats it (956.685062ms)
+  Error: READ_SESSION_UNAVAILABLE
+      at fail (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/executor/src/artemis-read-session-process.ts:23:32)
+      at ArtemisReadSessionProcess.start (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/executor/src/artemis-read-session-process.ts:130:64)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/executor/src/artemis-read-session-process.sdk-test.ts:61:23)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+undefined
+/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/executor:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: tsx --test src/artemis-read-session-process.sdk-test.ts
