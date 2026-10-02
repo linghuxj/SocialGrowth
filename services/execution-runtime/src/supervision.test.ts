@@ -3,6 +3,22 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { RuntimeStore } from "./store.ts";
 import { HumanAssistance } from "./human-assistance.ts";
+test("client test scope denies credentials, installation, identity and publication while allowing native navigation", () => {
+  const store = new RuntimeStore(":memory:"), human = new HumanAssistance(store);
+  const scope = { taskId: randomUUID(), deviceId: "phone", serial: "RFC_TEST", packageName: "com.socialgrowth.product",
+    expectedIdentity: "own native client", mode: "diagnostic", expiresAt: new Date(Date.now() + 60000).toISOString(), policy: { mode: "client_test" } };
+  try {
+    for (const invalid of [{ ...scope, packageName: "com.facebook.katana" }, { ...scope, mode: "execution" }, { ...scope, policy: { mode: "preflight" } }])
+      assert.throws(() => human.open(invalid));
+    const session = human.open(scope);
+    assert.throws(() => human.beginCredential(session.token, "password"), /CONTROL_NOT_ACTIVE/);
+    assert.throws(() => human.beginCredential(session.token, "otp"), /CONTROL_NOT_ACTIVE/);
+    for (const category of ["publish", "install", "create_identity", "login_submit", "correct_account", "unmanaged"])
+      assert.throws(() => human.supervision.gate(session.sessionId, { action: "test", category }), /CLIENT_TEST_ACTION_NOT_AUTHORIZED/);
+    assert.equal(human.supervision.gate(session.sessionId, { action: "click", category: "navigate" }).allowed, true);
+    assert.equal(human.supervision.gate(session.sessionId, { action: "manage_app", category: "recovery" }).allowed, true);
+  } finally { human.close(); store.close(); }
+});
 const png =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 function fixture(mode: "observe" | "preflight" = "preflight", allowTrustedInstall = false) {

@@ -96,6 +96,8 @@ export function AgentSupervision({
             策略 {c.policy.version} ·{' '}
             {c.policy.mode === 'observe'
               ? '只读观察，禁止操作设备'
+              : c.policy.mode === 'client_test'
+                ? '自有客户端参与与撤回测试，禁止登录、安装和发布'
               : c.policy.mode === 'onboarding'
                 ? '账号接入，仅允许本次已确认的核验或创建，不发布内容'
                 : '发布前诊断，禁止公开发布'}{' '}

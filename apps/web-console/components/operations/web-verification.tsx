@@ -49,7 +49,7 @@ export function WebVerification({
         本入口真实启动一个 Artemis
         任务。只读协作模式不操作设备，用于观察与人工协助验收；Facebook
         发布前模式验证登录、身份和 Reel
-        准备，禁止公开发布。均不创建业务发布授权或消费原排期，设备需先接管。
+        准备，禁止公开发布。自有客户端测试只检查已关联手机的后台参与与撤回，不注册、不登录、不恢复参与。均不创建业务发布授权或消费原排期，设备需先接管。
       </Notice>
       {error && <p role="alert" className="op-error">{error}</p>}
       
@@ -102,6 +102,7 @@ export function WebVerification({
                 >
                   <option value="facebook">Facebook</option>
                   <option value="youtube">YouTube（本批只读）</option>
+                  <option value="socialgrowth">SocialGrowth 自有客户端</option>
                 </select>
               </div>
               <div>
@@ -116,6 +117,7 @@ export function WebVerification({
                 >
                   <option value="observe">只读观察与人工协助</option>
                   <option value="preflight">Facebook 登录至发布前验收</option>
+                  <option value="client_test">自有客户端后台参与与撤回</option>
                 </select>
               </div>
             </div>
@@ -155,7 +157,7 @@ export function WebVerification({
                   name="expectedProfileId"
                   aria-label="预期平台身份 ID"
                   required
-                  pattern="([0-9]{5,30}|UC[A-Za-z0-9_\-]{22})"
+                  pattern="([0-9]{5,30}|UC[A-Za-z0-9_\-]{22}|com[.]socialgrowth[.]product)"
                   className="w-full text-xs font-mono"
                 />
               </div>
@@ -178,7 +180,7 @@ export function WebVerification({
             <div className="flex items-center gap-2">
               <input type="checkbox" id="no-pub-ack" required className="rounded border-slate-300" />
               <label htmlFor="no-pub-ack" className="text-xs text-slate-600 dark:text-slate-400">
-                我确认目标账号及单次登录授权；禁止公开发布，只验收到最终按钮前
+                我确认本次验收范围；客户端模式只测试后台参与和撤回，禁止公开发布
               </label>
             </div>
 
@@ -226,6 +228,13 @@ export function WebVerification({
           {j.resultCode === 'OBSERVATION_COMPLETED' && (
             <p className="text-xs text-slate-500 italic mb-1">
               仅观察与人工协作完成，不代表登录或发布成功。
+            </p>
+          )}
+          {j.mode === 'client_test' && j.resultCode === 'CLIENT_TEST_COMPLETED' &&
+            (!j.diagnostics || j.diagnostics.taskStatus !== 'completed' || j.diagnostics.passed <= 0 ||
+              j.diagnostics.failed !== 0 || j.diagnostics.inconclusive !== 0) && (
+            <p data-client-acceptance="failed" className="text-xs text-rose-600 dark:text-rose-400 mb-1">
+              客户端验收未通过：检查存在失败、待确认或缺少证据。原模型完成回执保留供核对。
             </p>
           )}
           {j.diagnostics && (

@@ -9,13 +9,17 @@ export const assistanceScopeSchema = z
     taskId: z.string().min(1).max(256),
     deviceId: z.string().min(1).max(256),
     serial: z.string().regex(/^[A-Za-z0-9._:-]+$/),
-    packageName: z.enum(["com.facebook.katana", "com.google.android.youtube"]),
+    packageName: z.enum(["com.facebook.katana", "com.google.android.youtube", "com.socialgrowth.product"]),
     expectedIdentity: z.string().min(1).max(512),
     expiresAt: z.string().datetime(),
     mode: z.enum(["execution", "diagnostic"]),
     policy: executionPolicy.optional(),
   })
-  .strict();
+  .strict().refine(scope =>
+    (scope.packageName === "com.socialgrowth.product") === (scope.policy?.mode === "client_test") &&
+    (scope.policy?.mode !== "client_test" || (scope.mode === "diagnostic" && !scope.policy.allowTrustedInstall && !scope.policy.allowIdentityCreation)),
+    "Client tests require the diagnostic SocialGrowth package and no credential or installation scope",
+  );
 type Scope = z.infer<typeof assistanceScopeSchema>;
 type Session = {
   id: string;

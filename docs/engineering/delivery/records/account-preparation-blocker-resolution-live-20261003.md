@@ -1,6 +1,6 @@
 # 阻断整改与管理端／真机关联联调
 
-2026-10-02 夜间至 2026-10-03；承接用户“解决目前仍阻断的问题，需要人工协助提前告知”。输入提交 `a531d0006aabe72298ca209affc92df8b5cb8c1e`，沿用 `codex/core-automation-loop-stage1`。当前已解除本地正式后端不可用、管理端资源不足、电脑 Tailscale 未连接三项联调阻断；完成实际管理端开发注册与 Samsung 扫码关联。手机参与、远程控制准入、正式 Artemis 检查和原未知结果仍未验收通过。作者验证，不代替独立 QA，不清父 pending，不合入 Developer。
+2026-10-02 夜间至 2026-10-03；承接用户“解决目前仍阻断的问题，需要人工协助提前告知”。输入提交 `a531d0006aabe72298ca209affc92df8b5cb8c1e`，沿用 `codex/core-automation-loop-stage1`。当前已解除本地正式后端不可用、管理端资源不足、电脑 Tailscale 未连接三项联调阻断；完成实际管理端开发注册与 Samsung 扫码关联。已收到真实手机参与及撤回回执，并完成 Demo Web→Artemis 自有客户端操作；后台返回后的参与状态检查失败，远程控制准入、正式 Artemis 检查和原未知结果仍未验收通过。作者验证，不代替独立 QA，不清父 pending，不合入 Developer。
 
 ## 实际范围与配置
 
@@ -26,17 +26,31 @@ Playwright 随后从实际 Web 核验邀请 `1 / 1`、1 位提供者，进入“
 
 用户连接电脑 Tailscale 后，实际状态 Running／本机 Online，Samsung Android peer Online；实际 `tailscale ping` 到该 Samsung 成功，约 243ms。该事实只证明本轮两端 Tailnet 可达，不证明系统自动网络准入、业务出口、ADB 授权或控制路径互斥；只读端口属性未提供无线 ADB TLS 端口。见[连通摘要](../../../../artifacts/acceptance/product/B3/blocker-resolution-live-20261002/tailnet-connectivity.json)，原网络清单保留私有，不进入报告。
 
-## 人工参与验收仍待完成
+## 真实参与、Artemis 操作与失败收口
 
-用户找不到“确认当前参与”时，只读核查发现 Samsung USB 已断开；本轮 debug App 访问的是手机回环 4320，经 USB reverse 连接电脑后端。关联已在中心成立，但手机无法刷新后续页面。用户重新插线并解锁后，恢复本次 `tcp:4320→tcp:4320`，没有改写其他转发或重新关联。实际截图显示“暂时无法准备关联码／无法连接服务／重试”；已请求用户点击“重试”，到本机已关联页后确认参与，并返回桌面约 30 秒。
+用户找不到“确认当前参与”时，只读核查发现 Samsung USB 已断开；本轮 debug App 访问手机回环 4320，经 USB reverse 连接电脑后端。用户重新插线并解锁后，恢复本次 `tcp:4320→tcp:4320`，没有重关联或改写其他转发。用户点击重试后实际显示本机设备事实，再由用户本人点击确认参与。用户报告“显示失败”，但随后实际页面显示“本机参与已确认”，只读中心回执与前台服务检查也确认参与成立。
 
-目前只读补充检查没有 local_participation 回执，不能记为参与成功。等待实际参与持续更新后，再由本人撤回，核验不再更新、中心撤权及 stop_requested；撤回／服务退出不直接记为手机已停止。手机截屏留本地 0600 私有证据，不公开二维码或验证码。临时 netcat 健康探测没有获得响应正文，归为不确定的辅助探测，不当成 App 网络失败或恢复成功的证据。
+真实 run `4a3fbd16-6379-4fa9-926d-30f7f6522c43`，安装／关联 scope 一致；收到持续更新约 12 分钟的回执。01:27:37 补充核查 sequence 189；01:29:09 核查 sequence 211、确认时间 01:29:06.904、有效至 01:29:16.904。两个 actionPermissionGranted／stopConfirmed 均为 false，control generation／journal 均为空；这证明当前客户端参与确认工程流程，不能证明正式控制准入。
+
+用户随后明确要求直接操作手机测试。新增 Demo `client_test` 诊断模式，仅绑定自有包 `com.socialgrowth.product`；拒绝凭证、登录提交、安装、平台身份创建和发布，仅用于现有参与后台与撤回。仍使用原 Google Artemis Pro 配置和 SDK checkout，未改 SDK、未启动 worker、未消费正式队列。它不替代正式物理控制门禁，也不宣称所有宿主路径已受控。
+
+根 Playwright 从实际 Demo Web 申请本次设备接管、填写平台／包／模式／说明、勾选范围并启动任务。任务 `f2c1e17c-8e49-4b3d-bc27-99a47ee57dcb`，trace `2df07606-9fce-4602-99b2-7c85ae7783d5`，01:27:59～01:31:23。Artemis 自主识别并普通 Back 返回 launcher，等待 30 秒，再进入自有 App，点击撤回。没有固定 ADB 点按／输入脚本，没有 FB／YT 操作、登录或公开发布。
+
+**本轮后台验收失败，不能记为通过。** 原模型输出 CLIENT_TEST_COMPLETED，但原 checker 为 3 passed／2 failed／0 inconclusive：重新进入 App、点击撤回前，页面显示“当前确认已过期”，没有满足仍有效参与的断言；保存的简要 note 也未包含要求的 JSON 字段。Agent 在状态异常后仍执行了撤回，未按原提示在失败点停止。后台状态失败根因尚不能确认；没有把它直接归为纯页面恢复问题，也没有以 earlier pulse 推定 30 秒全程有效。
+
+实际中心收到 sequence 217 的 withdrawn 回执，run revoked_at 为 01:30:14.037，validUntil 等于 checkedAt，scope 一致，两个权限／停止字段仍 false；01:33:44 再核查仍 sequence 217，手机参与服务及 foregroundService 均不存在。撤回事实和后续确认停止已证实；journal 仍为空，没有实际 stop_requested 记录，不能把本机服务退出记为手机所有控制路径停止。
+
+首轮 Playwright 仅断言模型完成码，错误地将此测试记为脚本成功；保留原 result.json 与截图供追溯。随后修复 runtime 完成判定：客户端完成必须有 completed checker、非零 passed、零 failed／inconclusive 及后台／撤回字段，否则 UNCONFIRMED；Web 对旧矛盾回执明确显示“客户端验收未通过”，不改历史库记录。补充 Playwright 失败计数断言，并从原真实 Web 卡片再次核对失败提示；reconcile 模式不重启任务、不点击参与、不写业务状态。runtime 92／92 补充检查通过，build／lint、Web 类型及脚本严格类型检查通过；lint 保留既有两项 warnings。最初从根运行 tsc 未找到命令，改用 Web 工作区的已有 TypeScript 后通过，未安装工具。
+
+证据：[原检查核对](../../../../artifacts/acceptance/product/B3/blocker-resolution-live-20261002/client-artemis/checker-reconciliation.json)、[实际 Web 失败回执核对](../../../../artifacts/acceptance/product/B3/blocker-resolution-live-20261002/client-artemis/original-web-reconciliation.json)、[Web 失败提示](../../../../artifacts/acceptance/product/B3/blocker-resolution-live-20261002/client-artemis/original-web-reconciliation.png)、[撤回后补充状态](../../../../artifacts/acceptance/product/B3/blocker-resolution-live-20261002/client-artemis/withdrawal-after-artemis.json)。原 SDK 私有原始日志不进入 Git。
+
+复现真实诊断：`SG_WEB_TARGET=demo SG_DEMO_WEB_SCOPE=client SG_DEMO_REAL_CLIENT_TEST=authorized pnpm test:playwright`。脚本已有 durable intent 时拒绝再发任务；原操作核对使用同一命令加 `SG_DEMO_CLIENT_PHASE=reconcile`，不把失败结果重试为新任务。当前已撤回；需要新的本人明确参与时提前通知，不能因 Agent 例行测试授权自动恢复参与。常规识别、导航、等待和撤回不再要求用户反复协作。
 
 ## 原未知与正式执行阻断
 
 复查原 publication task `d634e4c6-4266-4cc7-a784-3a31a1737cac`、trace `c41af179-58fd-4628-a227-20e777f6db70` 的原归档：SDK completed、5 项检查 passed，但最终结构化结果为空。原最后截图为 Facebook 新贴文预览，发布按钮仍可见，没有公开 permalink。它只支持截屏时停在提交前，不能证明全局从未发布、全部控制路径已停止或不再有在途提交。模型检查通过不替代平台结果和可信停止证据。见[原归档复查](../../../../artifacts/acceptance/product/B3/blocker-resolution-live-20261002/original-archive-review.json)。
 
-原发布及原六项初始化 unknown 保留，不按历史图伪造平台明确拒绝，不重发、不释放占用。正式物理检查器尚未接入，缺少实际全路径互斥与目标静止证明；正式 executor 继续 disabled。当前注册／扫码／Tailnet 在线不构成这个门禁的替代证据。下一项在真实参与完成后处理实际网络节点绑定、受控 ADB 与物理检查器接线，再从正式 Web 发起 inspect_app；FB Page／YouTube 频道创建和公开发布本轮均未尝试。
+原发布及原六项初始化 unknown 保留，不按历史图伪造平台明确拒绝，不重发、不释放占用。正式物理检查器尚未接入，缺少实际全路径互斥与目标静止证明；正式 executor 继续 disabled。当前注册／扫码／Tailnet 在线不构成这个门禁的替代证据。下一项先复现并解决后台参与检查失败，再处理实际网络节点绑定、受控 ADB 与物理检查器接线，再从正式 Web 发起 inspect_app；FB Page／YouTube 频道创建和公开发布本轮均未尝试。
 
 ## 失败尝试与复现
 
@@ -46,4 +60,4 @@ Playwright 随后从实际 Web 核验邀请 `1 / 1`、1 位提供者，进入“
 
 运行：`pnpm exec tsx scripts/product-local-live.mts prepare`；确认自有实例、无在途工作后 `pnpm exec tsx scripts/product-local-live.mts serve` 前台启动。实际浏览器验证为 `SG_WEB_TARGET=product SG_PRODUCT_WEB_SCOPE=device-live SG_PRODUCT_REAL_DEVICE_SCOPE=authorized SG_PRODUCT_DEVICE_PHASE=prepare|registration|verify pnpm test:playwright`（逐个真实阶段执行，不把竖线作为 shell 命令）；已有邀请复用原私有记录，不重发。
 
-开发人工协助：`pnpm exec tsx scripts/product-local-human-assistance.mts status|sms|participation`（选择一个模式）。只读状态只作补充证据，不能用于替代注册、扫码、参与按钮或伪造准入。截图、日志和配置须保持私有；本阶段资源保留供人工联调，结束后仅收口本次自有服务／模拟器，数据库保留。受保护发布脚本只路径／状态检查，外来工作保持。
+开发人工协助：`pnpm exec tsx scripts/product-local-human-assistance.mts status|sms|participation`（选择一个模式）。只读状态只作补充证据，不能用于替代注册、扫码、参与按钮或伪造准入。截图、日志和配置须保持私有；本次模拟器已不在 ADB 列表；真实关联／提供者数据保留，不再次注册。Demo 自有进程组在本次任务终止、接管释放且无 running 工作后停止；正式回环联调服务与数据库保留，供后续网络／客户端诊断。受保护发布脚本只路径／状态检查，外来工作保持。

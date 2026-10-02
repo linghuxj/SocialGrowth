@@ -12,7 +12,7 @@ const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
   "base64",
 );
-function fixture(result: unknown, mode: "preflight" | "observe" = "preflight") {
+function fixture(result: unknown, mode: "preflight" | "observe" | "client_test" = "preflight") {
   const directory = mkdtempSync(join(tmpdir(), "sg-web-verify-")),
     mediaPath = join(directory, "test.mp4");
   const bytes = Buffer.from("0000ftyp0000");
@@ -39,7 +39,11 @@ function fixture(result: unknown, mode: "preflight" | "observe" = "preflight") {
         call: async (name, args) => {
           if (name === "mobile_run_task") {
             starts++;
-            if (mode === "observe") {
+            if (mode === "client_test") {
+              assert.equal(Object.hasOwn(args, "locked_app_package"), false);
+              assert.ok(String(args.task_desc).includes("撤回本机参与 ONCE"));
+              assert.ok(String(args.task_desc).includes("Never click 确认当前参与"));
+            } else if (mode === "observe") {
               assert.equal(Object.hasOwn(args, "locked_app_package"), false);
               assert.ok(String(args.task_desc).includes("Observe current device screen only"));
             } else {
@@ -48,7 +52,10 @@ function fixture(result: unknown, mode: "preflight" | "observe" = "preflight") {
             }
             return { trace_id: randomUUID() };
           }
-          return { status: "completed", result };
+          return { status: "completed", result: mode === "client_test" ? {
+            test_summary: { task_status: "completed", passed: 5, failed: 0, inconclusive: 0 },
+            ...(result as object),
+          } : result };
         },
       }),
     },
@@ -56,7 +63,8 @@ function fixture(result: unknown, mode: "preflight" | "observe" = "preflight") {
   const input = {
     requestId: randomUUID(),
     expectedName: "Test",
-    expectedProfileId: "123456789",
+    expectedProfileId: mode === "client_test" ? "com.socialgrowth.product" : "123456789",
+    platform: mode === "client_test" ? "socialgrowth" : "facebook",
     caption: "DO NOT PUBLISH",
     acknowledgeNoPublication: true,
     mode,
@@ -82,8 +90,46 @@ function fixture(result: unknown, mode: "preflight" | "observe" = "preflight") {
       store.close();
       rmSync(directory, { recursive: true, force: true });
     },
-  };
+};
 }
+test("native client diagnostic has its own package and result boundary, never composer or credential readiness", async () => {
+  for (const result of [
+    { resultCode: "CLIENT_TEST_COMPLETED", backgroundObserved: true, withdrawalObserved: true },
+    { resultCode: "CLIENT_TEST_COMPLETED", backgroundObserved: true },
+    { resultCode: "PREFLIGHT_READY" },
+    { resultCode: "CLIENT_TEST_COMPLETED", backgroundObserved: true, withdrawalObserved: true, loginSubmitCount: 1 },
+  ]) {
+    const f = fixture({ loginSubmitCount: 0, finalSubmitClicked: false, ...result }, "client_test");
+    try {
+      f.hold();
+      assert.throws(() => f.verification.start({ ...f.input, platform: "facebook", expectedProfileId: "123456789" }), /PLATFORM_IDENTITY_FORMAT_INVALID/);
+      f.verification.start(f.input);
+      const expected = "withdrawalObserved" in result && !("loginSubmitCount" in result) ? "CLIENT_TEST_COMPLETED" : "UNCONFIRMED";
+      assert.equal((await f.finish()).resultCode, expected);
+      const scope = f.assistance.supervision.controls()[0];
+      assert.equal(scope.passwordAttempts, 0);
+      assert.equal(scope.loginSubmits, 0);
+      assert.equal(f.store.db.prepare("SELECT count(*) n FROM tasks").get()!.n, 0);
+    } finally { await f.close(); }
+  }
+});
+test("native success payload cannot override failed, inconclusive or absent checker evidence", async () => {
+  for (const test_summary of [
+    { task_status: "completed", passed: 3, failed: 2, inconclusive: 0 },
+    { task_status: "completed", passed: 3, failed: 0, inconclusive: 1 },
+    { task_status: "completed", passed: 0, failed: 0, inconclusive: 0 },
+    { task_status: "failed", passed: 5, failed: 0, inconclusive: 0 },
+    undefined,
+  ]) {
+    const f = fixture({ resultCode: "CLIENT_TEST_COMPLETED", loginSubmitCount: 0,
+      finalSubmitClicked: false, backgroundObserved: true, withdrawalObserved: true, test_summary }, "client_test");
+    try {
+      f.hold(); f.verification.start(f.input);
+      assert.equal((await f.finish()).resultCode, "UNCONFIRMED");
+      assert.equal(f.store.db.prepare("SELECT count(*) n FROM tasks").get()!.n, 0);
+    } finally { await f.close(); }
+  }
+});
 test("observe mode never asks the SDK to implicitly launch the target App or accepts identity readiness", async () => {
   const f = fixture(
     { resultCode: "PREFLIGHT_READY", loginSubmitCount: 0, finalSubmitClicked: false },

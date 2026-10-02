@@ -1,0 +1,21 @@
+{
+  "checkedAt": "2026-10-02T17:51:29.921154+00:00",
+  "acceptance": "failed",
+  "engine": "Google Artemis Pro",
+  "inputCommit": "30298f1",
+  "files": {
+    "launch-ack.json": "c68ea7c572a31b8ae93d41d695a48b225d57eda927402ef2d181281323931dd2",
+    "result.json": "9d7ffaf235a699905b6640e2e892f0089f546c5cbc78a22d470a1c8d687b5328",
+    "original-web-reconciliation.json": "bcb3aed4edb02a68e3c7b96a30f07340a8ceb6d05bc6c5c7fc292698e14da467",
+    "original-web-reconciliation.png": "b57d3476474e9ff507dfb79bcaf0da1c49c6358fb52f86766932c483f0c0d4c4",
+    "checker-reconciliation.json": "2613ef7660622f913416651871aecc353ea5e5b67e21632add8b34d99405194a",
+    "withdrawal-after-artemis.json": "d4af99aee16107b54e622ce07141e519452b63dea4a5d84dca57d28ea5aad7b4",
+    "supplemental-checks.json": "b2302e942fa5a5a5cd9a09fa6f588ba93624f0a8575f293fb06347afc272c2e5",
+    "pre-closure.json": "2ab9a56459b9b195d226f26cb6a78e97cfdfca4fe64a3d9bbeb1fc52103940e0",
+    "closure.json": "089661420116f13f686c3092d034ab98280b44798fd94484bf5c7cf9fc8d0027"
+  },
+  "historicalFirstPhaseManifestUnchanged": true,
+  "backgroundRootCauseConfirmed": false,
+  "originalUnknownResolved": false,
+  "formalExecutorEnabled": false
+}

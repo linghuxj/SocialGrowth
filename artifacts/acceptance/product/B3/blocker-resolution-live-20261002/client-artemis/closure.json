@@ -1,0 +1,15 @@
+{
+  "checkedAt": "2026-10-02T17:51:29.920328+00:00",
+  "listeners": {
+    "3000": false,
+    "4318": false,
+    "3100": true,
+    "4320": true
+  },
+  "demoStopped": true,
+  "formalLocalServicesRetained": true,
+  "databaseRetained": true,
+  "deviceParticipationWithdrawn": true,
+  "allPhysicalPathsStopped": false,
+  "foreignResourcesTouched": false
+}

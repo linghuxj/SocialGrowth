@@ -6,7 +6,7 @@ import type { RuntimeStore } from "./store.ts";
 export const executionPolicy = z
   .object({
     version: z.literal("agent-supervision-v1").default("agent-supervision-v1"),
-    mode: z.enum(["observe", "preflight", "onboarding"]).default("preflight"),
+    mode: z.enum(["observe", "preflight", "onboarding", "client_test"]).default("preflight"),
     maxRecovery: z.number().int().min(0).max(2).default(2),
     // Creating identities/correcting bindings and publication remain separate workflows.
     allowPublication: z.literal(false).default(false),
@@ -189,7 +189,7 @@ export class Supervision {
   }
   credential(id: string, kind: "password" | "otp") {
     const c = this.get(id);
-    requireFact(c.state === "active" && c.policy.mode !== "observe", "CONTROL_NOT_ACTIVE");
+    requireFact(c.state === "active" && !["observe", "client_test"].includes(c.policy.mode), "CONTROL_NOT_ACTIVE");
     const key = kind === "password" ? "passwordAttempts" : "otpAttempts";
     requireFact(c[key] === 0, "CREDENTIAL_BUDGET_EXHAUSTED");
     this.save({ ...c, [key]: 1, state: "waiting", credentialReady: false });
@@ -223,6 +223,9 @@ export class Supervision {
     if (input.category === "read") return { allowed: true, state: c.state };
     requireFact(c.state === "active", "AGENT_ACTIONS_FROZEN");
     requireFact(c.policy.mode !== "observe", "OBSERVE_ONLY");
+    if (c.policy.mode === "client_test") {
+      requireFact(input.category === "navigate" || (input.category === "recovery" && input.action === "manage_app"), "CLIENT_TEST_ACTION_NOT_AUTHORIZED");
+    }
     if (input.category === "create_identity") {
       requireFact(c.policy.mode === "onboarding" && c.policy.allowIdentityCreation && !c.identityCreationAttempts, "IDENTITY_CREATION_NOT_AUTHORIZED");
       this.save({ ...c, identityCreationAttempts: 1 });
