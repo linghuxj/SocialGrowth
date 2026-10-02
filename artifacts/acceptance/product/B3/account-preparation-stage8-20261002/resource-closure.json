@@ -1,0 +1,31 @@
+{
+  "checkedAt": "2026-10-02T14:11:53.936385+00:00",
+  "ownedContainer": {
+    "id": "c18e75111ed64ee46028ad792da3065f87a4ea37eb7fe9f9aa69408f0e0f1189",
+    "name": "sg-bridge8-20261002",
+    "verifiedOwnerLabel": "bridge8-20261002",
+    "removedWithOwnedVolumes": true,
+    "clusterId": "7692068728889782310"
+  },
+  "ownedWebAndBackendExited": true,
+  "portsWithoutListeners": [
+    3100,
+    4320,
+    32924
+  ],
+  "privateBridgeSocketsAndFixtureDirectoriesRemaining": 0,
+  "componentPythonAndSyntheticTransportExited": true,
+  "ephemeralTokensAndLoginDiscarded": true,
+  "preservedContainers": [
+    "nestar-music-backend-20261001",
+    "nestar-stage1-20261001",
+    "minio-test"
+  ],
+  "newArtemisMcpOrModelCalls": 0,
+  "deviceOperations": 0,
+  "createdPlatformAssets": 0,
+  "publications": 0,
+  "sdkFilesEdited": false,
+  "overlaysCopiedToSdk": false,
+  "protectedPublicationScriptReadOrStagedOrExecuted": false
+}

@@ -1,0 +1,8 @@
+{
+  "tests": 6,
+  "passed": 5,
+  "failed": 1,
+  "failure": "Lost-ACK fixture asserted outcome before subprocess receipt finished; command did not repeat. Replaced fixed sleep with started/end markers.",
+  "source": "initial command tool output retained in task history",
+  "phoneOperations": 0
+}

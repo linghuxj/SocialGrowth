@@ -17,6 +17,10 @@ import xml.etree.ElementTree as ET
 
 from langchain_core.tools import StructuredTool
 from artemis.drivers.factory import get_driver
+try:
+    from artemis.tools.socialgrowth_read_only_driver import bound_read_driver
+except ModuleNotFoundError:
+    from socialgrowth_read_only_driver import bound_read_driver
 
 
 def password_target(xml: str, package: str, require_empty: bool = True) -> tuple[str, str, str]:
@@ -53,6 +57,8 @@ def verify_masked_input(xml: str, package: str, target: tuple[str, str, str], le
 
 
 def get_human_input_tool(ctx, kind: str = "password"):
+    if bound_read_driver(ctx) is not None:
+        return None  # No credential fetch, protected field mutation or raw ADB.
     url, token = os.environ.get("SG_ASSISTANCE_URL"), os.environ.get("SG_ASSISTANCE_TOKEN")
     if not url or not token:
         return None

@@ -8,6 +8,10 @@ from typing import Any
 import subprocess
 
 from artemis.drivers.factory import get_driver
+try:
+    from artemis.tools.socialgrowth_read_only_driver import bound_read_driver
+except ModuleNotFoundError:
+    from socialgrowth_read_only_driver import bound_read_driver
 
 _step_count = 0
 _current_session_id = f"sess_{int(__import__('time').time())}"
@@ -43,6 +47,9 @@ def get_runtime_config() -> dict[str, str] | None:
 
 def capture_screenshot(device_serial: str | None = None) -> bytes | None:
     """Capture raw PNG screenshot from driver or ADB fallback."""
+    bound = bound_read_driver()
+    if bound is not None:
+        return bound.capture_png(device_serial)  # Denial cannot enter fallback.
     try:
         driver = get_driver()
         if hasattr(driver, "screenshot"):

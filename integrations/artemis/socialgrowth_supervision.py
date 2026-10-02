@@ -14,6 +14,10 @@ import xml.etree.ElementTree as ET
 
 from langchain_core.tools import StructuredTool
 from artemis.drivers.factory import get_driver
+try:
+    from artemis.tools.socialgrowth_read_only_driver import bound_read_driver, PhysicalPathDenied
+except ModuleNotFoundError:
+    from socialgrowth_read_only_driver import bound_read_driver, PhysicalPathDenied
 
 READ_ACTIONS = {"observe_screen", "take_screenshot", "get_ui_hierarchy", "wait_for_delay", "wait_for_text"}
 SAFE_TOOLS = {"read_note", "list_notes", "save_note", "append_note", "update_note", "human_password_input", "human_otp_input", "request_human_assistance", "revalidate_human_assistance", "report_task_blocked", "finish_observation_task", "ensure_trusted_app"}
@@ -48,6 +52,11 @@ def request(path: str, data: dict | None = None, timeout: float = 15) -> dict:
 
 
 def filter_tools(tools: list, action_names: set) -> list:
+    if bound_read_driver() is not None:
+        # An action name list or legacy assistance token cannot expand the
+        # current read-only driver capability. No hierarchy/credential tooling.
+        allowed = {"observe_screen", "take_screenshot", "wait_for_delay", "read_note", "list_notes", "save_note", "append_note", "update_note"}
+        return [t for t in tools if t.name.split(":")[-1] in allowed]
     if not enabled():
         return tools
     # Unknown tools, shell, ADB, delegated executors and code execution have no bypass.
@@ -94,6 +103,12 @@ def action_category(name: str, args: dict, xml: str = "", width: int = 1080, hei
 
 
 async def guard_action(ctx, name: str, args: dict) -> None:
+    if bound_read_driver(ctx) is not None:
+        if name not in {"observe_screen", "take_screenshot", "wait_for_delay"}:
+            raise PhysicalPathDenied()
+        # This is only dispatch. Actual captures ALWAYS cross the private host
+        # fence; returning here never grants phone or raw SDK permission.
+        return
     if not enabled():
         return
     scope = await asyncio.to_thread(request, "session")
@@ -136,6 +151,8 @@ async def guard_action(ctx, name: str, args: dict) -> None:
 
 
 def get_supervision_tools(ctx) -> list:
+    if bound_read_driver(ctx) is not None:
+        return []  # Existing human capture/refresh/install routines are broader.
     if not enabled():
         return []
 
