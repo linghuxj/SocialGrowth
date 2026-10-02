@@ -1,0 +1,59 @@
+{
+  "scope": "read-only inventory of current local SDK sources, including pre-existing foreign changes; not physical enforcement or acceptance",
+  "sdkHead": "371aa6df56880643da57b30da936e9812fb0ec66",
+  "paths": {
+    "artemis/drivers/factory.py": {
+      "surfaces": [
+        "default adbutils client",
+        "cached raw driver"
+      ],
+      "fencedByProduct": false,
+      "sha256": "83941b9cc21f430082eedff347e892e5f8204c350537c60786d963390a78877d"
+    },
+    "artemis/drivers/android/adb_driver.py": {
+      "surfaces": [
+        "adbutils screenshot and shell",
+        "UIAutomator direct reads",
+        "subprocess recording",
+        "headless PNG fallback after capture failure"
+      ],
+      "fencedByProduct": false,
+      "sha256": "3f2b55fefd99cc5edf84f173ba788b5077fc1df375ac9a98b0a2ca4aa7353230"
+    },
+    "artemis/clients/ui_automator_client.py": {
+      "surfaces": [
+        "subprocess ADB screenshot",
+        "uiautomator2 fallback",
+        "hierarchy and device methods"
+      ],
+      "fencedByProduct": false,
+      "sha256": "3a398acffe3bc88de911dbe4137c0a11a5644b1c82bdf821a46389ebb7910ae6"
+    },
+    "artemis/runtime/adb_endpoint.py": {
+      "surfaces": [
+        "subprocess ADB endpoint session"
+      ],
+      "fencedByProduct": false,
+      "sha256": "98985bee696c979eddf5c47acd149845afcbbbfd1ae0458a1c337ba5f63eb864"
+    },
+    "artemis/tools/socialgrowth_human_input.py": {
+      "surfaces": [
+        "credential field mutation",
+        "raw ADB capture and protected input"
+      ],
+      "fencedByProduct": false,
+      "sha256": "8d8ef2aca154043980084a1fd344d393d3501e71465cca7e3183a69f3981d003"
+    },
+    "artemis/tools/socialgrowth_supervision.py": {
+      "surfaces": [
+        "READ_ACTIONS bypass",
+        "raw ADB human capture and revalidation"
+      ],
+      "fencedByProduct": false,
+      "sha256": "1aa62e32e92976df146504e6cc392de6f982a5cc770295956cd9bc9f0f3d6f65"
+    }
+  },
+  "codeModified": false,
+  "privateModelConfigurationRead": false,
+  "protectedPublicationScriptRead": false
+}

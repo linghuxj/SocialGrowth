@@ -1,0 +1,17 @@
+✔ real central scope grants one bounded read holder and atomically records original action before its short ticket (1399.737147ms)
+✔ absent real inspector and missing or stale network refuse grant rather than using admitted or USB flags (319.261704ms)
+✔ nonce, target, stopped ownership, future time, expired proof and missing path fence all deny atomically (1796.253549ms)
+✔ pause, role disable, allocation loss, task version and installation replacement during external wait cannot become a grant (1582.483894ms)
+✔ external observation owns no SQL device or metadata lock; another phone proceeds while first probe waits (581.974978ms)
+✔ same-holder races return one new grant and one acknowledgement; distinct actions cannot both obtain tickets (464.151876ms)
+✔ lost grant/call ACK and a later pause replay history only, with no additional inspector call or ticket (406.225146ms)
+✔ broker evidence audit failure rolls back central original call and action permission together (272.262771ms)
+✔ terminal or unknown original observation, forged task authority and non-read scope cannot obtain any new action (572.886244ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 8184.353835

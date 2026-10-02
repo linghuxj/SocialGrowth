@@ -1,0 +1,232 @@
+{
+  "schemaVersion": 1,
+  "stage": "account-preparation-stage6",
+  "createdAt": "2026-10-02T13:01:20.713581+00:00",
+  "inputCommit": "1c5d4dc584b8dc18edc2751093a66e804b9b4615",
+  "branch": "codex/core-automation-loop-stage1",
+  "status": "internal_broker_complete_physical_integration_blocked",
+  "sourceFiles": [
+    {
+      "path": "product/backend/README.md",
+      "bytes": 40804,
+      "sha256": "0535a6165dfcd1b5b962d9d16a7bb700b31a85422199159aede6d48ec5353272"
+    },
+    {
+      "path": "product/backend/src/phone-control-journal.ts",
+      "bytes": 16195,
+      "sha256": "e94fc5de7f5163b001504b22a5d3eed2ae144a8d8de68a6c14b08037602c832d"
+    },
+    {
+      "path": "product/backend/src/preparation-action-broker.ts",
+      "bytes": 19919,
+      "sha256": "58a67a37b8981de90faf7708ee146a1838c212775aaaecdb724c3d7e0abab732"
+    },
+    {
+      "path": "product/backend/src/preparation-action-broker.pg-test.ts",
+      "bytes": 20933,
+      "sha256": "d1a9c3d7eca3d9e2bbabe66bba52cc8965445a4cee35349dd53568c351d60263"
+    },
+    {
+      "path": "docs/engineering/delivery/records/account-preparation-stage6-20261002.md",
+      "bytes": 10474,
+      "sha256": "22543c738446915e7ecc4d0ba16772f6834746d99e0cf842678d88ab4582328f"
+    }
+  ],
+  "evidenceFiles": [
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/backend-build-closure.log",
+      "bytes": 142,
+      "sha256": "d34e875db7ed0afe97cf7ccf50282fdd8c339c6048c8b8093f33d7919ab2bd82"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/backend-build-final.log",
+      "bytes": 142,
+      "sha256": "d34e875db7ed0afe97cf7ccf50282fdd8c339c6048c8b8093f33d7919ab2bd82"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/backend-check-final.log",
+      "bytes": 151,
+      "sha256": "677269465d0cda736b99873aae8e0a4e59e840b96dd8a646f707e44f46891aa1"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/backend-check-with-tests.log",
+      "bytes": 488,
+      "sha256": "74567687e00aa9e9e97ced9ab46e92a79698491f541315a76680647f2ad8c7bb"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/backend-check.log",
+      "bytes": 151,
+      "sha256": "677269465d0cda736b99873aae8e0a4e59e840b96dd8a646f707e44f46891aa1"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/backend-lint-closure.log",
+      "bytes": 851,
+      "sha256": "144c0e33697403034f70c17de7f97fa2d143448d3ef487d53c7f2882dbf94151"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/backend-lint-final.log",
+      "bytes": 851,
+      "sha256": "144c0e33697403034f70c17de7f97fa2d143448d3ef487d53c7f2882dbf94151"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/backend.log",
+      "bytes": 10884,
+      "sha256": "2571e9d1118b69b5034db9307b1d46a74c9bd82bb8030ad23fe67ae2e8f8928c"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/broker-pg-closure.log",
+      "bytes": 1458,
+      "sha256": "7e956a39e021c1caf1591bc86f847cf06aaa56425be0370a4d530b657dad5b39"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/broker-pg-final.log",
+      "bytes": 1460,
+      "sha256": "1ab8875ab90a648ff27e36891ba4f927db9da7c18bc47599b6ed3c0b42ced0d6"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/broker-pg-first.log",
+      "bytes": 8372,
+      "sha256": "dc397bc09fd4dbd89c84b16e6c23c454ca12467b51b2f2e5421f0647841b890d"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/broker-pg-repair.log",
+      "bytes": 1256,
+      "sha256": "b8baa1ef714c0252448c2abbb222fdf1c57e3bc7d24f8635add7236aafd730a0"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/broker-pg-verified.log",
+      "bytes": 1564,
+      "sha256": "c3b38007056cdc3fb66873021abc1714b56e090500ea2ebc41689e380ff0714d"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/build.log",
+      "bytes": 1377,
+      "sha256": "860869397e886bc3e632d0a9554311219c9f7c2a1a8113fdf5a697d3706e8943"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/check.log",
+      "bytes": 1501,
+      "sha256": "f5c950f3f867bf0dd53540195642ee1e1b3dbbc75a98e53e9952df5969ef67f6"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/device-metadata.json",
+      "bytes": 368,
+      "sha256": "dce765795ce6ec568a37b4376f91fd561e6b5f434e13fc4c2e9ac75b82978154"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/environment-check.log",
+      "bytes": 224,
+      "sha256": "fa7ea2631eeebb77628bb0609323a0b4f71a0bb88e1c33cff824f8bda368a5a1"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/journal-pg.log",
+      "bytes": 2251,
+      "sha256": "757690ab0638647206ce68115c21c59a2ac17b47310a3d3fddb27e1f5e2b8f51"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/lint.log",
+      "bytes": 1459,
+      "sha256": "0a46326ec0c10d4cd9c6e881e7cd921ccccea928e7863c6606ff8675583de7f9"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/operator-initialize.log",
+      "bytes": 557,
+      "sha256": "39c558fffb639719f4e1452a0409b514330af760fea6e2d7ad24af56b9986da4"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/original-operation-readonly.json",
+      "bytes": 639,
+      "sha256": "498b37d209ac295cb96be763785cd9cd362a1736e119e78233d4f1da277e2e0e"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/playwright.log",
+      "bytes": 829,
+      "sha256": "c7fcffd8135c19e253e94b4f1e89450dbf522167c38114afaeab72d2568e585c"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/preparation-pg.log",
+      "bytes": 2355,
+      "sha256": "53eefb66da6c0a42a53491ae7bc6a930e218d890468528341e98161c1d166e8a"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/resource-closure.json",
+      "bytes": 727,
+      "sha256": "031adfd86ef16bc6af79cf6d46c4bae5916de837eea72ab5aec2ee9ab9e71a44"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/sdk-boundary-inventory.json",
+      "bytes": 2050,
+      "sha256": "5a2248c46c9fb8e090de769d50bd173ccc8d1f0900942c0f8e68d98c46623568"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/sql-readonly.json",
+      "bytes": 98,
+      "sha256": "b9cbf689b4c5191ff4b0f7b0768f24d2b90cf2e47202694105ca977aff3636cf"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/test.log",
+      "bytes": 59310,
+      "sha256": "4d73ac868ae44ad2bc5bb977aa8287ead46fdf072d2d19abd59161c45570c71e"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/ui/preparation-desktop.png",
+      "bytes": 231851,
+      "sha256": "1059959bb26729a84f5a1bb3809141579d9c89e1060eb1ece9023bf1a4243c94"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/ui/preparation-mobile.png",
+      "bytes": 84564,
+      "sha256": "13207cd578aecb3fe11bc77b1e0d4633316df5d19f16319bbb38f19a977d5c02"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/ui/result.json",
+      "bytes": 987,
+      "sha256": "e1144bf43ce6526ac4a85e20ac9acc5fbc05cbbe26129828f2cf26e254fbcba2"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/web-closure.json",
+      "bytes": 74,
+      "sha256": "50abcb088ed628d7f2ed6959f26c8fad9285bffcd0be44223d01941b2b8b3229"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/web-environment.json",
+      "bytes": 1398,
+      "sha256": "db8042ebb8073eb70cd333aeb6d504cd0dcd59ef27f9e51e7d031a5f992b59b9"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/web-runner.mjs",
+      "bytes": 4804,
+      "sha256": "f15dd61b964433d4682803d355f08539f441bd3f5d5bbc5b1aab819d441eac92"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage6-20261002/web.log",
+      "bytes": 73,
+      "sha256": "abc8a54612d6516cc4235daa658d79a8f02cb6bf171d7a20bd4d5dbe215c6206"
+    }
+  ],
+  "verification": {
+    "productTestsPassed": 574,
+    "brokerPostgresTestsPassed": 12,
+    "journalPostgresTestsPassed": 21,
+    "preparationPostgresTestsPassed": 19,
+    "webScenariosPassed": 8,
+    "webPageErrors": 0,
+    "checksBuildLintPassed": true,
+    "existingLintWarnings": 2,
+    "webScope": "real account-preparation blocking/ACK/reload/responsive flows",
+    "postgresScope": "synthetic network and inspector component fixtures; no physical acceptance"
+  },
+  "boundaries": {
+    "brokerRegisteredInProduction": false,
+    "physicalInspectorImplemented": false,
+    "allTransportPathsFenced": false,
+    "originalOperationStopConfirmed": false,
+    "originalCentralTaskStatus": "unknown",
+    "newArtemisCalls": 0,
+    "createdPlatformAssets": 0,
+    "publications": 0,
+    "independentQa": false,
+    "mergedDeveloper": false,
+    "updatedParentPending": false
+  }
+}

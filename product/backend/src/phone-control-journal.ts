@@ -26,7 +26,7 @@ const commandSchema = z.discriminatedUnion("kind", [
     allPathsFenced: z.boolean(), controllerReleased: z.boolean(), targetQuiescent: z.boolean(),
   }) }),
 ]);
-const grantSchema = z.strictObject({
+export const phoneHolderGrantSchema = z.strictObject({
   deviceId: uuidSchema, holderId: uuidSchema, controlGeneration: admissionGenerationSchema,
   taskAttemptId: uuidSchema, authorizationId: uuidSchema,
   holderKind: z.enum(["executor", "recovery", "operator", "cleanup"]),
@@ -160,68 +160,87 @@ export class PhoneControlJournal {
   }
 
   async apply(deviceId: string, expectedVersion: number, key: string, input: unknown, trustedFacts?: ActionAuthorityFacts): Promise<PhoneJournalResult> {
+    return transaction(this.pool, client => this.applyInTransaction(client, deviceId, expectedVersion, key, input, trustedFacts));
+  }
+
+  // Trusted internal composition only. Caller MUST own BEGIN/COMMIT and acquire
+  // metadata/provider/installation locks before this device -> journal boundary.
+  async applyInTransaction(client: PoolClient, deviceId: string, expectedVersion: number, key: string, input: unknown, trustedFacts?: ActionAuthorityFacts): Promise<PhoneJournalResult> {
     scope(deviceId, expectedVersion, key);
     const parsed = commandSchema.safeParse(input);
     if (!parsed.success) invalid();
     const command = parsed.data, payload = digest(command), id = deviceId.toLowerCase();
-    return transaction(this.pool, async client => {
-      await lockDevice(client, id);
-      const record = await load(client, id);
-      if (await isReplay(client, id, key, expectedVersion, command.kind, payload)) {
-        // Lost response must NEVER hand out permission to repeat a phone call.
-        // Return current state (including a newer pause), not a historical grant.
-        return { record, replayed: true };
+    await lockDevice(client, id);
+    const record = await load(client, id);
+    if (await isReplay(client, id, key, expectedVersion, command.kind, payload)) {
+      // Lost response must NEVER hand out permission to repeat a phone call.
+      // Return current state (including a newer pause), not a historical grant.
+      return { record, replayed: true };
+    }
+    if (record.version !== expectedVersion) stale();
+    const now = await clock(client);
+    let next: PhoneControlRecord;
+    switch (command.kind) {
+      case "acquire_holder": {
+        if (!trustedFacts) invalid();
+        next = acquirePhoneHolder(record, trustedFacts, command.request, now);
+        const { protocolVersion: _protocol, ...identity } = command.request;
+        const grant = phoneHolderGrantSchema.parse({ ...identity,
+          holderKind: trustedFacts.holder.kind, operation: trustedFacts.task.operation,
+          allowedKinds: trustedFacts.task.allowedKinds, leaseUntil: trustedFacts.holder.leaseUntil,
+          validUntil: trustedFacts.task.validUntil, stopEvidenceId: record.stopEvidenceId });
+        const inserted = await client.query(
+          `INSERT INTO ${schema}.phone_control_holder_grants(holder_id,device_id,control_generation,granted_version,record)
+             VALUES($1,$2,$3,$4,$5) ON CONFLICT(holder_id) DO NOTHING`,
+          [next.holderId, id, next.controlGeneration, next.version, grant],
+        );
+        if (inserted.rowCount !== 1) stale();
+        break;
       }
-      if (record.version !== expectedVersion) stale();
-      const now = await clock(client);
-      let next: PhoneControlRecord;
-      switch (command.kind) {
-        case "acquire_holder": {
-          if (!trustedFacts) invalid();
-          next = acquirePhoneHolder(record, trustedFacts, command.request, now);
-          const { protocolVersion: _protocol, ...identity } = command.request;
-          const grant = grantSchema.parse({ ...identity,
-            holderKind: trustedFacts.holder.kind, operation: trustedFacts.task.operation,
-            allowedKinds: trustedFacts.task.allowedKinds, leaseUntil: trustedFacts.holder.leaseUntil,
-            validUntil: trustedFacts.task.validUntil, stopEvidenceId: record.stopEvidenceId });
-          const inserted = await client.query(
-            `INSERT INTO ${schema}.phone_control_holder_grants(holder_id,device_id,control_generation,granted_version,record)
-               VALUES($1,$2,$3,$4,$5) ON CONFLICT(holder_id) DO NOTHING`,
-            [next.holderId, id, next.controlGeneration, next.version, grant],
-          );
-          if (inserted.rowCount !== 1) stale();
-          break;
+      case "begin_call":
+        if (!trustedFacts) invalid();
+        next = beginPhoneCall(record, trustedFacts, command.request, now);
+        // Current facts may narrow a grant, but cannot expand its original
+        // scope or renew an expired lease without a confirmed stop/new holder.
+        {
+          const saved = await client.query<{ record: unknown }>(
+            `SELECT record FROM ${schema}.phone_control_holder_grants WHERE holder_id=$1 AND device_id=$2`, [record.holderId, id]);
+          const grant = phoneHolderGrantSchema.safeParse(saved.rows[0]?.record);
+          if (!grant.success) stale();
+          const g = grant.data, f = trustedFacts, r = command.request;
+          if (g.holderId !== r.holderId || g.deviceId !== r.deviceId || g.controlGeneration !== r.controlGeneration
+            || g.taskAttemptId !== r.taskAttemptId || g.authorizationId !== r.authorizationId || g.purpose !== r.purpose
+            || g.holderKind !== f.holder.kind || g.operation !== f.task.operation || !g.allowedKinds.includes(r.kind)
+            || Date.parse(now) >= Date.parse(g.leaseUntil) || Date.parse(now) >= Date.parse(g.validUntil)
+            || Date.parse(f.holder.leaseUntil) > Date.parse(g.leaseUntil) || Date.parse(f.task.validUntil) > Date.parse(g.validUntil)) stale();
         }
-        case "begin_call":
-          if (!trustedFacts) invalid();
-          next = beginPhoneCall(record, trustedFacts, command.request, now);
-          // Current facts may narrow a grant, but cannot expand its original
-          // scope or renew an expired lease without a confirmed stop/new holder.
-          {
-            const saved = await client.query<{ record: unknown }>(
-              `SELECT record FROM ${schema}.phone_control_holder_grants WHERE holder_id=$1 AND device_id=$2`, [record.holderId, id]);
-            const grant = grantSchema.safeParse(saved.rows[0]?.record);
-            if (!grant.success) stale();
-            const g = grant.data, f = trustedFacts, r = command.request;
-            if (g.holderId !== r.holderId || g.deviceId !== r.deviceId || g.controlGeneration !== r.controlGeneration
-              || g.taskAttemptId !== r.taskAttemptId || g.authorizationId !== r.authorizationId || g.purpose !== r.purpose
-              || g.holderKind !== f.holder.kind || g.operation !== f.task.operation || !g.allowedKinds.includes(r.kind)
-              || Date.parse(now) >= Date.parse(g.leaseUntil) || Date.parse(now) >= Date.parse(g.validUntil)
-              || Date.parse(f.holder.leaseUntil) > Date.parse(g.leaseUntil) || Date.parse(f.task.validUntil) > Date.parse(g.validUntil)) stale();
-          }
-          break;
-        case "request_stop": next = requestPhoneStop(record, command.stopRequestId); break;
-        case "call_result": next = recordPhoneCallResult(record, command.receipt, now); break;
-        case "confirm_stopped": next = confirmPhoneStopped(record, command.evidence, now); break;
-      }
-      parsePhoneControlRecord(next);
-      const changed = await client.query(
-        `UPDATE ${schema}.phone_control_journals SET version=$2,control_generation=$3,disposition=$4,holder_id=$5,record=$6 WHERE device_id=$1 AND version=$7`,
-        [id, next.version, next.controlGeneration, next.disposition, next.holderId, next, expectedVersion],
-      );
-      if (changed.rowCount !== 1) stale();
-      await recordCommand(client, next, key, expectedVersion, command.kind, payload);
-      return { record: next, replayed: false };
+        break;
+      case "request_stop": next = requestPhoneStop(record, command.stopRequestId); break;
+      case "call_result": next = recordPhoneCallResult(record, command.receipt, now); break;
+      case "confirm_stopped": next = confirmPhoneStopped(record, command.evidence, now); break;
+    }
+    parsePhoneControlRecord(next);
+    const changed = await client.query(
+      `UPDATE ${schema}.phone_control_journals SET version=$2,control_generation=$3,disposition=$4,holder_id=$5,record=$6 WHERE device_id=$1 AND version=$7`,
+      [id, next.version, next.controlGeneration, next.disposition, next.holderId, next, expectedVersion],
+    );
+    if (changed.rowCount !== 1) stale();
+    await recordCommand(client, next, key, expectedVersion, command.kind, payload);
+    return { record: next, replayed: false };
+  }
+
+  // Correlated historical acknowledgement only. No authority reload, new grant
+  // or action ticket. Absence is rechecked by applyInTransaction after preflight.
+  async replayCommand(deviceId: string, key: string, input: unknown): Promise<PhoneJournalResult | null> {
+    scope(deviceId, 0, key);
+    const parsed = commandSchema.safeParse(input);
+    if (!parsed.success) invalid();
+    return transaction(this.pool, async client => {
+      await lockDevice(client, deviceId);
+      const previous = (await client.query<{expected_version: string}>(`SELECT expected_version::text FROM ${schema}.phone_control_commands WHERE device_id=$1 AND request_key=$2`, [deviceId,key])).rows[0];
+      if (!previous) return null;
+      await isReplay(client,deviceId,key,Number(previous.expected_version),parsed.data.kind,digest(parsed.data));
+      return {record: await load(client,deviceId),replayed:true};
     });
   }
 

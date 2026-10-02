@@ -228,3 +228,15 @@ start 建立显式参与 run；challenge 六秒有效，confirm 保存十秒有�
 初始化核验从此读取该事实，只移除对应参与阻断；真实 ADB、网络、holder、逐动作 transport、executor 和独立平台证据消费条件仍分别阻断。已保存的核验是历史快照，不能用它代替执行时的当前事实加载。
 
 补充事务检查在准确的独立 DB `sg_participation5_component` 运行：注入 `SG_PRODUCT_TEST_DATABASE_URL`、`SG_PRODUCT_TEST_CLUSTER_ID`、`SG_PRODUCT_TEST_ALLOW_RESET=1` 后，执行 `pnpm --filter @socialgrowth/product-backend exec tsx --test --test-concurrency=1 src/local-participation.pg-test.ts`。脚本确认回环地址、库名及集群 ID 后才 reset。合成 fixture 仅验证服务事务；正式 Web 验证仍使用根 `pnpm test:playwright`。
+
+### 初始化当前权威读取（2026-10-02）
+
+`PreparationActionBroker` 将原 `inspect_app` 的当前权限读取与 `PhoneControlJournal.applyInTransaction` 组合。当前切片只允许 `business/read_screen`；原持久 task ID 是这一步的 authorizationId，必须同时匹配原 attempt、准确 assignment、项目分配、父登录账号、当前运营／提供者、安装／关联／会话、设备事实版本、当前参与和正式网络节点。已保存执行核验、SDK completed 或客户端布尔声明不能作为这里的事实来源。
+
+中央读取和写入在同一事务中进行。外部网络／ADB／目标／全部底层路径检查在 SQL 锁外执行，使用一次 nonce 和完整当前 scope digest；返回后重读、加锁并核对原 scope，防止等待期间暂停、换机、撤回或撤销分配。外部检查两秒超时并 Abort；新 holder 最多三十秒且不可续租，动作票最多两秒，并截断到当前安装会话、参与和原租约期限。签发前及审计后再次检查时间，动作意图、不可变 holder 和相关审计均原子提交。动作仍须实际逐动作 fence 在交接前核验。
+
+`replayCommand` 只核对原命令的 payload 与版本并返回当前控制状态；重放无新动作票，不重查物理检查器或续租。并发时若其他请求已提交同一原命令，也只接续原 ACK。原操作 unknown、terminal 或另一未决 attempt 均拒绝新许可。
+
+本类是内部组件，没有 HTTP 许可接口、AppModule 注册、环境开启开关或设备调用。`PhysicalPreparationInspector` 必须由真实 runtime 提供当前网络路径、ADB 准确目标、所有读屏／动作路径保护、控制占用／交还及静止的观测；默认 null 拒绝执行。PG 中 inspector、网络和停止证明都是明确的合成 fixture，不证明该真实实现已经存在。既有 SDK 原始 ADB、UIAutomator、人工补图、读取旁路及截图占位回退还需接线；正式 executor 仍关闭。
+
+补充事务检查仅在 `sg_broker6_component` 准确独立库运行，注入 `SG_PRODUCT_TEST_DATABASE_URL`、`SG_PRODUCT_TEST_CLUSTER_ID` 和 `SG_PRODUCT_TEST_ALLOW_RESET=1` 后执行 `pnpm --filter @socialgrowth/product-backend exec tsx --test --test-concurrency=1 src/preparation-action-broker.pg-test.ts`。脚本核对回环地址、库名与集群 ID 才 reset，不在共享库运行。正式 Web 验证仍使用根 `pnpm test:playwright`。

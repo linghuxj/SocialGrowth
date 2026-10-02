@@ -1,0 +1,8 @@
+
+> @socialgrowth/product-backend@0.0.0 check /Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend
+> tsc -p tsconfig.json --noEmit
+
+src/preparation-action-broker.pg-test.ts(44,36): error TS2339: Property 'request' does not exist on type 'AccountPreparationService'.
+/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @socialgrowth/product-backend@0.0.0 check: `tsc -p tsconfig.json --noEmit`
+Exit status 2
