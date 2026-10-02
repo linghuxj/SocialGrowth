@@ -1,0 +1,33 @@
+
+> socialgrowth-monorepo@1.0.0 check:product /Users/linghuxj/Documents/myproject/project/SocialGrowth
+> pnpm --filter @socialgrowth/product-contracts run build && pnpm --filter './product/**' --workspace-concurrency=1 run check
+
+
+> @socialgrowth/product-contracts@0.0.0 build /Users/linghuxj/Documents/myproject/project/SocialGrowth/product/contracts
+> tsc -p tsconfig.json && pnpm generate:check
+
+
+> @socialgrowth/product-contracts@0.0.0 generate:check /Users/linghuxj/Documents/myproject/project/SocialGrowth/product/contracts
+> tsx src/generate-contracts.ts --check && tsx src/generate-participation-contract.ts --check
+
+Scope: 4 of 10 workspace projects
+
+> @socialgrowth/product-contracts@0.0.0 check /Users/linghuxj/Documents/myproject/project/SocialGrowth/product/contracts
+> tsc -p tsconfig.json --noEmit && pnpm generate:check
+
+
+> @socialgrowth/product-contracts@0.0.0 generate:check /Users/linghuxj/Documents/myproject/project/SocialGrowth/product/contracts
+> tsx src/generate-contracts.ts --check && tsx src/generate-participation-contract.ts --check
+
+
+> @socialgrowth/product-backend@0.0.0 check /Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend
+> tsc -p tsconfig.json --noEmit
+
+
+> @socialgrowth/product-executor@0.0.0 check /Users/linghuxj/Documents/myproject/project/SocialGrowth/product/executor
+> tsc -p tsconfig.json --noEmit
+
+
+> @socialgrowth/product-web@0.0.0 check /Users/linghuxj/Documents/myproject/project/SocialGrowth/product/web
+> tsc -b --pretty false
+

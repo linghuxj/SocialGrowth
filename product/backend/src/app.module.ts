@@ -11,6 +11,8 @@ import { InvitationManagementService } from "./invitation-management-service.js"
 import { IdentityTransactionService } from "./identity-transactions.js";
 import { InstallationAuthService } from "./installation-auth-service.js";
 import { InstallationController } from "./installation.controller.js";
+import { LocalParticipationController } from "./local-participation.controller.js";
+import { LocalParticipationService } from "./local-participation-service.js";
 import { OperatorAuthService } from "./operator-auth-service.js";
 import { OperatorController } from "./operator.controller.js";
 import { ProviderAuthService } from "./provider-auth-service.js";
@@ -129,6 +131,7 @@ const providerAuthProvider = {
     MaterialRegistryController,
     DevelopmentProviderSmsController,
     InstallationController,
+    LocalParticipationController,
     OperatorController,
     ProviderController,
     ProjectController,
@@ -150,6 +153,7 @@ const providerAuthProvider = {
     invitationManagementProvider,
     identityTransactionProvider,
     installationAuthProvider,
+    { provide: LocalParticipationService, inject: [Pool, InstallationAuthService], useFactory: (pool: Pool, auth: InstallationAuthService) => new LocalParticipationService(pool, auth) },
     smsRuntimeProvider,
     providerAuthProvider,
     { provide: MaterialRuntime, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new MaterialRuntime(pool, auth, readMaterialRuntimeConfig()) },

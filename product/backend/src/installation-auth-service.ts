@@ -279,14 +279,14 @@ export class InstallationAuthService {
     });
   }
 
-  async authenticate(sessionTokenValue: string): Promise<AuthenticatedInstallation> {
+  async authenticate(sessionTokenValue: string, transactionClient?: PoolClient): Promise<AuthenticatedInstallation> {
     if (!installationSessionTokenPattern.test(sessionTokenValue)) {
       throw new ProductTransactionError(
         "AUTHENTICATION_REQUIRED",
         "Installation bearer token is required",
       );
     }
-    const result = await this.pool.query<{
+    const result = await (transactionClient ?? this.pool).query<{
       expires_at: Date;
       generation: string;
       installation_id: string;

@@ -118,6 +118,24 @@ async function recordCommand(client: PoolClient, record: PhoneControlRecord, key
 export class PhoneControlJournal {
   constructor(private readonly pool: Pool) {}
 
+  // Used by authenticated local withdrawal in the SAME provider -> installation
+  // -> association -> device transaction. Never starts a controller or infers
+  // physical stop; no journal is manufactured when one does not exist.
+  async revokeInTransaction(client: PoolClient, deviceId: string, key: string, stopRequestId: string): Promise<void> {
+    scope(deviceId, 0, key);
+    if (!uuidSchema.safeParse(stopRequestId).success) invalid();
+    await lockDevice(client, deviceId);
+    if (!(await client.query(`SELECT 1 FROM ${schema}.phone_control_journals WHERE device_id=$1`, [deviceId])).rowCount) return;
+    const record = await load(client, deviceId), payload = digest({ kind: "request_stop", stopRequestId });
+    const old = (await client.query<{ expected_version: string }>(`SELECT expected_version::text FROM ${schema}.phone_control_commands WHERE device_id=$1 AND request_key=$2`, [deviceId, key])).rows[0];
+    if (old) { await isReplay(client, deviceId, key, Number(old.expected_version), "request_stop", payload); return; }
+    const next = requestPhoneStop(record, stopRequestId);
+    const changed = await client.query(`UPDATE ${schema}.phone_control_journals SET version=$2,control_generation=$3,disposition=$4,holder_id=$5,record=$6 WHERE device_id=$1 AND version=$7`,
+      [deviceId, next.version, next.controlGeneration, next.disposition, next.holderId, next, record.version]);
+    if (changed.rowCount !== 1) stale();
+    await recordCommand(client, next, key, record.version, "request_stop", payload);
+  }
+
   async initialize(deviceId: string, stopRequestId: string, key: string): Promise<PhoneJournalResult> {
     scope(deviceId, 0, key);
     if (!uuidSchema.safeParse(stopRequestId).success) invalid();

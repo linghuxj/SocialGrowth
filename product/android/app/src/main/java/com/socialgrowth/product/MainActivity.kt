@@ -1,6 +1,8 @@
 package com.socialgrowth.product
 
 import android.graphics.Bitmap
+import android.content.Intent
+import androidx.core.content.ContextCompat
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -648,6 +650,33 @@ class MainActivity : ComponentActivity() {
             gravity = Gravity.CENTER
         }, matchWrap().apply { topMargin = dp(18) })
         root.addView(secondaryButton("刷新状态").apply { setOnClickListener { showInstallationLoading() } }, matchHeight(54).apply { topMargin = dp(28) })
+        root.addView(label("本机参与确认单独开启；接入、控制权及每次动作仍由系统核验。撤回不会被当成手机已停止。", 14f, secondary), matchWrap().apply { topMargin = dp(16) })
+        val participationStatus=label(ParticipationService.statusText(),14f,secondary)
+        root.addView(participationStatus,matchWrap().apply { topMargin=dp(8) })
+        val participationScreen=screenGeneration
+        fun refreshParticipationStatus() {
+            if(participationScreen!=screenGeneration || isDestroyed || isFinishing) return
+            participationStatus.text=ParticipationService.statusText()
+            mainHandler.postDelayed({ refreshParticipationStatus() },500)
+        }
+        refreshParticipationStatus()
+        root.addView(primaryButton("确认当前参与").apply {
+            isEnabled = state.state in setOf("associated_pending_access", "access_ready")
+            setOnClickListener {
+                try {
+                    ContextCompat.startForegroundService(this@MainActivity, Intent(this@MainActivity, ParticipationService::class.java).setAction(ParticipationService.START))
+                    Toast.makeText(this@MainActivity, "参与确认请求已提交；以本机状态显示为准。", Toast.LENGTH_LONG).show()
+                } catch (_: Exception) {
+                    Toast.makeText(this@MainActivity, "本机参与服务未能启动，请检查客户端系统设置。", Toast.LENGTH_LONG).show()
+                }
+            }
+        }, matchHeight(54).apply { topMargin = dp(12) })
+        root.addView(secondaryButton("撤回本机参与").apply {
+            setOnClickListener {
+                if (ParticipationService.running) startService(Intent(this@MainActivity, ParticipationService::class.java).setAction(ParticipationService.STOP))
+                Toast.makeText(this@MainActivity, "已停止本机后续参与确认；等待中心撤权和实际停止核实。", Toast.LENGTH_LONG).show()
+            }
+        }, matchHeight(54).apply { topMargin = dp(8) })
         setContentView(ScrollView(this).apply {
             isFillViewport = true
             addView(root, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)

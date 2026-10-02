@@ -9,6 +9,7 @@ import { OperatorAuthService } from "./operator-auth-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
 import { canonicalMaterial } from "./material-registry-core.js";
 import { parsePhoneControlRecord } from "./action-permission-core.js";
+import { loadCurrentLocalParticipation } from "./local-participation-service.js";
 import { parseAdmissionRecord } from "./network-admission-record.js";
 const s = "socialgrowth_product";
 const digest = (v: unknown) => createHash("sha256").update(canonicalMaterial(v)).digest("hex");
@@ -107,6 +108,7 @@ export class AccountPreparationService {
       if (!task || Number(task.task_version) !== r.expectedTaskVersion || resourceVersion !== r.expectedResourceVersion) throw stale();
       const current = view(task), intent = { ...current.intent, accountId: current.selectedAccountId, deviceId: current.selectedDeviceId };
       const checked = await this.check(c, r.projectId, intent), blockers = [...checked.blockers];
+      let localParticipationCurrent = false;
       if (intent.deviceId !== null) {
         const network = (await c.query<{ record: unknown; phase: string }>(`SELECT record,phase FROM ${s}.network_enrollments WHERE device_id=$1 AND phase<>'reclaimed'`, [intent.deviceId])).rows;
         if (network.length > 1) throw unavailable();
@@ -125,10 +127,13 @@ export class AccountPreparationService {
           if (record.holderId === null) blockers.push("PHONE_CONTROL_HOLDER_REQUIRED");
           if (record.calls.some(call => call.status !== "ended")) blockers.push("VERIFY_ORIGINAL_DEVICE_CALL");
         }
+        const now = (await c.query<{ now: Date }>("SELECT clock_timestamp() now")).rows[0]!.now;
+        localParticipationCurrent = (await loadCurrentLocalParticipation(c, intent.deviceId, now)) !== null;
       }
       // No HTTP flags/config fallbacks can fill absent authoritative loaders or
       // every-action protection. This admission report creates no dispatch.
-      blockers.push("CURRENT_ADB_TARGET_AUTHORIZATION_REQUIRED", "CURRENT_LOCAL_PARTICIPATION_CONFIRMATION_REQUIRED",
+      if (!localParticipationCurrent) blockers.push("CURRENT_LOCAL_PARTICIPATION_CONFIRMATION_REQUIRED");
+      blockers.push("CURRENT_ADB_TARGET_AUTHORIZATION_REQUIRED",
         "CURRENT_HOLDER_TASK_SCOPE_REQUIRED", "CURRENT_DEVICE_ACTION_FENCE_REQUIRED", "PREPARATION_EXECUTOR_NOT_CONNECTED",
         "TRUSTED_PLATFORM_EVIDENCE_CONSUMER_REQUIRED");
       const now = (await c.query<{ now: Date }>("SELECT clock_timestamp() AS now")).rows[0]!.now.toISOString();

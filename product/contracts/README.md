@@ -51,3 +51,5 @@ pnpm --filter @socialgrowth/product-contracts build
 ```
 
 `generate` 显式更新 JSON Schema 与 Android 规格文件；`check` 和 `build` 使用 `generate:check` 字节比较源 schema 与已提交文件，发现漂移直接失败且不重写文件。Web 和 executor 通过 Zod 边界适配器消费；Android 使用生成规格执行 Kotlin 运行时解析；`python/socialgrowth_contracts.py` 从提交的 JSON Schema 执行严格参考校验。跨语言补充检查不替代旧客户端组合、短信、页面、扫码或真机业务流程验收。
+
+本机参与协议独立于首批身份契约，版本为 `2026-10-02.participation-v1`。`local-participation.ts` 定义显式 run、六秒 nonce、十秒参与 receipt 和撤回 receipt；所有响应明确 `actionPermissionGranted=false`、`stopConfirmed=false`。代次与序列使用无损数字字符串，设备事实版本限制为安全整数。`generate`／`generate:check` 同时生成／核验 Android `GeneratedParticipationContractSpec.kt`，不修改首批契约版本。

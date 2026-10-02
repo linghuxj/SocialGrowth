@@ -6,7 +6,9 @@ import { before, after, test } from "node:test";
 import { NestFactory } from "@nestjs/core";
 import type { INestApplication } from "@nestjs/common";
 import { Pool } from "pg";
-import { contractVersion, executionLibraryVersion, accountPreparationWorkspaceSchema, productErrorResponseSchema, artemisPreparationAssignmentSchema } from "@socialgrowth/product-contracts";
+import { participationProtocolVersion, contractVersion, executionLibraryVersion, accountPreparationWorkspaceSchema, productErrorResponseSchema, artemisPreparationAssignmentSchema } from "@socialgrowth/product-contracts";
+import { InstallationAuthService } from "./installation-auth-service.js";
+import { PhoneControlJournal } from "./phone-control-journal.js";
 import { AppModule } from "./app.module.js";
 import { ProductExceptionFilter } from "./product-exception.filter.js";
 import { PostgresArtemisPreparationJournal } from "./artemis-preparation-journal.js";
@@ -246,4 +248,24 @@ test("reviews with identical timestamps use committed sequence, not UUID order, 
   for (const id of ids) await pool.query(`INSERT INTO ${s}.account_preparation_execution_reviews(review_id,task_id,task_version,actor_id,request_key,payload_digest,reviewed_at,record)
     VALUES($1,$2,0,$3,$4,$5,$6,$7)`, [id, r.taskId, f.actor, `synthetic-review-${id}`, "a".repeat(64), record.reviewedAt, { ...record, reviewId: id }]);
   assert.equal(workspace(await request(f)).executionReviews[0]!.reviewId, ids[1]);
+});
+
+test("current installed-client pulse removes only its own review blocker; epoch change restores it without dispatch", async () => {
+  const { f,w,a }=await reservedTask(), deviceId=a.input.deviceId;
+  const auth=new InstallationAuthService(pool,process.env.SG_PRODUCT_AUTH_PEPPER!);
+  const identity=await auth.bootstrap({metadata:metadata(),installationCredential:`sginst_v1_${randomBytes(32).toString("base64url")}`},`source-${randomUUID()}`);
+  const provider=randomUUID(),session=randomUUID();
+  await pool.query(`INSERT INTO ${s}.providers(provider_id,phone_e164,display_name,status) VALUES($1,$2,'Synthetic pulse owner','active')`,[provider,`+86${Math.floor(1e10+Math.random()*8e10)}`]);
+  await pool.query(`INSERT INTO ${s}.association_sessions(association_session_id,installation_id,expected_installation_generation,device_label,code_digest,expires_at) VALUES($1,$2,1,'Synthetic pulse association',$3,clock_timestamp()+interval '1 hour')`,[session,identity.installation.installationId,randomBytes(32)]);
+  await pool.query(`INSERT INTO ${s}.device_associations(association_id,device_id,installation_id,provider_id,association_session_id) VALUES($1,$2,$3,$4,$5)`,[randomUUID(),deviceId,identity.installation.installationId,provider,session]);
+  const phone=new PhoneControlJournal(pool);await phone.initialize(deviceId,randomUUID(),`initialize-${randomUUID()}`);
+  const runId=randomUUID(),body=()=>({protocolVersion:participationProtocolVersion,runId,requestId:`request-${randomUUID()}`,requestKey:`pulse-${randomUUID()}`});
+  async function local(path:string,input:unknown){const r=await fetch(`${base}/api/installation/participation/${path}`,{method:"POST",headers:{authorization:`Bearer ${identity.sessionToken}`,"content-type":"application/json"},body:JSON.stringify(input)});assert.equal(r.status,201);return await r.json() as {challengeId:string};}
+  await local("start",body());const nonce=await local("challenge",body());await local("confirm",{...body(),challengeId:nonce.challengeId});
+  const review=workspace(await request(f,"execution-review",executionReview(f,w))).executionReviews[0]!;
+  assert.ok(!review.blockers.includes("CURRENT_LOCAL_PARTICIPATION_CONFIRMATION_REQUIRED"));
+  for(const blocker of ["PHONE_STOP_CONFIRMATION_REQUIRED","PHONE_CONTROL_HOLDER_REQUIRED","CURRENT_DEVICE_ACTION_FENCE_REQUIRED","PREPARATION_EXECUTOR_NOT_CONNECTED"])assert.ok(review.blockers.includes(blocker));
+  assert.equal(review.actionPermissionGranted,false);assert.equal(review.dispatchCreated,false);assert.equal(review.publicationAllowed,false);
+  await local("withdraw",body());const next=workspace(await request(f,"execution-review",executionReview(f,w))).executionReviews[0]!;
+  assert.ok(next.blockers.includes("CURRENT_LOCAL_PARTICIPATION_CONFIRMATION_REQUIRED"));assert.equal(next.dispatchCreated,false);
 });

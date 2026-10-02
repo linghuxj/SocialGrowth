@@ -218,3 +218,13 @@ WP-10 新增内部 `endpoint-report-core` 只校验签名完整双用途快照�
 `ResourceReservationStore`尚无登记生产者/HTTP/UI/任务消费者。中央账号/发布身份来源引用不可变；组合FK、唯一约束与短事务guard保证账号/手机同期一项目、同机同平台一身份、同身份一当前手机。与项目负责人更新保持operators表元数据锁→actor/session→guard→project→device顺序（读取同样遵守），不与手机执行互斥混用。operator会话/CSRF及资源/project/device版本检查、同键当前读取、原子审计与最后锁后会话到期回滚；返回一律pending_initialization。
 
 不能将预留当作真实身份已核验、承接生效或动作许可，也没有释放/换机/跨项目转移。登记生产者须持同guard并提供正确canonical source ID，WP-13还须读取新鲜实际授权/连接/控制事实。SQL0009在0001～0008后消费，阶段证据与缺口见[资源任务卡](../../docs/engineering/delivery/records/WP-14-stage2.md)。
+
+### 本机参与事实 API（2026-10-02）
+
+迁移 `0030_local_participation.sql` 与 `LocalParticipationService` 提供 `POST /api/installation/participation/{start,challenge,confirm,withdraw}`。使用现有 `Authorization: Bearer <installation session>`；独立协议 `2026-10-02.participation-v1` 请求仅含 protocolVersion、requestId、requestKey、runId（confirm 另含 challengeId），不接受调用者上报 scope、时间或动作许可。错误仍使用现有产品错误信封。
+
+start 建立显式参与 run；challenge 六秒有效，confirm 保存十秒有效事实。每设备只有一条当前 challenge／receipt，保留显式启停历史及审计，不为每次心跳追加审计。锁顺序为 provider→installation→association→device→控制日志→session；锁等待后重新验证安装会话与中心时钟。撤回／替换旧 run 与中央 request_stop 原子提交，不伪造物理停止。确认只说明安装客户端当前参与，不是手机动作权限；读取器要求当前角色、安装代次、会话、deviceFactVersion 和控制 generation 全部匹配。
+
+初始化核验从此读取该事实，只移除对应参与阻断；真实 ADB、网络、holder、逐动作 transport、executor 和独立平台证据消费条件仍分别阻断。已保存的核验是历史快照，不能用它代替执行时的当前事实加载。
+
+补充事务检查在准确的独立 DB `sg_participation5_component` 运行：注入 `SG_PRODUCT_TEST_DATABASE_URL`、`SG_PRODUCT_TEST_CLUSTER_ID`、`SG_PRODUCT_TEST_ALLOW_RESET=1` 后，执行 `pnpm --filter @socialgrowth/product-backend exec tsx --test --test-concurrency=1 src/local-participation.pg-test.ts`。脚本确认回环地址、库名及集群 ID 后才 reset。合成 fixture 仅验证服务事务；正式 Web 验证仍使用根 `pnpm test:playwright`。

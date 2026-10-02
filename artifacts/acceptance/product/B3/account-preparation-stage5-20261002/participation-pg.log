@@ -1,0 +1,19 @@
+✔ real HTTP installation routes persist challenge and confirmation without action permission or stop proof (856.63369ms)
+✔ wrong bearer, forged scope and unassociated installation cannot confirm participation (33.387898ms)
+✔ replay retains original challenge expiry and confirmation time; new challenge retains prior fresh pulse (108.633798ms)
+✔ expired nonce, superseded nonce and wrong run cannot manufacture a new pulse (103.27688ms)
+✔ withdrawal atomically increments control generation, blocks late heartbeat and preserves stopped=false (103.69825ms)
+✔ old withdrawn run cannot revoke successor; simultaneous run starts leave only one active run (120.501855ms)
+✔ fact, epoch, owner and installation replacement immediately invalidate participation (235.746213ms)
+✔ disabled owner may withdraw but cannot renew; revoked session cannot authenticate (116.089268ms)
+✔ reauthentication after lock wait rejects session that expired while queued (569.966233ms)
+✔ audit failure rolls back withdrawal and control revocation together (87.384888ms)
+✔ heartbeats keep one mutable row and create no repeated start/withdraw audits (163.457612ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3933.1038

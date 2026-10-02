@@ -41,3 +41,11 @@ adb -s RFCW40MYYCV uninstall com.socialgrowth.product.test
 WP-09第一阶段新增`NativeEndpointDiscovery`（RequiresApi34）及`EndpointDiscoveryState`，仅主线程启动/停止的限时本机Wi-Fi NSD观察，不接MainActivity/后台service或任何配对/连接/上报。两种purpose分开，候选不授信任，冲突/未解析/失去/网络变化/旧generation与ticket安全关闭，结束不返回旧port；名字/地址只内存，实际全量Wi-Fi地址筛选不替代中心来源核验。调用方需检查API并在退后台时close，当前min27不是该层支持承诺。
 
 `-PsgNativeDiscoveryChecks=true`只切换test APK runner为`NativeDiscoveryInstrumentation`，默认false仍用原EnrollmentCrypto；只允许true/false。用上述Gradle命令加该flag重建并核验实际test manifest，再运行`com.socialgrowth.product.test/com.socialgrowth.product.NativeDiscoveryInstrumentation`。该无UI补充检查不读session/keys，不打开媒体App、不上报、不配对，不是Playwright或完整业务验收。Samsung本轮6生命周期检查通过，connect/pairing都UNKNOWN；不能声称发现端口或首次配对通过。Debug/Release各28 JVM与APK/lint通过，原APK已恢复且本轮test包卸载；真实资源/细节/日志见[WP-09记录](../../docs/engineering/delivery/records/WP-09.md)。
+
+### 本机参与确认（2026-10-02）
+
+已关联设备页新增显式“确认当前参与”和“撤回本机参与”。独立 `ParticipationService` 从可见 Activity 开启 connectedDevice 前台服务，不开机启动、不 sticky、不自动恢复新参与会话。复用本机安装会话；不重新 bootstrap 或注册平台账号。开始时固定 run、安装／关联／设备事实版本和控制代次，变化后结束，须再次显式开启。状态文案只在收到当前确认后显示已确认，按本机单调时钟保守过期。
+
+每四秒请求一次独立的参与 nonce（中心有效期六秒），再确认十秒参与事实。新 challenge 保留上一条尚未过期 pulse；重放不能延长原期限。撤回先终止本机后续确认，再提交原 run 撤回；撤回失败或进程被杀时，当前 pulse 到期失效。中央撤权请求与撤回事实在一个事务中提交，均不表示物理停止已证实。停止中不开第二条 worker；旧 run 的迟到心跳或撤回不影响后继 run。前台服务需要 Android 对该服务类型的系统准入，参考 [Android 官方规则](https://developer.android.com/develop/background-work/services/fgs/service-types#connected-device)。
+
+本实现的 APK 构建和 JVM 契约检查通过，不代表本机已安装新 APK、真实后台保活或 Web→Artemis 设备验收通过。服务不执行 ADB／App 操作、不授予控制权，也不确认接入或平台身份。Debug 的 127.0.0.1 中心地址仍需既有明确网络接线，未以 USB 在线替代网络准入证据。
