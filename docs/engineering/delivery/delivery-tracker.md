@@ -1,5 +1,13 @@
 # 开发进度与阻断台账
 
+## 2026-10-02 接手推进：C1 整改及 C2a 真实页面补验
+
+[本轮固定批次记录](records/core-automation-loop-takeover-20261002.md)：C1-READ-01 已由作者整改（逐素材读取序号、采用基线后作废在途读取）；C1-DOC-01 已移除指向未提交 WP-11 第三阶段文件的交付引用。两项待原非作者固定提交复核，不自签清零。此前浏览器策略校验不可用本轮未再复现：IAB 实际访问本地正式入口成功后，才按统一 Playwright 入口执行页面流程。
+
+C1 真实 UI 已通过项目创建、合成文件上传/声明保存、第二窗口保存 v2、旧 v1 晚到仍保持 v2、采用后不重开核对、草稿保留、重载及手机只读；只证明合成输入页面，不证明合法素材/候选/发布。C2a 补验暴露 StrictMode 重放造成持续加载及表单样式遗漏，已整改；真实页面草案保存/刷新/导航保留/重载/明确最低数 0/成品形式保存/手机只读通过。Web 82/82、类型/lint/build及两 Playwright 脚本类型/lint通过；源、命令、失败和最终证据同批留痕。截图作者核对限本轮状态，原独立 QA 门禁仍待复验。
+
+下一顺序保持 C2 素材准入/不可变批准与真实模型事实生产者→持久计划/Task/名额→C3 Artemis 接线→C4 错误接续。模型服务/版本/受控配置位置待用户提供；未以草案或模板代替批准/AI。C2 整体、C3/C4、Developer 父 pending 及 WP-10 原复核缺口均未完成；临时服务与容器已清理。下方浏览器 blocked 与计数均为历史检查点，当前增量以本段及链接记录为准。
+
 ## 2026-10-02 分支治理执行结果
 
 用户已确认调整，[盘点执行记录](records/branch-audit-20261002.md)与[恢复清单](records/branch-cleanup-20261002-refs.tsv)：已非强制删除52个已入Developer/无upstream旧ref，本地100→48、stage79→40；剩余ref精确不变，单个archive/branch-cleanup-20261002-pre标签及Developer保留全部历史可达。CLAUDE新增短期切片/阶段commit/验收与清理核对规则；未删远端、未合Developer、未消除父pending/C1两finding，未改变产品代码或重跑业务。下方100/未删为治理前快照，待验44旧tip及有upstream历史分支暂留。
@@ -37,7 +45,7 @@
 | WP-08 设备可信绑定与受限网络准入 | B2 / EX | Codex（阶段实施代理）；原非作者复核／验收窗口；BE/AND/OPS 协作职责 | 四工程阶段已合入 | 核心／持久／签名补充检查；真实网络及 AC-11/12 未验证 | [任务记录](records/WP-08.md)、[持久工程](records/WP-08-stage2.md)、[持钥工程](records/WP-08-stage3.md)、[回收扫描](records/WP-08-stage4.md)；Developer已快进ab3d6bf，阶段三原QA98/98、JVM各16/16和Samsung密码学10/10；阶段四原复核/QA100/100＋PG56/56与探针通过；未接HTTP／网络worker，不开放网络或业务队列；RES-WP08-01～03不阻独立工程 |
 | WP-09 原生发现与首次中心配对 | B2 / AND | Codex阶段实施代理；原非作者/QA；EX/BE/OPS/BIZ协作职责 | 原生整改及组合原双门禁G1通过，Developer@b9b1983 | 原QA新Android各31/原探针和矩阵；新Samsung6生命周期、两端点UNKNOWN及原App恢复；自动发现/首次配对/完整AC未验证 | [任务卡](records/WP-09.md)、[IPv4整改](records/WP-09-ipv4-remediation.md)；原P3实际清零；无UI/认证上报/中心配对/新信任，多机/系统窗口/可信来源及支持矩阵记录需求继续工程 |
 | WP-10 认证端点上报与受控重连 | B2 / EX | Codex EX/BE阶段代理；AND/OPS/原非作者/QA协作职责，真人待签 | af14原双G1合Developer；b60原1P3，0d7限定未清零；40a/91e/df700均原双有限增量通过 | 原QA240/15；0d7原复核240/184但原13未执行；纯双方各12＋6，维护双方各14，共同双方各24指定PG组；QA17.11/非作者17.10区分；真实来源/任务/回执/连接及AC未验证 | [任务卡](records/WP-10.md)、[时序整改](records/WP-10-source-snapshot-remediation.md)、[纯预算](records/WP-10-stage3.md)、[维护持久](records/WP-10-stage4.md)、[共同占位](records/WP-10-stage5.md)、[原复核补验](records/WP-10-review-blocker.md)；共同begin/end时间未独立精确对照，缺link直接read/replay覆盖不扩大；原P3/父链不自签清零，人工缺口记录继续 |
-| WP-11 统一动作许可、互斥与真实停止 | B2 / EX | Codex EX实施代理；原非作者/QA；BE/AND/OPS/TL职责/真人待签 | 一二工程历史已合入；第三从09146盘点实时权威来源中 | 历史117/PG72独立工程；本新broker未实现/未验；真实停止及完整AC未验证 | [任务记录](records/WP-11.md)、[持久日志](records/WP-11-stage2.md)、[实时来源接续](records/WP-11-stage3.md)；当前Journal仍只device→journal锁序/内部trustedFacts/default stop_requested，无holder/re-enable/实时loader/物理fence，不借body bool/旧record授予secret或手机动作；工程缺口继续编码，RES-WP11-01～03真实输入/停止判据记录补验，executor关闭，Developeraf14/父pending保持 |
+| WP-11 统一动作许可、互斥与真实停止 | B2 / EX | Codex EX实施代理；原非作者/QA；BE/AND/OPS/TL职责/真人待签 | 一二工程历史已合入；第三从09146盘点实时权威来源中 | 历史117/PG72独立工程；本新broker未实现/未验；真实停止及完整AC未验证 | [任务记录](records/WP-11.md)、[持久日志](records/WP-11-stage2.md)；第三阶段接续记录仅在本地未提交，不作为固定提交交付引用。当前Journal仍只device→journal锁序/内部trustedFacts/default stop_requested，无holder/re-enable/实时loader/物理fence，不借body bool/旧record授予secret或手机动作；工程缺口继续编码，RES-WP11-01～03真实输入/停止判据记录补验，executor关闭，Developeraf14/父pending保持 |
 | WP-12 暂停、现场协助、恢复、退出及接管界面 | B2 / AND | 待分配 | 待分配 | 未验证 | 编码依赖：WP-10, WP-11, WP-20；交付依赖见工作包 |
 | WP-13 首次资源分配、受控凭据与初始化 | B2 / BE | Codex BE实施代理；原非作者/QA；EX/WEB/AND/BIZ/OPS/TL真人待签 | 第一a42双严格24有限0已读；第二6555双有限0已读；第三3c0非作者有限0已全文读并交QA；第四09146严格11已交同原非作者 | 第一各522不累加；第二复核512/QA523含独立11首过；第三非作者513PASS+2桩RED未计通过/限定新0余0；第四10unit/根505/当前源HTTPPG12/全product静态0，所有首RED/观测与bootstrap guard失败保留 | [筹备](records/WP-13.md)、[持久原语与双门禁](records/WP-13-stage2.md)、[受控接口](records/WP-13-stage3.md)、[显式保管](records/WP-13-stage4.md)；AppModule仍null，仅metadata/auth后关闭写，synthetic controlled模块不代生产。显式process-local owned ring/轮换/dispose，inflight snapshot保持原key不代撤权；两代自有PG精确gone。生产key/TLS/current许可/模型前保护/真实Web/phone/初始化未验，RES-WP13-01～04/父pending1/Developeraf14/UI/SEC不关闭 |
 | WP-14 项目、批准范围与资源约束 | B3 / BE | Codex阶段代理；WEB/原非作者/QA协作，BIZ真实输入 | 前三工程阶段原复核/QA通过，Developer已快进28276f2；独立UI阻断 | 原QA157/PG120、15544对照/5保存/8事务通过，完整AC未验证 | [项目](records/WP-14.md)、[资源](records/WP-14-stage2.md)、[草案](records/WP-14-stage3.md)任务卡；没有实际分配/许可/批准。人工/浏览器策略及[安全核查](records/SEC-WP14-01.md)未关闭，其他独立工程继续 |

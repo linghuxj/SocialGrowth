@@ -1,0 +1,290 @@
+{
+  "owned_container_count": 12,
+  "owned_containers_remaining": [],
+  "listeners": {
+    "3100": "",
+    "4320": ""
+  },
+  "existing_containers": [
+    {
+      "name": "nestar-music-backend-20261001",
+      "image": "postgres:17",
+      "status": "Up 26 hours"
+    },
+    {
+      "name": "nestar-stage1-20261001",
+      "image": "postgres:16-bookworm",
+      "status": "Up 37 hours"
+    },
+    {
+      "name": "qm-dev-postgres",
+      "image": "postgres:16-alpine",
+      "status": "Exited (0) 37 hours ago"
+    },
+    {
+      "name": "nestar-s3-test",
+      "image": "postgres:16-alpine",
+      "status": "Exited (0) 2 weeks ago"
+    },
+    {
+      "name": "nestar-openim-lab-openim-server-1",
+      "image": "nestar/openim-server:member-boundary-local",
+      "status": "Exited (143) 11 days ago"
+    },
+    {
+      "name": "oracle-ops-preview-database-1",
+      "image": "postgres:15-alpine",
+      "status": "Exited (0) 2 weeks ago"
+    },
+    {
+      "name": "nestar-openim-lab-kafka-1",
+      "image": "registry.hub.docker.com/bitnamilegacy/kafka:3.5.1",
+      "status": "Exited (143) 11 days ago"
+    },
+    {
+      "name": "nestar-openim-lab-mongo-1",
+      "image": "registry.hub.docker.com/library/mongo:7.0",
+      "status": "Exited (137) 11 days ago"
+    },
+    {
+      "name": "nestar-openim-lab-etcd-1",
+      "image": "registry.hub.docker.com/bitnamilegacy/etcd:3.5.13",
+      "status": "Exited (137) 11 days ago"
+    },
+    {
+      "name": "nestar-openim-lab-redis-1",
+      "image": "registry.hub.docker.com/library/redis:7.0.0",
+      "status": "Exited (0) 11 days ago"
+    },
+    {
+      "name": "nestar-openim-lab-minio-1",
+      "image": "registry.hub.docker.com/minio/minio:RELEASE.2024-01-11T07-46-16Z",
+      "status": "Exited (0) 11 days ago"
+    },
+    {
+      "name": "oraclemusic-local-postgres-1",
+      "image": "postgres",
+      "status": "Exited (0) 3 weeks ago"
+    },
+    {
+      "name": "discord-ops-api-1",
+      "image": "discord-ops-backend:local",
+      "status": "Exited (0) 5 weeks ago"
+    },
+    {
+      "name": "social-operations-worker-1",
+      "image": "social-operations-worker",
+      "status": "Exited (0) 5 weeks ago"
+    },
+    {
+      "name": "social-operations-dispatcher-1",
+      "image": "social-operations-dispatcher",
+      "status": "Exited (0) 5 weeks ago"
+    },
+    {
+      "name": "social-operations-web-1",
+      "image": "social-operations-web",
+      "status": "Exited (143) 5 weeks ago"
+    },
+    {
+      "name": "social-operations-migrate-1",
+      "image": "social-operations-migrate",
+      "status": "Exited (0) 5 weeks ago"
+    },
+    {
+      "name": "social-operations-caddy-1",
+      "image": "caddy:2.10-alpine",
+      "status": "Exited (0) 5 weeks ago"
+    },
+    {
+      "name": "social-operations-postgres-1",
+      "image": "postgres:17-alpine",
+      "status": "Exited (0) 5 weeks ago"
+    },
+    {
+      "name": "social-operations-redis-1",
+      "image": "redis:7.4-alpine",
+      "status": "Exited (0) 5 weeks ago"
+    },
+    {
+      "name": "matcha-postgres",
+      "image": "postgres:16-alpine",
+      "status": "Exited (0) 5 weeks ago"
+    },
+    {
+      "name": "discord-ops-web-1",
+      "image": "discord-ops-web:local",
+      "status": "Exited (0) 5 weeks ago"
+    },
+    {
+      "name": "discord-ops-video-hermes",
+      "image": "hermes-agent:latest",
+      "status": "Exited (255) 7 weeks ago"
+    },
+    {
+      "name": "discord-ops-video-worker",
+      "image": "816c1349860b",
+      "status": "Exited (255) 7 weeks ago"
+    },
+    {
+      "name": "discord-ops-hermes-1",
+      "image": "hermes-agent:latest",
+      "status": "Exited (0) 8 weeks ago"
+    },
+    {
+      "name": "discord-ops-worker-1",
+      "image": "799d1b512163",
+      "status": "Exited (137) 8 weeks ago"
+    },
+    {
+      "name": "discord-ops-db-1",
+      "image": "postgres:15-alpine",
+      "status": "Exited (0) 5 weeks ago"
+    },
+    {
+      "name": "cvat_ui",
+      "image": "cvat/ui:dev",
+      "status": "Exited (0) 7 days ago"
+    },
+    {
+      "name": "cvat_worker_annotation",
+      "image": "cvat/server:dev",
+      "status": "Exited (0) 7 days ago"
+    },
+    {
+      "name": "cvat_worker_consensus",
+      "image": "cvat/server:dev",
+      "status": "Exited (0) 7 days ago"
+    },
+    {
+      "name": "cvat_server",
+      "image": "cvat/server:dev",
+      "status": "Exited (0) 7 days ago"
+    },
+    {
+      "name": "cvat_worker_quality_reports",
+      "image": "cvat/server:dev",
+      "status": "Exited (0) 7 days ago"
+    },
+    {
+      "name": "cvat_worker_import",
+      "image": "cvat/server:dev",
+      "status": "Exited (0) 7 days ago"
+    },
+    {
+      "name": "cvat_worker_export",
+      "image": "cvat/server:dev",
+      "status": "Exited (0) 7 days ago"
+    },
+    {
+      "name": "cvat_worker_webhooks",
+      "image": "cvat/server:dev",
+      "status": "Exited (0) 7 days ago"
+    },
+    {
+      "name": "cvat_worker_utils",
+      "image": "cvat/server:dev",
+      "status": "Exited (0) 7 days ago"
+    },
+    {
+      "name": "cvat_worker_chunks",
+      "image": "cvat/server:dev",
+      "status": "Exited (0) 7 days ago"
+    },
+    {
+      "name": "cvat_vector",
+      "image": "timberio/vector:0.26.0-alpine",
+      "status": "Exited (0) 7 days ago"
+    },
+    {
+      "name": "cvat_db",
+      "image": "postgres:15-alpine",
+      "status": "Exited (0) 7 days ago"
+    },
+    {
+      "name": "cvat_grafana",
+      "image": "grafana/grafana-oss:10.1.2",
+      "status": "Exited (0) 7 days ago"
+    },
+    {
+      "name": "cvat_clickhouse",
+      "image": "clickhouse/clickhouse-server:23.11-alpine",
+      "status": "Exited (0) 7 days ago"
+    },
+    {
+      "name": "cvat_redis_inmem",
+      "image": "redis:7.2.11-alpine",
+      "status": "Exited (0) 7 days ago"
+    },
+    {
+      "name": "cvat_opa",
+      "image": "openpolicyagent/opa:1.12.2",
+      "status": "Exited (0) 7 days ago"
+    },
+    {
+      "name": "traefik",
+      "image": "traefik:v3.6",
+      "status": "Exited (0) 7 days ago"
+    },
+    {
+      "name": "cvat_redis_ondisk",
+      "image": "apache/kvrocks:2.15.0",
+      "status": "Exited (0) 7 days ago"
+    },
+    {
+      "name": "discord-ops-local-hermes-1",
+      "image": "hermes-agent:latest",
+      "status": "Exited (0) 2 months ago"
+    },
+    {
+      "name": "discord-ops-local-api-1",
+      "image": "45f3ce2bfaf4",
+      "status": "Exited (0) 2 months ago"
+    },
+    {
+      "name": "discord-ops-local-worker-1",
+      "image": "45f3ce2bfaf4",
+      "status": "Exited (137) 2 months ago"
+    },
+    {
+      "name": "discord-ops-local-web-1",
+      "image": "dd9d4ea385e1",
+      "status": "Exited (0) 2 months ago"
+    },
+    {
+      "name": "discord-ops-local-db-1",
+      "image": "postgres:15-alpine",
+      "status": "Exited (0) 2 months ago"
+    },
+    {
+      "name": "social_intel_pg",
+      "image": "postgres:15-alpine",
+      "status": "Exited (0) 7 days ago"
+    },
+    {
+      "name": "minio-test",
+      "image": "minio/minio:latest",
+      "status": "Up 7 days"
+    },
+    {
+      "name": "knowhere_localstack",
+      "image": "localstack/localstack:3.8",
+      "status": "Exited (255) 3 weeks ago"
+    },
+    {
+      "name": "knowhere_postgres",
+      "image": "postgres:15-alpine",
+      "status": "Exited (0) 3 weeks ago"
+    },
+    {
+      "name": "knowhere_rabbitmq",
+      "image": "rabbitmq:3.12-management",
+      "status": "Exited (255) 3 weeks ago"
+    },
+    {
+      "name": "knowhere_redis",
+      "image": "redis:7-alpine",
+      "status": "Exited (0) 3 weeks ago"
+    }
+  ]
+}

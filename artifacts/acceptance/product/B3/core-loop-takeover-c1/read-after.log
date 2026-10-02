@@ -1,0 +1,26 @@
+✔ older v2 acknowledgement cannot downgrade a newer observed v3 (83.780949ms)
+✔ reads of different materials remain independent (18.609581ms)
+✔ adopting the current baseline retires an in-flight read without replacing human input (19.251925ms)
+✔ unmount and a save/refresh generation discard in-flight observations (31.649391ms)
+✖ late failure from an obsolete read cannot clear a newer observation or expire the session (13.06649ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 4
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1375.122273
+
+✖ failing tests:
+
+test at src/material-current-read.test.ts:92:1
+✖ late failure from an obsolete read cannot clear a newer observation or expire the session (13.06649ms)
+  TypeError: Cannot read properties of undefined (reading 'message')
+      at new ProductApiError (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/web/src/operator-api.ts:26:26)
+      at TestContext.<anonymous> (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/web/src/material-current-read.test.ts:97:12)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+undefined
+/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/web:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: tsx --test src/material-current-read.test.ts

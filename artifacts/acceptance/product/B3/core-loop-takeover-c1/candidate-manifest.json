@@ -1,0 +1,39 @@
+{
+  "scope": "C1/C2a author verification only",
+  "base": "52767d88ffb8c32d0e25b2e414ce40b237419838",
+  "sources": {
+    "product/web/src/material-workspace.tsx": {
+      "sha256": "66f39c48851f2421607b68edb2e0b80f7e769ff22e6e548181bbf19da762ba0d",
+      "gitBlob": "d171bc97a0f2aa2853dcacf3bfb350654cbbf7d0"
+    },
+    "product/web/src/project-planning-panel.tsx": {
+      "sha256": "e85b38c568d5605461580fde48e55582fd98fa0e2ed616a9062daac90be7c438",
+      "gitBlob": "f2bb6a4deebcd4fc760db3c289c78b2343cef966"
+    },
+    "product/web/src/style.css": {
+      "sha256": "a80153c2e3a685d9c6e915281f5efd8d05bd6b649ddbf90f03748b3906aa506f",
+      "gitBlob": "2eac74ab1dfe17c60f8b98cff30f1fc74101825b"
+    },
+    "product/web/src/material-current-read.test.ts": {
+      "sha256": "424f73af3f97a5aa108c65db4c767eb43598ff67417edbb6bf9481616b044ff8",
+      "gitBlob": "b283402f5b7e37a8678ec9436642e8189187e7db"
+    },
+    "scripts/verify-product-core-loop-local.mjs": {
+      "sha256": "9ccece5a8d3c99d79c3d724db7c4e0e220c4d8bd01995557c610a71213ccf44b",
+      "gitBlob": "098f34354cca2ba28a641abf0484d18226c3f362"
+    },
+    "scripts/verify-product-materials-playwright.mts": {
+      "sha256": "d78833875395458eb97b78b3cc95a3de840b09410adb86740518fea5bb2cb4f3",
+      "gitBlob": "963c24099a12bde832c04e8ee75542b45c124fc8"
+    },
+    "scripts/verify-product-planning-playwright.mts": {
+      "sha256": "4033389f7298675c2ed63f1d65b9d8a46adf41846964d826e1199b4224b537af",
+      "gitBlob": "d65a3b556b5a97e5b97f69388d95b45978bf65a9"
+    }
+  },
+  "C1_UI": "ui-third/materials-playwright.log",
+  "C2a_UI": "planning-visual-fixed/planning-playwright.log",
+  "strictMode_failure": "planning-diagnostic/planning-playwright.log",
+  "independent_review": "pending",
+  "verified_at_utc": "2026-10-02T04:04:16.500921+00:00"
+}

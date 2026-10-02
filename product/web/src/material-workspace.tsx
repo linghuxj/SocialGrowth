@@ -31,6 +31,7 @@ export function MaterialWorkspace({ projectId, active, readOnly, onExpired }: {
   const [cursor, setCursor] = useState<string | null>(null), [bulkLanguage, setBulkLanguage] = useState("");
   const [bulkOpen, setBulkOpen] = useState(false), [overwrite, setOverwrite] = useState(false), [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const alive = useRef(true), revision = useRef(0), check = useRef<HTMLInputElement>(null);
+  const currentReads = useRef(new Map<string, number>());
   const row = rows.find(r => r.id === editing);
   useEffect(() => { alive.current = true; return () => { alive.current = false; revision.current++; }; }, []);
   useEffect(() => { if (active && !loaded) void refresh(false); }, [active]);
@@ -138,9 +139,9 @@ export function MaterialWorkspace({ projectId, active, readOnly, onExpired }: {
         <label>内容名称<input value={row.input.declaration.name} onChange={e => edit({ ...row.input, declaration: { ...row.input.declaration, name: e.target.value } })} /></label>
         <label>语言标签<input disabled={!!row.saved} value={row.input.languageTag} onChange={e => edit({ ...row.input, languageTag: e.target.value })} /></label>
         <label>成品类型<select disabled={!!row.saved} value={row.input.identity.mediaKind} onChange={e => edit({ ...row.input, identity: { ...row.input.identity, mediaKind: e.target.value as Input["identity"]["mediaKind"], seriesId: null, episodeNumber: null } })}><option value="video">视频</option><option value="image_text">图文</option></select></label>
-        <label>业务类型<select disabled={!!row.saved} value={row.input.identity.businessKind} onChange={e => edit({ ...row.input, identity: { ...row.input.identity, businessKind: e.target.value as Input["identity"]["businessKind"], seriesId: null, episodeNumber: null } })}><option value="product">商品</option><option value="drama">短剧</option></select></label>
-        {(["description", "businessFacts", "sourceStatement"] as const).map((key, i) => <label key={key}>{["内容说明", "业务事实", "来源声明"][i]}<textarea value={row.input.declaration[key]} onChange={e => edit({ ...row.input, declaration: { ...row.input.declaration, [key]: e.target.value } })} /></label>)}
-        <label>已有来源证明记录标识（逗号分隔 UUID）<textarea value={row.evidenceText} onChange={e => { const text = e.target.value; update(row.id, r => ({ ...r, evidenceText: text, dirty: true, error: "", input: { ...r.input, declaration: { ...r.input.declaration, sourceEvidenceIds: text.split(",").map(v => v.trim()).filter(Boolean) } } })); }} /></label>
+        <label>业务类型<select aria-label="业务类型" disabled={!!row.saved} value={row.input.identity.businessKind} onChange={e => edit({ ...row.input, identity: { ...row.input.identity, businessKind: e.target.value as Input["identity"]["businessKind"], seriesId: null, episodeNumber: null } })}><option value="product">商品</option><option value="drama">短剧</option></select></label>
+        {(["description", "businessFacts", "sourceStatement"] as const).map((key, i) => <label key={key}>{["内容说明", "业务事实", "来源声明"][i]}<textarea aria-label={["内容说明", "业务事实", "来源声明"][i]} value={row.input.declaration[key]} onChange={e => edit({ ...row.input, declaration: { ...row.input.declaration, [key]: e.target.value } })} /></label>)}
+        <label>已有来源证明记录标识（逗号分隔 UUID）<textarea aria-label="已有来源证明记录标识（逗号分隔 UUID）" value={row.evidenceText} onChange={e => { const text = e.target.value; update(row.id, r => ({ ...r, evidenceText: text, dirty: true, error: "", input: { ...r.input, declaration: { ...r.input.declaration, sourceEvidenceIds: text.split(",").map(v => v.trim()).filter(Boolean) } } })); }} /></label>
         <label>商品／短剧业务标识 UUID<input disabled={!!row.saved} value={row.input.identity.businessEntityId} onChange={e => edit({ ...row.input, identity: { ...row.input.identity, businessEntityId: e.target.value } })} /></label>
         <label>来源主体标识 UUID<input disabled={!!row.saved} value={row.input.sourceId} onChange={e => edit({ ...row.input, sourceId: e.target.value })} /></label>
         <label>原成品来源记录 UUID<input disabled={!!row.saved} value={row.input.sourceRecordId} onChange={e => edit({ ...row.input, sourceRecordId: e.target.value })} /></label>
@@ -150,17 +151,29 @@ export function MaterialWorkspace({ projectId, active, readOnly, onExpired }: {
       {!readOnly && <button disabled={busy || !row.dirty || row.uploading} onClick={() => void save([row])}>保存本条／接续原请求</button>}{row.pending && <p role="status">原提交结果待确认，暂锁定输入；重试使用同一文件、记录和请求。</p>}
       {row.saved && row.dirty && <button className="outline-button" disabled={busy} onClick={() => void readCurrent(row)}>读取当前版本核对</button>}
       {row.observed && <div className="project-conflict"><h4>当前保存 v{row.observed.currentRevision}</h4><pre>{JSON.stringify({ language: row.observed.languageTag, identity: row.observed.identity, declaration: row.observed.declaration, objects: row.observed.objects.map(o => o.objectId) }, null, 2)}</pre>
-        <p>本人表单输入仍保留。采用最新版本只更新保存基线，下一次保存会提交表单中的全部资料；请逐项核对。</p><button className="outline-button" disabled={busy || !!row.pending || readOnly} onClick={() => update(row.id, r => ({ ...r, observed: undefined, saved: row.observed,
-          input: { ...r.input, expectedCurrentRevision: row.observed!.currentRevision, metadata: { contractVersion, requestId: `request-${crypto.randomUUID()}`, idempotencyKey: newIdempotencyKey() } } }))}>已核对，采用最新版本</button></div>}
+        <p>本人表单输入仍保留。采用最新版本只更新保存基线，下一次保存会提交表单中的全部资料；请逐项核对。</p><button className="outline-button" disabled={busy || !!row.pending || readOnly} onClick={() => adoptCurrent(row)}>已核对，采用最新版本</button></div>}
       {row.error && <p role="status">{row.error}</p>}
     </section>}
   </section>;
+  function adoptCurrent(r: Row) {
+    const observed = r.observed;
+    if (!observed || readOnly || busy || r.pending) return;
+    // Adopting an observation also retires every read already in flight for
+    // this material; those responses must not reopen the resolved conflict.
+    currentReads.current.set(r.id, (currentReads.current.get(r.id) ?? 0) + 1);
+    const metadata = { contractVersion, requestId: `request-${crypto.randomUUID()}`, idempotencyKey: newIdempotencyKey() };
+    update(r.id, value => value.observed !== observed ? value : ({ ...value, observed: undefined, saved: observed,
+      input: { ...value.input, expectedCurrentRevision: observed.currentRevision, metadata } }));
+  }
   async function readCurrent(r: Row) {
     // Only read; do not silently replace the unresolved original command.
     const read = revision.current;
+    const sequence = (currentReads.current.get(r.id) ?? 0) + 1;
+    currentReads.current.set(r.id, sequence);
+    const accepts = () => alive.current && read === revision.current && currentReads.current.get(r.id) === sequence;
     try {
       const current = await readProjectMaterial(projectId, r.id);
-      if (alive.current && read === revision.current) update(r.id, value => ({ ...value, observed: current }));
-    } catch (e) { if (alive.current && read === revision.current && !expired(e)) setError("当前版本未读到，原输入保留。"); }
+      if (accepts()) update(r.id, value => accepts() ? ({ ...value, observed: current }) : value);
+    } catch (e) { if (accepts() && !expired(e)) setError("当前版本未读到，原输入保留。"); }
   }
 }

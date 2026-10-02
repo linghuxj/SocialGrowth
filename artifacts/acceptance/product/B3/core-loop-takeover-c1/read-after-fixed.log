@@ -1,0 +1,13 @@
+✔ older v2 acknowledgement cannot downgrade a newer observed v3 (83.753602ms)
+✔ reads of different materials remain independent (25.371984ms)
+✔ adopting the current baseline retires an in-flight read without replacing human input (18.743274ms)
+✔ unmount and a save/refresh generation discard in-flight observations (29.784296ms)
+✔ late failure from an obsolete read cannot clear a newer observation or expire the session (11.825564ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1388.666221

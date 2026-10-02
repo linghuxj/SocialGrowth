@@ -14,7 +14,7 @@ export function ProjectPlanningPanel({ projectId, active, readOnly, onExpired, o
   const [form, setForm] = useState(planningFormOf), [dirty, setDirty] = useState(false), [section, setSection] = useState<"goals" | "cycle">("goals");
   const [loading, setLoading] = useState(false), [busy, setBusy] = useState(false), [pending, setPending] = useState<PreparedPlanningDraft | null>(null), [message, setMessage] = useState("");
   const alive = useRef(true), sequence = useRef(0), sending = useRef(false), loadingRef = useRef(false), draftRef = useRef(false);
-  useEffect(() => { alive.current = true; return () => { alive.current = false; sequence.current++; }; }, []);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; sequence.current++; loadingRef.current = false; }; }, []);
   useEffect(() => { if (active && !base) void refresh(); }, [active]);
   function failed(e: unknown): boolean {
     if (e instanceof ProductApiError && e.status === 401) { onExpired(e); return true; } return false;
@@ -66,15 +66,15 @@ export function ProjectPlanningPanel({ projectId, active, readOnly, onExpired, o
       <section className="project-direction-note"><div><h3>当前为筹备草案，不是批准范围</h3><p>项目版本 {base.projectFactVersion}，草案版本 {base.draftVersion}。{base.savedAt ? `保存时间 ${base.savedAt}；保存人 ${base.savedByOperatorId}` : "尚无保存记录"}。没有实际运行周期，不显示示例进度或生效时间。</p></div></section>
       <fieldset disabled={readOnly || busy || !!pending}>
         <section className="panel planning-form-grid" hidden={section !== "goals"}>
-          <label>正式开通前阶段目标<textarea maxLength={150} value={form.preOpeningGoal} onChange={e => edit("preOpeningGoal", e.target.value)} /></label>
-          <label>正式开通后阶段目标<textarea maxLength={150} value={form.postOpeningGoal} onChange={e => edit("postOpeningGoal", e.target.value)} /></label>
-          <label>正式开通后优先级<select value={form.postOpeningPriority} onChange={e => edit("postOpeningPriority", e.target.value as PlanningForm["postOpeningPriority"])}><option value="">尚未配置</option><option value="revenue_first">广告收益优先，保留引流</option><option value="traffic_first">引流优先，保留广告收益</option><option value="balanced">两者平衡</option></select></label>
+          <label>正式开通前阶段目标<textarea aria-label="正式开通前阶段目标" maxLength={150} value={form.preOpeningGoal} onChange={e => edit("preOpeningGoal", e.target.value)} /></label>
+          <label>正式开通后阶段目标<textarea aria-label="正式开通后阶段目标" maxLength={150} value={form.postOpeningGoal} onChange={e => edit("postOpeningGoal", e.target.value)} /></label>
+          <label>正式开通后优先级<select aria-label="正式开通后优先级" value={form.postOpeningPriority} onChange={e => edit("postOpeningPriority", e.target.value as PlanningForm["postOpeningPriority"])}><option value="">尚未配置</option><option value="revenue_first">广告收益优先，保留引流</option><option value="traffic_first">引流优先，保留广告收益</option><option value="balanced">两者平衡</option></select></label>
           <label>目标国家标签（逗号分隔）<input value={form.targetCountries} onChange={e => edit("targetCountries", e.target.value)} /></label><label>目标语言标签（逗号分隔）<input value={form.targetLanguages} onChange={e => edit("targetLanguages", e.target.value)} /></label>
           <div><p>允许成品形式</p>{(Object.keys(forms) as (keyof typeof forms)[]).map(key => <label key={key} className="material-inline-check"><input type="checkbox" checked={form.contentForms.includes(key)} onChange={e => edit("contentForms", e.target.checked ? [...form.contentForms, key] : form.contentForms.filter(v => v !== key))} />{forms[key]}</label>)}</div>
-          <label>内容规则说明<textarea maxLength={150} value={form.contentRules} onChange={e => edit("contentRules", e.target.value)} /></label>
+          <label>内容规则说明<textarea aria-label="内容规则说明" maxLength={150} value={form.contentRules} onChange={e => edit("contentRules", e.target.value)} /></label>
         </section>
         <section className="panel planning-form-grid" hidden={section !== "cycle"}>
-          <label>业务时区<select value={form.businessTimeZone} onChange={e => edit("businessTimeZone", e.target.value)}><option value="">尚未配置</option>{zones.map(zone => <option key={zone} value={zone}>{zone}</option>)}</select></label>
+          <label>业务时区<select aria-label="业务时区" value={form.businessTimeZone} onChange={e => edit("businessTimeZone", e.target.value)}><option value="">尚未配置</option>{zones.map(zone => <option key={zone} value={zone}>{zone}</option>)}</select></label>
           <label>首次统计起点（ISO 时间，须含时区）<input value={form.firstCycleStartsAt} onChange={e => edit("firstCycleStartsAt", e.target.value)} placeholder="填写实际时刻，末尾 Z 或 ±HH:MM" /></label>
           {numberFields.map(key => <label key={key}>{numericLabels[key]}<input inputMode="numeric" value={form[key]} onChange={e => edit(key, e.target.value)} /></label>)}
           <label>发布有效窗口开始（ISO 含时区）<input value={form.windowStart} onChange={e => edit("windowStart", e.target.value)} /></label><label>发布有效窗口结束（ISO 含时区，结束不含）<input value={form.windowEnd} onChange={e => edit("windowEnd", e.target.value)} /></label>

@@ -1,0 +1,28 @@
+/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/web/src/material-current-read.test.ts:7
+import { materialCurrentViewSchema, type MaterialCurrentView } from "./material-api.js";
+         ^
+SyntaxError: The requested module './material-api.js' does not provide an export named 'materialCurrentViewSchema'
+    at #asyncInstantiate (node:internal/modules/esm/module_job:327:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:431:5)
+    at async node:internal/modules/esm/loader:633:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.16.0
+✖ src/material-current-read.test.ts (853.431424ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 871.116143
+
+✖ failing tests:
+
+test at src/material-current-read.test.ts:1:1
+✖ src/material-current-read.test.ts (853.431424ms)
+  'test failed'
+undefined
+/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/web:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: tsx --test src/material-current-read.test.ts

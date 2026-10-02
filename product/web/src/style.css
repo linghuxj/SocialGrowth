@@ -11,6 +11,7 @@
 .planning-form-grid label { display: grid; gap: 8px; min-width: 0; }
 .planning-form-grid textarea { min-height: 86px; resize: vertical; }
 .planning-form-grid .material-inline-check { display: flex; }
+.planning-form-grid input[type=checkbox] { width: 18px; height: 18px; flex: 0 0 18px; padding: 0; accent-color: #2459c4; }
 .planning-workspace pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width: 700px) { .planning-form-grid { grid-template-columns: minmax(0, 1fr); } }
 [hidden] { display: none !important; }
@@ -52,8 +53,9 @@
 .material-editor fieldset { border: 0; padding: 0; }
 .material-editor pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .material-form-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px 24px; }
-.material-workspace textarea { font: inherit; color: #172b4d; border: 1px solid #cbd5e1; border-radius: 6px; min-height: 100px; resize: vertical; width: 100%; padding: 10px 12px; }
-.material-workspace textarea:focus-visible { outline: 3px solid #bfd2ff; }
+.material-workspace textarea, .planning-form-grid textarea { font: inherit; color: #172b4d; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; resize: vertical; width: 100%; padding: 10px 12px; }
+.material-workspace textarea { min-height: 100px; }
+.material-workspace textarea:focus-visible, .planning-form-grid textarea:focus-visible { outline: 3px solid #bfd2ff; }
 .material-inline-check { display: flex; flex-direction: row; align-items: center; margin: 16px 0; }
 .material-preview { display: block; width: min(100%,480px); max-height: 270px; object-fit: contain; margin: 16px 0; }
 @media(max-width:700px) { .material-form-grid { grid-template-columns: 1fr; } .material-workspace .section-heading { align-items: flex-start; flex-wrap: wrap; } .material-table td:nth-child(3) { max-width: none; } }

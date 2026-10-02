@@ -1,0 +1,8 @@
+{
+  "ownedServicesExited": true,
+  "ownedContainerIdsRemoved": [
+    "46e3000686cd1bada959254802ad7c376d27e446f54c798fe36707b582599d01",
+    "668e6099b74aa3043ffc9a2008e8ff72aa987ebdb9932062f1f55b81343ed72d"
+  ],
+  "temporaryCredentialsRemoved": true
+}

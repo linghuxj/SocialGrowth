@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, stat } from "node:fs/promises";
 import { isAbsolute } from "node:path";
 import { chromium } from "playwright";
+import { fetchCapturedBrowserRequest } from "./product-playwright-safe-fetch.mjs";
 
 // Run ONLY after the administrator has restored browser-policy access. This
 // script is a reproducible UI acceptance target, never a policy workaround.
@@ -16,6 +17,13 @@ for (const key of ["name", "language", "businessEntityId", "sourceId", "sourceRe
 if (!isAbsolute(file) || !(await stat(file)).isFile()) throw new Error("Explicit actual test file required");
 await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ headless: true });
+const releaseOld = deferred(), releaseAfterAdoption = deferred();
+function deferred() { let release!: () => void; const promise = new Promise<void>(yes => { release = yes; }); return { promise, release }; }
+async function reached(promise: Promise<void>) {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try { await Promise.race([promise, new Promise<never>((_yes, no) => { timeout = setTimeout(() => no(new Error("Material read interception deadline exceeded")), 10_000); })]); }
+  finally { clearTimeout(timeout); }
+}
 try {
   const page = await browser.newPage({ locale: "zh-CN", viewport: { width: 1487, height: 1058 } }), errors: string[] = [];
   page.on("pageerror", () => errors.push("pageerror"));
@@ -34,7 +42,7 @@ try {
   await material.getByRole("button", { name: "预览／资料", exact: true }).click();
   const editor = material.getByRole("region", { name: "素材资料详情" });
   await editor.getByLabel("内容名称", { exact: true }).fill(details.name!); await editor.getByLabel("语言标签", { exact: true }).fill(details.language!);
-  await editor.getByLabel("成品类型").selectOption(details.mediaKind ?? "image_text"); await editor.getByLabel("业务类型", { exact: true }).selectOption(details.businessKind ?? "product");
+  await editor.getByLabel("成品类型").selectOption(details.mediaKind ?? "image_text"); await editor.getByLabel("业务类型").selectOption(details.businessKind ?? "product");
   for (const [label, key] of [["内容说明", "description"], ["业务事实", "businessFacts"], ["来源声明", "sourceStatement"], ["已有来源证明记录标识（逗号分隔 UUID）", "sourceEvidenceIds"], ["商品／短剧业务标识 UUID", "businessEntityId"], ["来源主体标识 UUID", "sourceId"], ["原成品来源记录 UUID", "sourceRecordId"]]) await editor.getByLabel(label!, { exact: true }).fill(details[key!]!);
   await editor.getByRole("button", { name: "保存本条／接续原请求" }).click();
   await editor.getByText("请人工确认首次使用声明；文件上传不能代替来源确认。", { exact: true }).waitFor();
@@ -43,15 +51,58 @@ try {
   await material.getByText("已保存 1 项，0 项仍需处理。保存结果仅为待检查，不代表候选或发布。", { exact: true }).waitFor();
   await material.getByText("资料已保存 v1 · 待检查", { exact: true }).waitFor();
   await page.screenshot({ path: `${output}/material-saved.png`, fullPage: true });
+  // C1-READ-01: only delay real browser GET acknowledgements. A second actual
+  // Web session saves v2; no API writes, DB seeds or synthetic success replies.
+  await editor.getByLabel("内容说明", { exact: true }).fill(`${details.description}；本人未保存草稿`);
+  const firstFetched = deferred(), thirdFetched = deferred(); let reads = 0;
+  const path = "**/api/operator/projects/*/materials/*";
+  await page.route(path, async route => {
+    if (route.request().method() !== "GET") { await route.continue(); return; }
+    const ordinal = ++reads;
+    const response = await fetchCapturedBrowserRequest(route, await route.request().allHeaders());
+    assert.equal(response.status(), 200);
+    const facts = await response.json() as { currentRevision: number };
+    if (ordinal === 1) { assert.equal(facts.currentRevision, 1); firstFetched.release(); await releaseOld.promise; }
+    if (ordinal === 3) { assert.equal(facts.currentRevision, 2); thirdFetched.release(); await releaseAfterAdoption.promise; }
+    await route.fulfill({ response });
+  });
+  await editor.getByRole("button", { name: "读取当前版本核对" }).click(); await reached(firstFetched.promise);
+  const other = await browser.newPage({ locale: "zh-CN", viewport: { width: 1487, height: 1058 } });
+  await other.goto(process.env.SG_PRODUCT_WEB_URL ?? "http://127.0.0.1:3100");
+  await other.getByLabel("登录名", { exact: true }).fill(login); await other.getByLabel("密码", { exact: true }).fill(password);
+  await other.getByRole("button", { name: "登录", exact: true }).click(); await other.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
+  await other.getByRole("button", { name: "项目", exact: true }).click();
+  await other.locator(".project-workspace").getByRole("row").filter({ hasText: name }).getByRole("button", { name: "准备清单" }).click();
+  await other.locator(".project-workspace").getByRole("button", { name: "素材", exact: true }).click();
+  const otherMaterial = other.getByRole("region", { name: "项目素材", exact: true });
+  await otherMaterial.getByRole("button", { name: "预览／资料", exact: true }).click();
+  const otherEditor = otherMaterial.getByRole("region", { name: "素材资料详情" });
+  await otherEditor.getByLabel("内容说明", { exact: true }).fill(`${details.description}；另一会话已保存版本2`);
+  await otherEditor.getByRole("button", { name: "保存本条／接续原请求" }).click();
+  await otherMaterial.getByText("资料已保存 v2 · 待检查", { exact: true }).waitFor();
+  await editor.getByRole("button", { name: "读取当前版本核对" }).click();
+  await editor.getByRole("heading", { name: "当前保存 v2", exact: true }).waitFor();
+  const oldDelivered = page.waitForResponse(response => /\/materials\/[a-f0-9-]+$/.test(new URL(response.url()).pathname));
+  releaseOld.release(); await oldDelivered; await page.waitForLoadState("networkidle");
+  assert.equal(await editor.getByRole("heading", { name: "当前保存 v2", exact: true }).count(), 1);
+  assert.equal(await editor.getByRole("heading", { name: "当前保存 v1", exact: true }).count(), 0);
+  await editor.getByRole("button", { name: "读取当前版本核对" }).click(); await reached(thirdFetched.promise);
+  await editor.getByRole("button", { name: "已核对，采用最新版本" }).click();
+  const retiredDelivered = page.waitForResponse(response => /\/materials\/[a-f0-9-]+$/.test(new URL(response.url()).pathname));
+  releaseAfterAdoption.release(); await retiredDelivered; await page.waitForLoadState("networkidle");
+  assert.equal(await editor.locator(".project-conflict").count(), 0, "Adopted baseline must not be reopened by an in-flight acknowledgement");
+  assert.equal(await editor.getByLabel("内容说明", { exact: true }).inputValue(), `${details.description}；本人未保存草稿`);
+  await page.screenshot({ path: `${output}/material-read-race.png`, fullPage: true });
+  await page.unroute(path); await other.close();
   await page.reload(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
   await page.getByRole("button", { name: "项目", exact: true }).click();
   await project.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "准备清单" }).click();
   await project.getByRole("button", { name: "素材", exact: true }).click();
-  await material.getByText("资料已保存 v1 · 待检查", { exact: true }).waitFor();
+  await material.getByText("资料已保存 v2 · 待检查", { exact: true }).waitFor();
   await material.getByRole("button", { name: "预览／资料" }).click(); assert.equal(await editor.getByLabel("内容名称", { exact: true }).inputValue(), details.name);
   await page.setViewportSize({ width: 390, height: 1000 }); await page.getByText("手机端为只读模式", { exact: true }).waitFor();
   assert.equal(await material.locator('input[type="file"]').count(), 0); assert.equal(await material.getByRole("button", { name: "保存本条／接续原请求" }).count(), 0);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth), false);
   await page.screenshot({ path: `${output}/material-readonly-mobile.png`, fullPage: true }); assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ passed: true, scope: "project creation / actual file / human declaration / saved pending_validation / reload / mobile readonly", candidateAdmission: "not tested", Artemis: "not tested" }));
-} finally { await browser.close(); }
+  console.log(JSON.stringify({ passed: true, scope: "project creation / actual file / human declaration / saved pending_validation / real v1-after-v2 read race / adoption retires read / reload / mobile readonly", candidateAdmission: "not tested", Artemis: "not tested" }));
+} finally { releaseOld.release(); releaseAfterAdoption.release(); await browser.close(); }

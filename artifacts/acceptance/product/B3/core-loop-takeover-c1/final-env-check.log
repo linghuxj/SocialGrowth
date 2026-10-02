@@ -1,0 +1,5 @@
+
+> socialgrowth-monorepo@1.0.0 env:check /Users/linghuxj/Documents/myproject/project/SocialGrowth
+> node scripts/check-node.mjs
+
+[environment] Node v24.16.0 | /Users/linghuxj/Library/pnpm/nodejs/24.16.0/bin/node | SQLite OK
