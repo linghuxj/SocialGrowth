@@ -1,0 +1,16 @@
+✔ GET is read-only; real request durably reports missing resources with no permission or fake success (640.228258ms)
+✔ transport ACK loss and process reconstruction recover same original task without another check (109.021619ms)
+✔ concurrent same-scope requests create one central task and one check; changed scope cannot replace it (54.098661ms)
+✔ same key cannot change payload/kind; forged evidence/permissions and wrong paths are rejected (37.0291ms)
+✔ recheck changes original task version once; replay and stale retry cannot generate a new attempt (64.034824ms)
+✔ real reserved allocation selects app inspection, but physical execution remains closed (57.119302ms)
+✔ unassigned original task can attach only matching centrally reserved resources without replacing intent (57.425477ms)
+✔ CSRF, expired session and audit failure are atomic and do not leak raw DB details (61.543007ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2240.756424

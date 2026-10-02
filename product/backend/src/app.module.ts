@@ -26,6 +26,8 @@ import { ProjectPlanningService } from "./project-planning-service.js";
 import { ProjectDirectionService } from "./project-direction-service.js";
 import { ProjectDirectionController } from "./project-direction.controller.js";
 import { readInitialDirectionModel } from "./artemis-business-model.js";
+import { AccountPreparationService } from "./account-preparation-service.js";
+import { AccountPreparationController } from "./account-preparation.controller.js";
 import { DeviceAssistanceFeedService } from "./device-assistance-feed-service.js";
 import { DeviceAssistanceFeedController } from "./device-assistance-feed.controller.js";
 import { ProviderAssistanceFeedService } from "./provider-assistance-feed-service.js";
@@ -134,6 +136,7 @@ const providerAuthProvider = {
     MediaCredentialsController,
     ProjectPlanningController,
     ProjectDirectionController,
+    AccountPreparationController,
     DeviceAssistanceFeedController,
     ProviderAssistanceFeedController,
     ProviderCommissionFeedController,
@@ -141,6 +144,7 @@ const providerAuthProvider = {
     TrackingRedirectController,
   ],
   providers: [
+    { provide: AccountPreparationService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new AccountPreparationService(pool, auth) },
     poolProvider,
     operatorAuthProvider,
     invitationManagementProvider,

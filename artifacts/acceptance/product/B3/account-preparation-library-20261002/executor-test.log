@@ -1,0 +1,35 @@
+
+> @socialgrowth/product-executor@0.0.0 test /Users/linghuxj/Documents/myproject/project/SocialGrowth/product/executor
+> tsx --test src/*.test.ts
+
+✔ preparation checks app then parent then publishing identity; registration alone is not readiness (27.337337ms)
+✔ missing Page/channel selects creation only with exact prerequisite inputs (2.486028ms)
+✔ check-only and separate install/creation scopes cannot become creation authority (0.871578ms)
+✔ unknown device task, unknown or prior creation never lead to another creation (0.892849ms)
+✔ existing binding and missing expected identity require review, not replacement (1.317212ms)
+✔ account mismatch, ambiguity or changed allocation stop before creation (0.726123ms)
+✔ creation report requires separate readback; valid existing identity is reused (0.929018ms)
+✔ unsubstantiated readiness and extra action/secret fields are rejected (3.413907ms)
+✔ all library operations are bounded Artemis instructions; browsing is optional (1.183417ms)
+✔ absent ports and invalid prepared files cannot issue any Artemis RPC (66.579045ms)
+✔ committed launch intent is followed by a fresh guard; Pro receives exact serial/file and forbids final submission (5.856054ms)
+✔ lost launch acknowledgement never relaunches the same original attempt (1.806613ms)
+✔ concurrent duplicate start claims issue exactly one autonomous launch (2.332004ms)
+✔ permission withdrawn after committed intent cannot launch and cannot be reset by another start (1.950359ms)
+✔ lost trace-binding acknowledgement is unknown now, but later original reconciliation only polls its bound trace (2.913297ms)
+✔ reported ready needs actual corroboration; engine completed never becomes published or verified (3.460386ms)
+✔ a forged caller trace cannot read/stop another task or create a new launch intent (1.829833ms)
+✔ current permission loss requests stop but never pretends actions stopped or publication did not occur (1.441156ms)
+✔ identity mismatch, submitted/forged/missing evidence, wrong serial and invalid result remain human/unknown (16.307569ms)
+✔ executor accepts the current QR version and installation view (11.282929ms)
+✔ executor rejects old QR versions, unknown fields and contradictory state (4.486556ms)
+✔ WP-00 executor stays disabled and states that it consumes no queue (22.4455ms)
+✔ WP-00 executor rejects an enabled mode (1.653328ms)
+ℹ tests 23
+ℹ suites 0
+ℹ pass 23
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1333.321061

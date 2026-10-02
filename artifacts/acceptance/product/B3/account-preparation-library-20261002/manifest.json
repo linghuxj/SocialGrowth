@@ -1,0 +1,74 @@
+{
+  "checkedAt": "2026-10-02T06:54:50.809245+00:00",
+  "baseCommit": "57ac7c248311226942e693b583a4d691976ec08c",
+  "candidate": "working-tree-component-increment",
+  "scope": "R-158 preparation execution library and pure next-step selection",
+  "files": [
+    {
+      "path": "docs/current-requirements-summary.md",
+      "bytes": 38685,
+      "sha256": "dae7d09633ec04a4355d0ab838ce1329181eb75b7e16418e03d00888a91421d8"
+    },
+    {
+      "path": "docs/requirements-alignment.md",
+      "bytes": 171065,
+      "sha256": "8c5c3948330f7c0f8c5a85369d22ec2e4c52bd711bc1eb6a931aacf635e2c740"
+    },
+    {
+      "path": "docs/specs/2026-10-02-account-preparation-execution-library.md",
+      "bytes": 5461,
+      "sha256": "bdbf707891d63e5295c7caa321b3a7fbb126105b71783f40421679f7758f9ee3"
+    },
+    {
+      "path": "docs/engineering/delivery/records/account-preparation-library-20261002.md",
+      "bytes": 4042,
+      "sha256": "83539bb9612d7ef6a3edd9db665a048e6a16a31fe923eabc7e2a31e77ae8ac07"
+    },
+    {
+      "path": "product/contracts/src/index.ts",
+      "bytes": 1213,
+      "sha256": "e8c345253ea462cecc47c401009046178fc8720dfbd8d3b3866fd1f0377ebe14"
+    },
+    {
+      "path": "product/contracts/src/execution-library.ts",
+      "bytes": 7652,
+      "sha256": "3002ac78e3d92e1b66dbb1b84705f4600c001f74626d15746488cddb7429f2e5"
+    },
+    {
+      "path": "product/executor/src/account-preparation-plan.ts",
+      "bytes": 4852,
+      "sha256": "e129a4e4f9788379a8e4042877ee235b7fad886315256fc7a5f36928526dd5c5"
+    },
+    {
+      "path": "product/executor/src/account-preparation-plan.test.ts",
+      "bytes": 7270,
+      "sha256": "43f81f34da4f71fc81dd5455968afe89fe513176c0a93fa1a558d0e6519de5e9"
+    }
+  ],
+  "checks": {
+    "contractsTypescript": {
+      "passed": 66,
+      "failed": 0
+    },
+    "contractsPython": {
+      "passed": 38,
+      "failed": 0
+    },
+    "executor": {
+      "passed": 23,
+      "failed": 0,
+      "newCases": 9
+    },
+    "contractsBuildAndGeneratedCheck": "passed",
+    "executorTypeCheckAndBuild": "passed",
+    "scopedLint": "passed"
+  },
+  "acceptance": {
+    "playwrightRun": false,
+    "realArtemisInvocations": 0,
+    "createdPlatformAssets": 0,
+    "publications": 0,
+    "centralDispatchConnected": false,
+    "executionPermissionGranted": false
+  }
+}

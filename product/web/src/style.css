@@ -78,6 +78,9 @@
 .project-form fieldset { border: 0; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px 24px; }
 .project-form input, .project-form select { border-radius: 6px; padding: 9px 12px; }
 .project-form label { font-weight: 500; }
+.account-preparation-panel .preparation-choice { display: flex; align-items: center; gap: 8px; }
+.account-preparation-panel input[type=checkbox] { width: 18px; height: 18px; padding: 0; flex: 0 0 18px; accent-color: #2459c4; }
+@media(max-width:700px) { .account-preparation-panel .section-heading { flex-direction: column; align-items: flex-start; gap: 12px; } }
 .project-save-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
 .project-conflict { margin-top: 20px; padding: 16px; background: #fff4df; color: #75430a; border-radius: 6px; }
 .project-conflict p { overflow-wrap: anywhere; }

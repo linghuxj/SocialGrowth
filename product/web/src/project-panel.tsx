@@ -4,6 +4,7 @@ import { ArrowLeft, CalendarBlank, DeviceMobile, FileText, Folder, Info, Link, P
 import { isDefinitiveProjectRejection, listProjects, newIdempotencyKey, ProductApiError, saveProject } from "./operator-api.js";
 import { MaterialWorkspace } from "./material-workspace.js";
 import { ProjectPlanningPanel } from "./project-planning-panel.js";
+import { AccountPreparationPanel } from "./account-preparation-panel.js";
 
 interface Draft { basics: ProjectBasics; base?: ProjectView; key: string | null; uncertain?: boolean }
 const empty = (): ProjectBasics => ({ name: "", kind: "company_owned", customerName: null, ownerOperatorId: null, notificationEmail: null });
@@ -132,6 +133,7 @@ export function ProjectPanel({ active, refreshVersion, operators, readOnly, onEx
     </>}
     {materialProjects.map(id => <MaterialWorkspace key={id} projectId={id} active={active && selected === id && tab === "materials"} readOnly={readOnly} onExpired={onExpired} />)}
     {planningProjects.map(id => <ProjectPlanningPanel key={id} projectId={id} active={active && selected === id && tab === "settings"} readOnly={readOnly} onExpired={onExpired} onFactsChanged={() => setPlanningRefresh(v => v + 1)} />)}
+    {planningProjects.map(id => <AccountPreparationPanel key={id} projectId={id} active={active && selected === id && tab === "settings"} readOnly={readOnly} onExpired={onExpired} />)}
   </div>;
   function openList() { setSelected(null); setMessage(""); }
 }

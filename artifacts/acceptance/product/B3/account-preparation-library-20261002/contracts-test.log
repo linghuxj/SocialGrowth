@@ -1,0 +1,83 @@
+
+> @socialgrowth/product-contracts@0.0.0 test /Users/linghuxj/Documents/myproject/project/SocialGrowth/product/contracts
+> tsx --test src/*.test.ts && python3 -m unittest discover -s python/tests -p 'test_*.py'
+
+✔ CT-06 action request uses an independent strict version and lossless generation (21.376998ms)
+✔ commission contract is minimal exact-money internal history, no payables or other-person fields (24.927884ms)
+✔ commission page enforces revision uniqueness and last-record cursor, permits distinct revisions (3.164345ms)
+✔ commission times compare exact fractions and offsets, invalid calendar/money never throws raw BigInt errors (39.951065ms)
+✔ assistance note command is bounded, strict and cannot claim verification or recipient authority (78.667679ms)
+✔ assistance feed projects pending history, never grants execution, claims notification or exposes credentials (1.579856ms)
+✔ assistance page cursor identifies the last row and summaries cannot repeat UUIDs across casing (12.12283ms)
+✔ all assistance response shapes share representable calendar years without losing fraction or offset ordering (2.237249ms)
+✔ provider summary preserves same todo progress but excludes operator responsibility and private history (4.165971ms)
+✔ operator notes page preserves bounded recorded notes and consistent current count/cursor (7.123286ms)
+✔ operator facts keep association separate from connection confirmation (20.999265ms)
+✔ operator facts reject full phone, installation identity and credentials (0.854165ms)
+✔ liveness response rejects a Demo environment (5.1971ms)
+✔ invitation creation returns access once while list views exclude the code (20.945857ms)
+✔ invitation status fixes revocation actor and timestamp semantics (52.255381ms)
+✔ invitation access rejects short or non-url-safe shared codes (4.200642ms)
+✔ invitation views reject contradictory usage, status, time and incomplete progress (2.262335ms)
+✔ invitation time comparison preserves sub-millisecond precision (0.83963ms)
+✔ revoke responses apply the full invitation semantics (1.330047ms)
+✔ malformed timestamps remain safe validation failures at every entry (2.975751ms)
+✔ human declaration strict request keeps explicit identity, evidence and object order without success/config claims (20.295195ms)
+✔ current material projection is pending-only and excludes storage, actor, invented historical or publication state (29.352412ms)
+✔ batch envelope is trace-only and each item result stays indexed, scoped and pending without whole-batch success (7.622852ms)
+✔ revision history has exact continuous numeric page/cursor/time and current snapshot semantics (49.119267ms)
+✔ material library is scoped, stable ordered variant pagination rather than new quotas or overall eligibility (2.368984ms)
+✔ inventory preserves original ticket status, project, stable order and exact cursor without permissions (45.612309ms)
+✔ upload request describes original bytes without caller storage configuration, privilege or identity claims (3.388359ms)
+✔ byte transport command has no URL or caller success, and acknowledgement is verified history only (2.996809ms)
+✔ minimal ticket cannot claim eligibility, disclose internal locator or contradict exact timestamp status (2.559935ms)
+✔ credential transport bounds canonical original bytes, not plaintext/password policy or an encryption assertion (32.363055ms)
+✔ credential paths and requests reject uppercase IDs, unsafe versions, spoofed current authority and raw extra secrets (2.347473ms)
+✔ credential metadata is current/unverified only; strict responses reject secret bytes and impossible changed/replayed pairs (17.202074ms)
+✔ CT-05 uses independently versioned, strict, lossless bindings (50.793349ms)
+✔ proof is a fixed P-256 signature, not client-supplied authority (1.280534ms)
+✔ all four planning contracts preserve exact-case canonical keys and declared aliases, reject case variants before hashing (103.008613ms)
+✔ incomplete planning stays explicitly unapproved with no guessed countries, time zone or numerical defaults (1.712208ms)
+✔ exact publication windows and save provenance reject fabricated authority (24.767368ms)
+✔ project metadata cannot infer missing inputs, managed customers or approval authority (10.932581ms)
+✔ project projections reject invented readiness, running state and inconsistent update clocks (23.641581ms)
+✔ registration and login challenges have distinct strict inputs (15.718036ms)
+✔ challenge responses promise acceptance rather than SMS delivery or verification (37.689052ms)
+✔ verification codes allow provider-specific numeric lengths without fixing the UI to six digits (1.865891ms)
+✔ verified proofs bind a purpose and have a strictly later expiry (1.866806ms)
+✔ provider login accepts only a verified proof and auth responses keep the full phone absent (3.854479ms)
+✔ first registration no longer requires a name field absent from the selected design (1.208691ms)
+✔ registration enters management with the same provider and logout stays explicit (2.277713ms)
+✔ installation bootstrap accepts only a versioned high-entropy credential (8.971612ms)
+✔ installation auth response never returns the root credential (40.99848ms)
+✔ registration accepts verification proof but rejects client-owned identity (2.621517ms)
+✔ association confirmation binds the scanned session to its expected installation (1.646105ms)
+✔ association result and provider device list do not expose another owner (3.913346ms)
+✔ installation status excludes provider and operator identifiers (2.237296ms)
+✔ status views reject contradictory ownership facts (4.322791ms)
+✔ association QR payload is versioned and uses the fixed code format (1.018062ms)
+✔ operator login requires canonical identifiers and rejects client-owned identity (2.580103ms)
+✔ operator account responses keep passwords write-only and status consistent (7.900116ms)
+✔ operator action responses fix the resulting account status (2.83568ms)
+✔ media references are canonical-format declarations, not credentials or platform verification (11.597001ms)
+✔ single-pattern preparation IDs preserve installed UUID grammar without allOf or case widening (3.073882ms)
+✔ all registration responses stay unverified and disallow changed replay in JSON Schema (7.734822ms)
+✔ resource preparation requests and pending-only snapshots cannot declare execution or acceptance (19.605918ms)
+✔ central task strict version and references reject missing scope, shell, locators and caller privileges (28.161523ms)
+✔ four forms bind platform, ordered unique files and video/image metadata without proving actual media (1.048618ms)
+✔ task schedule uses exact inclusive start/exclusive end and long fractional offset comparison (0.578025ms)
+✔ queue notice is minimal recheck reference not executable contract, action permit or publishing success (1.416216ms)
+✔ engine completion and claimed platform result remain independent with strict source observation facts (2.283571ms)
+ℹ tests 66
+ℹ suites 0
+ℹ pass 66
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1425.850075
+......................................
+----------------------------------------------------------------------
+Ran 38 tests in 0.546s
+
+OK
