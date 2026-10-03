@@ -25,7 +25,7 @@ if (planResponseDelayMs > 0) await page.route("**/api/operator/projects/*/busine
   if (route.request().method() !== "POST") return route.continue();
   const body = route.request().postData() ?? "";
   if (originalPlanRequestBody === null) originalPlanRequestBody = body;
-  else assert.equal(body, originalPlanRequestBody, "explicit continuation must preserve the exact original plan request body/key");
+  else assert.ok(body === originalPlanRequestBody, "explicit continuation must preserve the exact original plan request body/key");
   let idempotencyKeySha256: string | null = null;
   try {
     const metadata = (JSON.parse(body) as { metadata?: { idempotencyKey?: unknown } }).metadata;
@@ -176,7 +176,7 @@ try {
       const firstResponse = await actualPlanResponse!;
       assert.equal(originalPlanRequestBody === null, false);
       if (!firstResponse.ok()) {
-        await planTasks.getByRole("alert").filter({ hasText: "安排结果尚未确认" }).waitFor();
+        await planTasks.getByRole("status").filter({ hasText: "原安排请求仍待核对；请求键和范围已冻结" }).waitFor();
         const reconciliationRead = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/business-plan") && response.request().method() === "GET", { timeout: 30_000 });
         await planTasks.getByRole("button", { name: "读取当前事实", exact: true }).click();
         const currentResponse = await reconciliationRead;
