@@ -55,8 +55,21 @@ try {
   if (rowCount === 0) {
     await panel.getByText("没有从设备事件或人工记录读取到事项；页面不会创建演示待办。", { exact: true }).waitFor();
   } else {
+    const impactRead = page.waitForResponse(response => new URL(response.url()).pathname.match(/^\/api\/operator\/assistance-todos\/[^/]+\/impacts$/) !== null
+      && response.request().method() === "GET");
     await rows.first().click();
     await panel.getByRole("heading", { name: "协助事项记录", exact: true }).waitFor();
+    const impactResponse = await impactRead;
+    assert.ok(impactResponse.ok(), `actual impact-history GET failed with ${impactResponse.status()}`);
+    const impactBody = await impactResponse.json() as { impacts: Array<{ deviceId: string; recordedDeviceVersion: number }> };
+    assert.ok(Array.isArray(impactBody.impacts));
+    await panel.getByRole("heading", { name: "历史影响设备", exact: true }).waitFor();
+    await panel.getByText("记录版本和时间来自历史事件，不代表设备当前状态、健康或现场复核结果。", { exact: true }).waitFor();
+    assert.equal(await panel.locator(".operator-todos__impacts li").count(), impactBody.impacts.length);
+    for (const impact of impactBody.impacts) {
+      assert.equal(await panel.getByText(impact.deviceId, { exact: true }).count(), 1);
+      assert.equal(await panel.getByText(new RegExp(`记录版本 ${impact.recordedDeviceVersion} · `)).count(), 1);
+    }
     await panel.getByText(/来源：未分配设备 · 网络接入协助/).waitFor();
     await panel.getByText(/影响设备/).waitFor();
     await panel.getByText("此事项只表示存在历史协助请求。未读到当前设备健康、现场执行或授权恢复结果。", { exact: true }).waitFor();
@@ -74,7 +87,7 @@ try {
       assert.equal(await panel.locator(".operator-todos__form").count(), 0);
     }
     await page.screenshot({ path: `${output}/todos-${width}.png`, fullPage: true,
-      mask: [panel.locator(".operator-todos__row"), panel.locator(".operator-todos__facts"), panel.locator(".operator-todos__note")] });
+      mask: [panel.locator(".operator-todos__row"), panel.locator(".operator-todos__facts"), panel.locator(".operator-todos__impacts"), panel.locator(".operator-todos__note")] });
   }
   assert.deepEqual(errors, []);
   const result = { checkedAt: new Date().toISOString(), page: "operator device assistance todos", actualFeedItems: rowCount,
