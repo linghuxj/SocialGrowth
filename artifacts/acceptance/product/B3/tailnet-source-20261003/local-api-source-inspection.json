@@ -1,0 +1,11 @@
+{
+  "checkedAt": "2026-10-03T14:33:23.272Z",
+  "actualLocalApiLookupPassed": true,
+  "stableNodeId": "nRwHVsp3dt11CNTRL",
+  "publicNodeKeyDigest": "e0572f9f9bd128a5040080f5c4b1bbddb3e750b9930e8c5c68734b85f8d13f38",
+  "actualIncomingSocketObserved": false,
+  "formalNetworkRevisionAvailable": false,
+  "networkAdmissionGranted": false,
+  "actionPermissionGranted": false,
+  "evidenceScope": "read_only_platform_observation"
+}

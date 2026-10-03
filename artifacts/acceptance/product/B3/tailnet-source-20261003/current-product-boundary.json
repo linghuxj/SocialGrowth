@@ -1,0 +1,9 @@
+{
+  "checkedAt": "2026-10-03T14:40:25.480597+00:00",
+  "deviceState": "associated_pending_access",
+  "participationReceiptFresh": false,
+  "withdrawalPerformedByThisStage": false,
+  "actionPermissionGranted": false,
+  "physicalControlAccepted": false,
+  "evidenceScope": "read_only_supplement"
+}

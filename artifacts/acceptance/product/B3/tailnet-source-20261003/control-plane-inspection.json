@@ -1,0 +1,28 @@
+{
+  "checkedAt": "2026-10-03T14:38:11.244Z",
+  "requestedScopes": [
+    "policy_file:read",
+    "devices:core:read",
+    "devices:posture_attributes:read"
+  ],
+  "policySha256": "86ed07ee3b120f200af02f9a075948e5d10eb477fd3294b971cf4d41047e2a9f",
+  "policyEtag": "\"292f967442d21637982e0ac8487658f972ec6a8bfa787b505bf729853c227821\"",
+  "deviceCount": 2,
+  "registeredExitNodeCandidates": null,
+  "enabledExitNodes": null,
+  "policyBreadth": {
+    "assessment": "broad_network_rule_present",
+    "aclRuleCount": 0,
+    "grantRuleCount": 1,
+    "broadNetworkRuleCount": 1,
+    "unconditionalBroadNetworkRuleCount": 1,
+    "additiveRestrictionMayBeBlocked": true,
+    "isolationVerified": false
+  },
+  "policyRead": true,
+  "devicesRead": true,
+  "externalMutationPerformed": false,
+  "isolationVerified": false,
+  "networkAdmissionGranted": false,
+  "actionPermissionGranted": false
+}
