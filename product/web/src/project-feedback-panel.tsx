@@ -49,7 +49,7 @@ function metricStatus(metric: MetricSnapshot): string {
 function MetricCard({ metric }: { metric: MetricSnapshot }) {
   const subject = metric.subject.kind === "account"
     ? `账号级 · ${metric.platform} · ${metric.identityId}`
-    : `已关联发布内容 · ${metric.platform} · 任务 ${metric.subject.taskId}`;
+    : `已核验发布内容 · ${metric.platform} · 任务 ${metric.subject.taskId} · 内容单元 ${metric.subject.contentUnitId} · 变体 ${metric.subject.variantId} · 发布 ${metric.subject.publicationId}`;
   return <article className="project-feedback__metric">
     <div className="project-feedback__metric-heading">
       <div><h3>指标定义 {metric.definitionId}</h3><p>{subject}</p></div>
