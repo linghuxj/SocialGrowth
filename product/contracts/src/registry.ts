@@ -7,6 +7,7 @@ import { saveMaterialDeclarationRequestSchema, materialCurrentViewSchema, saveMa
 import { prepareMaterialUploadRequestSchema, materialUploadTicketViewSchema, prepareMaterialUploadResponseSchema, uploadMaterialBytesCommandSchema, uploadMaterialBytesResponseSchema, materialUploadInventoryQuerySchema, materialUploadInventoryResponseSchema } from "./material-upload.js";
 import { commissionCursorSchema, providerCommissionRecordSchema, listProviderCommissionsResponseSchema } from "./commission.js";
 import { deviceAssistanceTodoSummarySchema, listDeviceAssistanceTodosResponseSchema, recordDeviceAssistanceNoteRequestSchema, recordDeviceAssistanceNoteResponseSchema, providerDeviceAssistanceTodoSummarySchema, listProviderDeviceAssistanceTodosResponseSchema, deviceAssistanceNoteViewSchema, listDeviceAssistanceNotesResponseSchema } from "./device-assistance.js";
+import { deviceControlSnapshotSchema, installationSelfControlCommandRequestSchema, providerDeviceControlCommandRequestSchema } from "./device-control.js";
 import { phoneActionRequestSchema } from "./action-permission.js";
 import { createProjectRequestSchema, updateProjectRequestSchema, projectResponseSchema, projectViewSchema, listProjectsResponseSchema } from "./project.js";
 import { projectPlanningInputsSchema, projectPlanningDraftViewSchema, projectPlanningResponseSchema, saveProjectPlanningRequestSchema } from "./project-planning.js";
@@ -126,6 +127,9 @@ export const firstBatchContractRegistry = {
   providerDeviceAssistanceTodoSummary: providerDeviceAssistanceTodoSummarySchema,
   listProviderDeviceAssistanceTodosResponse: listProviderDeviceAssistanceTodosResponseSchema,
   deviceAssistanceNoteView: deviceAssistanceNoteViewSchema,
+  deviceControlSnapshot: deviceControlSnapshotSchema,
+  installationSelfControlCommandRequest: installationSelfControlCommandRequestSchema,
+  providerDeviceControlCommandRequest: providerDeviceControlCommandRequestSchema,
   listDeviceAssistanceNotesResponse: listDeviceAssistanceNotesResponseSchema,
   projectPlanningInputs: projectPlanningInputsSchema,
   projectPlanningDraftView: projectPlanningDraftViewSchema,

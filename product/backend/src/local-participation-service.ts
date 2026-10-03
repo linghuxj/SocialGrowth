@@ -16,6 +16,13 @@ interface Context { scope: ParticipationScope; sessionId: string; deviceState: s
 interface Slot { sequence: string; request_key: string; command_kind: string; session_id: string;
   challenge: unknown; receipt: unknown; receipt_session_id: string | null; stop_request_id: string | null }
 const sameScope = (a: ParticipationScope, b: ParticipationScope) => Object.entries(a).every(([k, v]) => b[k as keyof ParticipationScope] === v);
+function canRefreshPausedScope(previous: ParticipationScope, current: ParticipationScope): boolean {
+  if (previous.deviceId !== current.deviceId || previous.associationId !== current.associationId
+    || previous.installationId !== current.installationId || previous.installationGeneration !== current.installationGeneration
+    || current.deviceFactVersion < previous.deviceFactVersion) return false;
+  const oldControl = BigInt(previous.controlGeneration ?? "0"), newControl = BigInt(current.controlGeneration ?? "0");
+  return newControl >= oldControl;
+}
 function sequence(slot: Slot | null): string {
   if (slot && !admissionGenerationSchema.safeParse(slot.sequence).success) throw unavailable();
   const next = slot ? (BigInt(slot.sequence) + 1n).toString() : "1";
@@ -68,12 +75,23 @@ export class LocalParticipationService {
       if (e instanceof ProductTransactionError) throw e; throw unavailable();
     } finally { c.release(); }
   }
-  private async run(c: PoolClient, ctx: Context, runId: string, allowRevoked = false) {
+  private async run(c: PoolClient, ctx: Context, runId: string, allowRevoked = false, refreshPausedScope = false) {
     const row = (await c.query<{ record: unknown; revoked_at: Date | null; withdrawal: unknown; session_id: string }>(
       `SELECT record,revoked_at,withdrawal,session_id FROM ${s}.local_participation_runs WHERE run_id=$1 AND device_id=$2 AND installation_id=$3 AND association_id=$4 AND installation_generation=$5 FOR UPDATE`,
       [runId, ctx.scope.deviceId, ctx.scope.installationId, ctx.scope.associationId, ctx.scope.installationGeneration])).rows[0];
     if (!row || row.session_id !== ctx.sessionId || (!allowRevoked && row.revoked_at !== null)) throw stale();
-    if (!allowRevoked && !sameScope(participationRunSchema.parse(row.record).scope, ctx.scope)) throw stale();
+    if (!allowRevoked) {
+      const run = participationRunSchema.parse(row.record);
+      if (!sameScope(run.scope, ctx.scope)) {
+        // Pause advances device/control facts but must not turn a temporary
+        // action fence into a withdrawal. Refresh only the same live run and
+        // same installation/association/owner scope, and only while paused.
+        if (!refreshPausedScope || ctx.deviceState !== "paused" || !canRefreshPausedScope(run.scope, ctx.scope)) throw stale();
+        const updated = participationRunSchema.parse({ ...run, scope: ctx.scope });
+        await c.query(`UPDATE ${s}.local_participation_runs SET record=$2 WHERE run_id=$1 AND revoked_at IS NULL`, [runId, updated]);
+        row.record = updated;
+      }
+    }
     return row;
   }
   async start(token: string, raw: unknown): Promise<ParticipationRun> {
@@ -101,8 +119,8 @@ export class LocalParticipationService {
   async challenge(token: string, raw: unknown): Promise<ParticipationChallenge> {
     const r = participationChallengeRequestSchema.parse(raw);
     return this.tx(token, false, async (c, ctx) => {
-      if (!["associated_pending_access", "access_ready"].includes(ctx.deviceState)) throw denied();
-      await this.run(c, ctx, r.runId);
+      if (!["associated_pending_access", "access_ready", "paused"].includes(ctx.deviceState)) throw denied();
+      await this.run(c, ctx, r.runId, false, true);
       const old = await loadSlot(c, ctx.scope.deviceId);
       if (old?.request_key === r.requestKey) {
         if (old.command_kind !== "challenge" || old.session_id !== ctx.sessionId) throw stale();
@@ -124,8 +142,8 @@ export class LocalParticipationService {
   async confirm(token: string, raw: unknown): Promise<ParticipationReceipt> {
     const r = participationConfirmRequestSchema.parse(raw);
     return this.tx(token, false, async (c, ctx) => {
-      if (!["associated_pending_access", "access_ready"].includes(ctx.deviceState)) throw denied();
-      await this.run(c, ctx, r.runId);
+      if (!["associated_pending_access", "access_ready", "paused"].includes(ctx.deviceState)) throw denied();
+      await this.run(c, ctx, r.runId, false, true);
       const slot = await loadSlot(c, ctx.scope.deviceId);
       if (!slot || slot.command_kind !== "challenge" || slot.session_id !== ctx.sessionId) throw stale();
       const challenge = participationChallengeSchema.parse(slot.challenge);
