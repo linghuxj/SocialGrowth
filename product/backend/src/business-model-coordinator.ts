@@ -30,11 +30,10 @@ function comparable(input: ModelInput) {
   const { observedAt: _observationTime, ...context } = input.context;
   return canonical({ context, descriptions: input.descriptions });
 }
-function parseInput(input: unknown, projectId: string, now: string): ModelInput {
+function parseInput(input: unknown, projectId: string): ModelInput {
   const p = inputSchema.safeParse(input); if (!p.success) throw new Error("invalid-facts");
   const context = parseBusinessSuggestionContext(p.data.context);
-  if (context.projectId !== projectId || compareTimestamps(context.observedAt, now)! > 0
-    || new Set(p.data.descriptions.map(v => v.factId)).size !== p.data.descriptions.length) throw new Error("invalid-facts");
+  if (context.projectId !== projectId || new Set(p.data.descriptions.map(v => v.factId)).size !== p.data.descriptions.length) throw new Error("invalid-facts");
   for (const d of p.data.descriptions) if (!context.facts.some(f => f.factId === d.factId && f.version === d.version)) throw new Error("invalid-facts");
   return structuredClone({ context, descriptions: p.data.descriptions });
 }
@@ -58,14 +57,17 @@ export class BusinessModelCoordinator {
     const withinDeadline = () => { if (performance.now() >= expiresAt) throw timeout; };
     const deadline = new Promise<never>((_resolve, reject) => { timer = setTimeout(() => reject(timeout), config.data.timeoutMs); });
     const step = <T>(fn: () => Promise<T>) => Promise.race([Promise.resolve().then(() => { withinDeadline(); return fn(); }).then(value => { withinDeadline(); return value; }), deadline]);
-    let lastClock = startedAt;
-    const currentTime = () => {
-      try { const p = time.safeParse(this.clock()); if (!p.success || compareTimestamps(p.data, lastClock)! < 0) throw clockInvalid; lastClock = p.data; return p.data; }
-      catch { throw clockInvalid; }
+    let lastObservedAt: string | null = null;
+    const observe = (input: ModelInput) => {
+      const observedAt = time.safeParse(input.context.observedAt);
+      if (!observedAt.success || (lastObservedAt !== null && compareTimestamps(observedAt.data, lastObservedAt)! < 0)) throw clockInvalid;
+      lastObservedAt = observedAt.data;
+      return observedAt.data;
     };
     try {
       const firstRead = await step(() => this.facts!.read(project.data, controller.signal));
-      const original = parseInput(firstRead, project.data, currentTime());
+      const original = parseInput(firstRead, project.data);
+      observe(original);
       phase = "model";
       const returned = await step(() => {
         provenance.modelRequested = true;
@@ -81,8 +83,8 @@ export class BusinessModelCoordinator {
         response = p.data; suggestion = JSON.parse(response.outputText);
       } catch { return { status: "rejected", reason: "response_invalid", provenance, responseId: null }; }
       phase = "facts";
-      const lastRead = await step(() => this.facts!.read(project.data, controller.signal)), finishedAt = currentTime();
-      const current = parseInput(lastRead, project.data, finishedAt);
+      const lastRead = await step(() => this.facts!.read(project.data, controller.signal));
+      const current = parseInput(lastRead, project.data), finishedAt = observe(current);
       if (compareTimestamps(current.context.observedAt, original.context.observedAt)! < 0 || comparable(current) !== comparable(original)) return { status: "rejected", reason: "facts_changed", provenance, responseId: response.responseId };
       try {
         const checked = checkBusinessSuggestion(current.context, suggestion, finishedAt);

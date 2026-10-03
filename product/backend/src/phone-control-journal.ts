@@ -139,24 +139,31 @@ export class PhoneControlJournal {
   async initialize(deviceId: string, stopRequestId: string, key: string): Promise<PhoneJournalResult> {
     scope(deviceId, 0, key);
     if (!uuidSchema.safeParse(stopRequestId).success) invalid();
+    const id = deviceId.toLowerCase();
+    return transaction(this.pool, client => this.initializeInTransaction(client, id, stopRequestId, key));
+  }
+
+  // Transaction composition for an authenticated user control request. The
+  // caller must already have locked the current identity and device rows.
+  async initializeInTransaction(client: PoolClient, deviceId: string, stopRequestId: string, key: string): Promise<PhoneJournalResult> {
+    scope(deviceId, 0, key);
+    if (!uuidSchema.safeParse(stopRequestId).success) invalid();
     const id = deviceId.toLowerCase(), payload = digest({ deviceId: id, stopRequestId });
-    return transaction(this.pool, async client => {
-      await lockDevice(client, id);
-      if (await isReplay(client, id, key, 0, "initialize", payload)) return { record: await load(client, id), replayed: true };
-      const exists = await client.query(`SELECT 1 FROM ${schema}.phone_control_journals WHERE device_id=$1`, [id]);
-      if (exists.rowCount) stale();
-      // First contact is blocked, NOT an implicit stopped/ready/owner grant.
-      const record: PhoneControlRecord = {
-        deviceId: id, version: 0, controlGeneration: "1", holderId: null, disposition: "stop_requested",
-        stopRequestId, stopEvidenceId: null, calls: [],
-      };
-      parsePhoneControlRecord(record);
-      await client.query(
-        `INSERT INTO ${schema}.phone_control_journals(device_id,version,control_generation,disposition,holder_id,record) VALUES($1,0,'1','stop_requested',NULL,$2)`, [id, record],
-      );
-      await recordCommand(client, record, key, 0, "initialize", payload);
-      return { record, replayed: false };
-    });
+    await lockDevice(client, id);
+    if (await isReplay(client, id, key, 0, "initialize", payload)) return { record: await load(client, id), replayed: true };
+    const exists = await client.query(`SELECT 1 FROM ${schema}.phone_control_journals WHERE device_id=$1`, [id]);
+    if (exists.rowCount) stale();
+    // First contact is blocked, NOT an implicit stopped/ready/owner grant.
+    const record: PhoneControlRecord = {
+      deviceId: id, version: 0, controlGeneration: "1", holderId: null, disposition: "stop_requested",
+      stopRequestId, stopEvidenceId: null, calls: [],
+    };
+    parsePhoneControlRecord(record);
+    await client.query(
+      `INSERT INTO ${schema}.phone_control_journals(device_id,version,control_generation,disposition,holder_id,record) VALUES($1,0,'1','stop_requested',NULL,$2)`, [id, record],
+    );
+    await recordCommand(client, record, key, 0, "initialize", payload);
+    return { record, replayed: false };
   }
 
   async apply(deviceId: string, expectedVersion: number, key: string, input: unknown, trustedFacts?: ActionAuthorityFacts): Promise<PhoneJournalResult> {

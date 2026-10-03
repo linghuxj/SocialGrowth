@@ -14,7 +14,7 @@ import { parseAndroidPackageUid } from "./android-package-uid.js";
 // Upgrade the owned main APK preserving UID/data; restore existing test package.
 assert.equal(process.env.SG_PRODUCT_ADMISSION_PHONE_CHECK, "authorized");
 const serial = "RFCW40MYYCV", deviceId = "0fef3177-636c-4b82-8209-1af38134e00f";
-const run = promisify(execFile), output = resolve("artifacts/acceptance/product/B3/admission-api-20261003");
+const run = promisify(execFile), output = resolve(process.env.SOCIALGROWTH_VERIFICATION_OUTPUT ?? "artifacts/acceptance/product/B3/admission-api-20261003");
 await mkdir(output, { mode: 0o700, recursive: true });
 const privateDir = resolve(".runtime", `verifier-phone-probe-${randomUUID()}`);
 await mkdir(privateDir, { mode: 0o700 });
@@ -79,9 +79,33 @@ try {
   const candidate = resolve("product/android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk");
   testInstallAttempted = true;
   assert.match(await adb(["install", "-r", candidate], 30000), /Success/);
+  stage = "test_runner_registration";
+  assert.match(await adb(["shell", "pm", "list", "instrumentation"]), /^instrumentation:com\.socialgrowth\.product\.test\/com\.socialgrowth\.product\.AdmissionApiInstrumentation \(target=com\.socialgrowth\.product\)$/m);
   stage = "actual_native_transport";
-  const text = await adb(["shell", "am", "instrument", "-w", "-r", "com.socialgrowth.product.test/com.socialgrowth.product.AdmissionApiInstrumentation"], 30000);
+  let text: string;
+  try {
+    text = await adb(["shell", "am", "instrument", "-w", "-r", "com.socialgrowth.product.test/com.socialgrowth.product.AdmissionApiInstrumentation"], 60000);
+    result.nativeProcessOutcome = "returned";
+  } catch (error) {
+    const failure = error as { killed?: boolean; signal?: string; code?: unknown; stdout?: unknown };
+    const finiteStages = new Set(["installation_identity", "health_tls", "health_source", "authenticated_state", "closed_protocol_validation", "unavailable_verifier_begin", "unbound_challenge_proof", "state_readback"]);
+    if (typeof failure.stdout === "string" && failure.stdout.length <= 1_048_576) {
+      const stages = [...failure.stdout.matchAll(/^INSTRUMENTATION_STATUS: failureStage=([a-z_]+)$/gm)].map(match => match[1]);
+      const last = stages.at(-1);
+      result.nativeFailureStage = last && finiteStages.has(last) ? last : null;
+    }
+    result.nativeProcessOutcome = failure.killed === true || failure.signal === "SIGTERM" ? "bounded_timeout" : "process_failed";
+    throw new Error("NATIVE_PROTOCOL_PROCESS_UNAVAILABLE");
+  }
   const value = (name: string) => text.match(new RegExp(`^INSTRUMENTATION_RESULT: ${name}=(.*)$`, "m"))?.[1]?.trim();
+  const count = (name: string) => {
+    const raw = value(name);
+    return raw && /^(?:[0-9]|1[01])$/.test(raw) ? Number(raw) : null;
+  };
+  const failureStage = value("failureStage");
+  const allowedStages = new Set(["installation_identity", "health_tls", "health_source", "authenticated_state", "closed_protocol_validation", "unavailable_verifier_begin", "unbound_challenge_proof", "state_readback"]);
+  result = { ...result, nativeChecksPassed: count("passed"), nativeChecksFailed: count("failed"),
+    nativeFailureStage: failureStage && allowedStages.has(failureStage) ? failureStage : null };
   assert.equal(value("failed"), "0"); assert.equal(value("passed"), "11");
   assert.equal(value("noParticipationCommandIssued"), "true");
   assert.equal(value("networkAdmissionGranted"), "false"); assert.equal(value("actionPermissionGranted"), "false");
@@ -93,7 +117,7 @@ try {
     noParticipationCommandIssued: true, networkAdmissionGranted: false, actionPermissionGranted: false,
     evidenceScope: "supplemental_authenticated_protocol_not_usb_free_or_business_acceptance" };
 } catch {
-  process.exitCode = 2; result = { checkedAt: new Date().toISOString(), stage, code: "PHONE_TRANSPORT_PROBE_FAILED",
+  process.exitCode = 2; result = { ...result, checkedAt: new Date().toISOString(), stage, code: "PHONE_TRANSPORT_PROBE_FAILED",
     actualPhoneIncomingSourceVerified: false, networkAdmissionGranted: false, actionPermissionGranted: false };
 } finally {
   if (process.exitCode === 2 && mainInstallAttempted && originalMain) {

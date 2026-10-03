@@ -62,7 +62,8 @@ async function counts(f: Fixture) { return (await pool.query(`SELECT (SELECT cou
 function code(result: { status: number; value: unknown }, status: number, expected: string) { assert.equal(result.status, status); assert.equal(productErrorResponseSchema.parse(result.value).error.code, expected); }
 test("actual HTTP prepare/byte PUT/declaration save/current GET/restart keeps one pending revision and minimal facts", async () => {
   const f = await fixture(); await upload(f); const result = await send(f, "POST"); assert.equal(result.status, 201);
-  const value = saveMaterialDeclarationResponseSchema.parse(result.value); assert.equal(value.languageTag, "en-us"); assert.equal(value.changed, true); assert.equal(value.status, "pending_validation");
+  const value = saveMaterialDeclarationResponseSchema.parse(result.value); assert.equal(value.languageTag, "en-us"); assert.equal(value.changed, true);
+  assert.equal(value.status, "pending_validation"); assert.equal(value.candidateAllowed, false); assert.equal(value.eligibilityReason, "direction_not_approved");
   for (const forbidden of ["key", "storageLocationId", "storageBindingDigest", "recordedByOperatorId", "revisions"]) assert.ok(!JSON.stringify(value).includes(`"${forbidden}"`));
   assert.deepEqual(value.objects.map(o => o.objectId), [f.objectId]); assert.equal(value.publicationAllowed, false);
   await app.close(); app = await boot(); base = await app.getUrl();

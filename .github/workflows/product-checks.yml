@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/product-checks.yml"
+      - "scripts/verify-product-core-loop-local.mjs"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
@@ -13,9 +14,10 @@ on:
       - "scripts/run-playwright-target.mjs"
       - "scripts/verify-product-web-readiness.mts"
   push:
-    branches: [main]
+    branches: [main, codex/core-automation-loop-stage1]
     paths:
       - ".github/workflows/product-checks.yml"
+      - "scripts/verify-product-core-loop-local.mjs"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
@@ -33,10 +35,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 8.14.0
-      - uses: actions/setup-node@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24.16.0
           cache: pnpm
@@ -49,21 +51,14 @@ jobs:
       - run: python3 docs/engineering/delivery/check_consistency.py
       - run: pnpm exec playwright install --with-deps chromium
       - name: Verify the built product Web through Playwright
+        env:
+          SG_PRODUCT_CORE_BROWSER_ADMITTED: "1"
+          SG_PRODUCT_CORE_SCOPES: identity
+          SG_PRODUCT_CORE_WEB_MODE: preview
+          SG_PRODUCT_CORE_OUTPUT: artifacts/acceptance/ci-identity
         run: |
-          pnpm --filter @socialgrowth/product-web exec vite preview --host 127.0.0.1 --port 3100 > /tmp/socialgrowth-product-web.log 2>&1 &
-          preview_pid=$!
-          trap 'kill "$preview_pid"' EXIT
-          for attempt in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:3100 >/dev/null; then
-              break
-            fi
-            if [ "$attempt" -eq 30 ]; then
-              cat /tmp/socialgrowth-product-web.log
-              exit 1
-            fi
-            sleep 1
-          done
-          pnpm test:playwright:product
+          docker pull postgres:17.11
+          pnpm exec node scripts/verify-product-core-loop-local.mjs
 
   android:
     runs-on: ubuntu-latest

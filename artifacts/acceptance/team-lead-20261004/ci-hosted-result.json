@@ -1,0 +1,247 @@
+{
+  "candidateHead": "d377b5443d45e8dddbc8d8197ee8905c530e8060",
+  "results": [
+    {
+      "id": 37145660296,
+      "event": "pull_request",
+      "headSha": "d377b5443d45e8dddbc8d8197ee8905c530e8060",
+      "conclusion": "success",
+      "url": "https://github.com/linghuxj/SocialGrowth/actions/runs/37145660296",
+      "jobs": [
+        {
+          "name": "typescript",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run pnpm install --frozen-lockfile",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run pnpm check:product",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run pnpm lint:product",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run pnpm test:product",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run pnpm build:product",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run docker compose --env-file product/deploy/.env.product.example -f product/deploy/compose.product.yml config --quiet",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run python3 docs/engineering/delivery/check_consistency.py",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run pnpm exec playwright install --with-deps chromium",
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify the built product Web through Playwright",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "android",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3",
+              "conclusion": "success"
+            },
+            {
+              "name": "Require the checked-in Gradle wrapper",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run product/android/gradlew -p product/android clean assembleDebug --no-daemon",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 37146181269,
+      "event": "push",
+      "headSha": "d377b5443d45e8dddbc8d8197ee8905c530e8060",
+      "conclusion": "success",
+      "url": "https://github.com/linghuxj/SocialGrowth/actions/runs/37146181269",
+      "jobs": [
+        {
+          "name": "android",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3",
+              "conclusion": "success"
+            },
+            {
+              "name": "Require the checked-in Gradle wrapper",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run product/android/gradlew -p product/android clean assembleDebug --no-daemon",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "typescript",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run pnpm install --frozen-lockfile",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run pnpm check:product",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run pnpm lint:product",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run pnpm test:product",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run pnpm build:product",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run docker compose --env-file product/deploy/.env.product.example -f product/deploy/compose.product.yml config --quiet",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run python3 docs/engineering/delivery/check_consistency.py",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run pnpm exec playwright install --with-deps chromium",
+              "conclusion": "success"
+            },
+            {
+              "name": "Verify the built product Web through Playwright",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

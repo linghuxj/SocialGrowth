@@ -191,6 +191,10 @@ class FirstBatchContracts:
                     raise ContractDataError(f"{name}: recheck lacks processing report")
                 if self._compare_timestamps(todo["updatedAt"], todo["createdAt"]) < 0:
                     raise ContractDataError(f"{name}: update predates creation")
+                if name == "listProviderDeviceAssistanceTodosResponse":
+                    impact_ids = [impact["deviceId"].lower() for impact in todo["impacts"]]
+                    if len(impact_ids) != len(set(impact_ids)):
+                        raise ContractDataError(f"{name}: repeated impact device identity")
             if page:
                 ids = [todo["todoId"].lower() for todo in todos]
                 cursor = value["nextAfterTodoId"]

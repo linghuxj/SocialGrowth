@@ -16,10 +16,13 @@ import { NetworkAdmissionApi } from "./network-admission-api.js";
 import { NetworkAdmissionStore } from "./network-admission-store.js";
 import { LocalParticipationController } from "./local-participation.controller.js";
 import { LocalParticipationService } from "./local-participation-service.js";
+import { DeviceControlService } from "./device-control-service.js";
+import { InstallationSelfControlController, ProviderDeviceControlController } from "./device-control.controller.js";
 import { OperatorAuthService } from "./operator-auth-service.js";
 import { OperatorController } from "./operator.controller.js";
 import { ProviderAuthService } from "./provider-auth-service.js";
 import { ProviderController } from "./provider.controller.js";
+import { ProviderDeviceLabelController } from "./provider-device-label.controller.js";
 import { ProjectService } from "./project-service.js";
 import { ProjectController } from "./project.controller.js";
 import { ResourceReservationStore } from "./resource-reservation-store.js";
@@ -30,7 +33,9 @@ import { ProjectPlanningController } from "./project-planning.controller.js";
 import { ProjectPlanningService } from "./project-planning-service.js";
 import { ProjectDirectionService } from "./project-direction-service.js";
 import { ProjectDirectionController } from "./project-direction.controller.js";
-import { readInitialDirectionModel } from "./artemis-business-model.js";
+import { ArtemisBusinessModel, readInitialDirectionModel } from "./artemis-business-model.js";
+import { BusinessPlanController } from "./business-plan.controller.js";
+import { BusinessPlanService } from "./business-plan-service.js";
 import { AccountPreparationService } from "./account-preparation-service.js";
 import { AccountPreparationController } from "./account-preparation.controller.js";
 import { DeviceAssistanceFeedService } from "./device-assistance-feed-service.js";
@@ -136,13 +141,17 @@ const providerAuthProvider = {
     InstallationController,
     NetworkAdmissionController,
     LocalParticipationController,
+    InstallationSelfControlController,
+    ProviderDeviceControlController,
     OperatorController,
     ProviderController,
+    ProviderDeviceLabelController,
     ProjectController,
     ResourcePreparationController,
     MediaCredentialsController,
     ProjectPlanningController,
     ProjectDirectionController,
+    BusinessPlanController,
     AccountPreparationController,
     DeviceAssistanceFeedController,
     ProviderAssistanceFeedController,
@@ -161,6 +170,7 @@ const providerAuthProvider = {
     // Read current authenticated facts; mutations close until real ports exist.
     { provide: NetworkAdmissionApi, inject: [Pool, InstallationAuthService], useFactory: (pool: Pool, auth: InstallationAuthService) => new NetworkAdmissionApi(new NetworkAdmissionStore(pool), auth, null) },
     { provide: LocalParticipationService, inject: [Pool, InstallationAuthService], useFactory: (pool: Pool, auth: InstallationAuthService) => new LocalParticipationService(pool, auth) },
+    { provide: DeviceControlService, inject: [Pool, ProviderAuthService, InstallationAuthService], useFactory: (pool: Pool, providerAuth: ProviderAuthService, installationAuth: InstallationAuthService) => new DeviceControlService(pool, providerAuth, installationAuth) },
     smsRuntimeProvider,
     providerAuthProvider,
     { provide: MaterialRuntime, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new MaterialRuntime(pool, auth, readMaterialRuntimeConfig()) },
@@ -170,7 +180,9 @@ const providerAuthProvider = {
     // writes authenticate then fail closed. No ambient/historical key fallback.
     { provide: MediaCredentialStore, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new MediaCredentialStore(pool, auth, null) },
     { provide: ProjectPlanningService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ProjectPlanningService(pool, auth) },
-    { provide: ProjectDirectionService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ProjectDirectionService(pool, auth, readInitialDirectionModel()) },
+    { provide: ArtemisBusinessModel, useFactory: () => readInitialDirectionModel() },
+    { provide: ProjectDirectionService, inject: [Pool, OperatorAuthService, ArtemisBusinessModel], useFactory: (pool: Pool, auth: OperatorAuthService, model: ArtemisBusinessModel | null) => new ProjectDirectionService(pool, auth, model) },
+    { provide: BusinessPlanService, inject: [Pool, OperatorAuthService, MaterialRuntime, ArtemisBusinessModel], useFactory: (pool: Pool, auth: OperatorAuthService, materials: MaterialRuntime, model: ArtemisBusinessModel | null) => new BusinessPlanService(pool, auth, materials, model) },
     { provide: DeviceAssistanceFeedService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new DeviceAssistanceFeedService(pool, auth) },
     { provide: ProviderAssistanceFeedService, inject: [Pool, ProviderAuthService], useFactory: (pool: Pool, auth: ProviderAuthService) => new ProviderAssistanceFeedService(pool, auth) },
     { provide: ProviderCommissionFeedService, inject: [Pool, ProviderAuthService], useFactory: (pool: Pool, auth: ProviderAuthService) => new ProviderCommissionFeedService(pool, auth) },

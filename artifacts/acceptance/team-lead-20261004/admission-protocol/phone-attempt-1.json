@@ -1,0 +1,17 @@
+{
+  "checkedAt": "2026-10-03T16:46:12.104Z",
+  "stage": "actual_native_transport",
+  "code": "PHONE_TRANSPORT_PROBE_FAILED",
+  "actualPhoneIncomingSourceVerified": false,
+  "networkAdmissionGranted": false,
+  "actionPermissionGranted": false,
+  "originalMainRestoredAfterFailure": true,
+  "mainRestoreOutcome": "succeeded",
+  "testRestoreOutcome": "succeeded",
+  "mainPackageInstallAttempted": true,
+  "mainPackageInstallSucceeded": true,
+  "testPackageInstallAttempted": true,
+  "originalTestPackagePresent": true,
+  "testPackageRestored": true,
+  "restorationComplete": true
+}

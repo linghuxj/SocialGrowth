@@ -9,8 +9,9 @@ beforeEach(() => storage.clear()); afterEach(() => { globalThis.fetch = original
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`, project = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const material = (variant = 2) => ({ projectId: project, contentUnitId: id(20), sourceId: id(21), sourceRecordId: id(22),
   identity: { mediaKind: "video", businessKind: "product", businessEntityId: id(23), seriesId: null, episodeNumber: null }, variantId: id(variant), languageTag: "en", currentRevision: 1,
-  declaration: { name: "Synthetic unit material", description: "Unit fixture only", businessFacts: "Declared synthetic facts", sourceStatement: "Synthetic source statement", sourceEvidenceIds: [id(24)], firstUseDeclaration: "declared_not_previously_published" },
-  objects: [{ objectId: id(30), sha256: "a".repeat(64), bytes: 12, contentType: "video/mp4" }], recordedAt: "2026-10-01T00:00:00Z", status: "pending_validation", candidateAllowed: false, publicationAllowed: false });
+  declaration: { name: "Synthetic unit material", description: "Unit fixture only", businessFacts: "Declared synthetic facts", sourceStatement: "Synthetic source statement", sourceEvidenceIds: [id(24)], firstUseDeclaration: "declared_not_previously_published",
+    expectedApprovedDirectionId: null, expectedApprovedProjectVersion: null, contentRulesReviewed: false },
+  objects: [{ objectId: id(30), sha256: "a".repeat(64), bytes: 12, contentType: "video/mp4" }], recordedAt: "2026-10-01T00:00:00Z", status: "pending_validation", candidateAllowed: false, eligibilityReason: "direction_not_approved", publicationAllowed: false });
 const upload = (object = 2) => ({ projectId: project, objectId: id(object), sha256: "a".repeat(64), bytes: 12, contentType: "video/mp4", status: "pending_bytes", preparedAt: "2026-10-01T00:00:00Z", verifiedAt: null, candidateAllowed: false, publicationAllowed: false });
 const response = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json" } });
 const fixed = (e: unknown): e is MaterialReadError => e instanceof MaterialReadError && e.message === e.code && !("cause" in e) && !("input" in e);

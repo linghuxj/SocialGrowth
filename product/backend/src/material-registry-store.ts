@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { Pool, PoolClient } from "pg";
-import { compareTimestamps, timestampSchema, uuidSchema, materialLibraryQuerySchema } from "@socialgrowth/product-contracts";
+import { compareTimestamps, timestampSchema, uuidSchema, materialLibraryQuerySchema, directionApprovalSchema, projectPlanningInputsSchema } from "@socialgrowth/product-contracts";
 import { materialSaveSchema, materialDeclarationSchema, materialIdentitySchema, materialObjectReferenceSchema, canonicalMaterial, type MaterialSave } from "./material-registry-core.js";
 import { OperatorAuthService, type OperatorSessionContext } from "./operator-auth-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
@@ -42,6 +42,51 @@ export class MaterialRegistryStore {
   private async project(c: PoolClient, id: string) {
     if (!(await c.query(`SELECT 1 FROM ${s}.projects WHERE project_id=$1 FOR UPDATE`, [id])).rowCount) throw stale();
   }
+  // Duplicate checks are scoped to manifests already bound by an immutable
+  // material revision. Uploads that have not been declared are not evidence
+  // of reuse. Historical revisions still count; a corrected/retired variant
+  // cannot make a previously bound exact SHA look new again.
+  private async shaCollision(c: PoolClient, contentUnitId: string, sha256s: string[]) {
+    if (!sha256s.length) return false;
+    const result = await c.query<{ collision: boolean }>(`SELECT EXISTS(
+      SELECT 1 FROM ${s}.material_variant_revisions r
+      JOIN ${s}.material_variants v ON v.variant_id=r.variant_id
+      CROSS JOIN LATERAL jsonb_array_elements(r.object_references) ref
+      JOIN ${s}.material_object_manifests m ON m.object_id=(ref.value->>'objectId')::uuid
+      WHERE v.content_unit_id<>$1 AND m.reference->>'sha256'=ANY($2::text[])
+    ) collision`, [contentUnitId, [...new Set(sha256s)]]);
+    return result.rows[0]?.collision === true;
+  }
+  private async eligibilityReason(c: PoolClient, unit: UnitRow, languageTag: string, declaration: z.infer<typeof materialDeclarationSchema>, sha256s: string[]) {
+    const sourceRows = await c.query(`SELECT count(*)::int n FROM ${s}.material_content_units WHERE source_id=$1 AND source_record_id=$2`, [unit.source_id, unit.source_record_id]);
+    if (sourceRows.rows[0]?.n !== 1) return "source_record_conflict" as const;
+    const ctx = (await c.query<{ fact_version: string; phase: string; draft_version: string | null; inputs: unknown; approval: unknown }>(`SELECT p.fact_version::text,p.phase,d.draft_version::text,d.inputs,a.record approval
+      FROM ${s}.projects p LEFT JOIN ${s}.project_planning_drafts d ON d.project_id=p.project_id
+      LEFT JOIN ${s}.project_direction_approvals a ON a.project_id=p.project_id WHERE p.project_id=$1 FOR SHARE OF p`, [unit.project_id])).rows[0];
+    if (!ctx?.approval) return "direction_not_approved" as const;
+    const approval = directionApprovalSchema.safeParse(ctx.approval);
+    if (!approval.success) return invalid();
+    const currentInputs = projectPlanningInputsSchema.safeParse(ctx.inputs);
+    if (!currentInputs.success || ctx.phase !== "preparing" || ctx.draft_version === null
+      || Number(ctx.fact_version) !== approval.data.proposal.projectVersion + 1
+      || Number(ctx.draft_version) !== approval.data.proposal.draftVersion
+      || canonicalMaterial(currentInputs.data) !== canonicalMaterial(approval.data.proposal.scope.inputs)) return "approved_direction_stale" as const;
+    const submittedApprovalId = declaration.expectedApprovedDirectionId;
+    const submittedVersion = declaration.expectedApprovedProjectVersion;
+    if (submittedApprovalId === null || submittedVersion === null) return "scope_confirmation_missing" as const;
+    if (submittedApprovalId.toLowerCase() !== approval.data.approvalId.toLowerCase() || submittedVersion !== Number(ctx.fact_version)) return "scope_confirmation_stale" as const;
+    if (!approval.data.proposal.scope.inputs.targetLanguages.some(value => value.toLowerCase() === languageTag.toLowerCase())) return "language_not_targeted" as const;
+    const forms = approval.data.proposal.scope.inputs.contentForms;
+    const allowed = unit.identity && (() => {
+      const identity = materialIdentitySchema.parse(unit.identity);
+      return identity.mediaKind === "video" ? forms.some(form => ["facebook_video", "youtube_shorts", "youtube_video"].includes(form))
+        : forms.includes("facebook_image_text");
+    })();
+    if (!allowed) return "no_approved_content_form" as const;
+    if (!declaration.contentRulesReviewed) return "content_rules_need_human_check" as const;
+    if (await this.shaCollision(c, unit.content_unit_id, sha256s)) return "exact_sha_collision" as const;
+    return null;
+  }
   private async load(c: PoolClient, variantId: string) {
     const v = (await c.query<VariantRow>(`SELECT *,current_revision::text FROM ${s}.material_variants WHERE variant_id=$1`, [variantId])).rows[0];
     if (!v) return null;
@@ -70,8 +115,12 @@ export class MaterialRegistryStore {
       }
       previous = row.recorded_at; revisions.push({ revision: i + 1, declaration, objects, status: "pending_validation" as const, recordedAt: row.recorded_at, recordedByOperatorId: row.recorded_by_operator_id });
     }
+    const currentObjects = parsedObjects.at(-1)!;
+    const reason = await this.eligibilityReason(c, u, v.language_tag, revisions.at(-1)!.declaration, currentObjects.map(o => o.sha256));
+    const currentStatus = reason === null ? "candidate" as const : "pending_validation" as const;
     return { contentUnitId: u.content_unit_id, projectId: u.project_id, sourceId: u.source_id, sourceRecordId: u.source_record_id, identity,
-      variantId: v.variant_id, languageTag: v.language_tag, currentRevision: rows.length, revisions, candidateAllowed: false as const, publicationAllowed: false as const };
+      variantId: v.variant_id, languageTag: v.language_tag, currentRevision: rows.length, revisions, status: currentStatus,
+      candidateAllowed: reason === null, eligibilityReason: reason, publicationAllowed: false as const };
   }
   async read(token: string, projectId: string, variantId: string) {
     if (!uuidSchema.safeParse(projectId).success || !uuidSchema.safeParse(variantId).success) throw new ProductTransactionError("INPUT_INVALID", "Invalid material locator");
@@ -92,6 +141,21 @@ export class MaterialRegistryStore {
       for (const row of page) { const saved = await this.load(c, row.variant_id); if (!saved || saved.projectId !== id) return invalid(); materials.push(saved); }
       return { projectId: id, materials, nextAfterVariantId: rows.length > p.data.pageSize ? page.at(-1)!.variant_id : null };
     });
+  }
+  // Internal consistent read for services already holding the authenticated
+  // material guard and project lock in their own transaction. Keeping this
+  // projection here prevents business planning from reimplementing candidate
+  // eligibility or treating declarations as externally verified rights.
+  async listCurrentForBusinessPlan(c: PoolClient, projectId: string) {
+    const rows = await c.query<{ variant_id: string }>(`SELECT variant_id FROM ${s}.material_variants WHERE project_id=$1 ORDER BY variant_id LIMIT 1001`, [projectId]);
+    if (rows.rows.length > 1000) throw new ProductTransactionError("INPUT_INVALID", "Project material inventory exceeds the bounded planning read");
+    const materials = [];
+    for (const row of rows.rows) {
+      const material = await this.load(c, row.variant_id);
+      if (!material || material.projectId !== projectId) throw new ProductTransactionError("INTERNAL_ERROR", "Material facts are inconsistent", true);
+      materials.push(material);
+    }
+    return materials;
   }
   // HTTP authentication preflight also runs when storage is unconfigured.
   // It does not grant a lease: save/read reauthenticate in their own tx.
@@ -120,11 +184,21 @@ export class MaterialRegistryStore {
     if (!this.verifier) throw new MaterialRegistryError("VERIFIER_UNAVAILABLE");
     const r = p.data, { requestId: _requestId, ...metadata } = r.metadata;
     r.declaration.sourceEvidenceIds.sort(); // Evidence references are a set; image objects remain ordered.
-    const digest = createHash("sha256").update(canonicalMaterial({ ...r, metadata })).digest();
+    const digestPayload = { ...r, metadata };
+    const digest = createHash("sha256").update(canonicalMaterial(digestPayload)).digest();
+    // A pre-confirmation client may replay its original request after upgrade.
+    // Only the all-default confirmation is equivalent to that legacy request;
+    // any supplied approval binding or positive confirmation remains distinct.
+    const legacyDigest = r.declaration.expectedApprovedDirectionId === null && r.declaration.expectedApprovedProjectVersion === null && !r.declaration.contentRulesReviewed
+      ? createHash("sha256").update(canonicalMaterial({ ...digestPayload, declaration: (() => {
+        const declaration = { ...r.declaration } as Record<string, unknown>;
+        delete declaration.expectedApprovedDirectionId; delete declaration.expectedApprovedProjectVersion; delete declaration.contentRulesReviewed;
+        return declaration;
+      })() })).digest() : null;
     const command = async (c: PoolClient, actorId: string) => (await c.query<{ payload_digest: Buffer; variant_id: string }>(`SELECT payload_digest,variant_id FROM ${s}.material_registry_commands WHERE actor_id=$1 AND request_key=$2`, [actorId, metadata.idempotencyKey])).rows[0];
     const replay = async (c: PoolClient, actorId: string) => {
       const old = await command(c, actorId); if (!old) return null;
-      if (!old.payload_digest.equals(digest) || old.variant_id !== r.variantId) throw new ProductTransactionError("IDEMPOTENCY_KEY_REUSED", "Material request key belongs to different inputs");
+      if ((!old.payload_digest.equals(digest) && !(legacyDigest && old.payload_digest.equals(legacyDigest))) || old.variant_id !== r.variantId) throw new ProductTransactionError("IDEMPOTENCY_KEY_REUSED", "Material request key belongs to different inputs");
       const saved = await this.load(c, r.variantId); if (!saved || saved.projectId !== r.projectId) return invalid(); return { ...saved, changed: false, replayed: true };
     };
     // Authenticate actual actor/project, release all locks BEFORE object IO.
@@ -154,7 +228,8 @@ export class MaterialRegistryStore {
         if (!current) await this.affected(c, `INSERT INTO ${s}.material_variants(variant_id,content_unit_id,project_id,language_tag,current_revision) VALUES($1,$2,$3,$4,$5)`, [r.variantId, r.contentUnitId, r.projectId, r.languageTag, revision]);
         else await this.affected(c, `UPDATE ${s}.material_variants SET current_revision=$2 WHERE variant_id=$1 AND current_revision=$3`, [r.variantId, revision, revision - 1]);
         await this.affected(c, `INSERT INTO ${s}.material_variant_revisions(variant_id,revision,declaration,object_references,recorded_by_operator_id,recorded_at) VALUES($1,$2,$3,$4,$5,$6)`, [r.variantId, revision, r.declaration, JSON.stringify(objects), a.operator.operatorId, now]);
-        await this.affected(c, `INSERT INTO ${s}.audit_records(audit_record_id,actor_type,actor_id,action,object_type,object_id,request_id,facts) VALUES($1,'operator',$2,'material.declaration_saved','material_variant',$3,$4,$5)`, [randomUUID(), a.operator.operatorId, r.variantId, r.metadata.requestId, { revision, status: "pending_validation" }]);
+        const reason = await this.eligibilityReason(c, { content_unit_id: r.contentUnitId, project_id: r.projectId, source_id: r.sourceId, source_record_id: r.sourceRecordId, identity: r.identity }, r.languageTag, r.declaration, objects.map(o => o.sha256));
+        await this.affected(c, `INSERT INTO ${s}.audit_records(audit_record_id,actor_type,actor_id,action,object_type,object_id,request_id,facts) VALUES($1,'operator',$2,'material.declaration_saved','material_variant',$3,$4,$5)`, [randomUUID(), a.operator.operatorId, r.variantId, r.metadata.requestId, { revision, status: reason === null ? "candidate" : "pending_validation", eligibilityReason: reason }]);
       }
       await this.affected(c, `INSERT INTO ${s}.material_registry_commands(actor_id,request_key,payload_digest,variant_id) VALUES($1,$2,$3,$4)`, [a.operator.operatorId, metadata.idempotencyKey, digest, r.variantId]);
       const saved = await this.load(c, r.variantId); if (!saved) return invalid(); return { ...saved, changed: !unchanged, replayed: false };
@@ -173,7 +248,7 @@ export class MaterialRegistryStore {
         results.push({ index, outcome: "rejected" as const, error: { code, retryable: e instanceof ProductTransactionError ? e.retryable : code === "VERIFIER_UNAVAILABLE" } });
       }
     }
-    return { results }; // Saved means pending_validation, never admitted/published.
+    return { results }; // Saved means declaration saved; candidate is selection eligibility, never publication authorization.
   }
   private async affected(c: PoolClient, sql: string, values: unknown[]) { if ((await c.query(sql, values)).rowCount !== 1) throw new ProductTransactionError("INTERNAL_ERROR", "Material registry unavailable", true); }
 }
