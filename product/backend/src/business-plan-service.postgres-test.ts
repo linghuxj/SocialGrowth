@@ -468,10 +468,11 @@ test("final transaction reruns the schedule check after delay before any plan or
     // call-count timing as sources of a false pass.
     if (csrf !== null && ++csrfTransactions === 2) {
       const blocker = await pool.connect();
-      let lockHeld = false;
+      let transactionOpen = false;
       let pending: Promise<{ status: "fulfilled"; value: T } | { status: "rejected"; reason: unknown }> | null = null;
       try {
         await blocker.query("BEGIN");
+        transactionOpen = true;
         await blocker.query("SELECT 1 FROM socialgrowth_product.business_plan_guard FOR UPDATE");
         // Attach both handlers immediately: the production lock timeout is
         // shorter than this fixture's wait-observation timeout.
@@ -479,7 +480,6 @@ test("final transaction reruns the schedule check after delay before any plan or
           value => ({ status: "fulfilled" as const, value }),
           reason => ({ status: "rejected" as const, reason }),
         );
-        lockHeld = true;
         const waitDeadline = Date.now() + 10_000;
         while (true) {
           const waiting = await pool.query<{ count: number }>(`SELECT count(*)::int AS count FROM pg_stat_activity
@@ -497,12 +497,12 @@ test("final transaction reruns the schedule check after delay before any plan or
           await new Promise(resolve => setTimeout(resolve, 20));
         }
         await blocker.query("COMMIT");
-        lockHeld = false;
+        transactionOpen = false;
         const result = await pending;
         if (result.status === "rejected") throw result.reason;
         return result.value;
       } catch (error) {
-        if (lockHeld) await blocker.query("ROLLBACK").catch(() => undefined);
+        if (transactionOpen) await blocker.query("ROLLBACK").catch(() => undefined);
         if (pending) await pending;
         throw error;
       } finally { blocker.release(); }
@@ -511,6 +511,8 @@ test("final transaction reruns the schedule check after delay before any plan or
   };
   await assert.rejects(f.service.arrange(f.token, f.csrf, f.projectId, request), error("FACT_VERSION_STALE"));
   assert.equal(finalGuardWaitObserved, true, "the final persistence transaction must have waited on the PostgreSQL business-plan guard");
+  assert.equal(csrfTransactions, 2, "the model must return before the final persistence transaction starts");
+  assert.equal(arrangementCalls, 1, "the model suggestion must be produced before final persistence is blocked");
   assert.deepEqual(await planRowCounts(f.projectId), { revisions: 0, tasks: 0, outbox: 0, commands: 0, audits: 0 });
   makeArrangement = confirmationSuggestion;
 });
