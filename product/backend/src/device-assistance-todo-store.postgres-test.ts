@@ -448,6 +448,39 @@ test("notes reject raw +/- one-microsecond bounds before same-millisecond Date p
   assert.equal(first.notes[0]?.noteId, ids[0]); assert.equal(second.notes[0]?.noteId, ids[1]); assert.equal(second.nextAfterNoteId, null); assert.equal(first.notes[0]?.recordedAt, second.notes[0]?.recordedAt);
   assert.deepEqual(await counts(initial.todoId), before);
 });
+test("operator impact pages are global, bounded, stable by device cursor and contain historical fields only", async () => {
+  const f = await fixture(), first = await store.ingestUnassignedDeviceEvent(f.input), d2 = await device(f.p);
+  await store.ingestUnassignedDeviceEvent(event(d2.deviceId, f.input.occurrenceId));
+  const page1 = await notesFeed.listImpacts(f.a.token, first.todoId, { afterDeviceId: null, pageSize: 1 });
+  assert.equal(page1.impacts.length, 1); assert.equal(page1.nextAfterDeviceId, page1.impacts[0]?.deviceId);
+  const page2 = await notesFeed.listImpacts(f.a.token, first.todoId, { afterDeviceId: page1.nextAfterDeviceId, pageSize: 1 });
+  assert.equal(page2.impacts.length, 1); assert.equal(page2.nextAfterDeviceId, null);
+  assert.deepEqual([...page1.impacts, ...page2.impacts].map(i => i.deviceId), [f.d.deviceId, d2.deviceId].sort());
+  assert.ok([...page1.impacts, ...page2.impacts].every(i => i.recordedDeviceVersion === 0 && /^\d{4}-\d\d-\d\dT.*Z$/.test(i.recordedAt)));
+  assert.deepEqual(Object.keys(page1).sort(), ["impacts", "nextAfterDeviceId", "todoId"]);
+  const otherOperator = await actor();
+  assert.deepEqual((await notesFeed.listImpacts(otherOperator.token, first.todoId, { afterDeviceId: null, pageSize: 50 })).impacts.length, 2);
+  await assert.rejects(notesFeed.listImpacts(f.a.token, randomUUID(), { afterDeviceId: null, pageSize: 20 }), code("FACT_VERSION_STALE"));
+  const secondTodo = await store.ingestUnassignedDeviceEvent(event(d2.deviceId));
+  await assert.rejects(notesFeed.listImpacts(f.a.token, secondTodo.todoId, { afterDeviceId: f.d.deviceId, pageSize: 20 }), code("FACT_VERSION_STALE"));
+  await assert.rejects(notesFeed.listImpacts(f.a.token, first.todoId, { afterDeviceId: null, pageSize: 51 }), code("INPUT_INVALID"));
+  await pool.query("UPDATE socialgrowth_product.operator_sessions SET revoked_at=clock_timestamp(),revoked_reason='logout' WHERE session_id=$1", [f.a.sessionId]);
+  await assert.rejects(notesFeed.listImpacts(f.a.token, first.todoId, { afterDeviceId: null, pageSize: 20 }), code("AUTHENTICATION_REQUIRED"));
+});
+test("operator impact query rechecks session expiry after waiting for a concurrent todo update", async () => {
+  const f = await fixture(), first = await store.ingestUnassignedDeviceEvent(f.input), blocker = await pool.connect(); let pending: Promise<unknown> | undefined;
+  await pool.query("UPDATE socialgrowth_product.operator_sessions SET expires_at=clock_timestamp()+interval '1 second' WHERE session_id=$1", [f.a.sessionId]);
+  try {
+    await blocker.query("BEGIN"); await blocker.query("SELECT 1 FROM socialgrowth_product.device_assistance_todos WHERE todo_id=$1 FOR UPDATE", [first.todoId]);
+    pending = notesFeed.listImpacts(f.a.token, first.todoId, { afterDeviceId: null, pageSize: 20 }); const rejected = assert.rejects(pending, code("AUTHENTICATION_REQUIRED"));
+    let waiting = false;
+    for (let i = 0; i < 300; i++) { if ((await pool.query("SELECT 1 FROM pg_stat_activity WHERE application_name='sg-todo-fixtures' AND wait_event_type='Lock' AND query LIKE '%device_assistance_todos%FOR SHARE%' AND pid<>pg_backend_pid()")).rowCount) { waiting = true; break; } await new Promise(r => setTimeout(r, 5)); }
+    assert.ok(waiting);
+    for (let i = 0; i < 300; i++) { if ((await pool.query<{ expired: boolean }>("SELECT expires_at<=clock_timestamp() expired FROM socialgrowth_product.operator_sessions WHERE session_id=$1", [f.a.sessionId])).rows[0]?.expired) break; await new Promise(r => setTimeout(r, 5)); }
+    await blocker.query("UPDATE socialgrowth_product.device_assistance_todos SET fact_version=fact_version+1,updated_at=clock_timestamp() WHERE todo_id=$1", [first.todoId]);
+    await blocker.query("COMMIT"); await rejected;
+  } finally { await blocker.query("ROLLBACK"); blocker.release(); await pending?.catch(() => undefined); }
+});
 test("0013 forward notes cursor index preserves real preexisting command/history rows", async () => {
   const f = await fixture(), first = await store.ingestUnassignedDeviceEvent(f.input); await feed.recordNote(f.a.token, f.a.csrf, note(first.todoId, 1));
   await pool.query("DROP INDEX socialgrowth_product.device_assistance_notes_cursor_idx");

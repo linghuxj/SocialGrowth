@@ -15,6 +15,7 @@ import {
   listOperatorDeviceFactsResponseSchema,
   listProviderDevicesResponseSchema,
   listProviderDeviceAssistanceTodosResponseSchema,
+  listDeviceAssistanceImpactsResponseSchema,
   providerDeviceLabelResponseSchema,
   productErrorResponseSchema,
 } from "@socialgrowth/product-contracts";
@@ -479,6 +480,36 @@ test("real HTTP keeps scan read-only and supports confirmation recovery and mult
      VALUES($1,$2,$3,$4,$5)`,
     [todoId, owner.providerId, currentDevice.deviceId, confirmed.associationId, currentDevice.factVersion],
   );
+  const impactOperatorToken = randomBytes(32).toString("base64url"), impactOperatorCsrf = randomBytes(32).toString("base64url");
+  const tokenDigest = (value: string) => createHash("sha256").update(value, "utf8").digest();
+  const operatorSessionId = randomUUID();
+  await pool.query(`INSERT INTO socialgrowth_product.operator_sessions(session_id,operator_id,token_digest,csrf_digest,credential_version,expires_at)
+    VALUES($1,$2,$3,$4,1,clock_timestamp()+interval '1 day')`, [operatorSessionId, responsibleOperatorId, tokenDigest(impactOperatorToken), tokenDigest(impactOperatorCsrf)]);
+  const impactResponse = await fetch(`${baseUrl}/api/operator/assistance-todos/${todoId}/impacts?pageSize=1`, {
+    headers: { cookie: `__Host-sg_operator_session=${impactOperatorToken}` },
+  });
+  assert.equal(impactResponse.status, 200);
+  assert.equal(impactResponse.headers.get("cache-control"), "no-store");
+  const impactPage = listDeviceAssistanceImpactsResponseSchema.parse(await impactResponse.json());
+  assert.equal(impactPage.todoId, todoId);
+  assert.deepEqual(impactPage.impacts, [{ deviceId: currentDevice.deviceId, recordedDeviceVersion: currentDevice.factVersion, recordedAt: impactPage.impacts[0]?.recordedAt }]);
+  assert.equal(impactPage.nextAfterDeviceId, null);
+  assert.deepEqual(Object.keys(impactPage).sort(), ["impacts", "nextAfterDeviceId", "todoId"]);
+  const noSessionImpact = await fetch(`${baseUrl}/api/operator/assistance-todos/${todoId}/impacts`);
+  assert.equal(noSessionImpact.status, 401);
+  const missingImpact = await fetch(`${baseUrl}/api/operator/assistance-todos/${randomUUID()}/impacts`, {
+    headers: { cookie: `__Host-sg_operator_session=${impactOperatorToken}` },
+  });
+  assert.equal(missingImpact.status, 409);
+  const badCursor = await fetch(`${baseUrl}/api/operator/assistance-todos/${todoId}/impacts?afterDeviceId=${randomUUID()}`, {
+    headers: { cookie: `__Host-sg_operator_session=${impactOperatorToken}` },
+  });
+  assert.equal(badCursor.status, 409);
+  await pool.query("UPDATE socialgrowth_product.operator_sessions SET revoked_at=clock_timestamp(),revoked_reason='logout' WHERE session_id=$1", [operatorSessionId]);
+  const revokedImpact = await fetch(`${baseUrl}/api/operator/assistance-todos/${todoId}/impacts`, {
+    headers: { cookie: `__Host-sg_operator_session=${impactOperatorToken}` },
+  });
+  assert.equal(revokedImpact.status, 401);
   const ownFeedResponse = await fetch(`${baseUrl}/api/provider/assistance-todos`, {
     headers: { authorization: `Bearer ${owner.token}` },
   });

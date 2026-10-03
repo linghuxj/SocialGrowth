@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { deviceAssistanceTodoSummarySchema, listDeviceAssistanceTodosResponseSchema, recordDeviceAssistanceNoteRequestSchema, recordDeviceAssistanceNoteResponseSchema, providerDeviceAssistanceTodoSummarySchema, listProviderDeviceAssistanceTodosResponseSchema, listDeviceAssistanceNotesResponseSchema } from "./device-assistance.js";
+import { deviceAssistanceTodoSummarySchema, listDeviceAssistanceTodosResponseSchema, recordDeviceAssistanceNoteRequestSchema, recordDeviceAssistanceNoteResponseSchema, providerDeviceAssistanceTodoSummarySchema, listProviderDeviceAssistanceTodosResponseSchema, listDeviceAssistanceNotesResponseSchema, listDeviceAssistanceImpactsResponseSchema } from "./device-assistance.js";
 import { contractVersion } from "./common.js";
 const id = "00000000-0000-4000-8000-00000000000a";
 const summary = { todoId: id, occurrenceId: id, providerId: id, initialResponsibleOperatorId: id, originScope: "unassigned_device", kind: "network_access_help", status: "awaiting_recheck", factVersion: 1,
@@ -49,4 +49,18 @@ test("operator notes page preserves bounded recorded notes and consistent curren
   const note = { noteId: id, actorId: id, kind: "reported_processed", text: "需要真实复核", recordedAt: summary.updatedAt }, value = { todo: summary, notes: [note], nextAfterNoteId: id };
   assert.deepEqual(listDeviceAssistanceNotesResponseSchema.parse(value), value);
   for (const patch of [{ notes: [note, { ...note, noteId: id.toUpperCase() }] }, { notes: [], nextAfterNoteId: id }, { notes: [{ ...note, kind: "verified" }] }, { notes: [{ ...note, permissionGranted: true }] }, { notes: [{ ...note, recordedAt: "0000-01-01T00:00:00Z" }] }, { notes: [{ ...note, recordedAt: "2026-09-29T23:59:59.999999999Z" }] }, { notes: [{ ...note, recordedAt: "2026-09-30T00:00:00.000000001Z" }] }, { notes: [note], todo: { ...summary, status: "open", noteCount: 0 } }]) assert.equal(listDeviceAssistanceNotesResponseSchema.safeParse({ ...value, ...patch }).success, false);
+});
+test("operator impact pages expose only historical facts in strict device cursor order", () => {
+  const impact = { deviceId: id, recordedDeviceVersion: 9, recordedAt: summary.createdAt };
+  const value = { todoId: id, impacts: [impact], nextAfterDeviceId: id };
+  assert.deepEqual(listDeviceAssistanceImpactsResponseSchema.parse(value), value);
+  for (const patch of [
+    { impacts: [{ ...impact, associationId: id }] },
+    { impacts: [{ ...impact, currentState: "active" }] },
+    { impacts: [{ ...impact, recordedDeviceVersion: -1 }] },
+    { impacts: [impact, { ...impact, deviceId: "00000000-0000-4000-8000-00000000000b" }, { ...impact, deviceId: "00000000-0000-4000-8000-000000000001" }] },
+    { impacts: [], nextAfterDeviceId: id },
+    { impacts: Array(51).fill(impact) },
+  ]) assert.equal(listDeviceAssistanceImpactsResponseSchema.safeParse({ ...value, ...patch }).success, false);
+  assert.equal(listDeviceAssistanceImpactsResponseSchema.safeParse({ todoId: id, impacts: [], nextAfterDeviceId: null }).success, true);
 });
