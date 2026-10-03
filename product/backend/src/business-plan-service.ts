@@ -121,7 +121,7 @@ export class BusinessPlanService {
         association_id: string | null; association_generation: string | null; installation_id: string | null; installation_generation: string | null; installation_status: string | null;
         provider_status: string | null; network_phase: string | null; network_expires_at: Date | null;
         participation_run_id: string | null; phone_record: unknown; latest_control_action: string | null }>(
-        `SELECT t.task_id,r.device_id AS reserved_device_id,d.state AS device_state,a.association_id,a.installation_id,
+        `SELECT t.task_id,r.device_id AS reserved_device_id,d.state AS device_state,a.association_id,a.association_generation,a.installation_id,
           i.generation::text AS installation_generation,i.status AS installation_status,p.status AS provider_status,
           n.phase AS network_phase,n.expires_at AS network_expires_at,l.run_id AS participation_run_id,
           j.record AS phone_record,ctl.action AS latest_control_action
