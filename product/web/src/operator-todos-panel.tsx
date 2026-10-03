@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { listInvitations, listOperators, ProductApiError } from "./operator-api.js";
 import { isDefinitiveAssistanceRejection, listAssistanceNotes, listAssistanceTodos, prepareAssistanceNote, type AssistanceNote, type AssistanceTodo, type PreparedAssistanceNote } from "./device-assistance-api.js";
 import type { InvitationView, OperatorView } from "@socialgrowth/product-contracts";
-import "./operator-todos.css";
 
 interface Props { active: boolean; readOnly: boolean; onExpired(error: unknown): void }
 type NoteState = { todo: AssistanceTodo; notes: AssistanceNote[]; nextAfterNoteId: string | null };
@@ -35,10 +34,14 @@ export function OperatorTodosPanel({ active, readOnly, onExpired }: Props) {
   const [draft, setDraft] = useState("");
   const [kind, setKind] = useState<"note" | "reported_processed">("note");
   const [pending, setPending] = useState<PreparedAssistanceNote | null>(null);
+  const pendingCommand = useRef<PreparedAssistanceNote | null>(null);
   const readSequence = useRef(0);
+  const detailSequence = useRef(0);
+  const selectedTodoId = useRef<string | null>(null);
 
   async function refresh(append = false): Promise<void> {
     const sequence = ++readSequence.current;
+    const detailTarget = selectedTodoId.current;
     setLoading(true); setError("");
     try {
       const [page, contacts] = await Promise.all([
@@ -52,13 +55,11 @@ export function OperatorTodosPanel({ active, readOnly, onExpired }: Props) {
       const nextInvitations = contacts[1].status === "fulfilled" ? contacts[1].value : [];
       setTodos(current => append ? [...current, ...page.todos.filter(item => !current.some(old => old.todoId === item.todoId))] : page.todos);
       setNextTodo(page.nextAfterTodoId); setOperators(nextOperators); setInvitations(nextInvitations);
-      if (selected && !append) {
-        const latest = page.todos.find(item => item.todoId === selected.todo.todoId);
-        if (latest) {
-          const details = await listAssistanceNotes(latest.todoId);
-          if (sequence !== readSequence.current) return;
-          setSelected({ todo: details.todo, notes: details.notes, nextAfterNoteId: details.nextAfterNoteId });
-        }
+      if (detailTarget && !append && selectedTodoId.current === detailTarget) {
+        const detailRequest = ++detailSequence.current;
+        const details = await listAssistanceNotes(detailTarget);
+        if (sequence !== readSequence.current || detailRequest !== detailSequence.current || selectedTodoId.current !== detailTarget) return;
+        setSelected({ todo: details.todo, notes: details.notes, nextAfterNoteId: details.nextAfterNoteId });
       }
     } catch (cause) {
       if (sequence !== readSequence.current) return;
@@ -68,36 +69,46 @@ export function OperatorTodosPanel({ active, readOnly, onExpired }: Props) {
   }
 
   async function openTodo(todo: AssistanceTodo): Promise<void> {
-    if (pending) return;
+    if (pendingCommand.current) return;
+    const switching = selectedTodoId.current !== todo.todoId;
+    selectedTodoId.current = todo.todoId;
+    const request = ++detailSequence.current;
+    if (switching) { setDraft(""); setKind("note"); }
     setSelected(null); setDetailLoading(true); setError(""); setMessage("");
     try {
       const response = await listAssistanceNotes(todo.todoId);
+      if (request !== detailSequence.current || selectedTodoId.current !== todo.todoId) return;
       setSelected({ todo: response.todo, notes: response.notes, nextAfterNoteId: response.nextAfterNoteId });
     } catch (cause) {
+      if (request !== detailSequence.current || selectedTodoId.current !== todo.todoId) return;
       if (cause instanceof ProductApiError && cause.status === 401) onExpired(cause);
       else setError("待办详情暂时不可用；没有改变服务端数据，请稍后重试。");
-    } finally { setDetailLoading(false); }
+    } finally { if (request === detailSequence.current && selectedTodoId.current === todo.todoId) setDetailLoading(false); }
   }
 
   async function loadOlderNotes(): Promise<void> {
     if (!selected?.nextAfterNoteId) return;
+    const todoId = selected.todo.todoId, cursor = selected.nextAfterNoteId;
+    const request = ++detailSequence.current;
     setDetailLoading(true);
     try {
-      const response = await listAssistanceNotes(selected.todo.todoId, selected.nextAfterNoteId);
+      const response = await listAssistanceNotes(todoId, cursor);
+      if (request !== detailSequence.current || selectedTodoId.current !== todoId) return;
       setSelected(current => current ? { ...current, todo: response.todo,
         notes: [...current.notes, ...response.notes], nextAfterNoteId: response.nextAfterNoteId } : current);
     } catch (cause) {
+      if (request !== detailSequence.current || selectedTodoId.current !== todoId) return;
       if (cause instanceof ProductApiError && cause.status === 401) onExpired(cause);
       else setError("历史说明读取失败；已显示部分不会被覆盖。");
-    } finally { setDetailLoading(false); }
+    } finally { if (request === detailSequence.current && selectedTodoId.current === todoId) setDetailLoading(false); }
   }
 
   async function sendNote(): Promise<void> {
-    if (!selected || readOnly) return;
+    if (!selected || readOnly || pendingCommand.current) return;
     let command: PreparedAssistanceNote;
     try { command = prepareAssistanceNote(selected.todo, kind, draft); }
     catch { setError("说明内容需为 1–150 字且不能包含首尾空白或换行。"); return; }
-    setPending(command);
+    pendingCommand.current = command; setPending(command);
     await continueNote(command);
   }
 
@@ -105,24 +116,25 @@ export function OperatorTodosPanel({ active, readOnly, onExpired }: Props) {
     if (!command) return;
     setError(""); setMessage("");
     try {
-      await command.submit(); setPending(null); setDraft(""); setKind("note");
+      await command.submit(); pendingCommand.current = null; setPending(null); setDraft(""); setKind("note");
       setMessage("说明已记录。待办仍需基于新的设备事实复核，不代表权限恢复或事项已解决。");
+      if (!active) return;
       await refresh(); if (selected) await openTodo(selected.todo);
     } catch (cause) {
       if (cause instanceof ProductApiError && cause.status === 401) { onExpired(cause); return; }
       if (isDefinitiveAssistanceRejection(cause)) {
-        setPending(null);
+        pendingCommand.current = null; setPending(null);
         if (cause instanceof ProductApiError && cause.response.error.code === "FACT_VERSION_STALE") {
           setError("待办事实版本已变化。请刷新并重新核对后，再决定是否提交说明。"); await refresh();
         } else setError("说明不符合要求，没有提交；请检查后重填。");
         return;
       }
-      setPending(command);
+      pendingCommand.current = command; setPending(command);
       setError("提交结果尚未确认。原内容和请求键已保留；刷新记录后，只有选择接续原请求才会用相同请求键核对。");
     }
   }
 
-  useEffect(() => { if (active) void refresh(); else readSequence.current += 1; }, [active]);
+  useEffect(() => { if (active) void refresh(); else { readSequence.current += 1; detailSequence.current += 1; } }, [active]);
   if (!active) return null;
   return <section className="operator-todos" aria-labelledby="operator-todos-title">
     <header className="operator-todos__header"><div><p className="operator-todos__eyebrow">设备协助 · 运营待办</p><h2 id="operator-todos-title">设备接入待办</h2><p>只展示已记录的未分配设备协助事项。说明和“报告已处理”都不会批准恢复、验证设备或关闭事项。</p></div><button type="button" className="outline-button" onClick={() => void refresh()} disabled={loading}>{loading ? "读取中…" : "刷新"}</button></header>
