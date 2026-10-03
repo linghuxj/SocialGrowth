@@ -1,11 +1,14 @@
 package com.socialgrowth.product
 
+import android.app.AlertDialog
+import android.app.Dialog
 import android.graphics.Bitmap
 import android.content.Intent
 import androidx.core.content.ContextCompat
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -15,6 +18,7 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.EditText
@@ -38,6 +42,11 @@ import java.util.UUID
 import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
+    private data class ControlAttempt(
+        val fact: DeviceControlFact?,
+        val requestAccepted: Boolean,
+        val knownRejected: Boolean,
+    )
     private val blue = Color.rgb(36, 89, 196)
     private val canvas = Color.rgb(244, 246, 250)
     private val ink = Color.rgb(23, 43, 77)
@@ -61,6 +70,7 @@ class MainActivity : ComponentActivity() {
     private var backAction: (() -> Unit)? = null
     private var managementSessionToken: String? = null
     private var pendingScanGeneration: Int? = null
+    private var exitedDevicesExpanded = false
     private var associationConfirmKey = newIdempotencyKey("association-confirm")
     private val barcodeLauncher = registerForActivityResult(ScanContract()) { result ->
         if (pendingScanGeneration != screenGeneration) {
@@ -100,7 +110,7 @@ class MainActivity : ComponentActivity() {
             }
             return
         }
-        showAuthForm()
+        if (invitationCode != null) showAuthForm() else showUseChoice()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -157,7 +167,7 @@ class MainActivity : ComponentActivity() {
             setColorFilter(ink)
             background = null
             contentDescription = "返回"
-            setOnClickListener { finish() }
+            setOnClickListener { showUseChoice() }
         }, LinearLayout.LayoutParams(dp(48), dp(48)))
         header.addView(label("SocialGrowth", 20f, ink, Typeface.BOLD), wrapWrap().apply {
             marginStart = dp(6)
@@ -248,22 +258,6 @@ class MainActivity : ComponentActivity() {
                 showAuthForm()
             }
         }, matchHeight(52).apply { topMargin = dp(8) })
-        root.addView(divider(), matchHeight(1).apply { topMargin = dp(10) })
-        root.addView(label("加入后，可逐台扫码关联专用执行手机。", 14f, secondary).apply { gravity = Gravity.CENTER }, matchWrap().apply {
-            topMargin = dp(24)
-        })
-        root.addView(secondaryButton("将这台手机作为执行手机接入").apply {
-            id = R.id.installation_mode
-            contentDescription = "将这台手机作为执行手机接入"
-            setOnClickListener {
-                try {
-                    installationStore.ensureCredential()
-                    showInstallationLoading()
-                } catch (_: Exception) {
-                    Toast.makeText(this@MainActivity, "无法安全建立本机身份，请重试。", Toast.LENGTH_LONG).show()
-                }
-            }
-        }, matchHeight(54).apply { topMargin = dp(16) })
         root.addView(View(this), LinearLayout.LayoutParams(1, 0, 1f))
 
         requestCode.setOnClickListener {
@@ -353,6 +347,71 @@ class MainActivity : ComponentActivity() {
         setContentView(scroll)
     }
 
+    private fun showUseChoice() {
+        ++screenGeneration
+        backAction = null
+        managementSessionToken = null
+        val root = vertical(16).apply {
+            setBackgroundColor(canvas)
+            setPadding(dp(20), dp(24), dp(20), dp(24))
+        }
+        root.addView(label("SocialGrowth", 20f, ink, Typeface.BOLD), matchWrap())
+        root.addView(label("选择这台手机的使用方式", 30f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(28) })
+        root.addView(label("管理登录不会将本机接入执行。", 15f, secondary), matchWrap().apply { topMargin = dp(8) })
+        val management = vertical(14).apply {
+            background = rounded(Color.WHITE, 12)
+            isClickable = true
+            isFocusable = true
+            contentDescription = "管理我的设备：查看本人设备、处理协助事项和查看分佣"
+            setOnClickListener { registrationMode = true; showAuthForm() }
+        }
+        management.setPadding(dp(18), dp(16), dp(18), dp(16))
+        management.addView(label("管理我的设备", 20f, ink, Typeface.BOLD))
+        management.addView(label("查看本人设备、处理协助事项和查看分佣", 14f, secondary))
+        management.minimumHeight = dp(112)
+        root.addView(management, matchWrap().apply { topMargin = dp(28) })
+        val execution = vertical(14).apply {
+            background = rounded(Color.WHITE, 12)
+            isClickable = true
+            isFocusable = true
+            contentDescription = "接入这台执行手机：将本机作为专用手机接入平台执行"
+            setOnClickListener { showExecutionIntro() }
+        }
+        execution.setPadding(dp(18), dp(16), dp(18), dp(16))
+        execution.addView(label("接入这台执行手机", 20f, ink, Typeface.BOLD))
+        execution.addView(label("将本机作为专用手机接入平台执行", 14f, secondary))
+        execution.minimumHeight = dp(112)
+        root.addView(execution, matchWrap())
+        root.addView(label("管理手机与执行手机的身份、授权和接入进展分别处理。", 14f, secondary), matchWrap().apply { topMargin = dp(8) })
+        setContentView(ScrollView(this).apply {
+            isFillViewport = true
+            addView(root, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        })
+    }
+
+    private fun showExecutionIntro() {
+        ++screenGeneration
+        backAction = { showUseChoice() }
+        val root = vertical(20).apply { setBackgroundColor(canvas) }
+        root.addView(backHeader("执行手机接入") { showUseChoice() }, matchWrap())
+        root.addView(label("将本机作为专用执行手机接入", 28f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(22) })
+        root.addView(label("本机身份独立保存在安全存储中。管理登录、设备归属和执行授权分别进行；接入不表示已获得执行资格。", 15f, secondary), matchWrap().apply { topMargin = dp(10) })
+        root.addView(primaryButton("继续在本机接入").apply {
+            setOnClickListener {
+                try {
+                    installationStore.ensureCredential()
+                    showInstallationLoading()
+                } catch (_: Exception) {
+                    Toast.makeText(this@MainActivity, "无法安全建立本机身份，请重试。", Toast.LENGTH_LONG).show()
+                }
+            }
+        }, matchHeight(54).apply { topMargin = dp(24) })
+        setContentView(ScrollView(this).apply {
+            isFillViewport = true
+            addView(root, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        })
+    }
+
     private fun showManagement(session: StoredProviderSession) {
         val generation = ++screenGeneration
         backAction = null
@@ -360,23 +419,18 @@ class MainActivity : ComponentActivity() {
         pendingScanGeneration = null
         val content = vertical(20).apply { setBackgroundColor(canvas) }
         content.addView(appHeader("仅管理"), matchWrap())
-        val titleRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        titleRow.addView(label("我的设备", 30f, ink, Typeface.BOLD), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        val profile = secondaryButton("我的").apply {
-            id = R.id.provider_profile
-            contentDescription = "查看我的身份与登录帮助"
-            isEnabled = false
-            setOnClickListener { showProviderProfile(session) }
-        }
-        titleRow.addView(profile, LinearLayout.LayoutParams(dp(88), dp(48)))
-        content.addView(titleRow, matchWrap().apply { topMargin = dp(22) })
+        content.addView(label("我的设备", 30f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(22) })
         val identity = label("正在验证管理身份…", 14f, secondary)
         content.addView(identity, matchWrap().apply { topMargin = dp(7) })
         val summary = label("正在读取本人设备…", 14f, secondary)
         content.addView(summary, matchWrap().apply { topMargin = dp(12) })
+        content.addView(label("本人设备协助", 18f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(22) })
+        val assistance = vertical(14).apply {
+            id = R.id.provider_assistance_list
+            background = rounded(Color.WHITE, 12)
+            addView(label("正在读取本人协助事项…", 14f, secondary), matchWrap())
+        }
+        content.addView(assistance, matchWrap().apply { topMargin = dp(10) })
         val add = primaryButton("添加执行手机").apply {
             id = R.id.provider_add_device
             contentDescription = "扫码添加执行手机"
@@ -384,7 +438,11 @@ class MainActivity : ComponentActivity() {
             setOnClickListener { startAssociationScan() }
         }
         content.addView(add, matchHeight(54).apply { topMargin = dp(22) })
-        content.addView(label("扫码只用于核对设备；确认前不会建立归属。", 13f, secondary).apply {
+        content.addView(secondaryButton("无法扫码？输入设备关联码").apply {
+            id = R.id.provider_enter_association_code
+            setOnClickListener { showAssociationCodeInput(session) }
+        }, matchHeight(52).apply { topMargin = dp(8) })
+        content.addView(label("扫码或手动输入都只用于核对设备；确认前不会建立归属。", 13f, secondary).apply {
             gravity = Gravity.CENTER
         }, matchWrap().apply { topMargin = dp(9) })
         val listHeading = LinearLayout(this).apply {
@@ -401,22 +459,21 @@ class MainActivity : ComponentActivity() {
         devices.addView(label("正在读取设备…", 14f, secondary), matchWrap().apply { topMargin = dp(12) })
         content.addView(devices, matchWrap())
         content.addView(label(DeviceFactPresentation.ACCESS_BOUNDARY, 13f, secondary), matchWrap().apply { topMargin = dp(14) })
-        val logout = secondaryButton("退出管理登录").apply {
-            id = R.id.provider_logout
-            setOnClickListener { logoutManagement(session, this) }
-        }
-        content.addView(logout, matchHeight(54).apply { topMargin = dp(30) })
-        content.addView(label("退出管理登录只撤销此管理会话，不暂停或退出已关联的执行手机。", 13f, secondary), matchWrap().apply { topMargin = dp(8) })
         val scroll = ScrollView(this).apply {
             isFillViewport = true
             addView(content, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
-        setContentView(scroll)
+        val page = vertical(0).apply {
+            setBackgroundColor(canvas)
+            addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+            addView(providerNavigation(session, "devices"), matchWrap())
+        }
+        setContentView(page)
         guardManagementExpiry(session, generation)
+        readProviderAssistance(session, generation, assistance)
         readProviderDevices(session, generation,
             success = { list ->
                 identity.text = "${session.displayName} · ${session.phoneHint}"
-                profile.isEnabled = true
                 add.isEnabled = true
                 summary.text = "${list.size} 台当前归属设备 · 连接状态未确认"
                 renderDevices(devices, list, session)
@@ -427,6 +484,75 @@ class MainActivity : ComponentActivity() {
                 renderDeviceError(devices, message, session)
             },
         )
+    }
+
+    private fun readProviderAssistance(session: StoredProviderSession, generation: Int, container: LinearLayout) {
+        readProviderAssistancePage(session, generation, container, after = null, append = false)
+    }
+
+    private fun readProviderAssistancePage(
+        session: StoredProviderSession,
+        generation: Int,
+        container: LinearLayout,
+        after: UUID?,
+        append: Boolean,
+    ) {
+        runManagementNetwork(session, generation,
+            action = { ProviderAssistanceApiClient(BuildConfig.API_BASE_URL).list(session.sessionToken, after) },
+            success = { page ->
+                val existing = if (append) container.tag as? List<*> else null
+                val combined = (existing.orEmpty().filterIsInstance<ProviderAssistanceTodo>() + page.todos)
+                container.tag = combined
+                renderProviderAssistance(container, combined, page.nextAfterTodoId, session, generation)
+            },
+            failure = {
+                if (!append) {
+                    container.removeAllViews()
+                    container.addView(label("本人协助进展暂时无法读取。", 14f, secondary), matchWrap())
+                } else container.addView(label("更多事项暂时无法读取。", 13f, secondary), matchWrap().apply { topMargin = dp(8) })
+                container.addView(secondaryButton("重试读取").apply {
+                    setOnClickListener { readProviderAssistancePage(session, generation, container, after, append) }
+                }, matchHeight(44).apply { topMargin = dp(8) })
+            },
+        )
+    }
+
+    private fun renderProviderAssistance(
+        container: LinearLayout,
+        todos: List<ProviderAssistanceTodo>,
+        nextAfterTodoId: UUID?,
+        session: StoredProviderSession,
+        generation: Int,
+    ) {
+        container.removeAllViews()
+        if (todos.isEmpty()) {
+            container.addView(label("目前没有本人设备协助事项。", 14f, secondary), matchWrap())
+            return
+        }
+        todos.forEach { todo ->
+            val card = vertical(12).apply { background = rounded(canvas, 8) }
+            card.addView(label(
+                if (todo.status == "open") "需要本人留意" else "处理后等待复核",
+                16f, ink, Typeface.BOLD,
+            ))
+            card.addView(label("网络接入协助 · ${todo.impactCount} 台设备 · ${todo.noteCount} 条进展记录", 13f, secondary), matchWrap().apply { topMargin = dp(5) })
+            if (todo.impacts.isEmpty()) {
+                card.addView(label("当前没有可显示的本人关联设备；请刷新设备清单核对。", 13f, secondary), matchWrap().apply { topMargin = dp(8) })
+            } else todo.impacts.forEach { impact ->
+                card.addView(detailRow(
+                    impact.deviceLabel,
+                    "设备标识尾号 ${impact.deviceId.toString().takeLast(8)} · 发生时版本 ${impact.recordedDeviceVersion}，非当前状态",
+                ), matchWrap().apply { topMargin = dp(8) })
+            }
+            card.addView(label("事项更新时间 ${formatFactTime(todo.updatedAt.toString())}", 12f, secondary), matchWrap().apply { topMargin = dp(8) })
+            container.addView(card, matchWrap().apply { topMargin = dp(8) })
+        }
+        if (nextAfterTodoId != null) {
+            container.addView(secondaryButton("查看更多本人协助").apply {
+                setOnClickListener { readProviderAssistancePage(session, generation, container, nextAfterTodoId, append = true) }
+            }, matchHeight(46).apply { topMargin = dp(8) })
+        }
+        container.addView(label("事项状态为汇总进展，不代表单台手机当前在线、健康或已恢复。", 12f, secondary), matchWrap().apply { topMargin = dp(10) })
     }
 
     private fun showInstallationLoading(refreshSession: Boolean = false) {
@@ -645,6 +771,10 @@ class MainActivity : ComponentActivity() {
         root.addView(label("仅显示这台执行手机的当前事实。", 14f, secondary).apply {
             gravity = Gravity.CENTER
         }, matchWrap().apply { topMargin = dp(12) })
+        val usage = vertical(12).apply { background = rounded(Color.WHITE, 12) }
+        usage.addView(label("无法确认", 21f, ink, Typeface.BOLD))
+        usage.addView(label("当前没有可信的本机业务占用事实；不能据此判断空闲。", 14f, secondary), matchWrap().apply { topMargin = dp(4) })
+        root.addView(usage, matchWrap().apply { topMargin = dp(18) })
         val facts = vertical(16).apply { background = rounded(Color.WHITE, 12) }
         facts.addView(detailRow("关联状态", DeviceFactPresentation.state(state.state)))
         facts.addView(divider(), matchHeight(1).apply { topMargin = dp(14); bottomMargin = dp(14) })
@@ -667,62 +797,266 @@ class MainActivity : ComponentActivity() {
             if (factScreen == screenGeneration) networkFact.text = "网络核验状态暂时无法读取"
         })
         root.addView(facts, matchWrap().apply { topMargin = dp(24) })
+        val controlStatus = label("正在读取本机暂停进展…", 14f, secondary)
+        root.addView(controlStatus, matchWrap().apply { topMargin = dp(16) })
+        val pause = primaryButton("暂停本机").apply {
+            isEnabled = state.deviceId != null && state.state in setOf("associated_pending_access", "access_ready")
+            if (state.state == "paused") text = "查看暂停进展"
+            setOnClickListener {
+                showControlConfirmation(
+                    "暂停本机",
+                    "本机 ${shortDeviceName()}",
+                    "停止接新任务，当前操作会尽快停止；恢复需要在管理手机上申请。",
+                ) {
+                    submitInstallationPause(requireNotNull(state.deviceId), controlStatus, this)
+                }
+            }
+        }
+        root.addView(pause, matchHeight(54).apply { topMargin = dp(12) })
+        root.addView(secondaryButton("网络连接与准备设置").apply {
+            setOnClickListener { showInstallationNetworkGuide(state) }
+        }, matchHeight(50).apply { topMargin = dp(8) })
+        val controlScreen = screenGeneration
+        val initialIdentity = installationStore.load()
+        val initialToken = initialIdentity?.activeSessionToken()
+        if (initialToken == null) {
+            controlStatus.text = "无法读取控制进展；本机身份会话已失效。"
+            pause.isEnabled = false
+        } else runNetwork(
+            action = { DeviceControlApiClient(BuildConfig.API_BASE_URL).installation(initialToken).also { require(it.deviceId == state.deviceId) } },
+            success = { fact ->
+                if (controlScreen == screenGeneration) {
+                    controlStatus.text = controlStatusText(fact)
+                    if (fact.intent in setOf("pause_requested", "paused")) {
+                        pause.text = if (fact.stop == "confirmed") "本机已确认停止" else "暂停请求处理中"
+                        pause.isEnabled = false
+                    }
+                }
+            },
+            failure = { if (controlScreen == screenGeneration) controlStatus.text = "暂停进展暂时无法确认；可刷新重试。" },
+        )
         root.addView(label(DeviceFactPresentation.ACCESS_BOUNDARY, 14f, secondary).apply {
             gravity = Gravity.CENTER
         }, matchWrap().apply { topMargin = dp(18) })
         root.addView(secondaryButton("刷新状态").apply { setOnClickListener { showInstallationLoading() } }, matchHeight(54).apply { topMargin = dp(28) })
-        root.addView(label("本机参与确认单独开启；接入、控制权及每次动作仍由系统核验。撤回不会被当成手机已停止。", 14f, secondary), matchWrap().apply { topMargin = dp(16) })
-        if (BuildConfig.ENDPOINT_DIAGNOSTICS) {
-            val endpointStatus = label(EndpointReportingService.statusText(), 14f, secondary)
-            root.addView(endpointStatus, matchWrap().apply { topMargin = dp(12) })
-            val endpointScreen = screenGeneration
-            fun refreshEndpointStatus() {
-                if (endpointScreen != screenGeneration || isDestroyed || isFinishing) return
-                endpointStatus.text = EndpointReportingService.statusText()
-                mainHandler.postDelayed({ refreshEndpointStatus() }, 500)
-            }
-            refreshEndpointStatus()
-            root.addView(secondaryButton("开启端口自动上报").apply {
-                isEnabled = Build.VERSION.SDK_INT >= 34 && state.state in setOf("associated_pending_access", "access_ready")
-                setOnClickListener {
-                    try { ContextCompat.startForegroundService(this@MainActivity, Intent(this@MainActivity, EndpointReportingService::class.java).setAction(EndpointReportingService.START)) }
-                    catch (_: Exception) { Toast.makeText(this@MainActivity, "端口上报服务未能启动", Toast.LENGTH_LONG).show() }
-                }
-            }, matchHeight(54).apply { topMargin = dp(8) })
-            root.addView(secondaryButton("停止端口自动上报").apply {
-                setOnClickListener { if (EndpointReportingService.running) startService(Intent(this@MainActivity, EndpointReportingService::class.java).setAction(EndpointReportingService.STOP)) }
-            }, matchHeight(54).apply { topMargin = dp(8) })
-        }
-        val participationStatus=label(ParticipationService.statusText(),14f,secondary)
-        root.addView(participationStatus,matchWrap().apply { topMargin=dp(8) })
-        val participationScreen=screenGeneration
-        fun refreshParticipationStatus() {
-            if(participationScreen!=screenGeneration || isDestroyed || isFinishing) return
-            participationStatus.text=ParticipationService.statusText()
-            mainHandler.postDelayed({ refreshParticipationStatus() },500)
-        }
-        refreshParticipationStatus()
-        root.addView(primaryButton("确认当前参与").apply {
-            isEnabled = state.state in setOf("associated_pending_access", "access_ready")
-            setOnClickListener {
-                try {
-                    ContextCompat.startForegroundService(this@MainActivity, Intent(this@MainActivity, ParticipationService::class.java).setAction(ParticipationService.START))
-                    Toast.makeText(this@MainActivity, "参与确认请求已提交；以本机状态显示为准。", Toast.LENGTH_LONG).show()
-                } catch (_: Exception) {
-                    Toast.makeText(this@MainActivity, "本机参与服务未能启动，请检查客户端系统设置。", Toast.LENGTH_LONG).show()
-                }
-            }
-        }, matchHeight(54).apply { topMargin = dp(12) })
-        root.addView(secondaryButton("撤回本机参与").apply {
-            setOnClickListener {
-                if (ParticipationService.running) startService(Intent(this@MainActivity, ParticipationService::class.java).setAction(ParticipationService.STOP))
-                Toast.makeText(this@MainActivity, "已停止本机后续参与确认；等待中心撤权和实际停止核实。", Toast.LENGTH_LONG).show()
-            }
-        }, matchHeight(54).apply { topMargin = dp(8) })
+        root.addView(label("暂停请求受理、接新任务停止和本机操作停止是不同事实；页面只按服务端回执更新。", 13f, secondary), matchWrap().apply { topMargin = dp(16) })
         setContentView(ScrollView(this).apply {
             isFillViewport = true
             addView(root, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         })
+    }
+
+    private fun showInstallationNetworkGuide(state: InstallationSelfView) {
+        val screen = ++screenGeneration
+        backAction = { showInstallationLoading() }
+        val root = vertical(20).apply { setBackgroundColor(canvas) }
+        root.addView(backHeader("本机网络接入") { showInstallationLoading() }, matchWrap())
+        root.addView(label("网络连接与端口上报", 27f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(22) })
+        root.addView(label("按步骤在这台执行手机完成配套设置。打开应用或系统页面不代表设置已生效；返回后请重新检查。", 14f, secondary), matchWrap().apply { topMargin = dp(8) })
+        val tailscaleCard = vertical(14).apply { background = rounded(Color.WHITE, 12) }
+        tailscaleCard.addView(label("步骤 1 · 本机网络配套", 18f, ink, Typeface.BOLD))
+        tailscaleCard.addView(label("在专用执行手机安装并打开 Tailscale，按应用提示完成所需设置。登录和网络状态由你在本机确认；本页不会替你登录或授权。", 14f, secondary), matchWrap().apply { topMargin = dp(5) })
+        val tailscaleInstalled = packageManager.getLaunchIntentForPackage("com.tailscale.ipn") != null
+        tailscaleCard.addView(primaryButton(if (tailscaleInstalled) "打开本机 Tailscale" else "查看官方 Tailscale Android 安装页").apply {
+            setOnClickListener {
+                if (tailscaleInstalled) {
+                    val launch = packageManager.getLaunchIntentForPackage("com.tailscale.ipn")
+                    if (launch == null) Toast.makeText(this@MainActivity, "无法打开 Tailscale；请从应用列表手动打开。", Toast.LENGTH_LONG).show()
+                    else runCatching { startActivity(launch) }.onFailure {
+                        Toast.makeText(this@MainActivity, "无法打开 Tailscale；请从应用列表手动打开。", Toast.LENGTH_LONG).show()
+                    }
+                } else openExternal("https://tailscale.com/download/android", "无法打开官方安装页；请在本机浏览器访问 tailscale.com/download/android。")
+            }
+        }, matchHeight(52).apply { topMargin = dp(12) })
+        root.addView(tailscaleCard, matchWrap().apply { topMargin = dp(18) })
+        val appSettings = vertical(14).apply { background = rounded(Color.WHITE, 12) }
+        appSettings.addView(label("步骤 2 · 检查本应用系统设置", 18f, ink, Typeface.BOLD))
+        appSettings.addView(label("如系统限制了通知或后台运行，可打开 SocialGrowth 的系统应用设置检查。请按本机系统实际选项处理。", 14f, secondary), matchWrap().apply { topMargin = dp(5) })
+        appSettings.addView(secondaryButton("打开本机 SocialGrowth 应用设置").apply {
+            setOnClickListener { openOwnAppSettings() }
+        }, matchHeight(50).apply { topMargin = dp(10) })
+        root.addView(appSettings, matchWrap().apply { topMargin = dp(12) })
+        val status = label("网络核验状态待检查", 15f, secondary)
+        root.addView(status, matchWrap().apply { topMargin = dp(20) })
+        var networkCheckSequence = 0
+        fun checkNetwork() {
+            status.text = "正在检查服务端网络核验状态…"
+            val sequence = ++networkCheckSequence
+            runNetwork(action = {
+                val identity = installationStore.load() ?: error("Missing installation")
+                val token = identity.activeSessionToken() ?: error("Inactive installation")
+                NetworkAdmissionStateClient(api).state(
+                    token,
+                    UUID.fromString(identity.installationId),
+                    requireNotNull(identity.generation).toString(),
+                ).also { require(it.scope.deviceId == state.deviceId && it.scope.ownershipVersion == state.factVersion.toString()) }
+            }, success = { fact ->
+                if (screen == screenGeneration && sequence == networkCheckSequence) {
+                    status.text = if (fact.verifierReady)
+                        "服务端网络核验已就绪；接入许可和动作权限仍需独立确认。"
+                    else "服务端网络核验尚未就绪；请核对 Tailscale 状态后重试。"
+                }
+            }, failure = {
+                if (screen == screenGeneration && sequence == networkCheckSequence) status.text = "网络核验状态暂时无法读取；不能据此判断已就绪。"
+            })
+        }
+        root.addView(secondaryButton("重新检查网络状态").apply { setOnClickListener { checkNetwork() } }, matchHeight(48).apply { topMargin = dp(8) })
+        if (BuildConfig.ENDPOINT_DIAGNOSTICS) {
+            val endpointStatus = label(EndpointReportingService.statusText(), 13f, secondary)
+            root.addView(endpointStatus, matchWrap().apply { topMargin = dp(16) })
+            fun refreshEndpointStatus() {
+                if (screen != screenGeneration || isDestroyed || isFinishing) return
+                endpointStatus.text = EndpointReportingService.statusText()
+                mainHandler.postDelayed({ refreshEndpointStatus() }, 1_000)
+            }
+            refreshEndpointStatus()
+            root.addView(primaryButton("开启端口自动上报").apply {
+                isEnabled = Build.VERSION.SDK_INT >= 34 && state.deviceId != null && state.state in setOf("associated_pending_access", "access_ready")
+                setOnClickListener {
+                    try {
+                        ContextCompat.startForegroundService(this@MainActivity, Intent(this@MainActivity, EndpointReportingService::class.java).setAction(EndpointReportingService.START))
+                    } catch (_: Exception) {
+                        Toast.makeText(this@MainActivity, "端口上报服务未能启动", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }, matchHeight(54).apply { topMargin = dp(18) })
+            root.addView(secondaryButton("停止端口自动上报").apply {
+                isEnabled = EndpointReportingService.running
+                setOnClickListener {
+                    if (EndpointReportingService.running) startService(Intent(this@MainActivity, EndpointReportingService::class.java).setAction(EndpointReportingService.STOP))
+                }
+            }, matchHeight(52).apply { topMargin = dp(8) })
+        }
+        root.addView(label("返回或打开其他应用都不代表检查通过；页面只采纳可信服务端状态。", 13f, secondary), matchWrap().apply { topMargin = dp(14) })
+        checkNetwork()
+        root.addView(label("此设置只管理本机端点报告服务；关联状态、可信网络来源、接入许可和当前动作授权分别核验。", 14f, secondary), matchWrap().apply { topMargin = dp(18) })
+        setContentView(ScrollView(this).apply {
+            isFillViewport = true
+            addView(root, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        })
+    }
+
+    private fun openOwnAppSettings() {
+        val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+            .setData(android.net.Uri.fromParts("package", packageName, null))
+        runCatching { startActivity(intent) }.onFailure {
+            runCatching { startActivity(Intent(android.provider.Settings.ACTION_SETTINGS)) }
+                .onFailure { Toast.makeText(this, "无法打开系统设置；请从系统设置的应用列表中找到 SocialGrowth。", Toast.LENGTH_LONG).show() }
+        }
+    }
+
+    private fun openExternal(url: String, fallbackMessage: String) {
+        runCatching { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))) }
+            .onFailure { Toast.makeText(this, fallbackMessage, Toast.LENGTH_LONG).show() }
+    }
+
+    private fun submitInstallationPause(
+        deviceId: UUID,
+        status: TextView,
+        button: Button,
+        request: DeviceControlRequest = DeviceControlRequest.create(),
+    ) {
+        val identity = installationStore.load()
+        val token = identity?.activeSessionToken()
+        if (token == null) {
+            status.text = "本机身份会话已失效，暂停请求未发送。请重新核对本机身份。"
+            button.isEnabled = false
+            return
+        }
+        button.isEnabled = false
+        status.text = "正在请求暂停；手机停止状态仍待独立确认。"
+        val client = DeviceControlApiClient(BuildConfig.API_BASE_URL)
+        runNetwork(
+            action = {
+                try {
+                    ControlAttempt(client.pauseInstallation(token, request), requestAccepted = true, knownRejected = false)
+                } catch (error: Exception) {
+                    val response = (error as? DeviceControlRequestException)
+                    if (response != null && response.status in 400..499) {
+                        ControlAttempt(null, requestAccepted = false, knownRejected = true)
+                    } else {
+                        val current = runCatching { client.installation(token) }.getOrNull()
+                        ControlAttempt(current, requestAccepted = current?.requestId == request.requestId, knownRejected = false)
+                    }
+                }
+            },
+            success = { attempt ->
+                if (attempt.fact != null) status.text = controlStatusText(attempt.fact)
+                if (attempt.requestAccepted) {
+                    button.text = if (attempt.fact?.stop == "confirmed") "本机已确认停止" else "暂停请求处理中"
+                    button.isEnabled = false
+                } else if (attempt.knownRejected) {
+                    status.text = "暂停请求未受理；本机状态没有被标记为已暂停。请刷新后重试。"
+                    button.text = "重新请求暂停"
+                    button.isEnabled = true
+                    button.setOnClickListener { submitInstallationPause(deviceId, status, button) }
+                } else {
+                    status.text = "本次请求结果仍无法确认；${attempt.fact?.let(::controlStatusText) ?: "尚未读取到服务端进展"}。可用同一请求核对。"
+                    button.text = "核对同一暂停请求"
+                    button.isEnabled = true
+                    button.setOnClickListener { submitInstallationPause(deviceId, status, button, request) }
+                }
+            },
+            failure = {
+                status.text = "本次请求结果未知；未获得暂停受理或手机停止证明。可用同一请求核对。"
+                button.text = "核对同一暂停请求"
+                button.isEnabled = true
+                button.setOnClickListener { submitInstallationPause(deviceId, status, button, request) }
+            },
+        )
+    }
+
+    private fun controlStatusText(fact: DeviceControlFact): String {
+        val intent = when (fact.intent) {
+            "active" -> "当前没有待处理的暂停请求"
+            "pause_requested" -> "中心已记录暂停请求"
+            "paused" -> "设备状态为暂停"
+            "resume_requested" -> "恢复请求已记录，尚未恢复参与或权限"
+            "exit_pending" -> "退出处理中"
+            "exited" -> "设备已退出"
+            else -> "控制状态无法识别"
+        }
+        val stop = when (fact.stop) {
+            "not_requested" -> "尚未请求手机停止"
+            "requested" -> "手机停止尚未确认"
+            "confirmed" -> "可信停止事实已确认"
+            "unknown" -> "手机停止状态未知"
+            else -> "手机停止状态无法识别"
+        }
+        return "$intent；$stop；未决动作 ${fact.unresolvedActionCount}；核验时间 ${formatFactTime(fact.checkedAt.toString())}"
+    }
+
+    private fun showControlConfirmation(
+        title: String,
+        deviceLabel: String,
+        impact: String,
+        actionLabel: String = "确认暂停",
+        onConfirm: () -> Unit,
+    ) {
+        val dialog = Dialog(this)
+        val sheet = vertical(20).apply {
+            background = GradientDrawable().apply {
+                setColor(Color.WHITE)
+                cornerRadii = floatArrayOf(dp(18).toFloat(), dp(18).toFloat(), dp(18).toFloat(), dp(18).toFloat(), 0f, 0f, 0f, 0f)
+            }
+            setPadding(dp(20), dp(22), dp(20), dp(24))
+        }
+        sheet.addView(label(title, 22f, ink, Typeface.BOLD), matchWrap())
+        sheet.addView(label(deviceLabel, 16f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(14) })
+        sheet.addView(label(impact, 15f, secondary), matchWrap().apply { topMargin = dp(8) })
+        sheet.addView(primaryButton(actionLabel).apply {
+            setOnClickListener { dialog.dismiss(); onConfirm() }
+        }, matchHeight(54).apply { topMargin = dp(22) })
+        sheet.addView(secondaryButton("取消").apply { setOnClickListener { dialog.dismiss() } }, matchHeight(50).apply { topMargin = dp(8) })
+        dialog.setContentView(sheet)
+        dialog.setCanceledOnTouchOutside(true)
+        dialog.show()
+        dialog.window?.apply {
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.WRAP_CONTENT)
+            attributes = attributes.apply { gravity = Gravity.BOTTOM; dimAmount = 0.32f }
+            addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        }
     }
 
     private fun showInstallationFailure(message: String, sessionRejected: Boolean = false) {
@@ -759,6 +1093,38 @@ class MainActivity : ComponentActivity() {
             .setBeepEnabled(false)
             .setOrientationLocked(false)
         )
+    }
+
+    private fun showAssociationCodeInput(session: StoredProviderSession) {
+        val codeInput = editText("sgassoc_v1_…", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD).apply {
+            contentDescription = "执行手机关联码"
+            isSingleLine = true
+            importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("输入执行手机关联码")
+            .setMessage("请从专用执行手机的关联页面输入代码。核对目标后仍需明确确认关联。")
+            .setView(codeInput)
+            .setNegativeButton("取消", null)
+            .setPositiveButton("核对设备", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val code = codeInput.text.toString().trim()
+                if (!code.matches(Regex("^sgassoc_v1_[A-Za-z0-9_-]{43}$"))) {
+                    codeInput.error = "请输入有效的执行手机关联码"
+                    return@setOnClickListener
+                }
+                dialog.dismiss()
+                handleAssociationPayload(
+                    JSONObject()
+                        .put("contractVersion", ProviderApiClient.CONTRACT_VERSION)
+                        .put("associationCode", code)
+                        .toString(),
+                )
+            }
+        }
+        dialog.show()
     }
 
     private fun handleAssociationPayload(raw: String) {
@@ -820,6 +1186,13 @@ class MainActivity : ComponentActivity() {
         device.addView(divider(), matchHeight(1).apply { topMargin = dp(14); bottomMargin = dp(14) })
         device.addView(label("请核对执行手机上显示的设备标识。", 13f, secondary))
         root.addView(device, matchWrap().apply { topMargin = dp(20) })
+        val providerDeviceLabel = editText("设备备注名（选填）", android.text.InputType.TYPE_CLASS_TEXT).apply {
+            maxLines = 1
+            filters = arrayOf(android.text.InputFilter.LengthFilter(100))
+            contentDescription = "设备备注名，可选"
+        }
+        root.addView(providerDeviceLabel, matchHeight(54).apply { topMargin = dp(14) })
+        root.addView(label("留空时沿用执行手机的名称；该名称仅用于你自己的设备列表。", 13f, secondary), matchWrap().apply { topMargin = dp(6) })
         root.addView(label("关联后还需要", 18f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(24) })
         val next = vertical(18).apply { background = rounded(Color.WHITE, 12) }
         next.addView(explanationRow("1", "完成平台账号授权"))
@@ -834,11 +1207,17 @@ class MainActivity : ComponentActivity() {
                 isEnabled = false
                 text = "正在确认…"
                 confirmationSubmitted = true
+                providerDeviceLabel.isEnabled = false
                 error.visibility = View.GONE
                 runManagementNetwork(session, generation,
                     action = {
                         associationApi.result(session.sessionToken, inspection)
-                            ?: associationApi.confirm(session.sessionToken, inspection, associationConfirmKey)
+                            ?: associationApi.confirm(
+                                session.sessionToken,
+                                inspection,
+                                associationConfirmKey,
+                                providerDeviceLabel.text.toString().trim().takeIf(String::isNotEmpty),
+                            )
                     },
                     success = { receipt -> showAssociationSuccess(session, receipt) },
                     failure = { message ->
@@ -885,11 +1264,12 @@ class MainActivity : ComponentActivity() {
 
     private fun renderDevices(container: LinearLayout, devices: List<ProviderDevice>, session: StoredProviderSession) {
         container.removeAllViews()
-        if (devices.isEmpty()) {
-            container.addView(label("还没有关联的执行手机。", 14f, secondary), matchWrap().apply { topMargin = dp(12) })
-            return
+        val activeDevices = devices.filter { it.state != "exited" }
+        val exitedDevices = devices.filter { it.state == "exited" }
+        if (activeDevices.isEmpty()) {
+            container.addView(label(if (exitedDevices.isEmpty()) "还没有关联的执行手机。" else "当前没有参与中的执行手机。", 14f, secondary), matchWrap().apply { topMargin = dp(12) })
         }
-        devices.forEach { device ->
+        activeDevices.forEach { device ->
             val row = vertical(16).apply {
                 background = rounded(Color.WHITE, 12)
                 minimumHeight = dp(96)
@@ -899,9 +1279,32 @@ class MainActivity : ComponentActivity() {
                 setOnClickListener { showProviderDeviceDetail(session, device.deviceId) }
             }
             row.addView(label(device.displayName, 18f, ink, Typeface.BOLD))
+            row.addView(label("设备标识尾号 ${device.deviceId.toString().takeLast(8)}", 12f, secondary), matchWrap().apply { topMargin = dp(4) })
             row.addView(label(DeviceFactPresentation.state(device.state), 14f, secondary), matchWrap().apply { topMargin = dp(7) })
             row.addView(label(DeviceFactPresentation.observation(device.lastObservedAt), 12f, secondary), matchWrap().apply { topMargin = dp(5) })
             container.addView(row, matchWrap().apply { topMargin = dp(10) })
+        }
+        if (exitedDevices.isNotEmpty()) {
+            container.addView(secondaryButton("已退出设备 · ${exitedDevices.size}${if (exitedDevicesExpanded) "（收起）" else "（展开）"}").apply {
+                contentDescription = "${if (exitedDevicesExpanded) "收起" else "展开"}已退出设备，共${exitedDevices.size}台"
+                setOnClickListener {
+                    exitedDevicesExpanded = !exitedDevicesExpanded
+                    renderDevices(container, devices, session)
+                }
+            }, matchHeight(52).apply { topMargin = dp(18) })
+            if (exitedDevicesExpanded) exitedDevices.forEach { device ->
+                val row = vertical(16).apply {
+                    background = rounded(Color.WHITE, 12)
+                    minimumHeight = dp(96)
+                    isClickable = true
+                    isFocusable = true
+                    contentDescription = "查看已退出设备${device.displayName}清理进展"
+                    setOnClickListener { showProviderDeviceDetail(session, device.deviceId) }
+                }
+                row.addView(label(device.displayName, 18f, ink, Typeface.BOLD))
+                row.addView(label("已退出 · ${DeviceFactPresentation.observation(device.lastObservedAt)}", 14f, secondary), matchWrap().apply { topMargin = dp(7) })
+                container.addView(row, matchWrap().apply { topMargin = dp(10) })
+            }
         }
     }
 
@@ -936,7 +1339,7 @@ class MainActivity : ComponentActivity() {
                 detail.removeAllViews()
                 if (current == null) {
                     detail.addView(label("这台手机已不在你的当前归属清单中。", 15f, secondary), matchWrap().apply { topMargin = dp(24) })
-                } else renderProviderDeviceDetail(detail, current)
+                } else renderProviderDeviceDetail(detail, session, current)
             },
             failure = { message ->
                 detail.removeAllViews()
@@ -945,9 +1348,10 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    private fun renderProviderDeviceDetail(container: LinearLayout, device: ProviderDevice) {
+    private fun renderProviderDeviceDetail(container: LinearLayout, session: StoredProviderSession, device: ProviderDevice) {
         container.addView(label(device.displayName, 30f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(20) })
         container.addView(label("专用执行手机 · ${DeviceFactPresentation.state(device.state)}", 15f, secondary), matchWrap().apply { topMargin = dp(6) })
+        container.addView(label("设备标识 ${device.deviceId}", 12f, secondary), matchWrap().apply { topMargin = dp(4) })
         val facts = vertical(16).apply { background = rounded(Color.WHITE, 12) }
         facts.addView(label("当前事实", 18f, ink, Typeface.BOLD))
         facts.addView(divider(), matchHeight(1).apply { topMargin = dp(14); bottomMargin = dp(14) })
@@ -959,8 +1363,176 @@ class MainActivity : ComponentActivity() {
         facts.addView(divider(), matchHeight(1).apply { topMargin = dp(14); bottomMargin = dp(14) })
         facts.addView(detailRow("事实更新时间", formatFactTime(device.updatedAt)))
         container.addView(facts, matchWrap().apply { topMargin = dp(20) })
+        container.addView(secondaryButton("修改设备备注名").apply {
+            setOnClickListener { showRenameProviderDeviceDialog(session, device) }
+        }, matchHeight(50).apply { topMargin = dp(12) })
         container.addView(label(DeviceFactPresentation.ACCESS_BOUNDARY, 14f, secondary), matchWrap().apply { topMargin = dp(18) })
         container.addView(label("查看详情不会申请控制，也不会改变手机状态。当前没有权威项目、发布身份或平台授权资料。", 13f, secondary), matchWrap().apply { topMargin = dp(10) })
+        renderProviderControlPanel(container, session, device)
+    }
+
+    private fun showRenameProviderDeviceDialog(session: StoredProviderSession, device: ProviderDevice) {
+        val input = editText("设备备注名", InputType.TYPE_CLASS_TEXT).apply {
+            setText(device.displayName)
+            filters = arrayOf(android.text.InputFilter.LengthFilter(100))
+            maxLines = 1
+        }
+        val error = label("", 13f, danger).apply { visibility = View.GONE }
+        val content = vertical(10).apply {
+            addView(input, matchHeight(52))
+            addView(error, matchWrap())
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("修改设备备注名")
+            .setMessage("只修改你本人设备列表中的名称。")
+            .setView(content)
+            .setNegativeButton("取消", null)
+            .setPositiveButton("保存", null)
+            .create()
+        var submittedName: String? = null
+        var renameRequestKey = newIdempotencyKey("device-label")
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { buttonView ->
+                val name = input.text.toString().trim()
+                if (name.isEmpty() || name.codePointCount(0, name.length) > 100) {
+                    error.text = "请输入 1 到 100 个字符。"
+                    error.visibility = View.VISIBLE
+                    return@setOnClickListener
+                }
+                if (submittedName != name) {
+                    submittedName = name
+                    renameRequestKey = newIdempotencyKey("device-label")
+                }
+                buttonView.isEnabled = false
+                error.visibility = View.GONE
+                runManagementNetwork(session, screenGeneration,
+                    action = {
+                        try {
+                            associationApi.renameDevice(session.sessionToken, device, name, renameRequestKey)
+                        } catch (failure: Exception) {
+                            val current = runCatching { associationApi.devices(session.sessionToken).firstOrNull { it.deviceId == device.deviceId } }.getOrNull()
+                            if (current?.displayName == name && current.factVersion == device.factVersion + 1L) current else throw failure
+                        }
+                    },
+                    success = { updated ->
+                        dialog.dismiss()
+                        Toast.makeText(this, "设备名称已更新。", Toast.LENGTH_SHORT).show()
+                        showProviderDeviceDetail(session, updated.deviceId)
+                    },
+                    failure = { message ->
+                        buttonView.isEnabled = true
+                        error.text = "名称未确认保存；可使用同一请求重试，或刷新事实后重新编辑。"
+                        error.visibility = View.VISIBLE
+                    },
+                )
+            }
+        }
+        dialog.show()
+    }
+
+    private fun renderProviderControlPanel(container: LinearLayout, session: StoredProviderSession, device: ProviderDevice) {
+        val panel = vertical(16).apply { background = rounded(Color.WHITE, 12) }
+        panel.addView(label("暂停与现场协助", 18f, ink, Typeface.BOLD))
+        val status = label("正在读取控制进展…", 14f, secondary)
+        panel.addView(status, matchWrap().apply { topMargin = dp(10) })
+        val actions = vertical(10)
+        val pause = primaryButton("暂停这台手机").apply {
+            isEnabled = device.state !in setOf("paused", "exit_pending", "exited")
+            setOnClickListener {
+                showControlConfirmation(
+                    "暂停这台手机",
+                    device.displayName,
+                    "停止接新任务，当前操作会尽快停止；恢复需要在管理手机上申请。",
+                ) { submitProviderControl(device, session, "pause", status, this) }
+            }
+        }
+        actions.addView(pause, matchHeight(52))
+        if (device.state == "paused") {
+            actions.addView(secondaryButton("请求恢复").apply {
+                setOnClickListener {
+                    showControlConfirmation(
+                        "请求恢复这台手机",
+                        device.displayName,
+                        "系统将重新核对当前授权和设备条件。此请求不会自动恢复本机参与或执行权限。",
+                        actionLabel = "确认请求恢复",
+                    ) { submitProviderControl(device, session, "resume", status, pause) }
+                }
+            }, matchHeight(52))
+        }
+        panel.addView(actions, matchWrap().apply { topMargin = dp(12) })
+        panel.addView(secondaryButton("刷新控制进展").apply {
+            setOnClickListener { loadProviderControl(device, session, status, pause) }
+        }, matchHeight(48).apply { topMargin = dp(8) })
+        container.addView(panel, matchWrap().apply { topMargin = dp(20) })
+        loadProviderControl(device, session, status, pause)
+    }
+
+    private fun loadProviderControl(device: ProviderDevice, session: StoredProviderSession, status: TextView, pause: Button) {
+        status.text = "正在读取控制进展…"
+        runNetwork(
+            action = { DeviceControlApiClient(BuildConfig.API_BASE_URL).provider(device.deviceId, session.sessionToken) },
+            success = { fact ->
+                status.text = controlStatusText(fact)
+                if (fact.intent in setOf("pause_requested", "paused", "resume_requested", "exit_pending", "exited")) {
+                    pause.isEnabled = false
+                    pause.text = if (fact.stop == "confirmed") "手机停止已确认" else "控制请求处理中"
+                }
+            },
+            failure = { status.text = "当前控制进展无法确认；不要把此状态视为暂停或可执行。" },
+        )
+    }
+
+    private fun submitProviderControl(
+        device: ProviderDevice,
+        session: StoredProviderSession,
+        action: String,
+        status: TextView,
+        button: Button,
+        request: DeviceControlRequest = DeviceControlRequest.create(),
+    ) {
+        button.isEnabled = false
+        status.text = if (action == "pause") "正在请求暂停；手机停止状态仍待独立确认。" else "正在请求恢复；参与与执行权限仍待独立复核。"
+        val client = DeviceControlApiClient(BuildConfig.API_BASE_URL)
+        runNetwork(
+            action = {
+                try {
+                    val fact = if (action == "pause") client.pauseProvider(device.deviceId, session.sessionToken, request)
+                    else client.resumeProvider(device.deviceId, session.sessionToken, request)
+                    ControlAttempt(fact, requestAccepted = true, knownRejected = false)
+                } catch (error: Exception) {
+                    val response = error as? DeviceControlRequestException
+                    if (response != null && response.status in 400..499) {
+                        ControlAttempt(null, requestAccepted = false, knownRejected = true)
+                    } else {
+                        val current = runCatching { client.provider(device.deviceId, session.sessionToken) }.getOrNull()
+                        ControlAttempt(current, requestAccepted = current?.requestId == request.requestId, knownRejected = false)
+                    }
+                }
+            },
+            success = { attempt ->
+                attempt.fact?.let { status.text = controlStatusText(it) }
+                if (attempt.requestAccepted) {
+                    button.isEnabled = false
+                    button.text = "请求已记录；等待状态复核"
+                } else if (attempt.knownRejected) {
+                    status.text = "该控制请求未受理；设备状态未改变。请刷新后核对。"
+                    button.text = if (action == "pause") "重新请求暂停" else "重新请求恢复"
+                    button.isEnabled = true
+                    button.setOnClickListener { submitProviderControl(device, session, action, status, button) }
+                } else {
+                    status.text = "原请求结果无法确认；${attempt.fact?.let(::controlStatusText) ?: "尚未读取到服务端进展"}。可用同一请求核对。"
+                    button.text = "核对同一请求"
+                    button.isEnabled = true
+                    button.setOnClickListener { submitProviderControl(device, session, action, status, button, request) }
+                }
+            },
+            failure = {
+                status.text = "请求结果未知；没有证明手机已停止或已恢复。可用同一请求核对。"
+                button.text = "核对同一请求"
+                button.isEnabled = true
+                button.setOnClickListener { submitProviderControl(device, session, action, status, button, request) }
+            },
+        )
     }
 
     private fun showProviderProfile(session: StoredProviderSession) {
@@ -985,18 +1557,144 @@ class MainActivity : ComponentActivity() {
             id = R.id.provider_association_help
             setOnClickListener { showManagementAssociationGuide(session) }
         }, matchHeight(54).apply { topMargin = dp(10) })
-        root.addView(secondaryButton("返回我的设备").apply {
-            setOnClickListener { showManagement(session) }
-        }, matchHeight(52).apply { topMargin = dp(10) })
         root.addView(secondaryButton("退出管理登录").apply {
             setOnClickListener { logoutManagement(session, this) }
         }, matchHeight(54).apply { topMargin = dp(30) })
         root.addView(label("退出管理登录不暂停或退出任何已关联执行手机。", 13f, secondary), matchWrap().apply { topMargin = dp(8) })
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            addView(root, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        val page = vertical(0).apply {
+            setBackgroundColor(canvas)
+            addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+            addView(providerNavigation(session, "profile"), matchWrap())
+        }
+        setContentView(page)
+        guardManagementExpiry(session, generation)
+    }
+
+    private fun showProviderCommission(session: StoredProviderSession, after: CommissionCursor? = null) {
+        val generation = ++screenGeneration
+        backAction = { showManagement(session) }
+        val root = vertical(20).apply { setBackgroundColor(canvas) }
+        root.addView(appHeader("仅管理"), matchWrap())
+        root.addView(label("分佣", 30f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(22) })
+        root.addView(label("本人收入与佣金记录", 15f, secondary), matchWrap().apply { topMargin = dp(6) })
+        val estimated = vertical(14).apply { background = rounded(Color.WHITE, 12) }
+        estimated.addView(label("平台预估收益", 17f, ink, Typeface.BOLD))
+        estimated.addView(label("暂无可信的本人可归属预估数据；不会从佣金记录或设备数量推算。", 14f, secondary), matchWrap().apply { topMargin = dp(6) })
+        root.addView(estimated, matchWrap().apply { topMargin = dp(18) })
+        root.addView(label("佣金记录", 18f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(22) })
+        val records = vertical(12)
+        val recordStatus = label("正在读取本人佣金记录…", 14f, secondary)
+        records.addView(recordStatus, matchWrap())
+        root.addView(records, matchWrap().apply { topMargin = dp(10) })
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            addView(root, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        val page = vertical(0).apply {
+            setBackgroundColor(canvas)
+            addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+            addView(providerNavigation(session, "commission"), matchWrap())
+        }
+        setContentView(page)
+        guardManagementExpiry(session, generation)
+        runNetwork(
+            action = { CommissionApiClient(BuildConfig.API_BASE_URL).list(session.sessionToken, after) },
+            success = { response ->
+                if (generation != screenGeneration) return@runNetwork
+                records.removeAllViews()
+                if (response.records.isEmpty()) {
+                    records.addView(label("当前没有可读取的本人历史佣金计算记录。", 14f, secondary), matchWrap())
+                } else response.records.forEach { record ->
+                    val card = vertical(14).apply {
+                        background = rounded(Color.WHITE, 12)
+                        isClickable = true
+                        isFocusable = true
+                        contentDescription = "打开${commissionPlatform(record.platform)}内部佣金计算记录"
+                        setOnClickListener { showProviderCommissionDetail(session, record, after) }
+                    }
+                    card.addView(label("${commissionPlatform(record.platform)} · ${record.accountIdentityRef}", 17f, ink, Typeface.BOLD))
+                    card.addView(label("收益期间 ${formatFactTime(record.productionStartsAt.toString())} – ${formatFactTime(record.productionEndsAt.toString())}", 13f, secondary), matchWrap().apply { topMargin = dp(6) })
+                    card.addView(label("内部佣金计算参考 ${formatMinorUnits(record.commissionMinorUnits, record.minorUnitScale, record.currency)}", 15f, ink), matchWrap().apply { topMargin = dp(8) })
+                    card.addView(label("${if (record.currentForIncome) "当前修订" else "历史修订"} · 付款事实未记录 · 不是应付或已付款", 13f, secondary), matchWrap().apply { topMargin = dp(5) })
+                    records.addView(card, matchWrap().apply { topMargin = dp(10) })
+                }
+                response.nextAfter?.let { next -> records.addView(secondaryButton("下一页").apply {
+                    setOnClickListener { showProviderCommission(session, next) }
+                }, matchHeight(50).apply { topMargin = dp(14) }) }
+            },
+            failure = {
+                if (generation != screenGeneration) return@runNetwork
+                records.removeAllViews()
+                records.addView(label("本人佣金记录暂时无法读取；没有显示推算金额。", 14f, danger), matchWrap())
+                records.addView(secondaryButton("重试读取").apply {
+                    setOnClickListener { showProviderCommission(session, after) }
+                }, matchHeight(50).apply { topMargin = dp(10) })
+            },
+        )
+    }
+
+    private fun showProviderCommissionDetail(session: StoredProviderSession, record: ProviderCommissionRecord, after: CommissionCursor?) {
+        val generation = ++screenGeneration
+        backAction = { showProviderCommission(session, after) }
+        val root = vertical(20).apply { setBackgroundColor(canvas) }
+        root.addView(backHeader("佣金详情") { showProviderCommission(session, after) }, matchWrap())
+        root.addView(label("${commissionPlatform(record.platform)} · ${record.accountIdentityRef}", 26f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(22) })
+        root.addView(label("${if (record.currentForIncome) "当前修订" else "历史修订"} · 修订 ${record.revision}", 14f, secondary), matchWrap().apply { topMargin = dp(8) })
+        val facts = vertical(14).apply { background = rounded(Color.WHITE, 12) }
+        facts.addView(detailRow("收益所属期间", "${formatFactTime(record.productionStartsAt.toString())} – ${formatFactTime(record.productionEndsAt.toString())}"))
+        facts.addView(divider(), matchHeight(1).apply { topMargin = dp(13); bottomMargin = dp(13) })
+        facts.addView(detailRow("收到的平台收入", formatMinorUnits(record.receivedRevenueMinorUnits, record.minorUnitScale, record.currency)))
+        facts.addView(divider(), matchHeight(1).apply { topMargin = dp(13); bottomMargin = dp(13) })
+        facts.addView(detailRow("适用比例", "${record.appliedFraction} · 版本 ${record.rateVersion}"))
+        facts.addView(divider(), matchHeight(1).apply { topMargin = dp(13); bottomMargin = dp(13) })
+        facts.addView(detailRow("内部计算参考", formatMinorUnits(record.commissionMinorUnits, record.minorUnitScale, record.currency)))
+        facts.addView(divider(), matchHeight(1).apply { topMargin = dp(13); bottomMargin = dp(13) })
+        facts.addView(detailRow("计算规则", "${record.rounding} · 规则版本 ${record.moneyPolicyVersion}"))
+        facts.addView(divider(), matchHeight(1).apply { topMargin = dp(13); bottomMargin = dp(13) })
+        facts.addView(detailRow("收到时间", formatFactTime(record.receivedAt.toString())))
+        facts.addView(detailRow("核算时间", formatFactTime(record.evaluatedAt.toString())), matchWrap().apply { topMargin = dp(10) })
+        root.addView(facts, matchWrap().apply { topMargin = dp(20) })
+        root.addView(label("此记录仅为内部计算。付款事实未记录；本页面不表示应付款项，也不能发起付款。", 14f, secondary), matchWrap().apply { topMargin = dp(18) })
         setContentView(ScrollView(this).apply {
             isFillViewport = true
             addView(root, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         })
         guardManagementExpiry(session, generation)
+    }
+
+    private fun commissionPlatform(platform: String) = if (platform == "facebook") "Facebook" else "YouTube"
+
+    private fun formatMinorUnits(minorUnits: String, scale: Int, currency: String): String {
+        if (scale == 0) return "$currency $minorUnits"
+        val padded = minorUnits.padStart(scale + 1, '0')
+        return "$currency ${padded.dropLast(scale)}.${padded.takeLast(scale)}"
+    }
+
+    private fun providerNavigation(session: StoredProviderSession, selected: String): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER
+        setBackgroundColor(Color.WHITE)
+        setPadding(dp(8), dp(6), dp(8), dp(6))
+        val destinations = listOf("devices" to "设备", "commission" to "分佣", "profile" to "我的")
+        destinations.forEach { (key, title) ->
+            val button = secondaryButton(title).apply {
+                contentDescription = "$title${if (key == selected) "，当前页" else ""}"
+                isSelected = key == selected
+                if (key == selected) setTextColor(blue)
+                setOnClickListener {
+                    when (key) {
+                        "devices" -> showManagement(session)
+                        "commission" -> showProviderCommission(session)
+                        else -> showProviderProfile(session)
+                    }
+                }
+            }
+            addView(button, LinearLayout.LayoutParams(0, dp(48), 1f))
+        }
     }
 
     private fun showAccountHelp(session: StoredProviderSession) {
