@@ -7,6 +7,7 @@ import { constants } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
+import { parseAndroidPackageUid } from "./android-package-uid.js";
 
 // Supplemental authenticated HTTPS protocol check, no UI/business acceptance.
 // Existing installation session remains in the phone process; no secret output.
@@ -45,9 +46,11 @@ async function participationFresh() {
   try { return !!await loadCurrentLocalParticipation(client, deviceId, new Date()); }
   finally { client.release(); }
 }
-let mainUpdated = false, originalMain: string | null = null, originalUid: string | undefined;
-const packageUid = async () => (await adb(["shell", "dumpsys", "package", "com.socialgrowth.product"])).match(/userId=(\d+)/)?.[1];
-let stage = "actual_device", original: string | null = null, installed = false, restored = false, result: Record<string, unknown>;
+let mainUpdated = false, mainInstallAttempted = false, testInstallAttempted = false;
+let originalMain: string | null = null, originalUid: string | undefined;
+const packageUid = async () => parseAndroidPackageUid(await adb(["shell", "dumpsys", "package", "com.socialgrowth.product"]));
+let stage = "actual_device", original: string | null = null, restored = false;
+let result: Record<string, unknown> = {};
 try {
   assert.equal((await adb(["shell", "getprop", "ro.serialno"])).trim(), serial);
   assert.equal((await adb(["shell", "getprop", "ro.product.model"])).trim(), "SM-S9110");
@@ -69,11 +72,13 @@ try {
   originalMain = resolve(privateDir, "original-main.apk");
   await adb(["pull", mainPath.slice(8), originalMain]); await chmod(originalMain, 0o600);
   originalUid = await packageUid(); assert.ok(originalUid);
+  mainInstallAttempted = true;
   assert.match(await adb(["install", "-r", resolve("product/android/app/build/outputs/apk/debug/app-debug.apk")], 30000), /Success/);
   mainUpdated = true; assert.equal(await packageUid(), originalUid);
   stage = "test_package_install";
   const candidate = resolve("product/android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk");
-  assert.match(await adb(["install", "-r", candidate], 30000), /Success/); installed = true;
+  testInstallAttempted = true;
+  assert.match(await adb(["install", "-r", candidate], 30000), /Success/);
   stage = "actual_native_transport";
   const text = await adb(["shell", "am", "instrument", "-w", "-r", "com.socialgrowth.product.test/com.socialgrowth.product.AdmissionApiInstrumentation"], 30000);
   const value = (name: string) => text.match(new RegExp(`^INSTRUMENTATION_RESULT: ${name}=(.*)$`, "m"))?.[1]?.trim();
@@ -92,18 +97,30 @@ try {
     actualPhoneIncomingSourceVerified: false, networkAdmissionGranted: false, actionPermissionGranted: false };
 } finally {
   try {
-    if (process.exitCode === 2 && mainUpdated && originalMain) {
+    if (process.exitCode === 2 && mainInstallAttempted && originalMain) {
+      // A lost adb response can follow a successful install. On every failed
+      // attempted upgrade, restore the signed original APK with `install -r`;
+      // this preserves the main package data and never clears or uninstalls it.
       assert.match(await adb(["install", "-r", originalMain], 30000), /Success/);
-      mainUpdated = false; result.originalMainRestoredAfterFailure = true;
+      mainUpdated = false;
+      result.originalMainRestoredAfterFailure = true;
     }
-    if (installed) {
+    if (testInstallAttempted) {
       if (original) assert.match(await adb(["install", "-r", original], 30000), /Success/);
-      else assert.match(await adb(["uninstall", "com.socialgrowth.product.test"]), /Success/);
+      else if ((await adb(["shell", "pm", "path", "com.socialgrowth.product.test"])).trim()) {
+        assert.match(await adb(["uninstall", "com.socialgrowth.product.test"]), /Success/);
+      }
       restored = true;
     }
-  } catch { process.exitCode = 2; }
+  } catch {
+    process.exitCode = 2;
+    result.packageRestoreFailed = true;
+  }
   await pool.end();
 }
+result.mainPackageInstallAttempted = mainInstallAttempted;
+result.mainPackageInstallSucceeded = mainUpdated;
+result.testPackageInstallAttempted = testInstallAttempted;
 result.originalTestPackagePresent = !!original;
 result.testPackageRestored = restored;
 await writeFile(resolve(output, "admission-phone-probe.json"), JSON.stringify(result, null, 2), { mode: 0o600 });
