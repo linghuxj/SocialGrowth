@@ -21,7 +21,7 @@ const consent = process.env.SG_PRODUCT_CORE_BROWSER_ADMITTED;
 const sqlOnly = process.env.SG_PRODUCT_CORE_SQL_ONLY === "1";
 if (!sqlOnly && consent !== "1") throw new Error("First confirm actual browser policy admission; this runner cannot bypass a browser refusal");
 const scopes = (process.env.SG_PRODUCT_CORE_SCOPES ?? "materials,planning").split(",");
-assert.ok(scopes.length > 0 && scopes.every(scope => ["materials", "planning", "direction", "real-material-bytes"].includes(scope)) && new Set(scopes).size === scopes.length);
+assert.ok(scopes.length > 0 && scopes.every(scope => ["materials", "planning", "direction", "real-material-bytes", "operator-todos"].includes(scope)) && new Set(scopes).size === scopes.length);
 const webPort = Number(process.env.SG_PRODUCT_CORE_WEB_PORT ?? "3300");
 const backendPort = Number(process.env.SG_PRODUCT_CORE_BACKEND_PORT ?? "4420");
 for (const [name, port] of [["SG_PRODUCT_CORE_WEB_PORT", webPort], ["SG_PRODUCT_CORE_BACKEND_PORT", backendPort]]) {
@@ -63,8 +63,9 @@ function service(name, command, args, environment) {
   child.stdout.on("data", value => { item.log += redact(value); }); child.stderr.on("data", value => { item.log += redact(value); });
   return child;
 }
-async function waitFor(check) {
-  for (let attempt = 0; attempt < 80; attempt++) {
+async function waitFor(check, { timeoutMs = 20_000 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
     try { if (await check()) return; } catch { /* Startup observation only. */ }
     await new Promise(yes => setTimeout(yes, 250));
   }
@@ -95,7 +96,12 @@ try {
   }
   const pg = containers.find(c => c.kind === "pg"), storage = containers.find(c => c.kind === "storage");
   const url = `postgres://sg_core_local:${secrets[0]}@127.0.0.1:${pg.port}/sg_core_local`;
-  pool = new Pool({ connectionString: url, max: 2 }); await waitFor(async () => (await pool.query("SELECT 1")).rowCount === 1);
+  pool = new Pool({ connectionString: url, max: 2, connectionTimeoutMillis: 2_000 });
+  try { await waitFor(async () => (await pool.query("SELECT 1")).rowCount === 1, { timeoutMs: 60_000 }); }
+  catch (error) {
+    await writeFile(join(output, "postgres-startup.log"), redact(docker(["logs", pg.cid])));
+    throw error;
+  }
   await writeFile(join(output, "environment.json"), JSON.stringify({ scope: sqlOnly ? "synthetic non-UI PostgreSQL supplemental only" : "temporary environment starting", containers }, null, 2));
   if (scopes.includes("direction")) await run("direction-postgres", "pnpm", ["--filter", "@socialgrowth/product-backend", "exec", "tsx", "--test", "src/project-direction-service.postgres-test.ts"], { SG_PRODUCT_TEST_DATABASE_URL: url, SG_PRODUCT_TEST_ALLOW_RESET: "1" });
   if (!sqlOnly) {
@@ -131,7 +137,9 @@ try {
     SG_PRODUCT_MATERIAL_TEST_FILE: fixture, SG_PRODUCT_MATERIAL_SCREENSHOT_DIR: join(output, "materials"), SG_PRODUCT_MATERIAL_TEST_DECLARATION: JSON.stringify(declaration) });
   if (realMaterialFiles) await run("real-material-bytes-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "real-material-bytes", SG_PRODUCT_REAL_MATERIAL_FILES: realMaterialFiles, SG_PRODUCT_REAL_MATERIAL_AUTHORIZED: "1", SG_PRODUCT_REAL_MATERIAL_FIRST_USE_CONFIRMED: process.env.SG_PRODUCT_CORE_REAL_MATERIAL_FIRST_USE_CONFIRMED ?? "0", SG_PRODUCT_REAL_MATERIAL_OUTPUT: join(output, "real-material-bytes") });
   if (scopes.includes("planning")) await run("planning-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "planning", SG_PRODUCT_PLANNING_SCREENSHOT_DIR: join(output, "planning") });
-  if (scopes.includes("direction")) await run("direction-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "direction", SG_PRODUCT_DIRECTION_SCREENSHOT_DIR: join(output, "direction") });
+  if (scopes.includes("operator-todos")) await run("operator-todos-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "operator-todos", SG_PRODUCT_OPERATOR_TODOS_OUTPUT: join(output, "operator-todos") });
+  if (scopes.includes("direction")) await run("direction-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "direction", SG_PRODUCT_DIRECTION_SCREENSHOT_DIR: join(output, "direction"),
+    SG_PRODUCT_DIRECTION_MATERIAL_CANDIDATE: process.env.SG_PRODUCT_DIRECTION_MATERIAL_CANDIDATE ?? "0", SG_PRODUCT_MATERIAL_TEST_FILE: fixture, SG_PRODUCT_MATERIAL_SCREENSHOT_DIR: join(output, "materials"), SG_PRODUCT_MATERIAL_TEST_DECLARATION: JSON.stringify(declaration) });
   const facts = (await pool.query(`SELECT (SELECT count(*)::int FROM socialgrowth_product.projects) projects,
     (SELECT count(*)::int FROM socialgrowth_product.material_variant_revisions) material_revisions,
     (SELECT count(*)::int FROM socialgrowth_product.project_planning_drafts WHERE status='unapproved_draft') unapproved_drafts,
