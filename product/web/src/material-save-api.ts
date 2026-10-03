@@ -14,7 +14,9 @@ function identityMatches(input: SaveInput, value: MaterialSaveResult): boolean {
     && (input.identity.seriesId === null ? value.identity.seriesId === null : value.identity.seriesId !== null && sameId(input.identity.seriesId, value.identity.seriesId));
 }
 function currentMatches(input: SaveInput, value: MaterialSaveResult): boolean {
-  const declaration = { ...input.declaration, sourceEvidenceIds: input.declaration.sourceEvidenceIds.map(s => s.toLowerCase()).sort() };
+  const declaration = { ...input.declaration, expectedApprovedDirectionId: input.declaration.expectedApprovedDirectionId ?? null,
+    expectedApprovedProjectVersion: input.declaration.expectedApprovedProjectVersion ?? null, contentRulesReviewed: input.declaration.contentRulesReviewed ?? false,
+    sourceEvidenceIds: input.declaration.sourceEvidenceIds.map(s => s.toLowerCase()).sort() };
   const returned = { ...value.declaration, sourceEvidenceIds: value.declaration.sourceEvidenceIds.map(s => s.toLowerCase()).sort() };
   return value.currentRevision === input.expectedCurrentRevision + (value.changed ? 1 : 0)
     && JSON.stringify(declaration) === JSON.stringify(returned)
