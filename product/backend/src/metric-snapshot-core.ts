@@ -1,26 +1,8 @@
 import { z } from "zod";
-import { compareTimestamps, projectLabelSchema, timestampSchema, uuidSchema } from "@socialgrowth/product-contracts";
+import { compareTimestamps, metricSnapshotSchema, uuidSchema, type MetricSnapshot } from "@socialgrowth/product-contracts";
 const id = uuidSchema.transform(v => v.toLowerCase());
-const time = timestampSchema.refine(v => !v.startsWith("0000-"));
-const content = z.strictObject({ kind: z.literal("content"), publicationId: id, taskId: id, contentUnitId: id, variantId: id });
-const account = z.strictObject({ kind: z.literal("account") });
-const schema = z.strictObject({ snapshotId: id, sourceId: id, sourceReportId: id, definitionId: id,
-  projectId: id, identityId: id, platform: z.enum(["facebook", "youtube"]), subject: z.discriminatedUnion("kind", [content, account]),
-  revision: z.int().min(1), replacesSnapshotId: id.nullable(),
-  measurement: z.enum(["cumulative", "interval"]), value: z.string().max(256).regex(/^(?:0|[1-9][0-9]*)(?:\.[0-9]*[1-9])?$/).nullable(),
-  availability: z.enum(["available", "missing", "delayed"]), missingReason: z.enum(["permission_unavailable", "source_unavailable", "no_data", "unknown_cutoff", "unknown_coverage"]).nullable(),
-  sourceTimeZone: projectLabelSchema.nullable(), coverage: z.strictObject({ startsAt: time, endsAt: time }).nullable(),
-  statisticsCutoffAt: time.nullable(), collectedAt: time,
-}).superRefine((v, ctx) => {
-  if ((v.revision === 1) !== (v.replacesSnapshotId === null)
-    || (v.availability === "available" && (v.value === null || v.missingReason !== null))
-    || (v.availability === "missing" && v.value !== null)
-    || (v.availability !== "available" && v.missingReason === null)
-    || (v.coverage && compareTimestamps(v.coverage.startsAt, v.coverage.endsAt)! >= 0)
-    || (v.statisticsCutoffAt && compareTimestamps(v.statisticsCutoffAt, v.collectedAt)! > 0)
-    || (v.coverage && v.statisticsCutoffAt && compareTimestamps(v.coverage.endsAt, v.statisticsCutoffAt)! > 0)) ctx.addIssue({ code: "custom", message: "Inconsistent metric snapshot" });
-});
-export type MetricSnapshot = z.infer<typeof schema>;
+export { type MetricSnapshot } from "@socialgrowth/product-contracts";
+const schema = metricSnapshotSchema;
 export class MetricSnapshotError extends Error {
   constructor(readonly code: "INPUT_INVALID" | "CORRUPT_HISTORY" | "SNAPSHOT_ID_REUSED" | "CORRECTION_STALE" | "REPORT_SCOPE_CHANGED") { super(code); }
 }
@@ -52,6 +34,11 @@ export function parseMetricHistory(input: unknown): MetricSnapshot[] {
     checkAppend(result, row, true); result.push(row); ids.add(row.snapshotId);
   }
   return result;
+}
+export function parseMetricSnapshot(input: unknown): MetricSnapshot {
+  const parsed = schema.safeParse(input);
+  if (!parsed.success) return fail("INPUT_INVALID");
+  return parsed.data;
 }
 export function appendMetricSnapshot(history: unknown, input: unknown): { history: MetricSnapshot[]; changed: boolean } {
   const records = parseMetricHistory(history), parsed = schema.safeParse(input);
