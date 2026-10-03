@@ -65,3 +65,14 @@ export const listDeviceAssistanceNotesResponseSchema = z.strictObject({ todo: de
       || (v.nextAfterNoteId !== null && v.nextAfterNoteId.toLowerCase() !== v.notes.at(-1)?.noteId.toLowerCase())) ctx.addIssue({ code: "custom", message: "Assistance notes cursor or count is inconsistent" });
     if (v.notes.some(n => compareTimestamps(n.recordedAt, v.todo.createdAt) === -1 || compareTimestamps(n.recordedAt, v.todo.updatedAt) === 1)) ctx.addIssue({ code: "custom", message: "Assistance note predates item or exceeds current update" });
   });
+// Event-time impact facts only. These are not current device state or a
+// readiness/verification result.
+export const deviceAssistanceImpactSchema = z.strictObject({ deviceId: uuidSchema, recordedDeviceVersion: z.int().min(0), recordedAt: assistanceTimestampSchema });
+export type DeviceAssistanceImpact = z.infer<typeof deviceAssistanceImpactSchema>;
+export const listDeviceAssistanceImpactsResponseSchema = z.strictObject({ todoId: uuidSchema, impacts: z.array(deviceAssistanceImpactSchema).max(50), nextAfterDeviceId: uuidSchema.nullable() })
+  .superRefine((v, ctx) => {
+    const ids = v.impacts.map(i => i.deviceId.toLowerCase());
+    if (new Set(ids).size !== ids.length || ids.some((id, index) => index > 0 && ids[index - 1]! >= id)
+      || (v.nextAfterDeviceId !== null && v.nextAfterDeviceId.toLowerCase() !== ids.at(-1))) ctx.addIssue({ code: "custom", message: "Assistance impact page cursor or ordering is inconsistent" });
+  });
+export type ListDeviceAssistanceImpactsResponse = z.infer<typeof listDeviceAssistanceImpactsResponseSchema>;

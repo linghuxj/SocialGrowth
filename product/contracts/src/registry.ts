@@ -6,7 +6,7 @@ import { centralPublicationTaskSchema, taskDispatchNoticeSchema, taskExecutionOb
 import { saveMaterialDeclarationRequestSchema, materialCurrentViewSchema, saveMaterialDeclarationResponseSchema, batchMaterialDeclarationsRequestSchema, batchMaterialDeclarationsResponseSchema, materialHistoryQuerySchema, materialHistoryResponseSchema, materialLibraryQuerySchema, materialLibraryResponseSchema } from "./material-registry.js";
 import { prepareMaterialUploadRequestSchema, materialUploadTicketViewSchema, prepareMaterialUploadResponseSchema, uploadMaterialBytesCommandSchema, uploadMaterialBytesResponseSchema, materialUploadInventoryQuerySchema, materialUploadInventoryResponseSchema } from "./material-upload.js";
 import { commissionCursorSchema, providerCommissionRecordSchema, listProviderCommissionsResponseSchema } from "./commission.js";
-import { deviceAssistanceTodoSummarySchema, listDeviceAssistanceTodosResponseSchema, recordDeviceAssistanceNoteRequestSchema, recordDeviceAssistanceNoteResponseSchema, providerDeviceAssistanceTodoSummarySchema, listProviderDeviceAssistanceTodosResponseSchema, deviceAssistanceNoteViewSchema, listDeviceAssistanceNotesResponseSchema } from "./device-assistance.js";
+import { deviceAssistanceTodoSummarySchema, listDeviceAssistanceTodosResponseSchema, recordDeviceAssistanceNoteRequestSchema, recordDeviceAssistanceNoteResponseSchema, providerDeviceAssistanceTodoSummarySchema, listProviderDeviceAssistanceTodosResponseSchema, deviceAssistanceNoteViewSchema, listDeviceAssistanceNotesResponseSchema, deviceAssistanceImpactSchema, listDeviceAssistanceImpactsResponseSchema } from "./device-assistance.js";
 import { deviceControlSnapshotSchema, installationSelfControlCommandRequestSchema, providerDeviceControlCommandRequestSchema } from "./device-control.js";
 import { phoneActionRequestSchema } from "./action-permission.js";
 import { createProjectRequestSchema, updateProjectRequestSchema, projectResponseSchema, projectViewSchema, listProjectsResponseSchema } from "./project.js";
@@ -133,6 +133,8 @@ export const firstBatchContractRegistry = {
   installationSelfControlCommandRequest: installationSelfControlCommandRequestSchema,
   providerDeviceControlCommandRequest: providerDeviceControlCommandRequestSchema,
   listDeviceAssistanceNotesResponse: listDeviceAssistanceNotesResponseSchema,
+  deviceAssistanceImpact: deviceAssistanceImpactSchema,
+  listDeviceAssistanceImpactsResponse: listDeviceAssistanceImpactsResponseSchema,
   projectPlanningInputs: projectPlanningInputsSchema,
   projectPlanningDraftView: projectPlanningDraftViewSchema,
   projectPlanningResponse: projectPlanningResponseSchema,
