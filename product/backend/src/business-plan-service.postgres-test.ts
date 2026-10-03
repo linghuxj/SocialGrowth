@@ -56,10 +56,18 @@ async function approvedProject() {
 const directionModel: InitialDirectionModel = { generateDirection: async () => ({ providerKey: "synthetic-port", modelKey: "fixture-direction",
   responseId: randomUUID(), output: { direction: "Synthetic bounded direction", rationale: "Test fixture only", limitations: ["No business acceptance"] } }) };
 let arrangementCalls = 0;
+let arrangementGate: Promise<void> | null = null;
+let gateEntries = 0;
+let notifyBothModelsStarted = () => {};
 const planModel: BusinessModelPort & { describe(signal: AbortSignal): Promise<{ providerKey: string; modelKey: string }> } = {
   describe: async () => ({ providerKey: "synthetic-port", modelKey: "fixture-plan" }),
   generate: async (request, _signal) => {
     arrangementCalls++;
+    if (arrangementGate) {
+      gateEntries++;
+      if (gateEntries === 2) notifyBothModelsStarted();
+      await arrangementGate;
+    }
     const context = request.input.context;
     return { responseId: randomUUID(), outputText: JSON.stringify({ suggestionId: randomUUID(), projectId: context.projectId,
       factSetId: context.factSetId, factSetVersion: context.factSetVersion, approval: context.approval,
@@ -85,4 +93,25 @@ test("plan persistence replays exact command once and never promotes advisory to
     (SELECT count(*)::int FROM socialgrowth_product.business_plan_tasks WHERE project_id=$1) tasks,
     (SELECT count(*)::int FROM socialgrowth_product.business_plan_outbox WHERE project_id=$1) outbox,
     (SELECT count(*)::int FROM socialgrowth_product.business_plan_commands WHERE project_id=$1) commands`, [f.projectId])).rows[0], { revisions: 1, tasks: 0, outbox: 0, commands: 1 });
+});
+
+test("concurrent arrangements against one expected revision cannot both become current", async () => {
+  arrangementCalls = 0; gateEntries = 0;
+  const f = await approvedProject(), initial = await f.service.read(f.token, f.projectId);
+  let release!: () => void;
+  arrangementGate = new Promise<void>(resolve => { release = resolve; });
+  const bothStarted = new Promise<void>(resolve => { notifyBothModelsStarted = resolve; });
+  const base = { expectedProjectVersion: initial.currentScope.projectVersion, expectedApprovalId: initial.currentScope.approvalId!, expectedPlanRevision: 0 };
+  const first = f.service.arrange(f.token, f.csrf, f.projectId, { ...base, metadata: metadata() });
+  const second = f.service.arrange(f.token, f.csrf, f.projectId, { ...base, metadata: metadata() });
+  await bothStarted; release(); arrangementGate = null;
+  const results = await Promise.allSettled([first, second]);
+  const fulfilled = results.filter(r => r.status === "fulfilled"), rejected = results.filter(r => r.status === "rejected");
+  assert.equal(fulfilled.length, 1); assert.equal(rejected.length, 1); assert.equal(arrangementCalls, 2);
+  assert.ok(rejected[0]!.status === "rejected" && error("FACT_VERSION_STALE")(rejected[0].reason));
+  assert.deepEqual((await pool.query(`SELECT (SELECT count(*)::int FROM socialgrowth_product.business_plan_revisions WHERE project_id=$1) revisions,
+    (SELECT count(*)::int FROM socialgrowth_product.business_plan_commands WHERE project_id=$1) commands,
+    (SELECT count(*)::int FROM socialgrowth_product.business_plan_tasks WHERE project_id=$1) tasks,
+    (SELECT count(*)::int FROM socialgrowth_product.business_plan_outbox WHERE project_id=$1) outbox`, [f.projectId])).rows[0],
+  { revisions: 1, commands: 1, tasks: 0, outbox: 0 });
 });
