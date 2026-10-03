@@ -138,7 +138,9 @@ export class DeviceControlService {
       const principal = await this.providerAuth.authenticateSessionInTransaction(client, token);
       const device = await currentDevice(client, deviceId, principal.providerId, undefined, true);
       const now = await databaseNow(client), operation = `provider_device_control.${kind}`;
-      const cached = await findCachedCommand(client, operation, "provider", principal.providerId, request.idempotencyKey, digest(parsed), now);
+      // The provider principal may control several devices: bind the idempotency
+      // key to the URL target so a replay cannot silently skip a second device.
+      const cached = await findCachedCommand(client, operation, "provider", principal.providerId, request.idempotencyKey, digest({ request: parsed, deviceId: device.device_id }), now);
       const snapshot = await currentDeviceControl(client, device);
       if (cached) return deviceControlSnapshotSchema.parse({ ...snapshot, requestId: request.requestId });
       if (device.state === "exit_pending" || device.state === "exited") throw denied();
@@ -185,7 +187,11 @@ export class DeviceControlService {
         [current.installationId,createHash("sha256").update(token).digest()])).rows[0];
       if (!session) throw denied();
       const now = await databaseNow(client), operation = "installation_device_control.pause";
-      const cached = await findCachedCommand(client,operation,"installation",current.installationId,request.idempotencyKey,digest(parsed),now);
+      // A signed installation can be reassociated or reinstalled. Bind retries
+      // to the exact current identity and association rather than the bearer alone.
+      const cached = await findCachedCommand(client,operation,"installation",current.installationId,request.idempotencyKey,
+        digest({ request: parsed, installationId: current.installationId, installationGeneration: current.installationGeneration.toString(),
+          associationId: lockedAssociation.association_id, deviceId: lockedAssociation.device_id, providerId: lockedAssociation.provider_id }),now);
       const snapshot = await currentDeviceControl(client,device);
       if (cached) return deviceControlSnapshotSchema.parse({ ...snapshot, requestId: request.requestId });
       if (device.state !== "paused") {
