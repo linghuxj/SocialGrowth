@@ -5,6 +5,7 @@ import { compareTimestamps, timestampSchema, uuidSchema, materialLibraryQuerySch
 import { materialSaveSchema, materialDeclarationSchema, materialIdentitySchema, materialObjectReferenceSchema, canonicalMaterial, type MaterialSave } from "./material-registry-core.js";
 import { OperatorAuthService, type OperatorSessionContext } from "./operator-auth-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
+import { appendMaterialRevisionChanged } from "./business-plan-task-impact-writer.js";
 const s = "socialgrowth_product", stale = () => new ProductTransactionError("FACT_VERSION_STALE", "Material identity, revision or source changed");
 export class MaterialRegistryError extends Error {
   constructor(readonly code: "VERIFIER_UNAVAILABLE" | "INVALID_OBJECTS" | "CORRUPT_HISTORY") { super(code); }
@@ -232,7 +233,14 @@ export class MaterialRegistryStore {
         await this.affected(c, `INSERT INTO ${s}.audit_records(audit_record_id,actor_type,actor_id,action,object_type,object_id,request_id,facts) VALUES($1,'operator',$2,'material.declaration_saved','material_variant',$3,$4,$5)`, [randomUUID(), a.operator.operatorId, r.variantId, r.metadata.requestId, { revision, status: reason === null ? "candidate" : "pending_validation", eligibilityReason: reason }]);
       }
       await this.affected(c, `INSERT INTO ${s}.material_registry_commands(actor_id,request_key,payload_digest,variant_id) VALUES($1,$2,$3,$4)`, [a.operator.operatorId, metadata.idempotencyKey, digest, r.variantId]);
-      const saved = await this.load(c, r.variantId); if (!saved) return invalid(); return { ...saved, changed: !unchanged, replayed: false };
+      const saved = await this.load(c, r.variantId); if (!saved) return invalid();
+      if (!unchanged) {
+        const project = (await c.query<{ fact_version: string }>(`SELECT fact_version::text FROM ${s}.projects WHERE project_id=$1`, [r.projectId])).rows[0];
+        if (!project) throw stale();
+        await appendMaterialRevisionChanged(c, { projectId: r.projectId, variantId: r.variantId,
+          projectVersion: Number(project.fact_version), materialRevision: saved.currentRevision });
+      }
+      return { ...saved, changed: !unchanged, replayed: false };
     });
   }
   async saveBatch(token: string, csrf: string, input: unknown) {
