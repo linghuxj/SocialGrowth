@@ -13,6 +13,25 @@ import { checkBusinessSuggestion, type BusinessSuggestion, type BusinessSuggesti
 const s = "socialgrowth_product";
 const unavailable = () => new ProductTransactionError("INTERNAL_ERROR", "Business planning is unavailable", true);
 const stale = () => new ProductTransactionError("FACT_VERSION_STALE", "Approved scope or plan changed; read current facts and retry explicitly");
+type DiagnosticStage = "connection" | "idempotency_read" | "preflight" | "model_fact_read" | "persist_insufficient" | "persist_plan" | "model_describe" | "model_coordinator";
+type DiagnosticCategory = "serialization_conflict" | "deadlock" | "lock_timeout" | "statement_timeout" | "integrity_constraint" | "other"
+  | "database_unavailable" | "rollback_failed" | "application_internal" | "describe_timeout" | "describe_unavailable"
+  | "configuration_missing" | "input_invalid" | "facts_unavailable" | "model_unavailable" | "deadline_exceeded" | "clock_invalid";
+function databaseFailureCategory(error: unknown): DiagnosticCategory {
+  const code = typeof error === "object" && error !== null && "code" in error ? (error as { code?: unknown }).code : null;
+  if (typeof code !== "string") return "other";
+  switch (code) {
+    case "40001": return "serialization_conflict";
+    case "40P01": return "deadlock";
+    case "55P03": return "lock_timeout";
+    case "57014": return "statement_timeout";
+    case "23502": case "23503": case "23505": case "23514": return "integrity_constraint";
+    default: return "other";
+  }
+}
+function recordPlanDiagnostic(stage: DiagnosticStage, category: DiagnosticCategory, requestId: string, projectId: string, attemptId?: string): void {
+  console.warn(JSON.stringify({ event: "business_plan_failure", stage, category, requestId, projectId, ...(attemptId ? { attemptId } : {}) }));
+}
 interface BusinessPlanModel extends BusinessModelPort { describe(signal: AbortSignal): Promise<{ providerKey: string; modelKey: string }> }
 type CurrentScope = BusinessPlanCurrentView["currentScope"];
 interface Snapshot {
@@ -31,9 +50,13 @@ export class BusinessPlanService {
   constructor(private readonly pool: Pool, private readonly auth: OperatorAuthService,
     private readonly materialRuntime: MaterialRuntime, private readonly model: BusinessPlanModel | null) {}
 
-  private async tx<T>(token: string, csrf: string | null, fn: (c: PoolClient, actorId: string) => Promise<T>): Promise<T> {
+  private async tx<T>(token: string, csrf: string | null, fn: (c: PoolClient, actorId: string) => Promise<T>,
+    diagnostic?: { stage: DiagnosticStage; requestId: string; projectId: string }): Promise<T> {
     let c: PoolClient;
-    try { c = await this.pool.connect(); } catch { throw unavailable(); }
+    try { c = await this.pool.connect(); } catch {
+      if (diagnostic) recordPlanDiagnostic("connection", "database_unavailable", diagnostic.requestId, diagnostic.projectId);
+      throw unavailable();
+    }
     try {
       await c.query("BEGIN"); await c.query("SET LOCAL lock_timeout='5s'"); await c.query("SET LOCAL statement_timeout='12s'");
       await c.query(`LOCK TABLE ${s}.operators IN SHARE ROW EXCLUSIVE MODE`);
@@ -46,8 +69,15 @@ export class BusinessPlanService {
       if (valid.rowCount !== 1) throw new ProductTransactionError("AUTHENTICATION_REQUIRED", "Operator session expired");
       await c.query("COMMIT"); return result;
     } catch (error) {
-      try { await c.query("ROLLBACK"); } catch { throw unavailable(); }
-      if (error instanceof ProductTransactionError) throw error;
+      try { await c.query("ROLLBACK"); } catch {
+        if (diagnostic) recordPlanDiagnostic(diagnostic.stage, "rollback_failed", diagnostic.requestId, diagnostic.projectId);
+        throw unavailable();
+      }
+      if (error instanceof ProductTransactionError) {
+        if (diagnostic && error.code === "INTERNAL_ERROR") recordPlanDiagnostic(diagnostic.stage, "application_internal", diagnostic.requestId, diagnostic.projectId);
+        throw error;
+      }
+      if (diagnostic) recordPlanDiagnostic(diagnostic.stage, databaseFailureCategory(error), diagnostic.requestId, diagnostic.projectId);
       throw unavailable();
     } finally { c.release(); }
   }
@@ -173,7 +203,7 @@ export class BusinessPlanService {
         VALUES($1,'operator',$2,'business.plan_candidate_blocked','business_plan',$3,$4,$5)`,
         [randomUUID(), actor, projectId, request.metadata.requestId, { reason: "insufficient_data", taskCount: 0, permissions: { executionAllowed: false, publicationAllowed: false } }]);
       return response;
-    });
+    }, { stage: "persist_insufficient", requestId: request.metadata.requestId, projectId });
   }
 
   async arrange(token: string, csrf: string, projectInput: string, raw: unknown) {
@@ -189,15 +219,16 @@ export class BusinessPlanService {
     const digest = createHash("sha256").update(canonicalMaterial({ projectId, ...request, metadata })).digest();
     // The idempotent POST replay is still a state-changing endpoint boundary;
     // authenticate its CSRF token before returning any saved response.
+    const diagnostic = { requestId: request.metadata.requestId, projectId };
     const replay = await this.tx(token, csrf, async (c, actor) => {
       const old = (await c.query<{ payload_digest: Buffer; project_id: string; response: unknown }>(`SELECT payload_digest,project_id,response FROM ${s}.business_plan_commands WHERE actor_id=$1 AND request_key=$2`, [actor, metadata.idempotencyKey])).rows[0];
       if (!old) return null;
       if (old.project_id !== projectId || !old.payload_digest.equals(digest)) throw new ProductTransactionError("IDEMPOTENCY_KEY_REUSED", "Business plan key belongs to different inputs");
       return arrangeBusinessPlanResponseSchema.parse(old.response);
-    });
+    }, { ...diagnostic, stage: "idempotency_read" });
     if (replay) return replay;
     let first: Snapshot | null = null;
-    const preflight = await this.tx(token, null, c => this.snapshot(c, projectId));
+    const preflight = await this.tx(token, null, c => this.snapshot(c, projectId), { ...diagnostic, stage: "preflight" });
     if (!preflight || preflight.projectVersion !== request.expectedProjectVersion || preflight.approvalId !== request.expectedApprovalId
       || preflight.expectedPlanRevision !== request.expectedPlanRevision) throw stale();
     first = preflight;
@@ -211,18 +242,26 @@ export class BusinessPlanService {
       if (!current || current.projectVersion !== request.expectedProjectVersion || current.approvalId !== request.expectedApprovalId || current.expectedPlanRevision !== request.expectedPlanRevision) throw stale();
       first ??= current;
       return { context: current.context, descriptions: current.descriptions };
-    }) };
+    }, { ...diagnostic, stage: "model_fact_read" }) };
     if (!this.model) throw unavailable();
     const controller = new AbortController(); let timer: ReturnType<typeof setTimeout> | undefined;
     let configured: { providerKey: string; modelKey: string };
+    let describeTimedOut = false;
     try {
-      const described = await Promise.race([this.model.describe(controller.signal), new Promise<never>((_, reject) => { timer = setTimeout(() => { controller.abort(); reject(unavailable()); }, 5000); })]);
+      const described = await Promise.race([this.model.describe(controller.signal), new Promise<never>((_, reject) => { timer = setTimeout(() => { describeTimedOut = true; controller.abort(); reject(unavailable()); }, 5000); })]);
       configured = { providerKey: described.providerKey, modelKey: described.modelKey };
-    } catch { clearTimeout(timer); controller.abort(); throw unavailable(); }
+    } catch {
+      clearTimeout(timer); controller.abort();
+      recordPlanDiagnostic("model_describe", describeTimedOut ? "describe_timeout" : "describe_unavailable", request.metadata.requestId, projectId);
+      throw unavailable();
+    }
     finally { clearTimeout(timer); }
     const coordinator = new BusinessModelCoordinator(reader, this.model, { ...configured, timeoutMs: 30_000 });
     const result = await coordinator.run(projectId);
-    if (result.status === "unavailable") throw unavailable();
+    if (result.status === "unavailable") {
+      recordPlanDiagnostic("model_coordinator", result.reason, request.metadata.requestId, projectId, result.provenance?.attemptId);
+      throw unavailable();
+    }
     if (result.status === "rejected" && result.reason === "DATA_INSUFFICIENT")
       return this.persistInsufficient(token, csrf, projectId, request, digest, first!);
     if (result.status === "rejected") throw stale();
@@ -279,6 +318,6 @@ export class BusinessPlanService {
         VALUES($1,'operator',$2,'business.plan_candidate_recorded','business_plan',$3,$4,$5)`,
         [randomUUID(), actor, projectId, request.metadata.requestId, { revision, taskCount: outputTasks.length, outcome, permissions: { executionAllowed: false, publicationAllowed: false } }]);
       return response;
-    });
+    }, { ...diagnostic, stage: "persist_plan" });
   }
 }
