@@ -32,7 +32,8 @@ before(async () => {
 });
 after(async () => { try { await pool.query("DROP SCHEMA IF EXISTS socialgrowth_product CASCADE"); } finally { await pool.end(); } });
 
-async function approvedProject(identityRef = `synthetic_page_${randomUUID().replaceAll("-", "")}`) {
+async function approvedProject(identityRef = `synthetic_page_${randomUUID().replaceAll("-", "")}`,
+  publishingWindow = { startsAt: "2090-01-01T00:00:00Z", endsAt: "2090-02-01T00:00:00Z" }) {
   const operatorId = randomUUID(), sessionId = randomUUID(), token = randomBytes(32).toString("base64url"), csrf = randomBytes(32).toString("base64url");
   const digest = (s: string) => createHash("sha256").update(s).digest();
   await pool.query("INSERT INTO socialgrowth_product.operators(operator_id,login_name,display_name,password_hash,status) VALUES($1,$2,'Plan fixture','not-a-password','active')", [operatorId, `fixture-${operatorId}`]);
@@ -44,7 +45,7 @@ async function approvedProject(identityRef = `synthetic_page_${randomUUID().repl
     postOpeningPriority: "balanced", targetCountries: ["US"], targetLanguages: ["en"], contentForms: ["facebook_video"],
     contentRules: "Synthetic candidate only; no publication", businessTimeZone: "America/Los_Angeles", firstCycleStartsAt: "2090-01-01T00:00:00Z",
     reviewIntervalDays: 7, trafficMinimumPerCycle: 0, observationWindowHours: 24, tailObservationDays: 0, maxPublicationsPerDay: 1,
-    publishingWindow: { startsAt: "2090-01-01T00:00:00Z", endsAt: "2090-02-01T00:00:00Z" } };
+    publishingWindow };
   const draft = (await planning.save(token, csrf, { metadata: metadata(), projectId: project.projectId, expectedProjectVersion: 0,
     expectedDraftVersion: 0, inputs })).draft;
   const generation = { metadata: metadata(), projectId: project.projectId, expectedProjectVersion: draft.projectFactVersion, expectedDraftVersion: draft.draftVersion,
@@ -121,6 +122,18 @@ async function seedCandidateMaterial(f: Awaited<ReturnType<typeof approvedProjec
   return { contentUnitId, variantId, identityId };
 }
 
+async function seedOutOfScopeIdentity(f: Awaited<ReturnType<typeof approvedProject>>) {
+  const accountId = randomUUID(), identityId = randomUUID(), deviceId = randomUUID(), ref = `synthetic_unapproved_${randomUUID().replaceAll("-", "")}`;
+  await pool.query(`INSERT INTO socialgrowth_product.devices(device_id,display_name,state) VALUES($1,'Synthetic out-of-scope device','unassociated')`, [deviceId]);
+  await pool.query(`INSERT INTO socialgrowth_product.media_accounts(account_id,platform,canonical_account_ref) VALUES($1,'facebook',$2)`, [accountId, ref]);
+  await pool.query(`INSERT INTO socialgrowth_product.publishing_identities(identity_id,account_id,platform,canonical_identity_ref) VALUES($1,$2,'facebook',$3)`, [identityId, accountId, ref]);
+  await pool.query(`INSERT INTO socialgrowth_product.project_device_reservations(device_id,project_id) VALUES($1,$2)`, [deviceId, f.projectId]);
+  await pool.query(`INSERT INTO socialgrowth_product.project_account_reservations(account_id,project_id) VALUES($1,$2)`, [accountId, f.projectId]);
+  await pool.query(`INSERT INTO socialgrowth_product.project_identity_reservations(identity_id,account_id,platform,device_id,project_id,reserved_by_operator_id)
+    VALUES($1,$2,'facebook',$3,$4,$5)`, [identityId, accountId, deviceId, f.projectId, f.operatorId]);
+  return identityId;
+}
+
 test("plan persistence replays exact command once and never promotes advisory to Task or action", async () => {
   arrangementCalls = 0;
   const f = await approvedProject(), initial = await f.service.read(f.token, f.projectId);
@@ -132,6 +145,8 @@ test("plan persistence replays exact command once and never promotes advisory to
   assert.equal(first.executionAllowed, false); assert.equal(first.publicationAllowed, false);
   const replay = await f.service.arrange(f.token, f.csrf, f.projectId, request);
   assert.deepEqual(replay, first); assert.equal(arrangementCalls, 1);
+  const otherProject = await approvedProject();
+  await assert.rejects(f.service.arrange(f.token, f.csrf, otherProject.projectId, request), error("IDEMPOTENCY_KEY_REUSED"));
   await assert.rejects(f.service.arrange(f.token, "", f.projectId, request), error("AUTHENTICATION_REQUIRED"));
   await assert.rejects(f.service.arrange(f.token, f.csrf, f.projectId, { ...request, expectedPlanRevision: 1 }), error("IDEMPOTENCY_KEY_REUSED"));
   assert.deepEqual((await pool.query(`SELECT (SELECT count(*)::int FROM socialgrowth_product.business_plan_revisions WHERE project_id=$1) revisions,
@@ -196,6 +211,54 @@ test("material-backed schedule atomically persists current-scope plan, Task, quo
   assert.equal(rows[0]!.outbox_state, "pending_current_checks"); assert.equal(rows[0]!.outbox_execution_allowed, false); assert.equal(rows[0]!.outbox_publication_allowed, false);
   assert.equal(rows[0]!.quota_snapshot.slots.length, 1); assert.equal(rows[0]!.quota_snapshot.slots[0].taskId, rows[0]!.task_id);
   assert.deepEqual(await planRowCounts(f.projectId), { revisions: 1, tasks: 1, outbox: 1, commands: 1, audits: 1 });
+  makeArrangement = confirmationSuggestion;
+});
+
+test("plan candidate cannot select a later reserved identity outside the exact approved platform/reference scope", async () => {
+  arrangementCalls = 0; arrangementGate = null; makeArrangement = scheduleSuggestion;
+  const f = await approvedProject(), material = await seedCandidateMaterial(f), outsideIdentityId = await seedOutOfScopeIdentity(f);
+  const before = await f.service.read(f.token, f.projectId);
+  makeArrangement = context => {
+    const base = scheduleSuggestion(context) as ReturnType<typeof scheduleSuggestion>;
+    return { ...base, changes: [{ ...base.changes[0]!, publication: { ...base.changes[0]!.publication, identityId: outsideIdentityId } }] };
+  };
+  const request = { metadata: metadata(), expectedProjectVersion: before.currentScope.projectVersion,
+    expectedApprovalId: before.currentScope.approvalId!, expectedPlanRevision: 0 };
+  await assert.rejects(f.service.arrange(f.token, f.csrf, f.projectId, request), error("FACT_VERSION_STALE"));
+  assert.deepEqual(await planRowCounts(f.projectId), { revisions: 0, tasks: 0, outbox: 0, commands: 0, audits: 0 });
+  const current = await f.service.read(f.token, f.projectId);
+  assert.equal(current.plan, null); assert.deepEqual(current.tasks, []);
+  assert.ok(material.identityId !== outsideIdentityId);
+});
+
+test("final transaction reruns the schedule check after delay before any plan or outbox write", async () => {
+  arrangementCalls = 0; arrangementGate = null;
+  const now = Date.now(), f = await approvedProject(undefined, {
+    startsAt: new Date(now - 60_000).toISOString(), endsAt: new Date(now + 5_000).toISOString(),
+  });
+  await seedCandidateMaterial(f);
+  makeArrangement = context => {
+    const base = scheduleSuggestion(context) as ReturnType<typeof scheduleSuggestion>;
+    return { ...base, changes: [{ ...base.changes[0]!, publication: {
+      ...base.changes[0]!.publication, scheduledAt: new Date(Date.now() + 2_000).toISOString(),
+    } }] };
+  };
+  const current = await f.service.read(f.token, f.projectId);
+  const request = { metadata: metadata(), expectedProjectVersion: current.currentScope.projectVersion,
+    expectedApprovalId: current.currentScope.approvalId!, expectedPlanRevision: 0 };
+  type Tx = <T>(token: string, csrf: string | null, fn: (client: import("pg").PoolClient, actorId: string) => Promise<T>) => Promise<T>;
+  const service = f.service as unknown as { tx: Tx };
+  const originalTx = service.tx.bind(f.service);
+  let csrfTransactions = 0;
+  service.tx = async (token, csrf, fn) => {
+    // The first CSRF transaction checks for an idempotent replay. Delay the
+    // second (final persistence) transaction to model time spent waiting to
+    // enter the final locked section.
+    if (csrf !== null && ++csrfTransactions === 2) await new Promise(resolve => setTimeout(resolve, 2_300));
+    return originalTx(token, csrf, fn);
+  };
+  await assert.rejects(f.service.arrange(f.token, f.csrf, f.projectId, request), error("FACT_VERSION_STALE"));
+  assert.deepEqual(await planRowCounts(f.projectId), { revisions: 0, tasks: 0, outbox: 0, commands: 0, audits: 0 });
   makeArrangement = confirmationSuggestion;
 });
 
