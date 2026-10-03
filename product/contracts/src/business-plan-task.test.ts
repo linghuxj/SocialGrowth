@@ -10,7 +10,7 @@ const view = { projectId, currentScope: scope, plan: null, tasks: [], executionA
 
 test("business plan contract permits an explicit empty plan and fixed closed permissions", () => {
   assert.equal(businessPlanCurrentViewSchema.safeParse(view).success, true);
-  assert.equal(arrangeBusinessPlanResponseSchema.safeParse({ ...view, outcome: "direction_confirmation_required", requestId: "33333333-3333-4333-8333-333333333333" }).success, true);
+  assert.equal(arrangeBusinessPlanResponseSchema.safeParse({ ...view, outcome: "direction_confirmation_required", requestId: "request-33333333-3333-4333-8333-333333333333" }).success, true);
   for (const invalid of [
     { ...view, executionAllowed: true },
     { ...view, publicationAllowed: true },

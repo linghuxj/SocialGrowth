@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { requestMetadataSchema, timestampSchema, uuidSchema } from "./common.js";
+import { requestIdSchema, requestMetadataSchema, timestampSchema, uuidSchema } from "./common.js";
 
 const version = z.int().min(0).max(Number.MAX_SAFE_INTEGER);
 const positiveVersion = z.int().min(1).max(Number.MAX_SAFE_INTEGER);
@@ -54,7 +54,7 @@ export const arrangeBusinessPlanRequestSchema = z.strictObject({
 
 export const arrangeBusinessPlanResponseSchema = businessPlanCurrentViewSchema.extend({
   outcome: z.enum(["planned", "unchanged", "insufficient_data", "direction_confirmation_required"]),
-  requestId: uuidSchema,
+  requestId: requestIdSchema,
 });
 
 export type BusinessPlanTask = z.infer<typeof businessPlanTaskSchema>;
