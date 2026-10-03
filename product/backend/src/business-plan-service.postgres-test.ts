@@ -459,7 +459,8 @@ test("final transaction reruns the schedule check after delay before any plan or
   const originalTx = service.tx.bind(f.service);
   let csrfTransactions = 0;
   let finalGuardWaitObserved = false;
-  service.tx = async (token, csrf, fn) => {
+  service.tx = async <T>(token: string, csrf: string | null,
+    fn: (client: import("pg").PoolClient, actorId: string) => Promise<T>): Promise<T> => {
     // The first CSRF transaction is the replay check. For the second (final
     // persistence) transaction, hold the exact guard it must acquire and
     // release it only after PostgreSQL's own clock has passed scheduledAt.
@@ -467,10 +468,18 @@ test("final transaction reruns the schedule check after delay before any plan or
     // call-count timing as sources of a false pass.
     if (csrf !== null && ++csrfTransactions === 2) {
       const blocker = await pool.connect();
+      let lockHeld = false;
+      let pending: Promise<{ status: "fulfilled"; value: T } | { status: "rejected"; reason: unknown }> | null = null;
       try {
         await blocker.query("BEGIN");
         await blocker.query("SELECT 1 FROM socialgrowth_product.business_plan_guard FOR UPDATE");
-        const pending = originalTx(token, csrf, fn);
+        // Attach both handlers immediately: the production lock timeout is
+        // shorter than this fixture's wait-observation timeout.
+        pending = originalTx(token, csrf, fn).then(
+          value => ({ status: "fulfilled" as const, value }),
+          reason => ({ status: "rejected" as const, reason }),
+        );
+        lockHeld = true;
         const waitDeadline = Date.now() + 10_000;
         while (true) {
           const waiting = await pool.query<{ count: number }>(`SELECT count(*)::int AS count FROM pg_stat_activity
@@ -488,9 +497,13 @@ test("final transaction reruns the schedule check after delay before any plan or
           await new Promise(resolve => setTimeout(resolve, 20));
         }
         await blocker.query("COMMIT");
-        return await pending;
+        lockHeld = false;
+        const result = await pending;
+        if (result.status === "rejected") throw result.reason;
+        return result.value;
       } catch (error) {
-        await blocker.query("ROLLBACK").catch(() => undefined);
+        if (lockHeld) await blocker.query("ROLLBACK").catch(() => undefined);
+        if (pending) await pending;
         throw error;
       } finally { blocker.release(); }
     }
