@@ -36,6 +36,10 @@ WP15 stage13仅上传票据prepare/read客户端，作者6/根456/静态首过�
 
 ## 备份恢复工程边界
 
+`product/backend/src/database-restore-maintenance.ts`提供受信任维护调用方可复用的最小组合：`captureAndStoreMaintenanceBackup`把已有同快照加密采集与加密文件存储串接；文件写入回执不明时返回**原备份ID和原加密包**供原包核对，不重新采集/换nonce。该返回包含明文认证metadata，维护调用方不得写普通日志或开放HTTP。
+
+`inspectMaintenanceRestore`要求调用方传入原认证备份包中的清单，只读比较隔离目标与备份schema/行摘要、当前库与恢复库的会话/安装/关联/参与撤销、控制日志、outbox及对象引用，并逐个用现有S3对象存储校验目标引用的完整字节。它不执行`pg_restore`，不暂停或启动队列、不发放许可、不释放holder；`consumersStopped`和`physicalFence`固定为`unknown`，所有允许标志及`holderReleaseAllowed`固定false。会话/控制记录有差异、对象清单有差异、对象未核验或存储读取失败均须人工核实；当前adapter不区分对象404与存储不可用，只能报告未核验，不能伪称确认缺失。该检查也不能证明外部Page权限、Artemis/设备在途操作已停止。
+
 [采集接线](../../docs/engineering/delivery/records/WP-27-stage6.md)使用自持只读快照，在有效期把snapshot交显式trusted archive回调，只读COMMIT回执成功后返回原v2加密包，成功转交dump最终清零；异步前固定metadata/key。维护caller须保证真实源/同snapshot/SQL可信及回调失败前的内部buffer清理；函数不核生产migration provenance或批准。文件保存另调原包，UNKNOWN不能自动重dump新nonce；无生产CLI/HTTP/scheduler/restore/consumer。合成PG4/431不是生产RPO-RTO/联合灾备或真实Web验收。
 
 [故障接续阶段](../../docs/engineering/delivery/records/WP-27-stage5.md)实际验证文件落地后丢响应/部分写/权限失效/自己的pending未能清理等场景，UNKNOWN保留原ID和原包核对，不创建替代ID或自动信任两链接文件。IO端口仅trusted服务端代码、缺省真实fs，不能从HTTP/config提供；不实现自动orphan清理/chmod。作者fs14为真实合成文件故障补充，不是本轮PG/断电/生产灾备/当前批准/真实Web或真机验收。
