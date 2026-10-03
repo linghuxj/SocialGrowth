@@ -33,6 +33,10 @@ for (const [name, port] of [["SG_PRODUCT_CORE_WEB_PORT", webPort], ["SG_PRODUCT_
 }
 assert.notEqual(webPort, backendPort, "web and backend require separate ports");
 if (sqlOnly) assert.ok((scopes.length === 1 && scopes[0] === "direction") || postgresOnlyScope, "SQL-only supplemental scope must be explicit");
+if (scopes.includes("business-plan-postgres")) {
+  assert.deepEqual(scopes, ["business-plan-postgres"], "business-plan PostgreSQL scope must run alone");
+  assert.equal(sqlOnly, true, "business-plan PostgreSQL scope requires SQL-only mode");
+}
 const artemisRoot = scopes.includes("direction") && !sqlOnly ? process.env.SG_PRODUCT_CORE_ARTEMIS_ROOT : null;
 if (scopes.includes("direction") && !sqlOnly) assert.ok(artemisRoot && artemisRoot.startsWith("/"), "Direction requires an explicitly selected existing Artemis environment");
 const realMaterialFiles = scopes.includes("real-material-bytes") ? process.env.SG_PRODUCT_CORE_REAL_MATERIAL_FILES : null;
