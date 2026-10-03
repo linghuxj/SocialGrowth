@@ -364,6 +364,50 @@ test("project and material mutations append idempotent impact references in thei
   makeArrangement = confirmationSuggestion;
 });
 
+test("project update expiry during impact append rolls back project, impacts, command and audit", async () => {
+  arrangementCalls = 0; arrangementGate = null; makeArrangement = scheduleSuggestion;
+  const f = await approvedProject(); await seedCandidateMaterial(f);
+  const current = await f.service.read(f.token, f.projectId);
+  const arranged = await f.service.arrange(f.token, f.csrf, f.projectId, { metadata: metadata(),
+    expectedProjectVersion: current.currentScope.projectVersion, expectedApprovalId: current.currentScope.approvalId!, expectedPlanRevision: 0 });
+  assert.equal(arranged.tasks.length, 1);
+  const project = (await pool.query<{ name: string; fact_version: string; kind: "company_owned"; customer_name: string | null;
+    owner_operator_id: string; notification_email: string | null }>(
+      `SELECT name,fact_version::text,kind,customer_name,owner_operator_id,notification_email FROM socialgrowth_product.projects WHERE project_id=$1`, [f.projectId])).rows[0]!;
+  const beforeImpacts = (await pool.query(`SELECT current_impact_revision::int head,
+    (SELECT count(*)::int FROM socialgrowth_product.business_plan_outbox_impacts WHERE task_id=$1) rows
+    FROM socialgrowth_product.business_plan_outbox WHERE task_id=$1`, [arranged.tasks[0]!.taskId])).rows[0];
+  const metadataInput = metadata();
+  const updateInput = { metadata: metadataInput, projectId: f.projectId, expectedFactVersion: Number(project.fact_version), basics: {
+    name: `${project.name} expired-session rollback`, kind: project.kind, customerName: project.customer_name,
+    ownerOperatorId: project.owner_operator_id, notificationEmail: project.notification_email } };
+
+  await pool.query(`UPDATE socialgrowth_product.operator_sessions SET expires_at=clock_timestamp()+interval '2 seconds' WHERE operator_id=$1`, [f.operatorId]);
+  await pool.query(`CREATE FUNCTION socialgrowth_product.test_delay_impact_append() RETURNS trigger LANGUAGE plpgsql AS $fixture$
+    BEGIN PERFORM pg_sleep(2.5); RETURN NEW; END $fixture$`);
+  await pool.query(`CREATE TRIGGER test_delay_impact_append BEFORE INSERT ON socialgrowth_product.business_plan_outbox_impacts
+    FOR EACH ROW EXECUTE FUNCTION socialgrowth_product.test_delay_impact_append()`);
+  try {
+    await assert.rejects(new ProjectService(pool, auth).save(f.token, f.csrf, updateInput, "update"), error("AUTHENTICATION_REQUIRED"));
+  } finally {
+    await pool.query("DROP TRIGGER test_delay_impact_append ON socialgrowth_product.business_plan_outbox_impacts");
+    await pool.query("DROP FUNCTION socialgrowth_product.test_delay_impact_append()");
+  }
+
+  const afterProject = (await pool.query<{ name: string; fact_version: string }>(
+    `SELECT name,fact_version::text FROM socialgrowth_product.projects WHERE project_id=$1`, [f.projectId])).rows[0]!;
+  assert.equal(afterProject.name, project.name);
+  assert.equal(Number(afterProject.fact_version), Number(project.fact_version));
+  assert.deepEqual((await pool.query(`SELECT current_impact_revision::int head,
+    (SELECT count(*)::int FROM socialgrowth_product.business_plan_outbox_impacts WHERE task_id=$1) rows
+    FROM socialgrowth_product.business_plan_outbox WHERE task_id=$1`, [arranged.tasks[0]!.taskId])).rows[0], beforeImpacts);
+  assert.equal((await pool.query(`SELECT count(*)::int count FROM socialgrowth_product.project_metadata_commands
+    WHERE actor_id=$1 AND request_key=$2`, [f.operatorId, metadataInput.idempotencyKey])).rows[0]!.count, 0);
+  assert.equal((await pool.query(`SELECT count(*)::int count FROM socialgrowth_product.audit_records
+    WHERE request_id=$1`, [metadataInput.requestId])).rows[0]!.count, 0);
+  makeArrangement = confirmationSuggestion;
+});
+
 test("plan candidate cannot select a later reserved identity outside the exact approved platform/reference scope", async () => {
   arrangementCalls = 0; arrangementGate = null; makeArrangement = scheduleSuggestion;
   const f = await approvedProject(), material = await seedCandidateMaterial(f), outsideIdentityId = await seedOutOfScopeIdentity(f);
