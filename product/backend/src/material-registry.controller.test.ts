@@ -11,13 +11,16 @@ const input = { metadata: { contractVersion, requestId: "request-material", idem
   identity: { mediaKind: "video", businessKind: "product", businessEntityId: id, seriesId: null, episodeNumber: null },
   declaration: { name: "Synthetic", description: "Explicit", businessFacts: "Explicit", sourceStatement: "Explicit", sourceEvidenceIds: [id], firstUseDeclaration: "declared_not_previously_published" } };
 const request = { headers: { cookie: `unrelated=a=b; __Host-sg_operator_session=${token}` } };
-const saved = { ...input, currentRevision: 1, revisions: [{ revision: 1, declaration: input.declaration,
+const viewDeclaration = { ...input.declaration, expectedApprovedDirectionId: null, expectedApprovedProjectVersion: null, contentRulesReviewed: false };
+const saved = { ...input, declaration: viewDeclaration, currentRevision: 1, revisions: [{ revision: 1, declaration: viewDeclaration,
   objects: [{ objectId: id, sha256: "a".repeat(64), bytes: 10, contentType: "video/mp4", key: "internal-never-emit", storageLocationId: id }],
-  recordedAt: "2026-10-01T00:00:00Z", recordedByOperatorId: id, status: "pending_validation" }], candidateAllowed: false, publicationAllowed: false, changed: true, replayed: false };
+  recordedAt: "2026-10-01T00:00:00Z", recordedByOperatorId: id, status: "pending_validation" }], status: "pending_validation", candidateAllowed: false,
+  eligibilityReason: "direction_not_approved", publicationAllowed: false, changed: true, replayed: false };
 test("material controller preauthenticates current Cookie/CSRF and projects only current declaration and byte facts", async () => {
   const calls: string[] = [];
   const registry = { authorizeWrite: async (session: string, csrf: string, project: string) => { calls.push("auth"); assert.equal(session, token); assert.equal(csrf, "csrf"); assert.equal(project, id); },
-    save: async (session: string, csrf: string, value: unknown) => { calls.push("save"); assert.equal(session, token); assert.equal(csrf, "csrf"); assert.deepEqual(value, input); return saved; }, read: async () => saved };
+    save: async (session: string, csrf: string, value: unknown) => { calls.push("save"); assert.equal(session, token); assert.equal(csrf, "csrf");
+      assert.deepEqual(value, { ...input, declaration: viewDeclaration }); return saved; }, read: async () => saved };
   const controller = new MaterialRegistryController({ registry: () => registry } as unknown as MaterialRuntime);
   const result = await controller.save(id, input, request, "csrf"); assert.deepEqual(calls, ["auth", "save"]); assert.equal(result.changed, true);
   const current = await controller.read(id, id, request); materialCurrentViewSchema.parse(current);
