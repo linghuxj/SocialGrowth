@@ -253,14 +253,19 @@ test("material-backed schedule atomically persists current-scope plan, Task, quo
   const reservedDeviceId = checks.tasks[0]!.current.reservedDeviceId!;
   await pool.query(`INSERT INTO socialgrowth_product.providers(provider_id,phone_e164,display_name,status) VALUES($1,$2,'Generation fixture','active')`,
     [providerId, `+1${String(100_000_000 + (randomBytes(4).readUInt32BE(0) % 900_000_000))}`]);
-  await pool.query(`INSERT INTO socialgrowth_product.installations(installation_id,credential_digest,generation,status) VALUES($1,$2,2,'active')`,
+  await pool.query(`INSERT INTO socialgrowth_product.installations(installation_id,credential_digest,generation,status) VALUES($1,$2,1,'active')`,
     [installationId, randomBytes(32)]);
   await pool.query(`INSERT INTO socialgrowth_product.association_sessions(association_session_id,installation_id,expected_installation_generation,device_label,code_digest,expires_at,consumed_at,consumed_by_provider_id)
-    VALUES($1,$2,1,'Old generation fixture',$3,clock_timestamp()+interval '1 day',clock_timestamp(),$4)`,
+    VALUES($1,$2,1,'Current generation fixture',$3,clock_timestamp()+interval '1 day',clock_timestamp(),$4)`,
     [associationSessionId, installationId, randomBytes(32), providerId]);
   await pool.query(`UPDATE socialgrowth_product.devices SET state='associated_pending_access' WHERE device_id=$1`, [reservedDeviceId]);
   await pool.query(`INSERT INTO socialgrowth_product.device_associations(association_id,device_id,installation_id,provider_id,association_session_id)
     VALUES($1,$2,$3,$4,$5)`, [associationId, reservedDeviceId, installationId, providerId, associationSessionId]);
+  const currentGeneration = await f.service.currentChecks(f.token, f.projectId);
+  assert.equal(currentGeneration.tasks[0]?.current.associationCurrent, true);
+  assert.equal(currentGeneration.tasks[0]?.current.installationGeneration, "1");
+  assert.ok(!currentGeneration.tasks[0]?.blockers.includes("device_association_missing"));
+  await pool.query(`UPDATE socialgrowth_product.installations SET generation=2 WHERE installation_id=$1`, [installationId]);
   const staleGeneration = await f.service.currentChecks(f.token, f.projectId);
   assert.equal(staleGeneration.tasks[0]?.current.associationCurrent, false);
   assert.equal(staleGeneration.tasks[0]?.current.installationGeneration, "2");
