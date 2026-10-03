@@ -30,18 +30,18 @@ async function inventory(c: PoolClient): Promise<DatabaseRestoreInventory> {
   if (Math.floor(version / 10000) !== 17) throw new DatabaseInventoryError("INVENTORY_UNAVAILABLE");
   const relations = (await c.query(`SELECT c.relname,c.relkind,c.relpersistence,c.relrowsecurity,c.relforcerowsecurity,c.relreplident,c.reloptions,
     q.seqtypid::regtype::text sequence_type,q.seqstart::text sequence_start,q.seqincrement::text sequence_increment,
-    q.seqmax::text sequence_max,q.seqmin::text sequence_min,q.seqcache::text sequence_cache,q.seqcycle sequence_cycle
+    q.seqmax::text sequence_max,q.seqmin::text sequence_min,q.seqcache::text sequence_cache,q.seqcycle sequence_cycle,
+    owner_n.nspname sequence_owner_schema,owner_table.relname sequence_owner_table,owner_column.attname sequence_owner_column
     FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace LEFT JOIN pg_sequence q ON q.seqrelid=c.oid
+    LEFT JOIN pg_depend identity_dep ON c.relkind='S' AND identity_dep.classid='pg_class'::regclass AND identity_dep.objid=c.oid AND identity_dep.deptype='i'
+    LEFT JOIN pg_class owner_table ON owner_table.oid=identity_dep.refobjid
+    LEFT JOIN pg_namespace owner_n ON owner_n.oid=owner_table.relnamespace
+    LEFT JOIN pg_attribute owner_column ON owner_column.attrelid=owner_table.oid AND owner_column.attnum=identity_dep.refobjsubid AND owner_column.attidentity IN ('a','d')
     WHERE n.nspname=$1 ORDER BY c.relname COLLATE "C"`, [schema])).rows as { relname: string; relkind: string }[];
   if (!relations.length || relations.length > 5000 || relations.some(r => !identifier.safeParse(r.relname).success || !["r", "i", "S"].includes(r.relkind))) throw new DatabaseInventoryError("INVENTORY_UNAVAILABLE");
   const schemaSequences = relations.filter(r => r.relkind === "S").map(r => r.relname);
-  const identitySequences = (await c.query(`SELECT seq.relname FROM pg_class seq
-    JOIN pg_namespace n ON n.oid=seq.relnamespace
-    JOIN pg_depend d ON d.classid='pg_class'::regclass AND d.objid=seq.oid AND d.deptype='i'
-    JOIN pg_class tbl ON tbl.oid=d.refobjid
-    JOIN pg_namespace tn ON tn.oid=tbl.relnamespace
-    JOIN pg_attribute a ON a.attrelid=tbl.oid AND a.attnum=d.refobjsubid AND a.attidentity IN ('a','d')
-    WHERE n.nspname=$1 AND seq.relkind='S' AND tn.nspname=$1 ORDER BY seq.relname COLLATE "C"`, [schema])).rows.map((r: { relname: string }) => r.relname);
+  const identitySequences = (relations as { relname: string; relkind: string; sequence_owner_schema: string | null; sequence_owner_table: string | null; sequence_owner_column: string | null }[])
+    .filter(r => r.relkind === "S" && r.sequence_owner_schema === schema && r.sequence_owner_table !== null && r.sequence_owner_column !== null).map(r => r.relname);
   if (JSON.stringify(schemaSequences) !== JSON.stringify(identitySequences)) throw new DatabaseInventoryError("INVENTORY_UNAVAILABLE");
   // Ordinary inheritance changes schema/query semantics too. Reject either
   // endpoint in scope, including parents or children in another schema,
