@@ -28,8 +28,21 @@ function canonicalConstraint(row: { relname: string; conname: string; definition
 async function inventory(c: PoolClient): Promise<DatabaseRestoreInventory> {
   const version = Number((await c.query("SHOW server_version_num")).rows[0].server_version_num);
   if (Math.floor(version / 10000) !== 17) throw new DatabaseInventoryError("INVENTORY_UNAVAILABLE");
-  const relations = (await c.query(`SELECT c.relname,c.relkind,c.relpersistence,c.relrowsecurity,c.relforcerowsecurity,c.relreplident,c.reloptions FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=$1 ORDER BY c.relname COLLATE "C"`, [schema])).rows as { relname: string; relkind: string }[];
-  if (!relations.length || relations.length > 5000 || relations.some(r => !identifier.safeParse(r.relname).success || !["r", "i"].includes(r.relkind))) throw new DatabaseInventoryError("INVENTORY_UNAVAILABLE");
+  const relations = (await c.query(`SELECT c.relname,c.relkind,c.relpersistence,c.relrowsecurity,c.relforcerowsecurity,c.relreplident,c.reloptions,
+    q.seqtypid::regtype::text sequence_type,q.seqstart::text sequence_start,q.seqincrement::text sequence_increment,
+    q.seqmax::text sequence_max,q.seqmin::text sequence_min,q.seqcache::text sequence_cache,q.seqcycle sequence_cycle,
+    owner_n.nspname sequence_owner_schema,owner_table.relname sequence_owner_table,owner_column.attname sequence_owner_column
+    FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace LEFT JOIN pg_sequence q ON q.seqrelid=c.oid
+    LEFT JOIN pg_depend identity_dep ON c.relkind='S' AND identity_dep.classid='pg_class'::regclass AND identity_dep.objid=c.oid AND identity_dep.deptype='i'
+    LEFT JOIN pg_class owner_table ON owner_table.oid=identity_dep.refobjid
+    LEFT JOIN pg_namespace owner_n ON owner_n.oid=owner_table.relnamespace
+    LEFT JOIN pg_attribute owner_column ON owner_column.attrelid=owner_table.oid AND owner_column.attnum=identity_dep.refobjsubid AND owner_column.attidentity IN ('a','d')
+    WHERE n.nspname=$1 ORDER BY c.relname COLLATE "C"`, [schema])).rows as { relname: string; relkind: string }[];
+  if (!relations.length || relations.length > 5000 || relations.some(r => !identifier.safeParse(r.relname).success || !["r", "i", "S"].includes(r.relkind))) throw new DatabaseInventoryError("INVENTORY_UNAVAILABLE");
+  const schemaSequences = relations.filter(r => r.relkind === "S").map(r => r.relname);
+  const identitySequences = (relations as { relname: string; relkind: string; sequence_owner_schema: string | null; sequence_owner_table: string | null; sequence_owner_column: string | null }[])
+    .filter(r => r.relkind === "S" && r.sequence_owner_schema === schema && r.sequence_owner_table !== null && r.sequence_owner_column !== null).map(r => r.relname);
+  if (JSON.stringify(schemaSequences) !== JSON.stringify(identitySequences)) throw new DatabaseInventoryError("INVENTORY_UNAVAILABLE");
   // Ordinary inheritance changes schema/query semantics too. Reject either
   // endpoint in scope, including parents or children in another schema,
   // before row aggregation/export; do not fingerprint a partial hierarchy.
@@ -59,7 +72,11 @@ async function inventory(c: PoolClient): Promise<DatabaseRestoreInventory> {
 // Technical bounds are not capacity/RPO/RTO. Exported snapshot lives only until
 // callback ends; its consumer MUST use this exact snapshot for the trusted dump.
 // Digests are internal sensitive metadata, not source approval or current facts.
-export async function withDatabaseInventorySnapshot<T>(pool: Pool, useSnapshot: (value: { snapshotId: string; inventory: DatabaseRestoreInventory }) => Promise<T>): Promise<T> {
+export async function withDatabaseInventorySnapshot<T>(pool: Pool, useSnapshot: (value: {
+  snapshotId: string;
+  inventory: DatabaseRestoreInventory;
+  query: (text: string, values?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>;
+}) => Promise<T>): Promise<T> {
   let c: PoolClient | undefined, destroy = false;
   try {
     c = await pool.connect(); await c.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
@@ -68,7 +85,14 @@ export async function withDatabaseInventorySnapshot<T>(pool: Pool, useSnapshot: 
     await c.query("SET LOCAL bytea_output='hex'"); await c.query("SET LOCAL extra_float_digits=3"); await c.query("SET LOCAL IntervalStyle='postgres'");
     const result = await inventory(c), snapshotId: string = (await c.query("SELECT pg_export_snapshot() snapshot")).rows[0].snapshot;
     if (!/^[0-9A-Fa-f-]{1,100}$/.test(snapshotId)) throw new DatabaseInventoryError("INVENTORY_UNAVAILABLE");
-    const output = await useSnapshot({ snapshotId, inventory: structuredClone(result) }); await c.query("COMMIT"); return output;
+    const output = await useSnapshot({
+      snapshotId,
+      inventory: structuredClone(result),
+      // Trusted maintenance-only, same-transaction, read-only SQL for facts
+      // that must correspond to the inventory snapshot. PG enforces READ ONLY.
+      query: (text, values) => c!.query(text, values),
+    });
+    await c.query("COMMIT"); return output;
   } catch {
     if (c) { try { await c.query("ROLLBACK"); } catch { destroy = true; } }
     throw new DatabaseInventoryError("INVENTORY_UNAVAILABLE");
