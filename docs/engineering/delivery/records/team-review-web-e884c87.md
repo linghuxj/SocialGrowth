@@ -1,8 +1,8 @@
 # Independent Web integration review — e884c87
 
-Reviewer: `/root/adversary`  
-Base: `1bde61548310d741bddffca15161e2b2cf2e7175`  
-Head: `e884c8710b3dea99472d508705dcc63f601c5258`  
+Reviewer: `/root/adversary`
+Base: `1bde61548310d741bddffca15161e2b2cf2e7175`
+Head: `e884c8710b3dea99472d508705dcc63f601c5258`
 Verdict: **changes_requested**
 
 The complete 38-file candidate was inspected, including backend dependencies, Web material declarations/current state, plan command recovery, TODO routing/history, and browser runner changes. This is not approval of the full base tree or business acceptance.

@@ -1,8 +1,8 @@
 # Independent final Web clock/runner integration review
 
-Reviewer: `/root/adversary`  
-Base: `1bde61548310d741bddffca15161e2b2cf2e7175`  
-Head: `d10fe95847fa1529234fbee8b13d1493e4e07f6d`  
+Reviewer: `/root/adversary`
+Base: `1bde61548310d741bddffca15161e2b2cf2e7175`
+Head: `d10fe95847fa1529234fbee8b13d1493e4e07f6d`
 Verdict: **approved**, findings: none.
 
 This cumulative approval follows the full Web review in team-review-web-8211312.md and the subsequent source-only clock/fixture approvals in team-review-plan-clock-e75b419.md. Compared with previously approved b2f09ba, the four backend files exactly match independently approved 04058855; the only other file changed is the isolated runner. Contracts and all Web UI source files are unchanged. The independent Web 86/86 and coordinator 18/18 evidence therefore still applies to those exact source files.

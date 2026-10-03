@@ -1,8 +1,8 @@
 # Independent Web follow-up review — 22cf732
 
-Reviewer: `/root/adversary`  
-Base: `1bde61548310d741bddffca15161e2b2cf2e7175`  
-Head: `22cf732df2b7594b756a0222ae9d36d1aa890680`  
+Reviewer: `/root/adversary`
+Base: `1bde61548310d741bddffca15161e2b2cf2e7175`
+Head: `22cf732df2b7594b756a0222ae9d36d1aa890680`
 Verdict: **changes_requested**.
 
 The four coordinator/service/test files exactly match approved backend 04058855e2eed435f32be84316e175ef71ef1711. The sole additional implementation delta from approved Web b2f09ba is the isolated business-plan-postgres runner scope.
