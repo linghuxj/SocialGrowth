@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { chromium, type Page } from "playwright";
 // Actual Web operations and configured model. No business API writes, DB seeds
@@ -17,13 +18,33 @@ const narrowPlanFlow = process.env.SG_PRODUCT_DIRECTION_NARROW_PLAN_FLOW === "1"
 if (narrowPlanFlow) assert.equal(process.env.SG_PRODUCT_DIRECTION_MATERIAL_CANDIDATE, "1", "narrow plan flow requires the real material UI slice");
 assert.ok(Number.isInteger(planResponseDelayMs) && planResponseDelayMs >= 0 && planResponseDelayMs <= 60_000, "plan response delay must be 0..60000ms");
 let originalPlanRequestBody: string | null = null, planPostResponses = 0;
+const planPostFacts: Array<{ sequence: number; bodySha256: string; idempotencyKeySha256: string | null; status: number; errorCode: string | null; retryable: boolean | null; backendElapsedMs: number }> = [];
+const safePlanErrorCodes = new Set(["AUTHENTICATION_REQUIRED", "AUTHORIZATION_DENIED", "INVALID_CREDENTIALS", "LOGIN_RATE_LIMITED", "OPERATOR_ALREADY_EXISTS", "OPERATOR_DISABLED", "LAST_ACTIVE_OPERATOR", "CONTRACT_VERSION_UNSUPPORTED", "IDEMPOTENCY_KEY_REUSED", "IDEMPOTENCY_RESULT_EXPIRED", "INSTALLATION_BOOTSTRAP_RATE_LIMITED", "INPUT_INVALID", "INTERNAL_ERROR", "INVITATION_EXPIRED", "INVITATION_EXHAUSTED", "INVITATION_REVOKED", "PHONE_ALREADY_REGISTERED", "PHONE_NOT_REGISTERED", "PHONE_VERIFICATION_CODE_INVALID", "PHONE_VERIFICATION_EXPIRED", "PHONE_VERIFICATION_INVALID", "PHONE_VERIFICATION_RATE_LIMITED", "PROVIDER_DISABLED", "SMS_DELIVERY_UNAVAILABLE", "ASSOCIATION_SESSION_EXPIRED", "ASSOCIATION_SESSION_CONSUMED", "ASSOCIATION_TARGET_CHANGED", "DEVICE_ALREADY_ASSOCIATED", "FACT_VERSION_STALE"]);
+const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 if (planResponseDelayMs > 0) await page.route("**/api/operator/projects/*/business-plan", async route => {
   if (route.request().method() !== "POST") return route.continue();
   const body = route.request().postData() ?? "";
   if (originalPlanRequestBody === null) originalPlanRequestBody = body;
   else assert.equal(body, originalPlanRequestBody, "explicit continuation must preserve the exact original plan request body/key");
+  let idempotencyKeySha256: string | null = null;
+  try {
+    const metadata = (JSON.parse(body) as { metadata?: { idempotencyKey?: unknown } }).metadata;
+    if (typeof metadata?.idempotencyKey === "string") idempotencyKeySha256 = sha256(metadata.idempotencyKey);
+  } catch { /* Only digests and fixed result codes are persisted. */ }
+  const started = performance.now();
   const actualResponse = await route.fetch();
   planPostResponses++;
+  let errorCode: string | null = null, retryable: boolean | null = null;
+  if (!actualResponse.ok()) {
+    try {
+      const value = await actualResponse.json() as { error?: { code?: unknown; retryable?: unknown } };
+      if (typeof value.error?.code === "string" && safePlanErrorCodes.has(value.error.code)) errorCode = value.error.code;
+      if (typeof value.error?.retryable === "boolean") retryable = value.error.retryable;
+    } catch { /* Preserve status and hashes only when the error envelope is unreadable. */ }
+  }
+  planPostFacts.push({ sequence: planPostResponses, bodySha256: sha256(body), idempotencyKeySha256, status: actualResponse.status(), errorCode,
+    retryable, backendElapsedMs: Math.round(performance.now() - started) });
+  await writeFile(`${output}/business-plan-http-facts.json`, JSON.stringify(planPostFacts, null, 2), { mode: 0o600 });
   if (planPostResponses === 1) await new Promise(resolve => setTimeout(resolve, planResponseDelayMs));
   await route.fulfill({ response: actualResponse });
 });
@@ -153,14 +174,32 @@ try {
       await planTasks.getByRole("button", { name: "接续同一安排请求", exact: true }).waitFor();
       assert.equal(await planTasks.getByRole("button", { name: "接续同一安排请求", exact: true }).isEnabled(), true);
       const firstResponse = await actualPlanResponse!;
-      assert.ok(firstResponse.ok(), `delayed actual plan POST response returned ${firstResponse.status()}`);
       assert.equal(originalPlanRequestBody === null, false);
+      if (!firstResponse.ok()) {
+        await planTasks.getByRole("alert").filter({ hasText: "安排结果尚未确认" }).waitFor();
+        const reconciliationRead = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/business-plan") && response.request().method() === "GET", { timeout: 30_000 });
+        await planTasks.getByRole("button", { name: "读取当前事实", exact: true }).click();
+        const currentResponse = await reconciliationRead;
+        assert.ok(currentResponse.ok(), `read-only reconciliation GET returned ${currentResponse.status()}`);
+        await planTasks.getByRole("button", { name: "接续同一安排请求", exact: true }).waitFor();
+        const frozen = planTasks.getByRole("button", { name: "接续同一安排请求", exact: true });
+        assert.equal(await frozen.isEnabled(), true);
+        await writeFile(`${materialOutput}/business-plan-result.json`, JSON.stringify({ outcome: "http_error_reconciled_unknown", arrangeHttpStatus: firstResponse.status(),
+          errorCode: planPostFacts[0]?.errorCode ?? null, retryable: planPostFacts[0]?.retryable ?? null, bodySha256: planPostFacts[0]?.bodySha256 ?? null,
+          idempotencyKeySha256: planPostFacts[0]?.idempotencyKeySha256 ?? null, onlyOriginalPostObserved: planPostFacts.length === 1,
+          readonlyGetAfterHttpError: true, currentPlanVisible: await planTasks.getByRole("heading", { name: "当前排期", exact: true }).count() === 1,
+          taskRows: await planTasks.locator(".business-plan__tasks tbody tr").count(), sameRequestContinuationAvailable: true,
+          continuationClicked: false, executionAllowed: false, publicationAllowed: false }, null, 2), { mode: 0o600 });
+        throw new Error("Actual business-plan POST returned a non-success response; current facts reconciled, original request remains frozen and was not replayed");
+      }
       const replayResponse = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/business-plan")
         && response.request().method() === "POST", { timeout: 30_000 });
       await planTasks.getByRole("button", { name: "接续同一安排请求", exact: true }).click();
       const replayed = await replayResponse;
       assert.ok(replayed.ok(), `same-key stored plan command replay returned ${replayed.status()}`);
       assert.equal(planPostResponses, 2, "only the original actual model command and its stored-response replay are allowed");
+      assert.equal(planPostFacts[0]?.bodySha256, planPostFacts[1]?.bodySha256, "replay body digest remains identical");
+      assert.equal(planPostFacts[0]?.idempotencyKeySha256, planPostFacts[1]?.idempotencyKeySha256, "replay idempotency-key digest remains identical");
     }
     await planTasks.getByText(/已根据当前权威事实生成并保存排期与待核查任务。|当前排期未变化。|当前资料不足，服务没有安排新任务。|模型要求运营先确认方向调整；请回到方向页复核提案。/).waitFor({ timeout: 90_000 });
     const planOutcome = await planTasks.locator(".business-plan__message").innerText();
@@ -169,7 +208,8 @@ try {
     assert.equal(await planTasks.getByText("发布许可：关闭", { exact: true }).count(), 1);
     await writeFile(`${materialOutput}/business-plan-result.json`, JSON.stringify({ outcome: planOutcome, currentPlanVisible: await planTasks.getByRole("heading", { name: "当前排期", exact: true }).count() === 1,
       taskRows: planTaskRows, executionAllowed: false, publicationAllowed: false, actionByBrowser: "no external platform execution or publication",
-      delayedActualResponseUnknownRecovery: planResponseDelayMs > 0, sameOriginalBodyAndKeyReplay: planResponseDelayMs > 0 && planPostResponses === 2 }, null, 2));
+      delayedActualResponseUnknownRecovery: planResponseDelayMs > 0, sameOriginalBodyAndKeyReplay: planResponseDelayMs > 0 && planPostResponses === 2, bodySha256: planPostFacts[0]?.bodySha256 ?? null,
+      idempotencyKeySha256: planPostFacts[0]?.idempotencyKeySha256 ?? null }, null, 2));
     if (await planTasks.getByText("已根据当前权威事实生成并保存排期与待核查任务。", { exact: true }).count()) {
       await planTasks.getByRole("heading", { name: "当前排期", exact: true }).waitFor();
       await planTasks.getByText("待核查当前条件").first().waitFor();

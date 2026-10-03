@@ -159,6 +159,7 @@ try {
   if (scopes.includes("operator-todos")) await run("operator-todos-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "operator-todos", SG_PRODUCT_OPERATOR_TODOS_OUTPUT: join(output, "operator-todos") });
   if (scopes.includes("direction")) await run("direction-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "direction", SG_PRODUCT_DIRECTION_SCREENSHOT_DIR: join(output, "direction"),
     SG_PRODUCT_DIRECTION_MATERIAL_CANDIDATE: process.env.SG_PRODUCT_DIRECTION_MATERIAL_CANDIDATE ?? "0", SG_PRODUCT_DIRECTION_PLAN_RESPONSE_DELAY_MS: process.env.SG_PRODUCT_DIRECTION_PLAN_RESPONSE_DELAY_MS ?? "0",
+    SG_PRODUCT_DIRECTION_NARROW_PLAN_FLOW: process.env.SG_PRODUCT_DIRECTION_NARROW_PLAN_FLOW ?? "0",
     SG_PRODUCT_MATERIAL_TEST_FILE: fixture, SG_PRODUCT_MATERIAL_SCREENSHOT_DIR: join(output, "materials"), SG_PRODUCT_MATERIAL_TEST_DECLARATION: JSON.stringify(declaration) });
   const facts = (await pool.query(`SELECT (SELECT count(*)::int FROM socialgrowth_product.projects) projects,
     (SELECT count(*)::int FROM socialgrowth_product.material_variant_revisions) material_revisions,
