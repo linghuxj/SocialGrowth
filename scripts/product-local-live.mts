@@ -6,6 +6,7 @@ import { createRequire } from "node:module";
 import { createServer } from "node:net";
 import { chmod, lstat, mkdir, readFile, readdir, realpath, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { stopOwnedProcessGroups } from "./product-local-process-lifecycle.js";
 
 async function main(): Promise<void> {
   // Persistent, owned LOOPBACK development environment. No phone/controller,
@@ -145,7 +146,7 @@ async function main(): Promise<void> {
     await free(3100); await free(4320);
     const children: ReturnType<typeof spawn>[] = [];
     let stopping = false;
-    const stop = () => { if (stopping) return; stopping = true; for (const child of children) if (child.exitCode === null && child.pid) process.kill(-child.pid, "SIGTERM"); };
+    const stop = () => { if (stopping) return; stopping = true; stopOwnedProcessGroups(children); };
     process.once("SIGINT", stop); process.once("SIGTERM", stop);
     const serve = (name: string, args: string[]) => {
       const child = spawn("pnpm", args, { cwd: repo, env, detached: true, stdio: ["ignore", "pipe", "pipe"] }); children.push(child);
