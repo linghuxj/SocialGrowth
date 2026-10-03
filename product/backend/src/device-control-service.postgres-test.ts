@@ -44,6 +44,19 @@ async function fixture(state: "associated_pending_access" | "access_ready" = "ac
     VALUES($1,$2,$3,$4,$5)`,[randomUUID(),deviceId,installationId,providerId,associationSessionId]);
   return { providerId,providerToken,installationId,installationToken,deviceId };
 }
+async function secondDeviceForProvider(providerId: string): Promise<string> {
+  const installationId=randomUUID(),deviceId=randomUUID();
+  await pool.query(`INSERT INTO socialgrowth_product.installations(installation_id,credential_digest,status) VALUES($1,$2,'active')`,[installationId,createHash("sha256").update(`credential-${installationId}`).digest()]);
+  await pool.query(`INSERT INTO socialgrowth_product.installation_sessions(session_id,installation_id,token_digest,expires_at)
+    VALUES($1,$2,$3,clock_timestamp()+interval '1 hour')`,[randomUUID(),installationId,randomBytes(32)]);
+  const associationSessionId=randomUUID();
+  await pool.query(`INSERT INTO socialgrowth_product.association_sessions(association_session_id,installation_id,expected_installation_generation,device_label,code_digest,expires_at)
+    VALUES($1,$2,1,'second fixture',$3,clock_timestamp()+interval '1 hour')`,[associationSessionId,installationId,randomBytes(32)]);
+  await pool.query(`INSERT INTO socialgrowth_product.devices(device_id,display_name,state) VALUES($1,'Second control fixture','access_ready')`,[deviceId]);
+  await pool.query(`INSERT INTO socialgrowth_product.device_associations(association_id,device_id,installation_id,provider_id,association_session_id)
+    VALUES($1,$2,$3,$4,$5)`,[randomUUID(),deviceId,installationId,providerId,associationSessionId]);
+  return deviceId;
+}
 
 before(async()=>{ await pool.query("DROP SCHEMA IF EXISTS socialgrowth_product CASCADE"); for(const file of migrations) await pool.query(await readFile(new URL(`../migrations/${file}`,import.meta.url),"utf8")); });
 after(async()=>{ try { await pool.query("DROP SCHEMA IF EXISTS socialgrowth_product CASCADE"); } finally { await pool.end(); } });
@@ -68,13 +81,22 @@ test("provider and signed installation pause routes resolve authority from curre
   assert.equal((await service.installationRead(f.installationToken)).deviceId,f.deviceId);
 });
 
+test("provider idempotency keys are bound to their target device", async()=>{
+  const f=await fixture(), otherDeviceId=await secondDeviceForProvider(f.providerId), command={metadata:metadata("cross-device-replay")};
+  await service.providerCommand(f.providerToken,f.deviceId,"pause",command);
+  await assert.rejects(service.providerCommand(f.providerToken,otherDeviceId,"pause",command),
+    (error:unknown)=>error instanceof ProductTransactionError&&error.code==="IDEMPOTENCY_KEY_REUSED");
+  const other=(await pool.query<{state:string}>(`SELECT state FROM socialgrowth_product.devices WHERE device_id=$1`,[otherDeviceId])).rows[0];
+  assert.equal(other?.state,"access_ready");
+});
+
 test("self pause keeps an unknown action and its holder occupied; logout does not alter the self route", async()=>{
   const f=await fixture();
   const initialized=await journal.initialize(f.deviceId,randomUUID(),key());
   const stopped=await journal.apply(f.deviceId,initialized.record.version,key(),{kind:"confirm_stopped",evidence:{deviceId:f.deviceId,holderId:null,
     stopRequestId:initialized.record.stopRequestId!,controlGeneration:initialized.record.controlGeneration,evidenceId:key(),checkedAt:new Date().toISOString(),
     allPathsFenced:true,controllerReleased:true,targetQuiescent:true}});
-  const now=new Date(),until=new Date(now.getTime()+300_000).toISOString();
+  const now=(await pool.query<{now:Date}>("SELECT clock_timestamp() AS now")).rows[0]!.now,until=new Date(now.getTime()+300_000).toISOString();
   const holderId=randomUUID(),taskAttemptId=randomUUID(),authorizationId=randomUUID();
   const request:PhoneActionRequest={protocolVersion:controlProtocolVersion,deviceId:f.deviceId,holderId,taskAttemptId,authorizationId,
     controlGeneration:stopped.record.controlGeneration,actionId:randomUUID(),purpose:"business",kind:"read_screen"};
@@ -127,7 +149,8 @@ test("resume requires confirmed stop and records intent without enabling a devic
     (error:unknown)=>error instanceof ProductTransactionError&&error.code==="FACT_VERSION_STALE");
   let record=await journal.read(f.deviceId);
   const evidence={deviceId:f.deviceId,holderId:record.holderId,stopRequestId:record.stopRequestId!,controlGeneration:record.controlGeneration,
-    evidenceId:key(),checkedAt:new Date().toISOString(),allPathsFenced:true,controllerReleased:true,targetQuiescent:true};
+    evidenceId:key(),checkedAt:(await pool.query<{now:Date}>("SELECT clock_timestamp() AS now")).rows[0]!.now.toISOString(),
+    allPathsFenced:true,controllerReleased:true,targetQuiescent:true};
   await journal.apply(f.deviceId,record.version,key(),{kind:"confirm_stopped",evidence});
   const response=await service.providerCommand(f.providerToken,f.deviceId,"resume",{metadata:metadata("resume-after-stop")});
   assert.equal(response.intent,"resume_requested"); assert.equal(response.stop,"confirmed");
