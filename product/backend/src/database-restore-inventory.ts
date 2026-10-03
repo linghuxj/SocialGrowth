@@ -28,8 +28,21 @@ function canonicalConstraint(row: { relname: string; conname: string; definition
 async function inventory(c: PoolClient): Promise<DatabaseRestoreInventory> {
   const version = Number((await c.query("SHOW server_version_num")).rows[0].server_version_num);
   if (Math.floor(version / 10000) !== 17) throw new DatabaseInventoryError("INVENTORY_UNAVAILABLE");
-  const relations = (await c.query(`SELECT c.relname,c.relkind,c.relpersistence,c.relrowsecurity,c.relforcerowsecurity,c.relreplident,c.reloptions FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=$1 ORDER BY c.relname COLLATE "C"`, [schema])).rows as { relname: string; relkind: string }[];
-  if (!relations.length || relations.length > 5000 || relations.some(r => !identifier.safeParse(r.relname).success || !["r", "i"].includes(r.relkind))) throw new DatabaseInventoryError("INVENTORY_UNAVAILABLE");
+  const relations = (await c.query(`SELECT c.relname,c.relkind,c.relpersistence,c.relrowsecurity,c.relforcerowsecurity,c.relreplident,c.reloptions,
+    q.seqtypid::regtype::text sequence_type,q.seqstart::text sequence_start,q.seqincrement::text sequence_increment,
+    q.seqmax::text sequence_max,q.seqmin::text sequence_min,q.seqcache::text sequence_cache,q.seqcycle sequence_cycle
+    FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace LEFT JOIN pg_sequence q ON q.seqrelid=c.oid
+    WHERE n.nspname=$1 ORDER BY c.relname COLLATE "C"`, [schema])).rows as { relname: string; relkind: string }[];
+  if (!relations.length || relations.length > 5000 || relations.some(r => !identifier.safeParse(r.relname).success || !["r", "i", "S"].includes(r.relkind))) throw new DatabaseInventoryError("INVENTORY_UNAVAILABLE");
+  const schemaSequences = relations.filter(r => r.relkind === "S").map(r => r.relname);
+  const identitySequences = (await c.query(`SELECT seq.relname FROM pg_class seq
+    JOIN pg_namespace n ON n.oid=seq.relnamespace
+    JOIN pg_depend d ON d.classid='pg_class'::regclass AND d.objid=seq.oid AND d.deptype='i'
+    JOIN pg_class tbl ON tbl.oid=d.refobjid
+    JOIN pg_namespace tn ON tn.oid=tbl.relnamespace
+    JOIN pg_attribute a ON a.attrelid=tbl.oid AND a.attnum=d.refobjsubid AND a.attidentity IN ('a','d')
+    WHERE n.nspname=$1 AND seq.relkind='S' AND tn.nspname=$1 ORDER BY seq.relname COLLATE "C"`, [schema])).rows.map((r: { relname: string }) => r.relname);
+  if (JSON.stringify(schemaSequences) !== JSON.stringify(identitySequences)) throw new DatabaseInventoryError("INVENTORY_UNAVAILABLE");
   // Ordinary inheritance changes schema/query semantics too. Reject either
   // endpoint in scope, including parents or children in another schema,
   // before row aggregation/export; do not fingerprint a partial hierarchy.
