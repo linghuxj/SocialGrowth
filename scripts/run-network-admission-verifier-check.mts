@@ -23,7 +23,7 @@ async function privateFile(path: string) {
   finally { await fd.close(); }
 }
 let stage="configuration";
-let sourceDiagnostic: { identityAvailable: boolean; online: boolean; sourceAddressMatched: boolean } | null = null;
+let sourceDiagnostic: { identityAvailable: boolean; online: boolean; liveSourceVerified: boolean } | null = null;
 async function main() {
   assert.equal(process.env.SG_PRODUCT_ADMISSION_PROTOCOL_CHECK,"authorized");
   const minutes=Number(process.env.SG_PRODUCT_ADMISSION_PROTOCOL_MINUTES??"15");assert.ok(Number.isInteger(minutes)&&minutes>=1&&minutes<=30);
@@ -43,7 +43,7 @@ async function main() {
   const phoneIdentity=readTailnetNodeIdentity(rawPhone,phone),expected=readTailnetNode(rawPhone,phone);
   const online=!!rawPhone&&typeof rawPhone==="object"&&"Node" in rawPhone&&!!rawPhone.Node&&typeof rawPhone.Node==="object"
     &&"Online" in rawPhone.Node&&rawPhone.Node.Online===true;
-  sourceDiagnostic={identityAvailable:phoneIdentity!==null,online,sourceAddressMatched:expected!==null};
+  sourceDiagnostic={identityAvailable:phoneIdentity!==null,online,liveSourceVerified:expected!==null};
   assert.ok(expected);
   stage="diagnostic_tls";
   const hostname=status.Self.DNSName.replace(/\.$/,""),cert=await privateFile(resolve(".runtime/product-local-live/diagnostic-tls-cert.pem"));
