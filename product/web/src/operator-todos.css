@@ -30,6 +30,11 @@
 .operator-todos__note header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; font-size: 13px; }
 .operator-todos__note time, .operator-todos__note small { color: #526176; font-size: 12px; }
 .operator-todos__note p { margin: 10px 0; overflow-wrap: anywhere; white-space: pre-wrap; line-height: 1.55; }
+.operator-todos__impacts { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.operator-todos__impacts li { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; padding: 10px 0; border-bottom: 1px solid #dce2ea; }
+.operator-todos__impacts code { max-width: 100%; overflow-wrap: anywhere; color: #334563; font-size: 12px; }
+.operator-todos__impacts span, .operator-todos__history-note { color: #526176; font-size: 12px; line-height: 1.5; }
+.operator-todos__history-note { margin: 10px 0 0; }
 .operator-todos__form { display: grid; gap: 12px; margin-top: 18px; padding-top: 16px; border-top: 1px solid #dce2ea; }
 .operator-todos__form h4, .operator-todos__form p { margin: 0; }
 .operator-todos__form h4 { font-size: 16px; font-weight: 600; }
