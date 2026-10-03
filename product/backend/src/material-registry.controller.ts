@@ -5,6 +5,7 @@ import { contractVersion, materialCurrentViewSchema, saveMaterialDeclarationRequ
   batchMaterialDeclarationsRequestSchema, batchMaterialDeclarationsResponseSchema, materialHistoryQuerySchema, materialHistoryResponseSchema, materialLibraryQuerySchema, materialLibraryResponseSchema, uuidSchema } from "@socialgrowth/product-contracts";
 import { MaterialRuntime } from "./material-runtime.js";
 import { MaterialRegistryError } from "./material-registry-store.js";
+import { materialDeclarationSchema } from "./material-registry-core.js";
 import { operatorSessionTokenFrom } from "./operator-session-cookie.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
 import { requestIdFrom, requireSupportedContract, rethrowHttp } from "./product-http.js";
@@ -46,7 +47,11 @@ export class MaterialRegistryController {
   @Post() @Header("Cache-Control", "no-store")
   async save(@Param("projectId") projectId: string, @Body() body: unknown, @Req() request: Request, @Headers("x-csrf-token") csrf: string | undefined) {
     try {
-      requireSupportedContract(body); const input = saveMaterialDeclarationRequestSchema.parse(body);
+      requireSupportedContract(body);
+      const parsed = saveMaterialDeclarationRequestSchema.parse(body);
+      // Persist an explicit conservative default for newly added confirmation
+      // fields before handing the request to any store implementation.
+      const input = { ...parsed, declaration: materialDeclarationSchema.parse(parsed.declaration) };
       if (input.projectId.toLowerCase() !== projectId.toLowerCase()) throw new ProductTransactionError("INPUT_INVALID", "Project path must match material declaration");
       const token = operatorSessionTokenFrom(request.headers.cookie);
       await this.runtime.registry().authorizeWrite(token, csrf ?? "", projectId);

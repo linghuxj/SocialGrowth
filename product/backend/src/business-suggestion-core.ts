@@ -6,7 +6,7 @@ const version = z.int().min(1);
 const text = z.string().trim().min(1).max(4000);
 const time = timestampSchema.refine(v => !v.startsWith("0000-"));
 const form = z.enum(["facebook_video", "facebook_image_text", "youtube_shorts", "youtube_video"]);
-const approval = z.strictObject({ approvalId: id, version, goalId: id, directionId: id });
+const approval = z.strictObject({ approvalId: id, projectVersion: version, proposalId: id });
 const publication = z.strictObject({ taskId: id, contentUnitId: id, variantId: id, identityId: id, form, scheduledAt: time, title: text, caption: text });
 const change = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("schedule"), publication }),
@@ -14,11 +14,12 @@ const change = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("reschedule"), taskId: id, expectedVersion: version, scheduledAt: time, reason: text }),
 ]);
 const contextSchema = z.strictObject({ projectId: id, factSetId: id, factSetVersion: version, observedAt: time,
-  projectState: z.enum(["active", "paused", "ended"]), approval: approval.nullable(),
+  purpose: z.enum(["advisory", "plan_candidate"]), projectState: z.enum(["preparing", "active", "paused", "ended"]), approval: approval.nullable(),
   approvedWindow: z.strictObject({ startsAt: time, endsAt: time }).nullable(),
+  maxPublicationsPerDay: z.int().min(1).nullable(), businessTimeZone: z.string().trim().min(1).max(100).nullable(),
   approvedForms: z.array(form).max(4), approvedLanguages: z.array(text).max(50),
   // Central references only. UUIDs/versions do not establish actual truth.
-  facts: z.array(z.strictObject({ factId: id, version, kind: z.enum(["goal", "material", "task", "metric"]), availability: z.enum(["available", "missing", "delayed"]) })).max(1000),
+  facts: z.array(z.strictObject({ factId: id, version, kind: z.enum(["approval", "material", "task", "metric"]), availability: z.enum(["available", "missing", "delayed"]) })).max(1000),
   materials: z.array(z.strictObject({ variantId: id, contentUnitId: id, materialVersion: version, language: text,
     state: z.enum(["candidate", "withdrawn", "needs_correction"]) })).max(1000),
   tasks: z.array(z.strictObject({ taskId: id, version, state: z.enum(["not_started", "in_platform_flow", "submission_unknown", "verified", "cancelled"]),
@@ -40,6 +41,15 @@ export class BusinessSuggestionError extends Error {
 function fail(code: BusinessSuggestionError["code"]): never { throw new BusinessSuggestionError(code); }
 function unique<T>(values: T[], key: (v: T) => string, code: BusinessSuggestionError["code"]) {
   if (new Set(values.map(key)).size !== values.length) fail(code);
+}
+function businessDate(value: string, timeZone: string): string {
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(value));
+    const part = (type: "year" | "month" | "day") => parts.find(p => p.type === type)?.value;
+    const year = part("year"), month = part("month"), day = part("day");
+    if (!year || !month || !day) return fail("FACTS_INVALID");
+    return `${year}-${month}-${day}`;
+  } catch { return fail("FACTS_INVALID"); }
 }
 const platformOf = (value: z.infer<typeof form>) => value.startsWith("facebook_") ? "facebook" as const : "youtube" as const;
 export function parseBusinessSuggestionContext(input: unknown): BusinessSuggestionContext {
@@ -81,7 +91,9 @@ export function checkBusinessSuggestion(contextInput: unknown, suggestionInput: 
   }
   if (suggestion.decision === "adjust") {
     if (!context.approval) return fail("APPROVAL_REQUIRED");
-    if (context.projectState !== "active" || !context.approvedWindow || !context.approvedForms.length || !context.approvedLanguages.length) return fail("OUT_OF_SCOPE");
+    const planningAllowed = context.purpose === "plan_candidate" && context.projectState === "preparing";
+    const advisoryAllowed = context.purpose === "advisory" && context.projectState === "active";
+    if ((!planningAllowed && !advisoryAllowed) || !context.approvedWindow || !context.approvedForms.length || !context.approvedLanguages.length) return fail("OUT_OF_SCOPE");
     if (suggestion.basis.some(ref => context.facts.find(v => v.factId === ref.factId)!.availability !== "available")) return fail("DATA_INSUFFICIENT");
     unique(suggestion.changes, v => v.kind === "schedule" ? v.publication.taskId : v.taskId, "INPUT_INVALID");
     const inWindow = (scheduledAt: string) => {
@@ -95,6 +107,7 @@ export function checkBusinessSuggestion(contextInput: unknown, suggestionInput: 
     };
     for (const action of suggestion.changes) {
       if (action.kind !== "schedule") {
+        if (context.purpose === "plan_candidate") return fail("TASK_NOT_MUTABLE");
         const current = context.tasks.find(v => v.taskId === action.taskId);
         if (!current || current.version !== action.expectedVersion) return fail("FACTS_STALE");
         const slot = quota.slots.find(v => v.taskId === current.taskId)!;
@@ -103,6 +116,14 @@ export function checkBusinessSuggestion(contextInput: unknown, suggestionInput: 
         // Cancellation is a proposed revision, NEVER quota release/reuse.
       } else {
         const v = action.publication;
+        if (context.maxPublicationsPerDay !== null) {
+          if (context.businessTimeZone === null) return fail("DATA_INSUFFICIENT");
+          const date = businessDate(v.scheduledAt, context.businessTimeZone);
+          const alreadyScheduled = context.tasks.filter(t => t.state !== "cancelled" && businessDate(t.scheduledAt, context.businessTimeZone!) === date).length;
+          const plannedToday = suggestion.changes.filter(change => change.kind === "schedule"
+            && businessDate(change.publication.scheduledAt, context.businessTimeZone!) === date).length;
+          if (alreadyScheduled + plannedToday > context.maxPublicationsPerDay) return fail("QUOTA_CONFLICT");
+        }
         if (context.tasks.some(t => t.taskId === v.taskId)) return fail("FACTS_STALE");
         candidate(v);
         const unit = quota.units.find(u => u.contentUnitId === v.contentUnitId);

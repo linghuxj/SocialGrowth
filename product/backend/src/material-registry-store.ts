@@ -142,6 +142,21 @@ export class MaterialRegistryStore {
       return { projectId: id, materials, nextAfterVariantId: rows.length > p.data.pageSize ? page.at(-1)!.variant_id : null };
     });
   }
+  // Internal consistent read for services already holding the authenticated
+  // material guard and project lock in their own transaction. Keeping this
+  // projection here prevents business planning from reimplementing candidate
+  // eligibility or treating declarations as externally verified rights.
+  async listCurrentForBusinessPlan(c: PoolClient, projectId: string) {
+    const rows = await c.query<{ variant_id: string }>(`SELECT variant_id FROM ${s}.material_variants WHERE project_id=$1 ORDER BY variant_id LIMIT 1001`, [projectId]);
+    if (rows.rows.length > 1000) throw new ProductTransactionError("INPUT_INVALID", "Project material inventory exceeds the bounded planning read");
+    const materials = [];
+    for (const row of rows.rows) {
+      const material = await this.load(c, row.variant_id);
+      if (!material || material.projectId !== projectId) throw new ProductTransactionError("INTERNAL_ERROR", "Material facts are inconsistent", true);
+      materials.push(material);
+    }
+    return materials;
+  }
   // HTTP authentication preflight also runs when storage is unconfigured.
   // It does not grant a lease: save/read reauthenticate in their own tx.
   async authorizeWrite(token: string, csrf: string, projectId: string) {
