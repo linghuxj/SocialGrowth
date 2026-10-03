@@ -12,6 +12,7 @@ import { phoneActionRequestSchema } from "./action-permission.js";
 import { createProjectRequestSchema, updateProjectRequestSchema, projectResponseSchema, projectViewSchema, listProjectsResponseSchema } from "./project.js";
 import { projectPlanningInputsSchema, projectPlanningDraftViewSchema, projectPlanningResponseSchema, saveProjectPlanningRequestSchema } from "./project-planning.js";
 import { businessPlanTaskSchema, businessPlanCurrentViewSchema, readBusinessPlanResponseSchema, arrangeBusinessPlanRequestSchema, arrangeBusinessPlanResponseSchema } from "./business-plan-task.js";
+import { businessPlanCurrentImpactReferenceSchema, businessPlanCurrentCheckTaskSchema, businessPlanCurrentChecksResponseSchema } from "./business-plan-current-checks.js";
 
 import {
   associationQrPayloadSchema,
@@ -145,6 +146,9 @@ export const firstBatchContractRegistry = {
   readBusinessPlanResponse: readBusinessPlanResponseSchema,
   arrangeBusinessPlanRequest: arrangeBusinessPlanRequestSchema,
   arrangeBusinessPlanResponse: arrangeBusinessPlanResponseSchema,
+  businessPlanCurrentImpactReference: businessPlanCurrentImpactReferenceSchema,
+  businessPlanCurrentCheckTask: businessPlanCurrentCheckTaskSchema,
+  businessPlanCurrentChecksResponse: businessPlanCurrentChecksResponseSchema,
   createProjectRequest: createProjectRequestSchema,
   updateProjectRequest: updateProjectRequestSchema,
   projectResponse: projectResponseSchema,

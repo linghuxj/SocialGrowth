@@ -1,0 +1,13 @@
+{
+  "checks": {
+    "managementOnly": true,
+    "oneRealDevice": true,
+    "realKnownModel": true,
+    "honestReadiness": true,
+    "threePeerTabs": true
+  },
+  "allChecksPassed": true,
+  "realSmsDelivery": false,
+  "executionReady": false,
+  "physicalStopVerified": false
+}

@@ -1,0 +1,14 @@
+{
+  "checkedAt": "2026-10-03T19:52:11.446Z",
+  "readOnly": true,
+  "counts": {
+    "providers": 1,
+    "installations": 1,
+    "device_associations": 1,
+    "phone_control_commands": 0,
+    "phone_control_holder_grants": 0,
+    "task_recheck_outbox": 0
+  },
+  "activeManagementSessions": 2,
+  "physicalDeviceActionsIssued": false
+}

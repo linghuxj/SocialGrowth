@@ -110,7 +110,8 @@ async function seedCandidateMaterial(f: Awaited<ReturnType<typeof approvedProjec
     await c.query(`INSERT INTO socialgrowth_product.material_object_manifests(object_id,project_id,reference) VALUES($1,$2,$3)`, [objectId, f.projectId, JSON.stringify(object)]);
     await c.query(`INSERT INTO socialgrowth_product.material_variants(variant_id,content_unit_id,project_id,language_tag,current_revision) VALUES($1,$2,$3,'en',1)`, [variantId, contentUnitId, f.projectId]);
     await c.query(`INSERT INTO socialgrowth_product.material_variant_revisions(variant_id,revision,declaration,object_references,recorded_by_operator_id,recorded_at)
-      VALUES($1,1,$2,$3,$4,'2026-10-02T00:00:00.000000Z')`, [variantId, JSON.stringify(declaration), JSON.stringify([object]), f.operatorId]);
+      VALUES($1,1,$2,$3,$4,to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'))`,
+      [variantId, JSON.stringify(declaration), JSON.stringify([object]), f.operatorId]);
     await c.query("COMMIT");
   } catch (error) { await c.query("ROLLBACK"); throw error; } finally { c.release(); }
   const registry = new MaterialRegistryStore(pool, auth, null);
@@ -211,6 +212,30 @@ test("material-backed schedule atomically persists current-scope plan, Task, quo
   assert.equal(rows[0]!.publication_allowed, false); assert.equal(rows[0]!.purpose, "current_check_reference");
   assert.equal(rows[0]!.outbox_state, "pending_current_checks"); assert.equal(rows[0]!.outbox_execution_allowed, false); assert.equal(rows[0]!.outbox_publication_allowed, false);
   assert.equal(rows[0]!.quota_snapshot.slots.length, 1); assert.equal(rows[0]!.quota_snapshot.slots[0].taskId, rows[0]!.task_id);
+  const checks = await f.service.currentChecks(f.token, f.projectId);
+  assert.equal(checks.tasks.length, 1); assert.equal(checks.tasks[0]?.taskId, rows[0]!.task_id);
+  assert.equal(checks.tasks[0]?.expectedMaterialRevision, 1); assert.equal(checks.tasks[0]?.current.materialRevision, 1);
+  assert.ok(checks.tasks[0]?.blockers.includes("action_inspector_unavailable"));
+  assert.ok(checks.tasks[0]?.blockers.includes("device_association_missing"));
+  assert.ok(checks.tasks[0]?.blockers.includes("current_fact_unknown"));
+  assert.deepEqual(checks.tasks[0]?.impactReferences, []);
+  assert.equal(checks.executionAllowed, false); assert.equal(checks.publicationAllowed, false);
+  const providerId = randomUUID(), installationId = randomUUID(), associationSessionId = randomUUID(), associationId = randomUUID();
+  const reservedDeviceId = checks.tasks[0]!.current.reservedDeviceId!;
+  await pool.query(`INSERT INTO socialgrowth_product.providers(provider_id,phone_e164,display_name,status) VALUES($1,$2,'Generation fixture','active')`,
+    [providerId, `+1${String(100_000_000 + (randomBytes(4).readUInt32BE(0) % 900_000_000))}`]);
+  await pool.query(`INSERT INTO socialgrowth_product.installations(installation_id,credential_digest,generation,status) VALUES($1,$2,2,'active')`,
+    [installationId, randomBytes(32)]);
+  await pool.query(`INSERT INTO socialgrowth_product.association_sessions(association_session_id,installation_id,expected_installation_generation,device_label,code_digest,expires_at,consumed_at,consumed_by_provider_id)
+    VALUES($1,$2,1,'Old generation fixture',$3,clock_timestamp()+interval '1 day',clock_timestamp(),$4)`,
+    [associationSessionId, installationId, randomBytes(32), providerId]);
+  await pool.query(`UPDATE socialgrowth_product.devices SET state='associated_pending_access' WHERE device_id=$1`, [reservedDeviceId]);
+  await pool.query(`INSERT INTO socialgrowth_product.device_associations(association_id,device_id,installation_id,provider_id,association_session_id)
+    VALUES($1,$2,$3,$4,$5)`, [associationId, reservedDeviceId, installationId, providerId, associationSessionId]);
+  const staleGeneration = await f.service.currentChecks(f.token, f.projectId);
+  assert.equal(staleGeneration.tasks[0]?.current.associationCurrent, false);
+  assert.equal(staleGeneration.tasks[0]?.current.installationGeneration, "2");
+  assert.ok(staleGeneration.tasks[0]?.blockers.includes("device_association_missing"));
   assert.deepEqual(await planRowCounts(f.projectId), { revisions: 1, tasks: 1, outbox: 1, commands: 1, audits: 1 });
   makeArrangement = confirmationSuggestion;
 });

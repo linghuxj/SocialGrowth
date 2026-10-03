@@ -10,6 +10,40 @@ const page = await context.newPage(), second = await browser.newPage({ viewport:
 const project = (p: Page) => p.locator(".project-workspace"), planner = (p: Page) => p.getByRole("region", { name: "项目目标与周期草案" }), direction = (p: Page) => p.getByRole("region", { name: "初始业务方向" });
 const errors: string[] = []; for (const p of [page, second]) p.on("pageerror", () => errors.push("pageerror"));
 const modelAttempts: { outcome: "proposed" | "unavailable"; elapsedMs: number }[] = [];
+const safeScopeFacts: Array<Record<string, unknown>> = [];
+const scopeFactReads: Promise<void>[] = [];
+const planResponseDelayMs = Number(process.env.SG_PRODUCT_DIRECTION_PLAN_RESPONSE_DELAY_MS ?? "0");
+assert.ok(Number.isInteger(planResponseDelayMs) && planResponseDelayMs >= 0 && planResponseDelayMs <= 60_000, "plan response delay must be 0..60000ms");
+let originalPlanRequestBody: string | null = null, planPostResponses = 0;
+if (planResponseDelayMs > 0) await page.route("**/api/operator/projects/*/business-plan", async route => {
+  if (route.request().method() !== "POST") return route.continue();
+  const body = route.request().postData() ?? "";
+  if (originalPlanRequestBody === null) originalPlanRequestBody = body;
+  else assert.equal(body, originalPlanRequestBody, "explicit continuation must preserve the exact original plan request body/key");
+  const actualResponse = await route.fetch();
+  planPostResponses++;
+  if (planPostResponses === 1) await new Promise(resolve => setTimeout(resolve, planResponseDelayMs));
+  await route.fulfill({ response: actualResponse });
+});
+page.on("response", response => {
+  const path = new URL(response.url()).pathname;
+  if (!/^\/api\/operator\/projects\/[0-9a-f-]+\/(?:direction|materials(?:\/[0-9a-f-]+)?)$/i.test(path)) return;
+  scopeFactReads.push((async () => {
+    try {
+      const body = await response.json() as Record<string, unknown>;
+      const approval = body.approval as Record<string, unknown> | undefined;
+      const proposal = approval?.proposal as Record<string, unknown> | undefined;
+      const declaration = body.declaration as Record<string, unknown> | undefined;
+      if (path.endsWith("/direction")) safeScopeFacts.push({ resource: "direction", status: response.status(), projectVersion: body.projectVersion ?? null,
+        approvalId: approval?.approvalId ?? null, proposalProjectVersion: proposal?.projectVersion ?? null });
+      else if (response.request().method() === "POST" || /\/materials\/[0-9a-f-]+$/i.test(path)) safeScopeFacts.push({ resource: "material", method: response.request().method(), status: response.status(),
+        candidateStatus: body.status ?? null, candidateAllowed: body.candidateAllowed ?? null, eligibilityReason: body.eligibilityReason ?? null,
+        expectedApprovedDirectionId: declaration?.expectedApprovedDirectionId ?? null,
+        expectedApprovedProjectVersion: declaration?.expectedApprovedProjectVersion ?? null,
+        contentRulesReviewed: declaration?.contentRulesReviewed ?? null });
+    } catch { safeScopeFacts.push({ resource: "scope", status: response.status(), protocol: "unreadable" }); }
+  })());
+});
 async function open(p: Page, initial = false) {
   await p.goto(process.env.SG_PRODUCT_WEB_URL ?? "http://127.0.0.1:3100");
   if (initial) { await p.getByLabel("登录名", { exact: true }).fill(required("SG_PRODUCT_TEST_LOGIN_NAME")); await p.getByLabel("密码", { exact: true }).fill(required("SG_PRODUCT_TEST_PASSWORD")); await p.getByRole("button", { name: "登录", exact: true }).click(); }
@@ -71,13 +105,96 @@ try {
   await direction(page).screenshot({ path: `${output}/direction-approved-desktop.png` });
   await page.reload(); await open(page); await direction(page).getByText("方向已确认 · 执行条件未就绪", { exact: true }).waitFor();
   assert.ok((await direction(page).innerText()).includes("第二窗口修改目标"));
+  if (process.env.SG_PRODUCT_DIRECTION_MATERIAL_CANDIDATE === "1") {
+    const materialFile = required("SG_PRODUCT_MATERIAL_TEST_FILE");
+    const materialOutput = required("SG_PRODUCT_MATERIAL_SCREENSHOT_DIR");
+    const materialDetails = JSON.parse(required("SG_PRODUCT_MATERIAL_TEST_DECLARATION")) as Record<string, string>;
+    await mkdir(materialOutput, { recursive: true });
+    await project(page).getByRole("button", { name: "素材", exact: true }).click();
+    const materials = page.getByRole("region", { name: "项目素材", exact: true });
+    await materials.locator('input[type="file"]').setInputFiles(materialFile);
+    await materials.getByRole("button", { name: "上传／重试原文件", exact: true }).click();
+    await materials.getByText("文件字节已校验", { exact: true }).waitFor();
+    await materials.getByRole("button", { name: "预览／资料", exact: true }).click();
+    const materialEditor = materials.getByRole("region", { name: "素材资料详情" });
+    await materialEditor.getByText("当前已确认方向范围", { exact: true }).waitFor();
+    for (const [label, key] of [["内容名称", "name"], ["语言标签", "language"], ["内容说明", "description"], ["业务事实", "businessFacts"], ["来源声明", "sourceStatement"], ["已有来源证明记录标识（逗号分隔 UUID）", "sourceEvidenceIds"], ["商品／短剧业务标识 UUID", "businessEntityId"], ["来源主体标识 UUID", "sourceId"], ["原成品来源记录 UUID", "sourceRecordId"]]) {
+      await materialEditor.getByLabel(label!, { exact: true }).fill(key === "language" ? "zh" : materialDetails[key!]!);
+    }
+    await materialEditor.getByLabel("成品类型").selectOption(materialDetails.mediaKind ?? "image_text");
+    await materialEditor.getByLabel("业务类型").selectOption(materialDetails.businessKind ?? "product");
+    await materialEditor.getByRole("checkbox", { name: "我已按上述当前范围检查这份成品及其内容规则" }).check();
+    await materialEditor.getByRole("button", { name: "保存本条／接续原请求" }).click();
+    await materialEditor.getByText("请人工确认首次使用声明；文件上传不能代替来源确认。", { exact: true }).waitFor();
+    await materialEditor.getByRole("checkbox", { name: "我已人工确认：此成品此前未发布；声明不等于系统核验通过" }).check();
+    await materialEditor.getByRole("button", { name: "保存本条／接续原请求" }).click();
+    await materials.getByText(/资料已保存 v1 · 素材候选$/).waitFor();
+    await materialEditor.getByRole("heading", { name: "当前为素材候选", exact: true }).waitFor();
+    await materialEditor.getByText("发布许可：未开启。候选状态不派发任务，也不代表外部来源或权利已验证。", { exact: true }).waitFor();
+    await page.screenshot({ path: `${materialOutput}/candidate-approved-scope.png`, fullPage: true });
+    await project(page).getByRole("button", { name: "排期与任务", exact: true }).click();
+    const planTasks = project(page).getByRole("region", { name: "排期与任务", exact: true });
+    await planTasks.getByRole("heading", { name: "排期与任务", exact: true, level: 2 }).waitFor();
+    await planTasks.getByText("执行许可：关闭", { exact: true }).waitFor(); await planTasks.getByText("发布许可：关闭", { exact: true }).waitFor();
+    const actualPlanResponse = planResponseDelayMs > 0 ? page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/business-plan")
+      && response.request().method() === "POST", { timeout: 120_000 }) : null;
+    await planTasks.getByRole("button", { name: "根据当前范围安排", exact: true }).click();
+    if (planResponseDelayMs > 0) {
+      await planTasks.getByRole("alert").filter({ hasText: "安排请求超过等待时限，结果未知" }).waitFor({ timeout: 75_000 });
+      const currentRead = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/business-plan") && response.request().method() === "GET");
+      await planTasks.getByRole("button", { name: "读取当前事实", exact: true }).click();
+      assert.ok((await currentRead).ok(), "current plan facts must be read over the actual GET before retry is enabled");
+      await planTasks.getByRole("button", { name: "接续同一安排请求", exact: true }).waitFor();
+      assert.equal(await planTasks.getByRole("button", { name: "接续同一安排请求", exact: true }).isEnabled(), true);
+      const firstResponse = await actualPlanResponse!;
+      assert.ok(firstResponse.ok(), `delayed actual plan POST response returned ${firstResponse.status()}`);
+      assert.equal(originalPlanRequestBody === null, false);
+      const replayResponse = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/business-plan")
+        && response.request().method() === "POST", { timeout: 30_000 });
+      await planTasks.getByRole("button", { name: "接续同一安排请求", exact: true }).click();
+      const replayed = await replayResponse;
+      assert.ok(replayed.ok(), `same-key stored plan command replay returned ${replayed.status()}`);
+      assert.equal(planPostResponses, 2, "only the original actual model command and its stored-response replay are allowed");
+    }
+    await planTasks.getByText(/已根据当前权威事实生成并保存排期与待核查任务。|当前排期未变化。|当前资料不足，服务没有安排新任务。|模型要求运营先确认方向调整；请回到方向页复核提案。/).waitFor({ timeout: 90_000 });
+    const planOutcome = await planTasks.locator(".business-plan__message").innerText();
+    const planTaskRows = await planTasks.locator(".business-plan__tasks tbody tr").count();
+    assert.equal(await planTasks.getByText("执行许可：关闭", { exact: true }).count(), 1);
+    assert.equal(await planTasks.getByText("发布许可：关闭", { exact: true }).count(), 1);
+    await writeFile(`${materialOutput}/business-plan-result.json`, JSON.stringify({ outcome: planOutcome, currentPlanVisible: await planTasks.getByRole("heading", { name: "当前排期", exact: true }).count() === 1,
+      taskRows: planTaskRows, executionAllowed: false, publicationAllowed: false, actionByBrowser: "no external platform execution or publication",
+      delayedActualResponseUnknownRecovery: planResponseDelayMs > 0, sameOriginalBodyAndKeyReplay: planResponseDelayMs > 0 && planPostResponses === 2 }, null, 2));
+    if (await planTasks.getByText("已根据当前权威事实生成并保存排期与待核查任务。", { exact: true }).count()) {
+      await planTasks.getByRole("heading", { name: "当前排期", exact: true }).waitFor();
+      await planTasks.getByText("待核查当前条件").first().waitFor();
+    }
+    await page.screenshot({ path: `${materialOutput}/business-plan-task-result.png`, fullPage: true });
+    await project(page).getByRole("button", { name: "设置 · 目标与周期", exact: true }).click();
+    await planner(page).getByLabel("目标语言标签（逗号分隔）").fill("zh,en");
+    await planner(page).getByRole("button", { name: "保存全部草案", exact: true }).click();
+    await planner(page).getByText("目标与周期草案已保存，尚未批准；没有生成排期、开启周期或派发任务。", { exact: true }).waitFor();
+    await project(page).getByRole("button", { name: "素材", exact: true }).click();
+    await materials.getByText(/资料已保存 v1 · 待检查：已确认方向与当前项目或周期草案不一致，请重新核对。$/).waitFor();
+    await materials.getByRole("button", { name: "预览／资料", exact: true }).click();
+    const staleEditor = materials.getByRole("region", { name: "素材资料详情" });
+    await staleEditor.getByRole("heading", { name: "当前待检查", exact: true }).waitFor();
+    const staleConfirmation = staleEditor.getByRole("checkbox", { name: "我已按上述当前范围检查这份成品及其内容规则" });
+    assert.equal(await staleConfirmation.isChecked(), false, "A changed scope must never retain the old human confirmation");
+    await staleEditor.getByText("发布许可：未开启。候选状态不派发任务，也不代表外部来源或权利已验证。", { exact: true }).waitFor();
+    await page.screenshot({ path: `${materialOutput}/stale-scope-pending.png`, fullPage: true });
+    await project(page).getByRole("button", { name: "设置 · 目标与周期", exact: true }).click();
+  }
   await page.setViewportSize({ width: 390, height: 1000 }); await page.getByText("手机端为只读模式", { exact: true }).waitFor();
   assert.equal(await direction(page).getByRole("button", { name: "确认方向", exact: true }).count(), 0);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth), false);
   await direction(page).screenshot({ path: `${output}/direction-approved-mobile.png` }); assert.deepEqual(errors, []);
+  await Promise.all(scopeFactReads);
+  await writeFile(`${output}/safe-scope-facts.json`, JSON.stringify(safeScopeFacts, null, 2), { mode: 0o600 });
   await writeFile(`${output}/result.json`, JSON.stringify({ passed: true, actualModel: true, scope: "synthetic UI inputs with configured real model; stale direction rejection, immutable confirmation, lost response original replay, reload, mobile readonly", execution: "blocked", publication: "not performed" }, null, 2));
   console.log(JSON.stringify({ passed: true, actualModel: true, actualPhone: false, actualPublication: false }));
 } catch (error) {
-  if (await direction(page).count()) { await writeFile(`${output}/failure-direction.txt`, await direction(page).innerText()); await direction(page).screenshot({ path: `${output}/failure-direction.png` }); }
+  await Promise.allSettled(scopeFactReads);
+  await writeFile(`${output}/failure-direction.txt`, `Safe scope facts: ${JSON.stringify(safeScopeFacts)}\n\nFailure: ${error instanceof Error ? error.name : "unknown"}`);
+  if (await direction(page).isVisible().catch(() => false)) await direction(page).screenshot({ path: `${output}/failure-direction.png` });
   throw error;
 } finally { await browser.close(); }

@@ -17,6 +17,12 @@ export class BusinessPlanController {
     catch (error) { rethrowHttp(error, `request-${randomUUID()}`); }
   }
 
+  @Get("current-checks") @Header("Cache-Control", "no-store")
+  async currentChecks(@Param("projectId") projectInput: string, @Req() request: Request) {
+    try { return await this.service.currentChecks(operatorSessionTokenFrom(request.headers.cookie), uuidSchema.parse(projectInput)); }
+    catch (error) { rethrowHttp(error, `request-${randomUUID()}`); }
+  }
+
   @Post() @Header("Cache-Control", "no-store")
   async arrange(@Param("projectId") projectInput: string, @Body() body: unknown, @Req() request: Request, @Headers("x-csrf-token") csrf: string | undefined) {
     try {
