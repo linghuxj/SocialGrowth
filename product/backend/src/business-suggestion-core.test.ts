@@ -9,9 +9,9 @@ function fixture() {
   const projectId = randomUUID(), contentUnitId = randomUUID(), variantId = randomUUID(), identityId = randomUUID(), taskId = randomUUID(), factId = randomUUID();
   const quota: ContentQuotaSnapshot = { units: [{ contentUnitId, projectId, mediaKind: "video", seriesId: null, episodeNumber: null }],
     variants: [{ variantId, contentUnitId }], identities: [{ identityId, projectId, platform: "facebook" }], slots: [], seriesBindings: [] };
-  const context: BusinessSuggestionContext = { projectId, factSetId: randomUUID(), factSetVersion: 1, observedAt: now, projectState: "active",
-    approval: { approvalId: randomUUID(), version: 1, goalId: randomUUID(), directionId: randomUUID() },
-    approvedWindow: { startsAt: now, endsAt: "2026-10-02T00:00:00Z" }, approvedForms: ["facebook_video", "youtube_shorts", "youtube_video"], approvedLanguages: ["en"],
+  const context: BusinessSuggestionContext = { projectId, factSetId: randomUUID(), factSetVersion: 1, observedAt: now, purpose: "advisory", projectState: "active",
+    approval: { approvalId: randomUUID(), projectVersion: 1, proposalId: randomUUID() },
+    approvedWindow: { startsAt: now, endsAt: "2026-10-02T00:00:00Z" }, maxPublicationsPerDay: 3, businessTimeZone: "Asia/Shanghai", approvedForms: ["facebook_video", "youtube_shorts", "youtube_video"], approvedLanguages: ["en"],
     facts: [{ factId, version: 1, kind: "material", availability: "available" }], materials: [{ contentUnitId, variantId, materialVersion: 1, language: "en", state: "candidate" }], tasks: [], quota };
   const common = { suggestionId: randomUUID(), projectId, factSetId: context.factSetId, factSetVersion: 1, approval: structuredClone(context.approval),
     basis: [{ factId, version: 1 }], explanation: "Synthetic explanation, not an AI decision", limitations: ["Fixture only"] };
@@ -45,8 +45,8 @@ test("initial or direction-change confirmation is only a proposal and cannot con
 });
 test("stale fact set, project, approval goal/direction and referenced fact versions are refused", () => {
   const f = fixture();
-  for (const patch of [{ projectId: randomUUID() }, { factSetId: randomUUID() }, { factSetVersion: 2 }, { approval: { ...f.common.approval!, goalId: randomUUID() } },
-    { approval: { ...f.common.approval!, directionId: randomUUID() } }, { basis: [{ factId: randomUUID(), version: 1 }] }, { basis: [{ factId: f.common.basis[0]!.factId, version: 2 }] }]) {
+  for (const patch of [{ projectId: randomUUID() }, { factSetId: randomUUID() }, { factSetVersion: 2 }, { approval: { ...f.common.approval!, proposalId: randomUUID() } },
+    { approval: { ...f.common.approval!, projectVersion: 2 } }, { basis: [{ factId: randomUUID(), version: 1 }] }, { basis: [{ factId: f.common.basis[0]!.factId, version: 2 }] }]) {
     assert.throws(() => checkBusinessSuggestion(f.context, { ...f.proposal, ...patch }, now), code("FACTS_STALE"));
   }
 });
@@ -55,6 +55,34 @@ test("paused/ended projects and empty approval inputs are not treated as unrestr
   for (const patch of [{ projectState: "paused" }, { projectState: "ended" }, { approvedWindow: null }, { approvedForms: [] }, { approvedLanguages: [] }]) {
     assert.throws(() => checkBusinessSuggestion({ ...f.context, ...patch }, f.proposal, now), code("OUT_OF_SCOPE"));
   }
+});
+test("preparing projects have an explicit candidate-only mode and cannot mutate existing task arrangements", () => {
+  const f = fixture();
+  f.context.projectState = "preparing"; f.context.purpose = "plan_candidate";
+  const result = checkBusinessSuggestion(f.context, f.proposal, now);
+  assert.equal(result.stage, "checked_advisory_only"); assert.equal(result.tentativeQuota.slots.length, 1);
+  const { title: _title, caption: _caption, ...taskFields } = f.publication;
+  const existingTask = { ...taskFields, version: 1, state: "not_started" as const };
+  f.context.tasks = [existingTask];
+  f.context.quota = reserveContentQuota(f.quota, { taskId: existingTask.taskId, contentUnitId: existingTask.contentUnitId, variantId: existingTask.variantId, identityId: existingTask.identityId, platform: "facebook" }).snapshot;
+  assert.throws(() => checkBusinessSuggestion(f.context, { ...f.proposal, changes: [{ kind: "reschedule", taskId: existingTask.taskId, expectedVersion: 1, scheduledAt: now, reason: "fixture" }] }, now), code("TASK_NOT_MUTABLE"));
+});
+test("daily plan limit uses approved project timezone across DST without conflating quota slots", () => {
+  const f = fixture();
+  f.context.projectState = "preparing"; f.context.purpose = "plan_candidate";
+  f.context.businessTimeZone = "America/Los_Angeles"; f.context.maxPublicationsPerDay = 1;
+  f.context.observedAt = "2026-03-01T00:00:00Z";
+  f.context.approvedWindow = { startsAt: "2026-03-01T00:00:00Z", endsAt: "2026-04-01T00:00:00Z" };
+  const oldUnit = randomUUID(), oldVariant = randomUUID(), oldTask = randomUUID();
+  f.quota.units.push({ contentUnitId: oldUnit, projectId: f.context.projectId, mediaKind: "video", seriesId: null, episodeNumber: null });
+  f.quota.variants.push({ variantId: oldVariant, contentUnitId: oldUnit });
+  f.context.materials.push({ contentUnitId: oldUnit, variantId: oldVariant, materialVersion: 1, language: "en", state: "candidate" });
+  f.context.tasks.push({ taskId: oldTask, version: 1, state: "not_started", contentUnitId: oldUnit, variantId: oldVariant,
+    identityId: f.publication.identityId, form: "facebook_video", scheduledAt: "2026-03-08T09:30:00Z" });
+  f.context.quota = reserveContentQuota(f.quota, { taskId: oldTask, contentUnitId: oldUnit, variantId: oldVariant, identityId: f.publication.identityId, platform: "facebook" }).snapshot;
+  assert.throws(() => checkBusinessSuggestion(f.context, { ...f.proposal, changes: [{ kind: "schedule", publication: { ...f.publication, scheduledAt: "2026-03-08T10:30:00Z" } }] }, "2026-03-01T00:00:00Z"), code("QUOTA_CONFLICT"));
+  checkBusinessSuggestion(f.context, { ...f.proposal, changes: [{ kind: "schedule", publication: { ...f.publication, scheduledAt: "2026-03-09T07:01:00Z" } }] }, "2026-03-01T00:00:00Z");
+  assert.throws(() => checkBusinessSuggestion({ ...f.context, businessTimeZone: null }, f.proposal, "2026-03-01T00:00:00Z"), code("DATA_INSUFFICIENT"));
 });
 test("missing/delayed fact is not zero; insufficient decision keeps original task and quota", () => {
   const f = existing(); f.context.facts[0]!.availability = "missing";

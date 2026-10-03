@@ -8,10 +8,10 @@ const now = "2026-10-01T00:00:00.000001Z";
 const policy = { providerKey: "synthetic_provider", modelKey: "synthetic_model_version", timeoutMs: 1000 };
 function fixture() {
   const projectId = randomUUID(), factId = randomUUID();
-  const context: BusinessSuggestionContext = { projectId, factSetId: randomUUID(), factSetVersion: 1, observedAt: now, projectState: "active",
-    approval: { approvalId: randomUUID(), version: 1, goalId: randomUUID(), directionId: randomUUID() },
-    approvedWindow: { startsAt: now, endsAt: "2026-10-02T00:00:00Z" }, approvedForms: ["facebook_video"], approvedLanguages: ["en"],
-    facts: [{ factId, version: 1, kind: "goal", availability: "available" }], materials: [], tasks: [], quota: { units: [], variants: [], identities: [], slots: [], seriesBindings: [] } };
+  const context: BusinessSuggestionContext = { projectId, factSetId: randomUUID(), factSetVersion: 1, observedAt: now, purpose: "advisory", projectState: "active",
+    approval: { approvalId: randomUUID(), projectVersion: 1, proposalId: randomUUID() },
+    approvedWindow: { startsAt: now, endsAt: "2026-10-02T00:00:00Z" }, maxPublicationsPerDay: 1, businessTimeZone: "Asia/Shanghai", approvedForms: ["facebook_video"], approvedLanguages: ["en"],
+    facts: [{ factId, version: 1, kind: "approval", availability: "available" }], materials: [], tasks: [], quota: { units: [], variants: [], identities: [], slots: [], seriesBindings: [] } };
   const input = { context, descriptions: [{ factId, version: 1, text: "Synthetic authorized business text, NOT real model input evidence" }] };
   const suggestion = { suggestionId: randomUUID(), projectId, factSetId: context.factSetId, factSetVersion: 1, approval: context.approval,
     basis: [{ factId, version: 1 }], explanation: "Synthetic maintain suggestion, NOT actual AI decision", limitations: ["Fixture"], decision: "maintain", taskIds: [] };
@@ -82,14 +82,14 @@ test("invalid JSON/non-string/envelope extras and oversized UTF8 never echo raw 
 test("well-formed model output cannot claim success/permit or replace approval and facts", async () => {
   const f = fixture();
   for (const [patch, reason] of [[{ publicationSucceeded: true }, "INPUT_INVALID"], [{ pause: false }, "INPUT_INVALID"], [{ factSetVersion: 2 }, "FACTS_STALE"],
-    [{ approval: { ...f.context.approval!, goalId: randomUUID() } }, "FACTS_STALE"]] as const) {
+    [{ approval: { ...f.context.approval!, proposalId: randomUUID() } }, "FACTS_STALE"]] as const) {
     const result = await new BusinessModelCoordinator(f.facts, { generate: async () => ({ responseId: "r", outputText: JSON.stringify({ ...f.suggestion, ...patch }) }) }, policy, () => now).run(f.projectId);
     assert.equal(result.status, "rejected"); if (result.status === "rejected") assert.equal(result.reason, reason);
   }
 });
 test("current versions, project pause, task/material or business text changes reject old model response", async () => {
   for (const mutate of [(f: ReturnType<typeof fixture>) => { f.context.factSetVersion++; }, (f: ReturnType<typeof fixture>) => { f.context.projectState = "paused"; },
-    (f: ReturnType<typeof fixture>) => { f.context.approval!.version++; }, (f: ReturnType<typeof fixture>) => { f.input.descriptions[0]!.text = "Corrected fact"; }]) {
+    (f: ReturnType<typeof fixture>) => { f.context.approval!.projectVersion++; }, (f: ReturnType<typeof fixture>) => { f.input.descriptions[0]!.text = "Corrected fact"; }]) {
     const f = fixture(), outputText = JSON.stringify(f.suggestion);
     const result = await new BusinessModelCoordinator(f.facts, { generate: async () => { mutate(f); return { responseId: "r", outputText }; } }, policy, () => now).run(f.projectId);
     assert.equal(result.status, "rejected"); if (result.status === "rejected") assert.equal(result.reason, "facts_changed");

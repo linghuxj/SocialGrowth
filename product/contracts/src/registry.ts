@@ -11,6 +11,7 @@ import { deviceControlSnapshotSchema, installationSelfControlCommandRequestSchem
 import { phoneActionRequestSchema } from "./action-permission.js";
 import { createProjectRequestSchema, updateProjectRequestSchema, projectResponseSchema, projectViewSchema, listProjectsResponseSchema } from "./project.js";
 import { projectPlanningInputsSchema, projectPlanningDraftViewSchema, projectPlanningResponseSchema, saveProjectPlanningRequestSchema } from "./project-planning.js";
+import { businessPlanTaskSchema, businessPlanCurrentViewSchema, readBusinessPlanResponseSchema, arrangeBusinessPlanRequestSchema, arrangeBusinessPlanResponseSchema } from "./business-plan-task.js";
 
 import {
   associationQrPayloadSchema,
@@ -139,6 +140,11 @@ export const firstBatchContractRegistry = {
   projectPlanningDraftView: projectPlanningDraftViewSchema,
   projectPlanningResponse: projectPlanningResponseSchema,
   saveProjectPlanningRequest: saveProjectPlanningRequestSchema,
+  businessPlanTask: businessPlanTaskSchema,
+  businessPlanCurrentView: businessPlanCurrentViewSchema,
+  readBusinessPlanResponse: readBusinessPlanResponseSchema,
+  arrangeBusinessPlanRequest: arrangeBusinessPlanRequestSchema,
+  arrangeBusinessPlanResponse: arrangeBusinessPlanResponseSchema,
   createProjectRequest: createProjectRequestSchema,
   updateProjectRequest: updateProjectRequestSchema,
   projectResponse: projectResponseSchema,

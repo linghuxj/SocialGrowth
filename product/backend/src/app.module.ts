@@ -33,7 +33,9 @@ import { ProjectPlanningController } from "./project-planning.controller.js";
 import { ProjectPlanningService } from "./project-planning-service.js";
 import { ProjectDirectionService } from "./project-direction-service.js";
 import { ProjectDirectionController } from "./project-direction.controller.js";
-import { readInitialDirectionModel } from "./artemis-business-model.js";
+import { ArtemisBusinessModel, readInitialDirectionModel } from "./artemis-business-model.js";
+import { BusinessPlanController } from "./business-plan.controller.js";
+import { BusinessPlanService } from "./business-plan-service.js";
 import { AccountPreparationService } from "./account-preparation-service.js";
 import { AccountPreparationController } from "./account-preparation.controller.js";
 import { DeviceAssistanceFeedService } from "./device-assistance-feed-service.js";
@@ -149,6 +151,7 @@ const providerAuthProvider = {
     MediaCredentialsController,
     ProjectPlanningController,
     ProjectDirectionController,
+    BusinessPlanController,
     AccountPreparationController,
     DeviceAssistanceFeedController,
     ProviderAssistanceFeedController,
@@ -177,7 +180,9 @@ const providerAuthProvider = {
     // writes authenticate then fail closed. No ambient/historical key fallback.
     { provide: MediaCredentialStore, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new MediaCredentialStore(pool, auth, null) },
     { provide: ProjectPlanningService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ProjectPlanningService(pool, auth) },
-    { provide: ProjectDirectionService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ProjectDirectionService(pool, auth, readInitialDirectionModel()) },
+    { provide: ArtemisBusinessModel, useFactory: () => readInitialDirectionModel() },
+    { provide: ProjectDirectionService, inject: [Pool, OperatorAuthService, ArtemisBusinessModel], useFactory: (pool: Pool, auth: OperatorAuthService, model: ArtemisBusinessModel | null) => new ProjectDirectionService(pool, auth, model) },
+    { provide: BusinessPlanService, inject: [Pool, OperatorAuthService, MaterialRuntime, ArtemisBusinessModel], useFactory: (pool: Pool, auth: OperatorAuthService, materials: MaterialRuntime, model: ArtemisBusinessModel | null) => new BusinessPlanService(pool, auth, materials, model) },
     { provide: DeviceAssistanceFeedService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new DeviceAssistanceFeedService(pool, auth) },
     { provide: ProviderAssistanceFeedService, inject: [Pool, ProviderAuthService], useFactory: (pool: Pool, auth: ProviderAuthService) => new ProviderAssistanceFeedService(pool, auth) },
     { provide: ProviderCommissionFeedService, inject: [Pool, ProviderAuthService], useFactory: (pool: Pool, auth: ProviderAuthService) => new ProviderCommissionFeedService(pool, auth) },
