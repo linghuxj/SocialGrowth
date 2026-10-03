@@ -14,7 +14,7 @@ import { parseAndroidPackageUid } from "./android-package-uid.js";
 // Upgrade the owned main APK preserving UID/data; restore existing test package.
 assert.equal(process.env.SG_PRODUCT_ADMISSION_PHONE_CHECK, "authorized");
 const serial = "RFCW40MYYCV", deviceId = "0fef3177-636c-4b82-8209-1af38134e00f";
-const run = promisify(execFile), output = resolve("artifacts/acceptance/product/B3/admission-api-20261003");
+const run = promisify(execFile), output = resolve(process.env.SOCIALGROWTH_VERIFICATION_OUTPUT ?? "artifacts/acceptance/product/B3/admission-api-20261003");
 await mkdir(output, { mode: 0o700, recursive: true });
 const privateDir = resolve(".runtime", `verifier-phone-probe-${randomUUID()}`);
 await mkdir(privateDir, { mode: 0o700 });
