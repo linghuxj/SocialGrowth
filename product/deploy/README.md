@@ -40,6 +40,8 @@ WP15 stage13仅上传票据prepare/read客户端，作者6/根456/静态首过�
 
 `inspectMaintenanceRestore`要求调用方传入原认证备份包中的清单，只读比较隔离目标与备份schema/行摘要、当前库与恢复库的会话/安装/关联/参与撤销、控制日志、outbox及对象引用，并逐个用现有S3对象存储校验目标引用的完整字节。它不执行`pg_restore`，不暂停或启动队列、不发放许可、不释放holder；`consumersStopped`和`physicalFence`固定为`unknown`，所有允许标志及`holderReleaseAllowed`固定false。会话/控制记录有差异、对象清单有差异、对象未核验或存储读取失败均须人工核实；当前adapter不区分对象404与存储不可用，只能报告未核验，不能伪称确认缺失。该检查也不能证明外部Page权限、Artemis/设备在途操作已停止。
 
+Inventory仅接受内部identity依赖明确关联到同一schema的identity sequence，并摘要其定义与所属表/列；`sameSchemaAndRows`不比较`last_value/is_called`当前序列运行状态。新隔离演练单独验证其合成identity fixture经`pg_dump`/`pg_restore`后下一值继续递增，这只证明该样本包的恢复行为，不能把它当成inventory普遍验证序列运行状态。
+
 [采集接线](../../docs/engineering/delivery/records/WP-27-stage6.md)使用自持只读快照，在有效期把snapshot交显式trusted archive回调，只读COMMIT回执成功后返回原v2加密包，成功转交dump最终清零；异步前固定metadata/key。维护caller须保证真实源/同snapshot/SQL可信及回调失败前的内部buffer清理；函数不核生产migration provenance或批准。文件保存另调原包，UNKNOWN不能自动重dump新nonce；无生产CLI/HTTP/scheduler/restore/consumer。合成PG4/431不是生产RPO-RTO/联合灾备或真实Web验收。
 
 [故障接续阶段](../../docs/engineering/delivery/records/WP-27-stage5.md)实际验证文件落地后丢响应/部分写/权限失效/自己的pending未能清理等场景，UNKNOWN保留原ID和原包核对，不创建替代ID或自动信任两链接文件。IO端口仅trusted服务端代码、缺省真实fs，不能从HTTP/config提供；不实现自动orphan清理/chmod。作者fs14为真实合成文件故障补充，不是本轮PG/断电/生产灾备/当前批准/真实Web或真机验收。
@@ -47,6 +49,8 @@ WP15 stage13仅上传票据prepare/read客户端，作者6/根456/静态首过�
 当前仅有server维护加密包组件与独占合成PG的实际导出/恢复演练，见[WP-27阶段记录](../../docs/engineering/delivery/records/WP-27.md)。不是自动生产备份、生产恢复CLI或联合对象/队列/密钥备份方案；不得将示例Compose配置或加密包的false字段当已部署恢复fence。
 
 正式OPS须先落实维护权限、离线密钥保管与轮换、保留/频率/RPO/RTO及实际容量；恢复前停止消费，只接受受信任来源SQL并核对目标/完整备份/当前设备及外部事实。数据库恢复成功后先核对最新暂停、撤权、分配、在途/提交未知、对象与队列，不能直接重放历史消息。没有正式联合恢复、Android签名升级与回滚证据时，AC-52/53/60和B5保持未验收。
+
+`pnpm --filter @socialgrowth/product-backend exec tsx --test --test-concurrency=1 src/database-maintenance-recovery.pg-test.ts`在自有回环PG17/MinIO容器上实际联验同包采集、provider/install撤权与installation/association/participation变化、未解决holder/outbox、对象删除后未核验和默认关闭许可。该演练只应用其文件列出的维护依赖migration子集与测试identity fixture；不是完整产品schema恢复、消费者停止、物理fence、生产灾备或业务验收证据。
 
 [只读恢复清单阶段](../../docs/engineering/delivery/records/WP-27-stage2.md)提供维护端一致快照与同snapshot dump回调、受限schema/行指纹比较；不会调用生产pg_restore/写文件/开Worker。技术行/字节上限和SQL/idle超时不是生产容量/RTO，sameSchemaAndRows也不是可重新执行；未知关系/类型/RLS不可读关闭。清单摘要仅维护端敏感元数据，不通过HTTP或日志公开，正式backup清单绑定、跨cluster/globals/ACL及联合当前事实/恢复fence仍须另验。
 
