@@ -4,7 +4,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { after, before, test } from "node:test";
 import { Pool } from "pg";
 import { MetricSnapshotStore, type TrustedMetricReportResolver } from "./metric-snapshot-store.js";
-import { MetricSnapshotError, parseMetricHistory, type MetricSnapshot } from "./metric-snapshot-core.js";
+import { parseMetricHistory, type MetricSnapshot } from "./metric-snapshot-core.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
 import { OperatorAuthService } from "./operator-auth-service.js";
 
@@ -24,6 +24,22 @@ const fixture = () => {
   return { sourceId, sourceReportId, definitionId, projectId, identityId, accountId, operatorId, deviceId, snapshot, resolver, current: () => current,
     setCurrent: (value: unknown) => { current = structuredClone(value); } };
 };
+function delayFeedbackReadQuery(source: Pool, delayMs: number): Pool {
+  return new Proxy(source, { get(target, property, receiver) {
+    if (property !== "connect") return Reflect.get(target, property, receiver);
+    return async () => {
+      const client = await target.connect();
+      return new Proxy(client, { get(connection, key, innerReceiver) {
+        if (key === "query") return async (...args: unknown[]) => {
+          if (typeof args[0] === "string" && args[0].includes("metric_snapshot_history h")) await new Promise(resolve => setTimeout(resolve, delayMs));
+          return (connection.query as (...queryArgs: unknown[]) => unknown)(...args);
+        };
+        const value = Reflect.get(connection, key, innerReceiver);
+        return typeof value === "function" ? value.bind(connection) : value;
+      } });
+    };
+  } }) as Pool;
+}
 
 before(async () => {
   await pool.query("DROP SCHEMA IF EXISTS socialgrowth_product CASCADE");
@@ -77,6 +93,16 @@ test("operator feedback read is project scoped and reports disabled source expli
   assert.equal(noLongerReserved.contentAttribution.state, "unknown");
 });
 
+test("operator session expiring during history read is denied before returning the projection", async () => {
+  const f = fixture(); await seed(f);
+  const token = randomBytes(32).toString("base64url"), auth = new OperatorAuthService(pool, "synthetic-metric-feedback-auth-pepper-0001");
+  await pool.query(`INSERT INTO socialgrowth_product.operator_sessions(session_id,operator_id,token_digest,csrf_digest,credential_version,expires_at)
+    VALUES($1,$2,$3,$4,1,clock_timestamp()+interval '400 milliseconds')`, [randomUUID(), f.operatorId,
+    createHash("sha256").update(token).digest(), createHash("sha256").update("expiry-test-csrf").digest()]);
+  const delayed = new MetricSnapshotStore(delayFeedbackReadQuery(pool, 800), null, auth);
+  await assert.rejects(delayed.readProjectFeedback(token, f.projectId), expectCode("AUTHENTICATION_REQUIRED"));
+});
+
 test("default closed, account reservation scoped, cumulative zero/replay/correction history is atomic", async () => {
   const f = fixture(); await seed(f);
   const closed = new MetricSnapshotStore(pool);
@@ -111,6 +137,8 @@ test("missing, delayed, content, wrong-account, and stale revisions preserve unc
   const delayedReportId = randomUUID(), delayed = { ...missing, snapshotId: randomUUID(), sourceReportId: delayedReportId,
     availability: "delayed" as const, missingReason: "source_unavailable" as const };
   f.setCurrent(delayed); assert.equal((await store.ingestCurrent({ sourceId: f.sourceId, sourceReportId: delayedReportId })).snapshot.availability, "delayed");
+  const invalidDelayedReportId = randomUUID(); f.setCurrent({ ...delayed, snapshotId: randomUUID(), sourceReportId: invalidDelayedReportId, value: "0" });
+  await assert.rejects(store.ingestCurrent({ sourceId: f.sourceId, sourceReportId: invalidDelayedReportId }), expectCode("INPUT_INVALID"));
 
   const contentReportId = randomUUID(); f.setCurrent({ ...f.snapshot, sourceReportId: contentReportId, subject: { kind: "content", publicationId: randomUUID(), taskId: randomUUID(), contentUnitId: randomUUID(), variantId: randomUUID() } });
   await assert.rejects(store.ingestCurrent({ sourceId: f.sourceId, sourceReportId: contentReportId }), expectCode("AUTHORIZATION_DENIED"));

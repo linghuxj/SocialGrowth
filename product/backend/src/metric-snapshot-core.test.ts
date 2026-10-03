@@ -62,9 +62,18 @@ test("history corruption, duplicate UUID casing and malformed decimals fail safe
   for (const value of [0, "-1", "01", "1e9", "NaN", "1.00", "secret-fixture", "1".repeat(257)]) assert.throws(() => appendMetricSnapshot([], { ...row, value }), (e: unknown) => code("INPUT_INVALID")(e) && !String(e).includes(String(value)));
 });
 test("UUIDs are normalized before report identity, history is defensively copied and no execution or comparison grant exists", () => {
-  const row = fixture(), result = appendMetricSnapshot([], { ...row, snapshotId: row.snapshotId.toUpperCase(), sourceId: row.sourceId.toUpperCase() });
+  const row = fixture(), mixed = { ...row, snapshotId: row.snapshotId.toUpperCase(), sourceId: row.sourceId.toUpperCase(),
+    sourceReportId: row.sourceReportId.toUpperCase(), definitionId: row.definitionId.toUpperCase(), projectId: row.projectId.toUpperCase(),
+    identityId: row.identityId.toUpperCase(), subject: { kind: "content" as const, publicationId: row.subject.kind === "content" ? row.subject.publicationId.toUpperCase() : "",
+      taskId: row.subject.kind === "content" ? row.subject.taskId.toUpperCase() : "", contentUnitId: row.subject.kind === "content" ? row.subject.contentUnitId.toUpperCase() : "",
+      variantId: row.subject.kind === "content" ? row.subject.variantId.toUpperCase() : "" } };
+  const result = appendMetricSnapshot([], mixed);
   assert.deepEqual(result.history[0], row);
   const selected = readMetricReport(result.history, row.sourceId.toUpperCase(), row.sourceReportId.toUpperCase())!; selected.value = "0";
   assert.equal(result.history[0]?.value, row.value); assert.ok(!("permissionGranted" in selected)); assert.ok(!("comparable" in selected));
+  const nextBase = correction(row), next = { ...nextBase, replacesSnapshotId: row.snapshotId.toUpperCase(), snapshotId: nextBase.snapshotId.toUpperCase() };
+  const corrected = appendMetricSnapshot(result.history, next);
+  assert.equal(corrected.history[1]?.replacesSnapshotId, row.snapshotId);
+  assert.equal(readMetricReport(corrected.history, row.sourceId, row.sourceReportId)?.snapshotId, next.snapshotId.toLowerCase());
   assert.throws(() => readMetricReport(result.history, "invalid", row.sourceReportId), code("INPUT_INVALID"));
 });

@@ -3,6 +3,13 @@ import { compareTimestamps, metricSnapshotSchema, uuidSchema, type MetricSnapsho
 const id = uuidSchema.transform(v => v.toLowerCase());
 export { type MetricSnapshot } from "@socialgrowth/product-contracts";
 const schema = metricSnapshotSchema;
+function canonicalSnapshot(value: MetricSnapshot): MetricSnapshot {
+  return { ...value, snapshotId: id.parse(value.snapshotId), sourceId: id.parse(value.sourceId), sourceReportId: id.parse(value.sourceReportId),
+    definitionId: id.parse(value.definitionId), projectId: id.parse(value.projectId), identityId: id.parse(value.identityId),
+    replacesSnapshotId: value.replacesSnapshotId === null ? null : id.parse(value.replacesSnapshotId),
+    subject: value.subject.kind === "account" ? value.subject : { kind: "content", publicationId: id.parse(value.subject.publicationId),
+      taskId: id.parse(value.subject.taskId), contentUnitId: id.parse(value.subject.contentUnitId), variantId: id.parse(value.subject.variantId) } };
+}
 export class MetricSnapshotError extends Error {
   constructor(readonly code: "INPUT_INVALID" | "CORRUPT_HISTORY" | "SNAPSHOT_ID_REUSED" | "CORRECTION_STALE" | "REPORT_SCOPE_CHANGED") { super(code); }
 }
@@ -29,7 +36,8 @@ export function parseMetricHistory(input: unknown): MetricSnapshot[] {
   const parsed = z.array(schema).safeParse(input);
   if (!parsed.success) return fail("CORRUPT_HISTORY");
   const result: MetricSnapshot[] = [], ids = new Set<string>();
-  for (const row of parsed.data) {
+  for (const inputRow of parsed.data) {
+    const row = canonicalSnapshot(inputRow);
     if (ids.has(row.snapshotId)) fail("CORRUPT_HISTORY");
     checkAppend(result, row, true); result.push(row); ids.add(row.snapshotId);
   }
@@ -38,12 +46,12 @@ export function parseMetricHistory(input: unknown): MetricSnapshot[] {
 export function parseMetricSnapshot(input: unknown): MetricSnapshot {
   const parsed = schema.safeParse(input);
   if (!parsed.success) return fail("INPUT_INVALID");
-  return parsed.data;
+  return canonicalSnapshot(parsed.data);
 }
 export function appendMetricSnapshot(history: unknown, input: unknown): { history: MetricSnapshot[]; changed: boolean } {
   const records = parseMetricHistory(history), parsed = schema.safeParse(input);
   if (!parsed.success) return fail("INPUT_INVALID");
-  const row = parsed.data, existing = records.find(v => v.snapshotId === row.snapshotId);
+  const row = canonicalSnapshot(parsed.data), existing = records.find(v => v.snapshotId === row.snapshotId);
   if (existing) {
     if (JSON.stringify(existing) !== JSON.stringify(row)) fail("SNAPSHOT_ID_REUSED");
     return { history: records, changed: false }; // Preserve all corrections, not old output as new data.
