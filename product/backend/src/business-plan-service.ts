@@ -120,6 +120,10 @@ export class BusinessPlanService {
       .filter((v, i, a) => a.findIndex(x => x.seriesId === v.seriesId && x.platform === v.platform) === i);
     const quota: ContentQuotaSnapshot = parseContentQuota({ units: allUnits, variants: allVariants, identities, slots, seriesBindings });
     const approvalId = approval.approvalId, factSetId = approval.proposal.proposalId, projectVersion = current.projectVersion;
+    // Keep fact observation and final eligibility checks on the same clock.
+    // Comparing Node wall time here with PostgreSQL clock_timestamp() at commit
+    // can reject every otherwise-current suggestion when runner clocks differ.
+    const observedAt = (await c.query<{ observed_at: Date }>("SELECT clock_timestamp() AS observed_at")).rows[0]!.observed_at.toISOString();
     const factList = [
       { factId: approvalId, version: projectVersion, kind: "approval" as const, availability: "available" as const },
       ...materials.map(item => ({ factId: item.variantId, version: item.currentRevision, kind: "material" as const, availability: item.candidateAllowed ? "available" as const : "missing" as const })),
@@ -136,7 +140,7 @@ export class BusinessPlanService {
       }),
     ];
     const context: BusinessSuggestionContext = {
-      projectId, factSetId, factSetVersion: projectVersion, observedAt: new Date().toISOString(), purpose: "plan_candidate", projectState: "preparing",
+      projectId, factSetId, factSetVersion: projectVersion, observedAt, purpose: "plan_candidate", projectState: "preparing",
       approval: { approvalId, projectVersion, proposalId: factSetId }, approvedWindow: current.window,
       maxPublicationsPerDay: approval.proposal.scope.inputs.maxPublicationsPerDay,
       businessTimeZone: approval.proposal.scope.inputs.businessTimeZone,

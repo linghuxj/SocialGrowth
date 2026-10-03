@@ -109,7 +109,7 @@ async function seedCandidateMaterial(f: Awaited<ReturnType<typeof approvedProjec
     await c.query(`INSERT INTO socialgrowth_product.material_object_manifests(object_id,project_id,reference) VALUES($1,$2,$3)`, [objectId, f.projectId, JSON.stringify(object)]);
     await c.query(`INSERT INTO socialgrowth_product.material_variants(variant_id,content_unit_id,project_id,language_tag,current_revision) VALUES($1,$2,$3,'en',1)`, [variantId, contentUnitId, f.projectId]);
     await c.query(`INSERT INTO socialgrowth_product.material_variant_revisions(variant_id,revision,declaration,object_references,recorded_by_operator_id,recorded_at)
-      VALUES($1,1,$2,$3,$4,'2026-10-04T00:00:00.000000Z')`, [variantId, JSON.stringify(declaration), JSON.stringify([object]), f.operatorId]);
+      VALUES($1,1,$2,$3,$4,clock_timestamp())`, [variantId, JSON.stringify(declaration), JSON.stringify([object]), f.operatorId]);
     await c.query("COMMIT");
   } catch (error) { await c.query("ROLLBACK"); throw error; } finally { c.release(); }
   const registry = new MaterialRegistryStore(pool, auth, null);
