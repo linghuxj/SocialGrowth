@@ -28,6 +28,7 @@ test("current checks projection is strict and never conveys execution authority"
     { tasks: [{ ...valid.tasks[0], blockers: [] }] },
     { tasks: [{ ...valid.tasks[0], currentFiles: [{ ...valid.tasks[0].currentFiles[0], sha256: "b".repeat(64) }], blockers: ["action_inspector_unavailable"] }] },
     { tasks: [{ ...valid.tasks[0], expectedFiles: [], blockers: ["action_inspector_unavailable"] }] },
+    { tasks: [{ ...valid.tasks[0], currentFiles: [], blockers: ["material_revision_changed", "action_inspector_unavailable"] }] },
     { tasks: [{ ...valid.tasks[0], expectedFiles: [...valid.tasks[0].expectedFiles, { ...valid.tasks[0].expectedFiles[0], objectId: "123e4567-e89b-42d3-a456-426614173999" }] }] },
   ]) assert.equal(businessPlanCurrentChecksResponseSchema.safeParse({ ...valid, ...patch }).success, false);
 });

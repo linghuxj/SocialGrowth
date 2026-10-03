@@ -67,7 +67,7 @@ export const businessPlanCurrentCheckTaskSchema = z.strictObject({
   if (value.expectedFiles.length === 0 && (!value.blockers.includes("material_missing") || !value.blockers.includes("current_fact_unknown"))) {
     ctx.addIssue({ code: "custom", message: "Missing expected manifest must remain blocked" });
   }
-  if (value.currentFiles === null && (!value.blockers.includes("material_missing") || !value.blockers.includes("current_fact_unknown"))) {
+  if (!value.currentFiles?.length && (!value.blockers.includes("material_missing") || !value.blockers.includes("current_fact_unknown"))) {
     ctx.addIssue({ code: "custom", message: "Missing current manifest must remain blocked" });
   }
   if (value.currentFiles !== null && JSON.stringify(value.expectedFiles) !== JSON.stringify(value.currentFiles)
