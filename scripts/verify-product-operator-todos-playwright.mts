@@ -67,11 +67,13 @@ try {
     await panel.getByText("记录版本和时间来自历史事件，不代表设备当前状态、健康或现场复核结果。", { exact: true }).waitFor();
     assert.equal(await panel.locator(".operator-todos__impacts li").count(), impactBody.impacts.length);
     for (const impact of impactBody.impacts) {
-      assert.equal(await panel.getByText(impact.deviceId, { exact: true }).count(), 1);
-      assert.equal(await panel.getByText(new RegExp(`记录版本 ${impact.recordedDeviceVersion} · `)).count(), 1);
+      const impactRow = panel.locator(".operator-todos__impacts li").filter({ hasText: impact.deviceId });
+      assert.equal(await impactRow.count(), 1);
+      assert.equal(await impactRow.getByText(impact.deviceId, { exact: true }).count(), 1);
+      assert.equal(await impactRow.getByText(new RegExp(`记录版本 ${impact.recordedDeviceVersion} · `)).count(), 1);
     }
     await panel.getByText(/来源：未分配设备 · 网络接入协助/).waitFor();
-    await panel.getByText(/影响设备/).waitFor();
+    await panel.locator(".operator-todos__facts dt").getByText("影响设备", { exact: true }).waitFor();
     await panel.getByText("此事项只表示存在历史协助请求。未读到当前设备健康、现场执行或授权恢复结果。", { exact: true }).waitFor();
     const status = await panel.locator(".operator-todos__detail-head .operator-todos__status").innerText();
     assert.ok(["待处理", "等待复核"].includes(status));
@@ -98,7 +100,7 @@ try {
   console.log(JSON.stringify({ passed: true, scope: "actual Web operator todo empty/detail read, transport recovery and read-only viewport states", ...result }));
 } catch (error) {
   await page.screenshot({ path: `${output}/failure-redacted.png`, fullPage: true,
-    mask: [page.getByLabel("密码", { exact: true }), page.locator(".operator-todos__row"), page.locator(".operator-todos__facts"), page.locator(".operator-todos__note")] });
+    mask: [page.getByLabel("密码", { exact: true }), page.locator(".operator-todos__row"), page.locator(".operator-todos__facts"), page.locator(".operator-todos__impacts"), page.locator(".operator-todos__note")] });
   await writeFile(`${output}/failure.json`, JSON.stringify({ checkedAt: new Date().toISOString(), message: error instanceof Error ? error.message.split("\n")[0] : "UNCONFIRMED" }, null, 2), { mode: 0o600 });
   throw error;
 } finally { await browser.close(); }
