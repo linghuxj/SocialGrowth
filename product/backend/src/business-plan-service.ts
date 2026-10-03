@@ -118,7 +118,7 @@ export class BusinessPlanService {
       const materials = await this.materialRuntime.registry().listCurrentForBusinessPlan(c, projectId);
       const materialByVariant = new Map(materials.map(item => [item.variantId, item]));
       const deviceFacts = tasks.length ? (await c.query<{ task_id: string; reserved_device_id: string | null; device_state: string | null;
-        association_id: string | null; installation_id: string | null; installation_generation: string | null; installation_status: string | null;
+        association_id: string | null; association_generation: string | null; installation_id: string | null; installation_generation: string | null; installation_status: string | null;
         provider_status: string | null; network_phase: string | null; network_expires_at: Date | null;
         participation_run_id: string | null; phone_record: unknown; latest_control_action: string | null }>(
         `SELECT t.task_id,r.device_id AS reserved_device_id,d.state AS device_state,a.association_id,a.installation_id,
@@ -128,7 +128,8 @@ export class BusinessPlanService {
          FROM ${s}.business_plan_tasks t
          LEFT JOIN ${s}.project_identity_reservations r ON r.project_id=t.project_id AND r.identity_id=t.identity_id
          LEFT JOIN ${s}.devices d ON d.device_id=r.device_id
-         LEFT JOIN LATERAL (SELECT a0.association_id,a0.installation_id,a0.provider_id FROM ${s}.device_associations a0
+         LEFT JOIN LATERAL (SELECT a0.association_id,a0.installation_id,a0.provider_id,ass.expected_installation_generation::text association_generation FROM ${s}.device_associations a0
+           JOIN ${s}.association_sessions ass USING(association_session_id)
            WHERE a0.device_id=d.device_id AND a0.ended_at IS NULL ORDER BY a0.confirmed_at DESC LIMIT 1) a ON true
          LEFT JOIN ${s}.installations i ON i.installation_id=a.installation_id
          LEFT JOIN ${s}.providers p ON p.provider_id=a.provider_id
@@ -179,7 +180,8 @@ export class BusinessPlanService {
               : disposition === "stopped" ? "confirmed" : "requested";
           }
           const associationCurrent = fact?.association_id !== null && fact?.association_id !== undefined
-            && fact.installation_status === "active" && fact.provider_status === "active";
+            && fact.installation_status === "active" && fact.provider_status === "active"
+            && fact.association_generation === fact.installation_generation;
           const networkAdmitted = fact?.network_phase === "admitted" && fact.network_expires_at !== null
             && fact.network_expires_at !== undefined && fact.network_expires_at > now;
           const participationCurrent = Boolean(fact?.participation_run_id);
