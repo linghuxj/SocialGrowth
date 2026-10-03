@@ -24,6 +24,7 @@ const scopes = (process.env.SG_PRODUCT_CORE_SCOPES ?? "materials,planning").spli
 assert.ok(scopes.length > 0 && scopes.every(scope => ["identity", "materials", "planning", "direction", "real-material-bytes"].includes(scope)) && new Set(scopes).size === scopes.length);
 const webMode = process.env.SG_PRODUCT_CORE_WEB_MODE ?? "development";
 assert.ok(["development", "preview"].includes(webMode), "web mode must be development or preview");
+const storageNeeded = !(scopes.length === 1 && scopes[0] === "identity");
 const webPort = Number(process.env.SG_PRODUCT_CORE_WEB_PORT ?? "3300");
 const backendPort = Number(process.env.SG_PRODUCT_CORE_BACKEND_PORT ?? "4420");
 for (const [name, port] of [["SG_PRODUCT_CORE_WEB_PORT", webPort], ["SG_PRODUCT_CORE_BACKEND_PORT", backendPort]]) {
@@ -65,8 +66,9 @@ function service(name, command, args, environment) {
   child.stdout.on("data", value => { item.log += redact(value); }); child.stderr.on("data", value => { item.log += redact(value); });
   return child;
 }
-async function waitFor(check) {
-  for (let attempt = 0; attempt < 80; attempt++) {
+async function waitFor(check, timeoutMs = 20_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
     try { if (await check()) return; } catch { /* Startup observation only. */ }
     await new Promise(yes => setTimeout(yes, 250));
   }
@@ -84,7 +86,7 @@ try {
   const suffix = randomUUID(), owner = `sg-core-local-${suffix}`;
   for (const [kind, image, variables, containerPort, command] of [
     ["pg", "postgres:17.11", { POSTGRES_DB: "sg_core_local", POSTGRES_USER: "sg_core_local", POSTGRES_PASSWORD: secrets[0] }, 5432, []],
-    ["storage", "minio/minio:RELEASE.2024-01-11T07-46-16Z", { MINIO_ROOT_USER: "sg-core-local", MINIO_ROOT_PASSWORD: secrets[1] }, 9000, ["server", "/data"]],
+    ...(storageNeeded ? [["storage", "minio/minio:RELEASE.2024-01-11T07-46-16Z", { MINIO_ROOT_USER: "sg-core-local", MINIO_ROOT_PASSWORD: secrets[1] }, 9000, ["server", "/data"]]] : []),
   ]) {
     const imageId = docker(["image", "inspect", "--format", "{{.Id}}", image]);
     const envFile = join(work, `${kind}.env`);
@@ -98,22 +100,26 @@ try {
   }
   const pg = containers.find(c => c.kind === "pg"), storage = containers.find(c => c.kind === "storage");
   const url = `postgres://sg_core_local:${secrets[0]}@127.0.0.1:${pg.port}/sg_core_local`;
-  pool = new Pool({ connectionString: url, max: 2 }); await waitFor(async () => (await pool.query("SELECT 1")).rowCount === 1);
   await writeFile(join(output, "environment.json"), JSON.stringify({ scope: sqlOnly ? "synthetic non-UI PostgreSQL supplemental only" : "temporary environment starting", containers }, null, 2));
+  pool = new Pool({ connectionString: url, max: 2, connectionTimeoutMillis: 2000 }); await waitFor(async () => (await pool.query("SELECT 1")).rowCount === 1, 60_000);
   if (scopes.includes("direction")) await run("direction-postgres", "pnpm", ["--filter", "@socialgrowth/product-backend", "exec", "tsx", "--test", "src/project-direction-service.postgres-test.ts"], { SG_PRODUCT_TEST_DATABASE_URL: url, SG_PRODUCT_TEST_ALLOW_RESET: "1" });
   if (!sqlOnly) {
   const migrations = (await readdir(join(repo, "product/backend/migrations"))).filter(f => /^\d{4}.*\.sql$/.test(f)).sort();
   for (const file of migrations) await pool.query(await readFile(join(repo, "product/backend/migrations", file), "utf8"));
-  const endpoint = `http://127.0.0.1:${storage.port}`, bucket = `sg-core-${suffix}`;
-  await waitFor(async () => (await fetch(`${endpoint}/minio/health/live`)).ok);
-  s3 = new S3Client({ endpoint, region: "us-east-1", forcePathStyle: true, credentials: { accessKeyId: "sg-core-local", secretAccessKey: secrets[1] } });
-  await s3.send(new CreateBucketCommand({ Bucket: bucket }));
+  const endpoint = storage ? `http://127.0.0.1:${storage.port}` : null, bucket = `sg-core-${suffix}`;
+  if (storage) {
+    await waitFor(async () => (await fetch(`${endpoint}/minio/health/live`)).ok);
+    s3 = new S3Client({ endpoint, region: "us-east-1", forcePathStyle: true, credentials: { accessKeyId: "sg-core-local", secretAccessKey: secrets[1] } });
+    await s3.send(new CreateBucketCommand({ Bucket: bucket }));
+  }
   const environment = {
     SG_PRODUCT_DATABASE_URL: url, SG_PRODUCT_AUTH_PEPPER: secrets[2], SG_PRODUCT_TRUST_PROXY_HOPS: "1", SG_PRODUCT_SMS_MODE: "unavailable",
-    SG_PRODUCT_BACKEND_HOST: "127.0.0.1", SG_PRODUCT_BACKEND_PORT: String(backendPort), SG_PRODUCT_WEB_PORT: String(webPort), SG_PRODUCT_MATERIAL_MODE: "configured",
+    SG_PRODUCT_BACKEND_HOST: "127.0.0.1", SG_PRODUCT_BACKEND_PORT: String(backendPort), SG_PRODUCT_WEB_PORT: String(webPort), SG_PRODUCT_MATERIAL_MODE: storage ? "configured" : "unavailable",
+    ...(storage ? {
     SG_PRODUCT_MATERIAL_LOCATION_ID: randomUUID(), SG_PRODUCT_MATERIAL_ENDPOINT: endpoint, SG_PRODUCT_MATERIAL_BUCKET: bucket,
     SG_PRODUCT_MATERIAL_REGION: "us-east-1", SG_PRODUCT_MATERIAL_FORCE_PATH_STYLE: "true", SG_PRODUCT_MATERIAL_ACCESS_KEY: "sg-core-local",
     SG_PRODUCT_MATERIAL_SECRET_KEY: secrets[1], SG_PRODUCT_MATERIAL_MAX_OBJECT_BYTES: realMaterialFiles ? "67108864" : "16777216", SG_PRODUCT_MATERIAL_REQUEST_TIMEOUT_MS: "5000",
+    } : {}),
     SG_PRODUCT_TEST_LOGIN_NAME: "core-local-operator", SG_PRODUCT_TEST_PASSWORD: secrets[3], SG_PRODUCT_WEB_URL: `http://127.0.0.1:${webPort}`,
     ...(scopes.includes("identity") ? { SG_PRODUCT_TEST_SECOND_LOGIN_NAME: "core-local-secondary", SG_PRODUCT_TEST_SECOND_PASSWORD: secrets[4] } : {}),
     ...(artemisRoot ? { SG_PRODUCT_BUSINESS_MODEL_MODE: "artemis_configured", SG_PRODUCT_ARTEMIS_ROOT: artemisRoot } : {}),
@@ -130,7 +136,7 @@ try {
   const declaration = { name: "合成页面验收素材", language: "en", businessEntityId: randomUUID(), sourceId: randomUUID(), sourceRecordId: randomUUID(),
     description: "合成 PNG；仅验上传和声明页面", businessFacts: "非真实商品事实", sourceStatement: "本次生成的合成文件，非真实来源证明", sourceEvidenceIds: randomUUID() };
   await writeFile(join(output, "environment.json"), JSON.stringify({ scope: realMaterialFiles ? "authorized actual original bytes; synthetic operator/project only; no first-use/source assertion" : "synthetic local UI only", containers, migrations, web: environment.SG_PRODUCT_WEB_URL,
-    sourceReferences: "synthetic UUIDs, not verified rights", webMode, browserAdmission: "explicit opt-in; browser flow result recorded separately" }, null, 2));
+    sourceReferences: "synthetic UUIDs, not verified rights", webMode, storageConfigured: Boolean(storage), browserAdmission: "explicit opt-in; browser flow result recorded separately" }, null, 2));
   if (scopes.includes("identity")) await run("identity-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "identity" });
   if (scopes.includes("materials")) await run("materials-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "materials",
     SG_PRODUCT_MATERIAL_TEST_FILE: fixture, SG_PRODUCT_MATERIAL_SCREENSHOT_DIR: join(output, "materials"), SG_PRODUCT_MATERIAL_TEST_DECLARATION: JSON.stringify(declaration) });
