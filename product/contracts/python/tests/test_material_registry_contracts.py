@@ -36,7 +36,8 @@ class MaterialRegistryContractsTest(unittest.TestCase):
             row.pop(key)
         row["declaration"].update(expectedApprovedDirectionId=None, expectedApprovedProjectVersion=None, contentRulesReviewed=False)
         row.update(languageTag="en-us", currentRevision=1, objects=[{"objectId": row["projectId"], "sha256": "a" * 64, "bytes": 10, "contentType": "video/mp4"}],
-                   recordedAt="2026-10-01T00:00:00.123456789123Z", status="pending_validation", candidateAllowed=False, eligibilityReason="direction_not_approved", publicationAllowed=False)
+                   recordedAt="2026-10-01T00:00:00.123456789123Z", status="pending_validation", candidateAllowed=False, eligibilityReason="direction_not_approved", publicationAllowed=False,
+                   withdrawal={"state": "not_withdrawn", "materialRevision": None, "requestId": None, "recordedAt": None})
         contracts.validate("materialCurrentView", row)
         contracts.validate("saveMaterialDeclarationResponse", {**row, "changed": True, "replayed": False})
         for patch in ({"key": "private"}, {"recordedByOperatorId": row["projectId"]}, {"revisions": []}, {"status": "approved"}, {"publicationAllowed": True},
@@ -53,7 +54,8 @@ class MaterialRegistryContractsTest(unittest.TestCase):
             row.pop(key)
         row["declaration"].update(expectedApprovedDirectionId=None, expectedApprovedProjectVersion=None, contentRulesReviewed=False)
         row.update(languageTag="en-us", currentRevision=2, objects=[{"objectId": row["projectId"], "sha256": "a" * 64, "bytes": 10, "contentType": "video/mp4"}],
-                   recordedAt="2026-10-01T00:00:01.123456789123Z", status="pending_validation", candidateAllowed=False, eligibilityReason="direction_not_approved", publicationAllowed=False)
+                   recordedAt="2026-10-01T00:00:01.123456789123Z", status="pending_validation", candidateAllowed=False, eligibilityReason="direction_not_approved", publicationAllowed=False,
+                   withdrawal={"state": "not_withdrawn", "materialRevision": None, "requestId": None, "recordedAt": None})
         return row
 
     def test_batch_trace_and_per_item_index_scope(self):
