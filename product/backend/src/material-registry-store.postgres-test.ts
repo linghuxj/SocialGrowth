@@ -3,7 +3,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { before, after, test } from "node:test";
 import { Pool, type PoolClient } from "pg";
-import { contractVersion } from "@socialgrowth/product-contracts";
+import { contractVersion, directionApprovalSchema, directionProposalSchema, directionScopeSchema, emptyProjectPlanningInputs, initialDirectionAutonomy } from "@socialgrowth/product-contracts";
 import { materialSaveSchema } from "./material-registry-core.js";
 import { MaterialRegistryStore, MaterialRegistryError, type MaterialObjectVerifier } from "./material-registry-store.js";
 import { OperatorAuthService } from "./operator-auth-service.js";
@@ -27,11 +27,32 @@ async function actor() {
 async function fixture() {
   const a = await actor(), projectId = randomUUID(), objectId = randomUUID();
   await pool.query(`INSERT INTO ${s}.projects(project_id,name,kind,created_by_operator_id) VALUES($1,'Material fixture','company_owned',$2)`, [projectId, a.operatorId]);
-  references.set(objectId, { storageLocationId: randomUUID(), storageBindingDigest: "a".repeat(64), projectId, objectId, key: `projects/${projectId}/objects/${objectId}`, sha256: "b".repeat(64), bytes: 100, contentType: "video/mp4" });
+  references.set(objectId, { storageLocationId: randomUUID(), storageBindingDigest: "a".repeat(64), projectId, objectId, key: `projects/${projectId}/objects/${objectId}`, sha256: randomBytes(32).toString("hex"), bytes: 100, contentType: "video/mp4" });
   const input = materialSaveSchema.parse({ metadata: meta(), projectId, contentUnitId: randomUUID(), sourceId: randomUUID(), sourceRecordId: randomUUID(),
     identity: { mediaKind: "video", businessKind: "product", businessEntityId: randomUUID(), seriesId: null, episodeNumber: null }, variantId: randomUUID(), languageTag: "EN-us", expectedCurrentRevision: 0,
     declaration: { name: "Synthetic video", description: "Synthetic description", businessFacts: "Synthetic facts", sourceStatement: "Fixture declaration, not source proof", sourceEvidenceIds: [randomUUID()], firstUseDeclaration: "declared_not_previously_published" }, objectIds: [objectId] });
   return { a, input };
+}
+async function approveDirection(f: Awaited<ReturnType<typeof fixture>>, language = "en-us", forms = ["facebook_video"] as string[], languages = [language]) {
+  const proposalId = randomUUID(), approvalId = randomUUID(), inputs = { ...emptyProjectPlanningInputs(), preOpeningGoal: "Synthetic", postOpeningGoal: "Synthetic",
+    postOpeningPriority: "balanced" as const, targetCountries: ["US"], targetLanguages: languages, contentForms: forms as ("facebook_video" | "facebook_image_text" | "youtube_shorts" | "youtube_video")[],
+    contentRules: "Synthetic rule requiring operator review", businessTimeZone: "America/New_York" as const, firstCycleStartsAt: "2099-01-01T00:00:00Z",
+    reviewIntervalDays: 7, trafficMinimumPerCycle: 0, observationWindowHours: 24, tailObservationDays: 0, maxPublicationsPerDay: 1,
+    publishingWindow: { startsAt: "2099-01-01T00:00:00Z", endsAt: "2099-02-01T00:00:00Z" } };
+  const scope = directionScopeSchema.parse({ inputs, identities: [{ platform: "facebook", canonicalRef: "synthetic_page", declaredStage: "before_monetization" }], autonomy: initialDirectionAutonomy });
+  const proposal = directionProposalSchema.parse({ proposalId, projectId: f.input.projectId, projectVersion: 0, draftVersion: 1, snapshotDigest: "a".repeat(64), scope,
+    output: { direction: "Synthetic", rationale: "Fixture only", limitations: [] }, generatedAt: "2026-10-01T00:00:00Z", providerKey: "fixture", modelKey: "fixture", responseId: randomUUID() });
+  const approval = directionApprovalSchema.parse({ approvalId, proposal, confirmedByOperatorId: f.a.operatorId, confirmedByOperatorName: "Fixture operator",
+    confirmedAt: "2026-10-01T00:00:00Z", status: "approved_waiting_readiness" });
+  await pool.query(`INSERT INTO ${s}.project_planning_drafts(project_id,draft_version,inputs,saved_by_operator_id) VALUES($1,1,$2,$3)`, [f.input.projectId, inputs, f.a.operatorId]);
+  await pool.query(`INSERT INTO ${s}.project_direction_proposals(proposal_id,project_id,record) VALUES($1,$2,$3)`, [proposalId, f.input.projectId, proposal]);
+  await pool.query(`INSERT INTO ${s}.project_direction_approvals(approval_id,project_id,proposal_id,actor_id,request_key,payload_digest,record) VALUES($1,$2,$3,$4,$5,$6,$7)`,
+    [approvalId, f.input.projectId, proposalId, f.a.operatorId, `approval-${approvalId}`, Buffer.alloc(32), approval]);
+  await pool.query(`UPDATE ${s}.projects SET fact_version=1 WHERE project_id=$1`, [f.input.projectId]);
+  return { approvalId, projectVersion: 1 };
+}
+function withConfirmation(input: Awaited<ReturnType<typeof fixture>>["input"], scope: Awaited<ReturnType<typeof approveDirection>>) {
+  return { ...input, declaration: { ...input.declaration, expectedApprovedDirectionId: scope.approvalId, expectedApprovedProjectVersion: scope.projectVersion, contentRulesReviewed: true } };
 }
 const save = (f: Awaited<ReturnType<typeof fixture>>, input = f.input, service = store) => service.save(f.a.token, f.a.csrf, input);
 async function counts(variantId: string) { return (await pool.query(`SELECT
@@ -43,18 +64,46 @@ before(async () => {
   const dir = new URL("../migrations/", import.meta.url), files = (await readdir(dir)).filter(v => /^\d{4}.*\.sql$/.test(v)).sort();
   await pool.query(`DROP SCHEMA IF EXISTS ${s} CASCADE`); for (const file of files) await pool.query(await readFile(new URL(file, dir), "utf8"));
   assert.equal((await pool.query(`SELECT 1 FROM ${s}.material_variants`)).rowCount, 0);
-  await pool.query(`DROP SCHEMA ${s} CASCADE`); for (const file of files.filter(v => v < "0019_")) await pool.query(await readFile(new URL(file, dir), "utf8"));
-  const prior = await actor(); await pool.query(await readFile(new URL("0019_material_registry.sql", dir), "utf8"));
-  assert.equal((await pool.query(`SELECT 1 FROM ${s}.operators WHERE operator_id=$1`, [prior.operatorId])).rowCount, 1);
 });
 after(async () => { try { await pool.query(`DROP SCHEMA IF EXISTS ${s} CASCADE`); } finally { await pool.end(); } });
-test("authenticated save pins explicit unit/variant/manifests and revision/command/audit atomically, never candidate", async () => {
+test("authenticated save pins verified bytes and explicit first-use declaration but waits for current approved scope", async () => {
   const f = await fixture(), r = await save(f); assert.equal(r.changed, true); assert.equal(r.currentRevision, 1); assert.equal(r.languageTag, "en-us");
-  assert.equal(r.candidateAllowed, false); assert.equal(r.publicationAllowed, false); assert.equal(r.revisions[0]!.status, "pending_validation"); assert.match(r.revisions[0]!.recordedAt, /\.\d{6}Z$/);
+  assert.equal(r.candidateAllowed, false); assert.equal(r.status, "pending_validation"); assert.equal(r.eligibilityReason, "direction_not_approved");
+  assert.equal(r.publicationAllowed, false); assert.equal(r.revisions[0]!.status, "pending_validation"); assert.match(r.revisions[0]!.recordedAt, /\.\d{6}Z$/);
   assert.deepEqual(await counts(f.input.variantId), { variants: 1, revisions: 1, commands: 1, audits: 1 });
   assert.equal((await store.read(f.a.token, f.input.projectId, f.input.variantId)).currentRevision, 1);
   const facts = (await pool.query(`SELECT facts FROM ${s}.audit_records WHERE object_type='material_variant' AND object_id=$1`, [f.input.variantId])).rows[0]!.facts;
-  assert.deepEqual(facts, { revision: 1, status: "pending_validation" });
+  assert.deepEqual(facts, { revision: 1, status: "pending_validation", eligibilityReason: "direction_not_approved" });
+});
+test("current approved direction, exact current project version, matching language/form and affirmative rule review produce candidate only", async () => {
+  const f = await fixture(), scope = await approveDirection(f), r = await save(f, withConfirmation(f.input, scope));
+  assert.equal(r.status, "candidate"); assert.equal(r.candidateAllowed, true); assert.equal(r.eligibilityReason, null); assert.equal(r.publicationAllowed, false);
+  assert.equal(r.revisions[0]!.status, "pending_validation"); // Candidate is a current projection, not an immutable history rewrite.
+  assert.equal((await store.read(f.a.token, f.input.projectId, f.input.variantId)).status, "candidate");
+  const unchecked = await fixture(), uncheckedScope = await approveDirection(unchecked);
+  const pending = await save(unchecked, { ...unchecked.input, declaration: { ...unchecked.input.declaration, expectedApprovedDirectionId: uncheckedScope.approvalId,
+    expectedApprovedProjectVersion: uncheckedScope.projectVersion } });
+  assert.equal(pending.eligibilityReason, "content_rules_need_human_check");
+  const wrongLanguage = await fixture(), wrongLanguageScope = await approveDirection(wrongLanguage, "zh-cn");
+  const language = await save(wrongLanguage, withConfirmation(wrongLanguage.input, wrongLanguageScope)); assert.equal(language.eligibilityReason, "language_not_targeted");
+  const wrongForm = await fixture(), wrongFormScope = await approveDirection(wrongForm, "en-us", ["facebook_image_text"]);
+  const form = await save(wrongForm, withConfirmation(wrongForm.input, wrongFormScope)); assert.equal(form.eligibilityReason, "no_approved_content_form");
+  const stale = await fixture(), staleScope = await approveDirection(stale); await pool.query(`UPDATE ${s}.projects SET fact_version=2 WHERE project_id=$1`, [stale.input.projectId]);
+  const oldScope = await save(stale, withConfirmation(stale.input, staleScope)); assert.equal(oldScope.eligibilityReason, "approved_direction_stale");
+});
+test("exact SHA already bound to another contentUnit keeps both current revisions pending; same unit language shares remain candidates", async () => {
+  const first = await fixture(), firstScope = await approveDirection(first, "en-us", ["facebook_video"], ["en-us", "es"]), firstSaved = await save(first, withConfirmation(first.input, firstScope));
+  assert.equal(firstSaved.candidateAllowed, true);
+  const sameUnitLanguage = await save(first, withConfirmation({ ...first.input, metadata: meta(), variantId: randomUUID(), languageTag: "es" }, firstScope));
+  assert.equal(sameUnitLanguage.candidateAllowed, true);
+  const other = await fixture(), otherScope = await approveDirection(other);
+  const ref = references.get(other.input.objectIds[0]!) as { sha256: string };
+  references.set(other.input.objectIds[0]!, { ...ref, sha256: firstSaved.revisions[0]!.objects[0]!.sha256 });
+  const collided = await save(other, withConfirmation(other.input, otherScope));
+  assert.equal(collided.revisions.at(-1)!.status, "pending_validation");
+  assert.equal(collided.eligibilityReason, "exact_sha_collision"); assert.equal(collided.candidateAllowed, false); assert.equal(collided.publicationAllowed, false);
+  assert.equal((await store.read(first.a.token, first.input.projectId, first.input.variantId)).candidateAllowed, false);
+  assert.equal((await store.read(first.a.token, first.input.projectId, sameUnitLanguage.variantId)).candidateAllowed, false);
 });
 test("same-key replay reads current without object IO; new key unchanged declaration adds no version", async () => {
   const f = await fixture(); await save(f); let calls = 0;
@@ -70,7 +119,9 @@ test("language variant and correction keep original unit/source and frozen order
   const language = await save(f, { ...f.input, metadata: meta(), variantId: randomUUID(), languageTag: "es" }); assert.equal(language.contentUnitId, first.contentUnitId);
   await assert.rejects(save(f, { ...f.input, metadata: meta(), variantId: randomUUID(), languageTag: "EN-US" }), code("FACT_VERSION_STALE"));
   const second = await save(f, { ...f.input, metadata: meta(), expectedCurrentRevision: 1, declaration: { ...f.input.declaration, description: "Corrected explicit facts" } });
-  assert.equal(second.currentRevision, 2); assert.deepEqual(second.revisions[0], first.revisions[0]); assert.equal((await save(f)).currentRevision, 2);
+  assert.equal(second.currentRevision, 2); assert.equal(first.revisions[0]!.status, "pending_validation"); assert.equal(second.revisions[0]!.status, "pending_validation");
+  assert.deepEqual(second.revisions[0]!.declaration, first.revisions[0]!.declaration); assert.deepEqual(second.revisions[0]!.objects, first.revisions[0]!.objects);
+  assert.equal((await save(f)).currentRevision, 2);
   assert.equal((await pool.query(`SELECT count(*)::int n FROM ${s}.material_content_units WHERE content_unit_id=$1`, [f.input.contentUnitId])).rows[0]!.n, 1);
 });
 test("same source record cannot reimport new content, rebind project, business identity or variant language", async () => {
@@ -86,13 +137,13 @@ test("actual concurrent same command creates one material; concurrent stale corr
   assert.deepEqual(await counts(f.input.variantId), { variants: 1, revisions: 2, commands: 2, audits: 2 });
 });
 test("object IO is outside DB locks; returned values are captured before abort callback mutation", async () => {
-  const f = await fixture(); let unlocked = false; const ref = structuredClone(references.get(f.input.objectIds[0]!)!);
+  const f = await fixture(); let unlocked = false; const ref = structuredClone(references.get(f.input.objectIds[0]!)!); const verifiedSha = (ref as { sha256: string }).sha256;
   const service = new MaterialRegistryStore(pool, auth, { verify: async (_, signal) => {
     const observer = await pool.connect(); try { await observer.query("BEGIN"); await observer.query("SET LOCAL lock_timeout='100ms'"); await observer.query(`SELECT 1 FROM ${s}.material_registry_guard FOR UPDATE`); unlocked = true; }
     finally { await observer.query("ROLLBACK"); observer.release(); }
     signal.addEventListener("abort", () => { if (typeof ref === "object" && ref !== null) Object.assign(ref, { sha256: "c".repeat(64) }); }, { once: true }); return [ref];
   } });
-  const result = await save(f, f.input, service); assert.equal(unlocked, true); assert.equal(result.revisions[0]!.objects[0]!.sha256, "b".repeat(64));
+  const result = await save(f, f.input, service); assert.equal(unlocked, true); assert.equal(result.revisions[0]!.objects[0]!.sha256, verifiedSha);
 });
 test("verification timeout, foreign manifest or private error cannot commit or expose raw cause", async () => {
   const f = await fixture();

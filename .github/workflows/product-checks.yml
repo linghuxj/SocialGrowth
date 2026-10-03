@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/product-checks.yml"
+      - "scripts/verify-product-core-loop-local.mjs"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
@@ -16,6 +17,7 @@ on:
     branches: [main, codex/core-automation-loop-stage1]
     paths:
       - ".github/workflows/product-checks.yml"
+      - "scripts/verify-product-core-loop-local.mjs"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
@@ -49,21 +51,14 @@ jobs:
       - run: python3 docs/engineering/delivery/check_consistency.py
       - run: pnpm exec playwright install --with-deps chromium
       - name: Verify the built product Web through Playwright
+        env:
+          SG_PRODUCT_CORE_BROWSER_ADMITTED: "1"
+          SG_PRODUCT_CORE_SCOPES: identity
+          SG_PRODUCT_CORE_WEB_MODE: preview
+          SG_PRODUCT_CORE_OUTPUT: artifacts/acceptance/ci-identity
         run: |
-          pnpm --filter @socialgrowth/product-web exec vite preview --host 127.0.0.1 --port 3100 > /tmp/socialgrowth-product-web.log 2>&1 &
-          preview_pid=$!
-          trap 'kill "$preview_pid"' EXIT
-          for attempt in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:3100 >/dev/null; then
-              break
-            fi
-            if [ "$attempt" -eq 30 ]; then
-              cat /tmp/socialgrowth-product-web.log
-              exit 1
-            fi
-            sleep 1
-          done
-          pnpm test:playwright:product
+          docker pull postgres:17.11
+          pnpm exec node scripts/verify-product-core-loop-local.mjs
 
   android:
     runs-on: ubuntu-latest

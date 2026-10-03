@@ -18,7 +18,7 @@ function view(saved: Awaited<ReturnType<ReturnType<MaterialRuntime["registry"]>[
   const value = materialCurrentViewSchema.safeParse({ projectId: saved.projectId, contentUnitId: saved.contentUnitId, sourceId: saved.sourceId, sourceRecordId: saved.sourceRecordId,
     identity: saved.identity, variantId: saved.variantId, languageTag: saved.languageTag, currentRevision: saved.currentRevision,
     declaration: last.declaration, objects: last.objects.map(o => ({ objectId: o.objectId, sha256: o.sha256, bytes: o.bytes, contentType: o.contentType })),
-    recordedAt: last.recordedAt, status: last.status, candidateAllowed: saved.candidateAllowed, publicationAllowed: saved.publicationAllowed });
+    recordedAt: last.recordedAt, status: saved.status, candidateAllowed: saved.candidateAllowed, eligibilityReason: saved.eligibilityReason, publicationAllowed: saved.publicationAllowed });
   if (!value.success) throw new ProductTransactionError("INTERNAL_ERROR", "Material result is unavailable");
   return value.data;
 }

@@ -87,6 +87,17 @@ class AssociationContractBoundaryTest {
     }
 
     @Test
+    fun parsesProviderRenameReceiptWithoutChangingDeviceIdentity() {
+        val deviceId = UUID.randomUUID()
+        val receipt = AssociationContractBoundary.parseRenamedDevice(
+            """{"device":{"factVersion":3,"updatedAt":"2026-09-29T00:01:00Z","deviceId":"$deviceId","displayName":"执行机 A","state":"associated_pending_access","lastObservedAt":null}}""",
+        )
+        assertEquals(deviceId, receipt.deviceId)
+        assertEquals("执行机 A", receipt.displayName)
+        assertEquals(3, receipt.factVersion)
+    }
+
+    @Test
     fun storedInstallationReusesOnlyAnUnexpiredCompleteAssociationSession() {
         val associationId = UUID.randomUUID()
         val stored = StoredInstallationIdentity(
