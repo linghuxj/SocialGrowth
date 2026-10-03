@@ -6,14 +6,14 @@ import { OperatorAuthService } from "./operator-auth-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
 import { canonicalMaterial, materialIdentitySchema } from "./material-registry-core.js";
 import { MaterialRuntime } from "./material-runtime.js";
-import { BusinessModelCoordinator } from "./business-model-coordinator.js";
-import { ArtemisBusinessModel } from "./artemis-business-model.js";
+import { BusinessModelCoordinator, type BusinessModelPort } from "./business-model-coordinator.js";
 import { parseContentQuota, type ContentQuotaSnapshot } from "./content-quota-core.js";
 import type { BusinessSuggestion, BusinessSuggestionContext } from "./business-suggestion-core.js";
 
 const s = "socialgrowth_product";
 const unavailable = () => new ProductTransactionError("INTERNAL_ERROR", "Business planning is unavailable", true);
 const stale = () => new ProductTransactionError("FACT_VERSION_STALE", "Approved scope or plan changed; read current facts and retry explicitly");
+interface BusinessPlanModel extends BusinessModelPort { describe(signal: AbortSignal): Promise<{ providerKey: string; modelKey: string }> }
 type CurrentScope = BusinessPlanCurrentView["currentScope"];
 interface Snapshot {
   context: BusinessSuggestionContext;
@@ -29,7 +29,7 @@ function comparableSnapshot(value: Snapshot) {
 
 export class BusinessPlanService {
   constructor(private readonly pool: Pool, private readonly auth: OperatorAuthService,
-    private readonly materialRuntime: MaterialRuntime, private readonly model: ArtemisBusinessModel | null) {}
+    private readonly materialRuntime: MaterialRuntime, private readonly model: BusinessPlanModel | null) {}
 
   private async tx<T>(token: string, csrf: string | null, fn: (c: PoolClient, actorId: string) => Promise<T>): Promise<T> {
     let c: PoolClient;
