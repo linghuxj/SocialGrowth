@@ -13,7 +13,7 @@ import { NetworkAdmissionStore } from "../product/backend/src/network-admission-
 import { InstallationAuthService } from "../product/backend/src/installation-auth-service.js";
 import { TailscaleAdmissionRuntime } from "../product/backend/src/tailscale-admission-runtime.js";
 import { PinnedServeListener } from "../product/backend/src/tailscale-serve-listener.js";
-import { TailscaleCliWhoIs, readTailnetNode, tailnetAddress } from "../product/backend/src/tailscale-source-verifier.js";
+import { TailscaleCliWhoIs, readTailnetNode, readTailnetNodeIdentity, tailnetAddress } from "../product/backend/src/tailscale-source-verifier.js";
 
 // Bounded, operator-authorized real protocol validation, not a policy producer.
 // Unavailable write/revision/path-check ports are deliberately NOT substituted.
@@ -23,6 +23,7 @@ async function privateFile(path: string) {
   finally { await fd.close(); }
 }
 let stage="configuration";
+let sourceDiagnostic: { identityAvailable: boolean; online: boolean; sourceAddressMatched: boolean } | null = null;
 async function main() {
   assert.equal(process.env.SG_PRODUCT_ADMISSION_PROTOCOL_CHECK,"authorized");
   const minutes=Number(process.env.SG_PRODUCT_ADMISSION_PROTOCOL_MINUTES??"15");assert.ok(Number.isInteger(minutes)&&minutes>=1&&minutes<=30);
@@ -31,10 +32,20 @@ async function main() {
   const run=promisify(execFile),cli="/Applications/Tailscale.app/Contents/MacOS/Tailscale";
   stage="existing_serve_scope";
   assert.deepEqual(JSON.parse((await run(cli,["serve","status","--json"],{timeout:3000})).stdout),{});
+  stage="tailscale_preferences";
   const prefs=JSON.parse((await run(cli,["debug","prefs"],{timeout:3000})).stdout) as {WantRunning:boolean;ShieldsUp:boolean};
   assert.ok(prefs.WantRunning && !prefs.ShieldsUp);
+  stage="tailscale_status";
   const status=JSON.parse((await run(cli,["status","--json"],{timeout:3000})).stdout) as {BackendState:string;TailscaleIPs:string[];Self:{DNSName:string}};
   assert.equal(status.BackendState,"Running");assert.ok(status.TailscaleIPs.length && status.TailscaleIPs.every(ip=>tailnetAddress(ip)===ip));
+  stage="phone_source_whois";
+  const whois=new TailscaleCliWhoIs(cli),phone="100.118.89.89",rawPhone=await whois.lookup(phone,AbortSignal.timeout(2000));
+  const phoneIdentity=readTailnetNodeIdentity(rawPhone,phone),expected=readTailnetNode(rawPhone,phone);
+  const online=!!rawPhone&&typeof rawPhone==="object"&&"Node" in rawPhone&&!!rawPhone.Node&&typeof rawPhone.Node==="object"
+    &&"Online" in rawPhone.Node&&rawPhone.Node.Online===true;
+  sourceDiagnostic={identityAvailable:phoneIdentity!==null,online,sourceAddressMatched:expected!==null};
+  assert.ok(expected);
+  stage="diagnostic_tls";
   const hostname=status.Self.DNSName.replace(/\.$/,""),cert=await privateFile(resolve(".runtime/product-local-live/diagnostic-tls-cert.pem"));
   const key=await privateFile(resolve(".runtime/product-local-live/diagnostic-tls-key.pem")),certificate=new X509Certificate(cert);
   assert.equal(certificate.checkHost(hostname),hostname);assert.ok(Date.parse(certificate.validFrom)<=Date.now()&&Date.parse(certificate.validTo)>Date.now());
@@ -44,8 +55,6 @@ async function main() {
   type PgPool=ConstructorParameters<typeof NetworkAdmissionStore>[0];
   const {Pool}=createRequire(resolve("product/backend/package.json"))("pg") as {Pool:new(options:{connectionString:string;max:number})=>PgPool};
   const pool=new Pool({connectionString:`postgresql://socialgrowth:${config.databasePassword}@127.0.0.1:55432/sg_product_local_live`,max:4});
-  const whois=new TailscaleCliWhoIs(cli),phone="100.118.89.89",expected=readTailnetNode(await whois.lookup(phone,AbortSignal.timeout(2000)),phone);
-  assert.ok(expected);
   let listener:PinnedServeListener,api:NetworkAdmissionApi,child:ReturnType<typeof spawn>|null=null,stopping=false,active=0,accepted=0;
   const http=createServer((req,res)=>{
     if(stopping || active>=4) {res.writeHead(503,{Connection:"close"});res.end();return;}
@@ -99,4 +108,4 @@ async function main() {
       noParticipationCommandIssued:true,networkAdmissionGranted:false,actionPermissionGranted:false},null,2),{mode:0o600});
   }
 }
-await main().catch(()=>{console.error(JSON.stringify({event:"admission_verifier_check_unavailable",stage}));process.exitCode=2;});
+await main().catch(()=>{console.error(JSON.stringify({event:"admission_verifier_check_unavailable",stage,...(sourceDiagnostic?{phoneSource:sourceDiagnostic}:{})}));process.exitCode=2;});
