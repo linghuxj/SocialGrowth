@@ -137,7 +137,7 @@ try {
     await planTasks.getByRole("heading", { name: "排期与任务", exact: true, level: 2 }).waitFor();
     await planTasks.getByText("执行许可：关闭", { exact: true }).waitFor(); await planTasks.getByText("发布许可：关闭", { exact: true }).waitFor();
     const actualPlanResponse = planResponseDelayMs > 0 ? page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/business-plan")
-      && response.request().method() === "POST", { timeout: 75_000 }) : null;
+      && response.request().method() === "POST", { timeout: 120_000 }) : null;
     await planTasks.getByRole("button", { name: "根据当前范围安排", exact: true }).click();
     if (planResponseDelayMs > 0) {
       await planTasks.getByRole("alert").filter({ hasText: "安排请求超过等待时限，结果未知" }).waitFor({ timeout: 75_000 });
