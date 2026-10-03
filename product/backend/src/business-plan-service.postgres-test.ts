@@ -5,6 +5,8 @@ import { after, before, test } from "node:test";
 import { Pool } from "pg";
 import { contractVersion, emptyProjectPlanningInputs, type ProjectPlanningInputs } from "@socialgrowth/product-contracts";
 import { BusinessPlanService } from "./business-plan-service.js";
+import { MaterialRegistryStore } from "./material-registry-store.js";
+import { materialDeclarationSchema } from "./material-registry-core.js";
 import { OperatorAuthService } from "./operator-auth-service.js";
 import { MaterialRuntime } from "./material-runtime.js";
 import { ProjectService } from "./project-service.js";
@@ -12,6 +14,8 @@ import { ProjectPlanningService } from "./project-planning-service.js";
 import { ProjectDirectionService } from "./project-direction-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
 import type { BusinessModelPort } from "./business-model-coordinator.js";
+import type { BusinessSuggestionContext } from "./business-suggestion-core.js";
+import { parseContentQuota } from "./content-quota-core.js";
 import type { InitialDirectionModel } from "./artemis-business-model.js";
 
 const url = process.env.SG_PRODUCT_TEST_DATABASE_URL;
@@ -28,7 +32,7 @@ before(async () => {
 });
 after(async () => { try { await pool.query("DROP SCHEMA IF EXISTS socialgrowth_product CASCADE"); } finally { await pool.end(); } });
 
-async function approvedProject() {
+async function approvedProject(identityRef = `synthetic_page_${randomUUID().replaceAll("-", "")}`) {
   const operatorId = randomUUID(), sessionId = randomUUID(), token = randomBytes(32).toString("base64url"), csrf = randomBytes(32).toString("base64url");
   const digest = (s: string) => createHash("sha256").update(s).digest();
   await pool.query("INSERT INTO socialgrowth_product.operators(operator_id,login_name,display_name,password_hash,status) VALUES($1,$2,'Plan fixture','not-a-password','active')", [operatorId, `fixture-${operatorId}`]);
@@ -44,13 +48,14 @@ async function approvedProject() {
   const draft = (await planning.save(token, csrf, { metadata: metadata(), projectId: project.projectId, expectedProjectVersion: 0,
     expectedDraftVersion: 0, inputs })).draft;
   const generation = { metadata: metadata(), projectId: project.projectId, expectedProjectVersion: draft.projectFactVersion, expectedDraftVersion: draft.draftVersion,
-    identities: [{ platform: "facebook" as const, canonicalRef: "synthetic_page", declaredStage: "before_monetization" as const }] };
+    identities: [{ platform: "facebook" as const, canonicalRef: identityRef, declaredStage: "before_monetization" as const }] };
   const proposal = (await directions.generate(token, csrf, generation)).proposal;
   assert.ok(proposal);
   const approval = await directions.confirm(token, csrf, { metadata: metadata(), projectId: project.projectId, expectedProjectVersion: proposal.projectVersion,
     proposalId: proposal.proposalId, snapshotDigest: proposal.snapshotDigest });
   assert.ok(approval.approval);
-  return { token, csrf, projectId: project.projectId, service: new BusinessPlanService(pool, auth, new MaterialRuntime(pool, auth, null), planModel) };
+  return { token, csrf, operatorId, projectId: project.projectId, identityRef,
+    service: new BusinessPlanService(pool, auth, new MaterialRuntime(pool, auth, null), planModel) };
 }
 
 const directionModel: InitialDirectionModel = { generateDirection: async () => ({ providerKey: "synthetic-port", modelKey: "fixture-direction",
@@ -59,6 +64,11 @@ let arrangementCalls = 0;
 let arrangementGate: Promise<void> | null = null;
 let gateEntries = 0;
 let notifyBothModelsStarted = () => {};
+const confirmationSuggestion = (context: BusinessSuggestionContext) => ({ suggestionId: randomUUID(), projectId: context.projectId,
+  factSetId: context.factSetId, factSetVersion: context.factSetVersion, approval: context.approval,
+  basis: [{ factId: context.approval!.approvalId, version: context.factSetVersion }], explanation: "Synthetic confirmation boundary",
+  limitations: ["Fixture only", "No tasks or posting"], decision: "requires_operator_confirmation", proposedDirection: "Synthetic direction change proposal" });
+let makeArrangement: (context: BusinessSuggestionContext) => unknown = confirmationSuggestion;
 const planModel: BusinessModelPort & { describe(signal: AbortSignal): Promise<{ providerKey: string; modelKey: string }> } = {
   describe: async () => ({ providerKey: "synthetic-port", modelKey: "fixture-plan" }),
   generate: async (request, _signal) => {
@@ -69,12 +79,47 @@ const planModel: BusinessModelPort & { describe(signal: AbortSignal): Promise<{ 
       await arrangementGate;
     }
     const context = request.input.context;
-    return { responseId: randomUUID(), outputText: JSON.stringify({ suggestionId: randomUUID(), projectId: context.projectId,
-      factSetId: context.factSetId, factSetVersion: context.factSetVersion, approval: context.approval,
-      basis: [{ factId: context.approval!.approvalId, version: context.factSetVersion }], explanation: "Synthetic confirmation boundary",
-      limitations: ["Fixture only", "No tasks or posting"], decision: "requires_operator_confirmation", proposedDirection: "Synthetic direction change proposal" }) };
+    return { responseId: randomUUID(), outputText: JSON.stringify(makeArrangement(context)) };
   },
 };
+
+async function seedCandidateMaterial(f: Awaited<ReturnType<typeof approvedProject>>) {
+  const accountId = randomUUID(), identityId = randomUUID(), deviceId = randomUUID(), contentUnitId = randomUUID(), variantId = randomUUID();
+  const objectId = randomUUID(), sourceId = randomUUID(), sourceRecordId = randomUUID(), businessEntityId = randomUUID();
+  const object = { storageLocationId: randomUUID(), storageBindingDigest: "a".repeat(64), projectId: f.projectId, objectId,
+    key: `projects/${f.projectId}/objects/${objectId}`, sha256: randomBytes(32).toString("hex"), bytes: 128, contentType: "video/mp4" };
+  const current = await f.service.read(f.token, f.projectId);
+  const declaration = materialDeclarationSchema.parse({ name: "Synthetic fixture material", description: "No external claim", businessFacts: "Fixture only",
+    sourceStatement: "Synthetic isolated material", sourceEvidenceIds: [randomUUID()], firstUseDeclaration: "declared_not_previously_published",
+    expectedApprovedDirectionId: current.currentScope.approvalId,
+    expectedApprovedProjectVersion: current.currentScope.projectVersion, contentRulesReviewed: true });
+  const c = await pool.connect();
+  try {
+    await c.query("BEGIN");
+    await c.query(`INSERT INTO socialgrowth_product.devices(device_id,display_name,state) VALUES($1,'Synthetic reserved device','unassociated')`, [deviceId]);
+    await c.query(`INSERT INTO socialgrowth_product.media_accounts(account_id,platform,canonical_account_ref) VALUES($1,'facebook',$2)`, [accountId, f.identityRef]);
+    await c.query(`INSERT INTO socialgrowth_product.publishing_identities(identity_id,account_id,platform,canonical_identity_ref) VALUES($1,$2,'facebook',$3)`, [identityId, accountId, f.identityRef]);
+    await c.query(`INSERT INTO socialgrowth_product.project_device_reservations(device_id,project_id) VALUES($1,$2)`, [deviceId, f.projectId]);
+    await c.query(`INSERT INTO socialgrowth_product.project_account_reservations(account_id,project_id) VALUES($1,$2)`, [accountId, f.projectId]);
+    await c.query(`INSERT INTO socialgrowth_product.project_identity_reservations(identity_id,account_id,platform,device_id,project_id,reserved_by_operator_id)
+      VALUES($1,$2,'facebook',$3,$4,$5)`, [identityId, accountId, deviceId, f.projectId, f.operatorId]);
+    await c.query(`INSERT INTO socialgrowth_product.material_content_units(content_unit_id,project_id,source_id,source_record_id,identity) VALUES($1,$2,$3,$4,$5)`,
+      [contentUnitId, f.projectId, sourceId, sourceRecordId, JSON.stringify({ mediaKind: "video", businessKind: "product", businessEntityId, seriesId: null, episodeNumber: null })]);
+    await c.query(`INSERT INTO socialgrowth_product.material_object_manifests(object_id,project_id,reference) VALUES($1,$2,$3)`, [objectId, f.projectId, JSON.stringify(object)]);
+    await c.query(`INSERT INTO socialgrowth_product.material_variants(variant_id,content_unit_id,project_id,language_tag,current_revision) VALUES($1,$2,$3,'en',1)`, [variantId, contentUnitId, f.projectId]);
+    await c.query(`INSERT INTO socialgrowth_product.material_variant_revisions(variant_id,revision,declaration,object_references,recorded_by_operator_id,recorded_at)
+      VALUES($1,1,$2,$3,$4,'2026-10-04T00:00:00.000000Z')`, [variantId, JSON.stringify(declaration), JSON.stringify([object]), f.operatorId]);
+    await c.query("COMMIT");
+  } catch (error) { await c.query("ROLLBACK"); throw error; } finally { c.release(); }
+  const registry = new MaterialRegistryStore(pool, auth, null);
+  const checkClient = await pool.connect();
+  try {
+    const material = await registry.listCurrentForBusinessPlan(checkClient, f.projectId);
+    assert.equal(material.length, 1); assert.equal(material[0]?.candidateAllowed, true, `reason=${material[0]?.eligibilityReason}`); assert.equal(material[0]?.eligibilityReason, null);
+  } finally { checkClient.release(); }
+  f.service = new BusinessPlanService(pool, auth, { registry: () => registry } as unknown as MaterialRuntime, planModel);
+  return { contentUnitId, variantId, identityId };
+}
 
 test("plan persistence replays exact command once and never promotes advisory to Task or action", async () => {
   arrangementCalls = 0;
@@ -114,4 +159,61 @@ test("concurrent arrangements against one expected revision cannot both become c
     (SELECT count(*)::int FROM socialgrowth_product.business_plan_tasks WHERE project_id=$1) tasks,
     (SELECT count(*)::int FROM socialgrowth_product.business_plan_outbox WHERE project_id=$1) outbox`, [f.projectId])).rows[0],
   { revisions: 1, commands: 1, tasks: 0, outbox: 0 });
+});
+
+function scheduleSuggestion(context: BusinessSuggestionContext) {
+  const material = context.materials[0]!, identity = parseContentQuota(context.quota).identities[0]!;
+  return { suggestionId: randomUUID(), projectId: context.projectId, factSetId: context.factSetId, factSetVersion: context.factSetVersion,
+    approval: context.approval, basis: context.facts.filter(f => f.availability === "available").map(f => ({ factId: f.factId, version: f.version })),
+    explanation: "Synthetic scheduled candidate", limitations: ["Isolated fixture", "Not a real model decision", "No execution or publication"],
+    decision: "adjust", changes: [{ kind: "schedule", publication: { taskId: randomUUID(), contentUnitId: material.contentUnitId,
+      variantId: material.variantId, identityId: identity.identityId, form: "facebook_video", scheduledAt: "2090-01-02T12:00:00Z",
+      title: "Synthetic candidate title", caption: "Synthetic candidate caption" } }] };
+}
+async function planRowCounts(projectId: string) {
+  return (await pool.query(`SELECT (SELECT count(*)::int FROM socialgrowth_product.business_plan_revisions WHERE project_id=$1) revisions,
+    (SELECT count(*)::int FROM socialgrowth_product.business_plan_tasks WHERE project_id=$1) tasks,
+    (SELECT count(*)::int FROM socialgrowth_product.business_plan_outbox WHERE project_id=$1) outbox,
+    (SELECT count(*)::int FROM socialgrowth_product.business_plan_commands WHERE project_id=$1) commands,
+    (SELECT count(*)::int FROM socialgrowth_product.audit_records WHERE object_type='business_plan' AND object_id=$1) audits`, [projectId])).rows[0];
+}
+
+test("material-backed schedule atomically persists current-scope plan, Task, quota slot and check-reference outbox", async () => {
+  arrangementCalls = 0; arrangementGate = null; makeArrangement = scheduleSuggestion;
+  const f = await approvedProject(), material = await seedCandidateMaterial(f), current = await f.service.read(f.token, f.projectId);
+  const request = { metadata: metadata(), expectedProjectVersion: current.currentScope.projectVersion,
+    expectedApprovalId: current.currentScope.approvalId!, expectedPlanRevision: 0 };
+  const response = await f.service.arrange(f.token, f.csrf, f.projectId, request);
+  assert.equal(response.outcome, "planned"); assert.equal(response.plan?.scopeState, "current"); assert.equal(response.tasks.length, 1);
+  assert.equal(response.tasks[0]?.contentUnitId, material.contentUnitId); assert.equal(response.tasks[0]?.variantId, material.variantId);
+  assert.equal(response.tasks[0]?.state, "pending_current_checks"); assert.equal(response.executionAllowed, false); assert.equal(response.publicationAllowed, false);
+  const rows = (await pool.query(`SELECT t.task_id,t.state,t.execution_allowed,t.publication_allowed,o.purpose,o.state outbox_state,
+      o.execution_allowed outbox_execution_allowed,o.publication_allowed outbox_publication_allowed,r.quota_snapshot
+    FROM socialgrowth_product.business_plan_tasks t JOIN socialgrowth_product.business_plan_outbox o USING(project_id,task_id)
+    JOIN socialgrowth_product.business_plan_revisions r ON r.project_id=t.project_id AND r.revision=t.plan_revision AND r.plan_id=t.plan_id WHERE t.project_id=$1`, [f.projectId])).rows;
+  assert.equal(rows.length, 1); assert.equal(rows[0]!.state, "pending_current_checks"); assert.equal(rows[0]!.execution_allowed, false);
+  assert.equal(rows[0]!.publication_allowed, false); assert.equal(rows[0]!.purpose, "current_check_reference");
+  assert.equal(rows[0]!.outbox_state, "pending_current_checks"); assert.equal(rows[0]!.outbox_execution_allowed, false); assert.equal(rows[0]!.outbox_publication_allowed, false);
+  assert.equal(rows[0]!.quota_snapshot.slots.length, 1); assert.equal(rows[0]!.quota_snapshot.slots[0].taskId, rows[0]!.task_id);
+  assert.deepEqual(await planRowCounts(f.projectId), { revisions: 1, tasks: 1, outbox: 1, commands: 1, audits: 1 });
+  makeArrangement = confirmationSuggestion;
+});
+
+test("outbox failure rolls back revision, quota, Task, command and audit together", async () => {
+  arrangementCalls = 0; arrangementGate = null; makeArrangement = scheduleSuggestion;
+  const f = await approvedProject(); await seedCandidateMaterial(f); const current = await f.service.read(f.token, f.projectId);
+  const request = { metadata: metadata(), expectedProjectVersion: current.currentScope.projectVersion,
+    expectedApprovalId: current.currentScope.approvalId!, expectedPlanRevision: 0 };
+  await pool.query(`CREATE FUNCTION socialgrowth_product.test_reject_plan_outbox() RETURNS trigger LANGUAGE plpgsql AS $fixture$
+    BEGIN RAISE EXCEPTION 'synthetic outbox write failure'; END $fixture$`);
+  await pool.query(`CREATE TRIGGER test_reject_plan_outbox BEFORE INSERT ON socialgrowth_product.business_plan_outbox
+    FOR EACH ROW EXECUTE FUNCTION socialgrowth_product.test_reject_plan_outbox()`);
+  await assert.rejects(f.service.arrange(f.token, f.csrf, f.projectId, request), error("INTERNAL_ERROR"));
+  assert.deepEqual(await planRowCounts(f.projectId), { revisions: 0, tasks: 0, outbox: 0, commands: 0, audits: 0 });
+  await pool.query("DROP TRIGGER test_reject_plan_outbox ON socialgrowth_product.business_plan_outbox");
+  await pool.query("DROP FUNCTION socialgrowth_product.test_reject_plan_outbox()");
+  const retry = await f.service.arrange(f.token, f.csrf, f.projectId, request);
+  assert.equal(retry.outcome, "planned"); assert.equal(retry.tasks.length, 1);
+  assert.deepEqual(await planRowCounts(f.projectId), { revisions: 1, tasks: 1, outbox: 1, commands: 1, audits: 1 });
+  makeArrangement = confirmationSuggestion;
 });
