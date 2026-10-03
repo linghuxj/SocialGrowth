@@ -21,7 +21,9 @@ const consent = process.env.SG_PRODUCT_CORE_BROWSER_ADMITTED;
 const sqlOnly = process.env.SG_PRODUCT_CORE_SQL_ONLY === "1";
 if (!sqlOnly && consent !== "1") throw new Error("First confirm actual browser policy admission; this runner cannot bypass a browser refusal");
 const scopes = (process.env.SG_PRODUCT_CORE_SCOPES ?? "materials,planning").split(",");
-assert.ok(scopes.length > 0 && scopes.every(scope => ["materials", "planning", "direction", "real-material-bytes"].includes(scope)) && new Set(scopes).size === scopes.length);
+assert.ok(scopes.length > 0 && scopes.every(scope => ["identity", "materials", "planning", "direction", "real-material-bytes"].includes(scope)) && new Set(scopes).size === scopes.length);
+const webMode = process.env.SG_PRODUCT_CORE_WEB_MODE ?? "development";
+assert.ok(["development", "preview"].includes(webMode), "web mode must be development or preview");
 const webPort = Number(process.env.SG_PRODUCT_CORE_WEB_PORT ?? "3300");
 const backendPort = Number(process.env.SG_PRODUCT_CORE_BACKEND_PORT ?? "4420");
 for (const [name, port] of [["SG_PRODUCT_CORE_WEB_PORT", webPort], ["SG_PRODUCT_CORE_BACKEND_PORT", backendPort]]) {
@@ -34,7 +36,7 @@ if (scopes.includes("direction") && !sqlOnly) assert.ok(artemisRoot && artemisRo
 const realMaterialFiles = scopes.includes("real-material-bytes") ? process.env.SG_PRODUCT_CORE_REAL_MATERIAL_FILES : null;
 if (scopes.includes("real-material-bytes")) assert.ok(realMaterialFiles && process.env.SG_PRODUCT_CORE_REAL_MATERIAL_AUTHORIZED === "1", "Actual files require explicit existing authorization");
 const ambient = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("SG_") && !key.startsWith("AWS_")));
-const secrets = [randomBytes(32).toString("hex"), randomBytes(32).toString("hex"), randomBytes(32).toString("hex"), randomBytes(24).toString("hex")];
+const secrets = [randomBytes(32).toString("hex"), randomBytes(32).toString("hex"), randomBytes(32).toString("hex"), randomBytes(24).toString("hex"), randomBytes(24).toString("hex")];
 const redact = text => secrets.reduce((value, secret) => value.replaceAll(secret, "[redacted]"), String(text));
 const containers = [], children = [];
 const work = await mkdtemp(join(tmpdir(), "socialgrowth-core-local-"));
@@ -78,6 +80,7 @@ try {
   // starting its isolated service.
   await run("contracts-build", "pnpm", ["--filter", "@socialgrowth/product-contracts", "build"], {});
   await run("backend-build", "pnpm", ["--filter", "@socialgrowth/product-backend", "build"], {});
+  if (webMode === "preview") await run("web-build", "pnpm", ["--filter", "@socialgrowth/product-web", "build"], {});
   const suffix = randomUUID(), owner = `sg-core-local-${suffix}`;
   for (const [kind, image, variables, containerPort, command] of [
     ["pg", "postgres:17.11", { POSTGRES_DB: "sg_core_local", POSTGRES_USER: "sg_core_local", POSTGRES_PASSWORD: secrets[0] }, 5432, []],
@@ -112,12 +115,13 @@ try {
     SG_PRODUCT_MATERIAL_REGION: "us-east-1", SG_PRODUCT_MATERIAL_FORCE_PATH_STYLE: "true", SG_PRODUCT_MATERIAL_ACCESS_KEY: "sg-core-local",
     SG_PRODUCT_MATERIAL_SECRET_KEY: secrets[1], SG_PRODUCT_MATERIAL_MAX_OBJECT_BYTES: realMaterialFiles ? "67108864" : "16777216", SG_PRODUCT_MATERIAL_REQUEST_TIMEOUT_MS: "5000",
     SG_PRODUCT_TEST_LOGIN_NAME: "core-local-operator", SG_PRODUCT_TEST_PASSWORD: secrets[3], SG_PRODUCT_WEB_URL: `http://127.0.0.1:${webPort}`,
+    ...(scopes.includes("identity") ? { SG_PRODUCT_TEST_SECOND_LOGIN_NAME: "core-local-secondary", SG_PRODUCT_TEST_SECOND_PASSWORD: secrets[4] } : {}),
     ...(artemisRoot ? { SG_PRODUCT_BUSINESS_MODEL_MODE: "artemis_configured", SG_PRODUCT_ARTEMIS_ROOT: artemisRoot } : {}),
   };
   await run("operator-initialize", "pnpm", ["--filter", "@socialgrowth/product-backend", "operator:admin", "initialize", "--login-name", "core-local-operator", "--display-name", "合成验收运营", "--request-id", `init-${suffix}`], environment, secrets[3]);
   service("backend", "pnpm", ["--filter", "@socialgrowth/product-backend", "start"], environment);
   await waitFor(async () => (await fetch(`http://127.0.0.1:${backendPort}/health/live`)).ok);
-  service("web", "pnpm", ["--filter", "@socialgrowth/product-web", "exec", "vite", "--host", "127.0.0.1", "--port", String(webPort), "--strictPort"], {
+  service("web", "pnpm", ["--filter", "@socialgrowth/product-web", "exec", "vite", ...(webMode === "preview" ? ["preview"] : []), "--host", "127.0.0.1", "--port", String(webPort), "--strictPort"], {
     SG_PRODUCT_WEB_PORT: String(webPort), SG_PRODUCT_BACKEND_PORT: String(backendPort),
   });
   await waitFor(async () => (await fetch(environment.SG_PRODUCT_WEB_URL)).ok);
@@ -126,7 +130,8 @@ try {
   const declaration = { name: "合成页面验收素材", language: "en", businessEntityId: randomUUID(), sourceId: randomUUID(), sourceRecordId: randomUUID(),
     description: "合成 PNG；仅验上传和声明页面", businessFacts: "非真实商品事实", sourceStatement: "本次生成的合成文件，非真实来源证明", sourceEvidenceIds: randomUUID() };
   await writeFile(join(output, "environment.json"), JSON.stringify({ scope: realMaterialFiles ? "authorized actual original bytes; synthetic operator/project only; no first-use/source assertion" : "synthetic local UI only", containers, migrations, web: environment.SG_PRODUCT_WEB_URL,
-    sourceReferences: "synthetic UUIDs, not verified rights", browserAdmission: "actual IAB localhost navigation succeeded before runner" }, null, 2));
+    sourceReferences: "synthetic UUIDs, not verified rights", webMode, browserAdmission: "explicit opt-in; browser flow result recorded separately" }, null, 2));
+  if (scopes.includes("identity")) await run("identity-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "identity" });
   if (scopes.includes("materials")) await run("materials-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "materials",
     SG_PRODUCT_MATERIAL_TEST_FILE: fixture, SG_PRODUCT_MATERIAL_SCREENSHOT_DIR: join(output, "materials"), SG_PRODUCT_MATERIAL_TEST_DECLARATION: JSON.stringify(declaration) });
   if (realMaterialFiles) await run("real-material-bytes-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "real-material-bytes", SG_PRODUCT_REAL_MATERIAL_FILES: realMaterialFiles, SG_PRODUCT_REAL_MATERIAL_AUTHORIZED: "1", SG_PRODUCT_REAL_MATERIAL_FIRST_USE_CONFIRMED: process.env.SG_PRODUCT_CORE_REAL_MATERIAL_FIRST_USE_CONFIRMED ?? "0", SG_PRODUCT_REAL_MATERIAL_OUTPUT: join(output, "real-material-bytes") });
