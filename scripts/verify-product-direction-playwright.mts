@@ -13,6 +13,8 @@ const modelAttempts: { outcome: "proposed" | "unavailable"; elapsedMs: number }[
 const safeScopeFacts: Array<Record<string, unknown>> = [];
 const scopeFactReads: Promise<void>[] = [];
 const planResponseDelayMs = Number(process.env.SG_PRODUCT_DIRECTION_PLAN_RESPONSE_DELAY_MS ?? "0");
+const narrowPlanFlow = process.env.SG_PRODUCT_DIRECTION_NARROW_PLAN_FLOW === "1";
+if (narrowPlanFlow) assert.equal(process.env.SG_PRODUCT_DIRECTION_MATERIAL_CANDIDATE, "1", "narrow plan flow requires the real material UI slice");
 assert.ok(Number.isInteger(planResponseDelayMs) && planResponseDelayMs >= 0 && planResponseDelayMs <= 60_000, "plan response delay must be 0..60000ms");
 let originalPlanRequestBody: string | null = null, planPostResponses = 0;
 if (planResponseDelayMs > 0) await page.route("**/api/operator/projects/*/business-plan", async route => {
@@ -54,7 +56,8 @@ async function generate() {
   // Exercise actual operator recovery through the UI, not a hidden provider
   // retry or an ignored failed test. Only a known unavailable result permits
   // one explicit new command; unknown results must retain the original key.
-  for (let attempt = 0; attempt < 2; attempt++) {
+  const maxAttempts = narrowPlanFlow ? 1 : 2;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const started = Date.now(); await direction(page).getByRole("button", { name: "生成初始方向", exact: true }).click();
     const feedback = direction(page).getByText(/^(真实模型方向已生成，请逐项核对范围后确认。|配置模型未返回可用方向；未采用模板，请读取结果后重试。)$/);
     await feedback.waitFor({ timeout: 55_000 });
@@ -65,7 +68,7 @@ async function generate() {
     assert.equal(await direction(page).getByText("方向已确认 · 执行条件未就绪", { exact: true }).count(), 0);
     await direction(page).getByRole("button", { name: "读取方向结果", exact: true }).click();
   }
-  throw new Error("Configured model unavailable after one explicit UI recovery; business acceptance blocked");
+  throw new Error(narrowPlanFlow ? "Configured model unavailable on the single narrow-flow attempt; business acceptance blocked" : "Configured model unavailable after one explicit UI recovery; business acceptance blocked");
 }
 try {
   await open(page, true); await project(page).getByRole("button", { name: "新建项目" }).click(); await project(page).getByLabel("项目名称").fill(name); await project(page).getByRole("button", { name: "创建筹备项目" }).click();
@@ -85,15 +88,18 @@ try {
   await planner(page).getByRole("button", { name: "保存全部草案", exact: true }).click(); await planner(page).getByText("目标与周期草案已保存，尚未批准；没有生成排期、开启周期或派发任务。", { exact: true }).waitFor();
   await direction(page).getByLabel("发布身份范围", { exact: true }).fill("facebook/UI_SYNTHETIC_UNREGISTERED/开通前"); await generate();
   assert.ok((await direction(page).locator(".direction-copy").first().innerText()).length > 0);
-  // A real second browser page edits the stored planning draft through the UI.
-  await open(second, true); await planner(second).getByLabel("正式开通前阶段目标", { exact: true }).fill("合成验收：第二窗口修改目标，旧方向不可确认");
-  await planner(second).getByRole("button", { name: "保存全部草案", exact: true }).click(); await planner(second).getByText("目标与周期草案已保存，尚未批准；没有生成排期、开启周期或派发任务。", { exact: true }).waitFor();
-  await direction(page).getByRole("button", { name: "确认方向", exact: true }).click(); await direction(page).getByText(/输入或版本不满足要求/).waitFor();
-  assert.equal(await direction(page).getByText("方向已确认 · 执行条件未就绪", { exact: true }).count(), 0);
-  await direction(page).getByRole("button", { name: "读取方向结果", exact: true }).click(); await generate();
-  assert.ok((await direction(page).innerText()).includes("第二窗口修改目标"));
-  // Drop only the transport response AFTER the real confirmation has committed.
-  // No business result is replaced, and recovery must use the original command.
+  if (!narrowPlanFlow) {
+    // A real second browser page edits the stored planning draft through the UI.
+    await open(second, true); await planner(second).getByLabel("正式开通前阶段目标", { exact: true }).fill("合成验收：第二窗口修改目标，旧方向不可确认");
+    await planner(second).getByRole("button", { name: "保存全部草案", exact: true }).click(); await planner(second).getByText("目标与周期草案已保存，尚未批准；没有生成排期、开启周期或派发任务。", { exact: true }).waitFor();
+    await direction(page).getByRole("button", { name: "确认方向", exact: true }).click(); await direction(page).getByText(/输入或版本不满足要求/).waitFor();
+    assert.equal(await direction(page).getByText("方向已确认 · 执行条件未就绪", { exact: true }).count(), 0);
+    await direction(page).getByRole("button", { name: "读取方向结果", exact: true }).click(); await generate();
+    assert.ok((await direction(page).innerText()).includes("第二窗口修改目标"));
+  }
+  // In narrow mode this immediately confirms the first real proposal. Drop only
+  // the transport response AFTER that real confirmation has committed; no business
+  // result is replaced, and recovery must use the original command.
   let lost = false;
   await page.route("**/direction/confirm", async route => { if (lost) { await route.continue(); return; } await route.fetch(); lost = true; await route.abort("failed"); });
   await direction(page).getByRole("button", { name: "确认方向", exact: true }).click(); await direction(page).getByText(/提交结果尚未确认/).waitFor();
@@ -104,7 +110,7 @@ try {
   await direction(page).getByText("当前未派发手机任务，未开启公开发布。", { exact: true }).waitFor();
   await direction(page).screenshot({ path: `${output}/direction-approved-desktop.png` });
   await page.reload(); await open(page); await direction(page).getByText("方向已确认 · 执行条件未就绪", { exact: true }).waitFor();
-  assert.ok((await direction(page).innerText()).includes("第二窗口修改目标"));
+  assert.ok((await direction(page).innerText()).includes(narrowPlanFlow ? "合成验收：完善明确范围" : "第二窗口修改目标"));
   if (process.env.SG_PRODUCT_DIRECTION_MATERIAL_CANDIDATE === "1") {
     const materialFile = required("SG_PRODUCT_MATERIAL_TEST_FILE");
     const materialOutput = required("SG_PRODUCT_MATERIAL_SCREENSHOT_DIR");
@@ -190,7 +196,7 @@ try {
   await direction(page).screenshot({ path: `${output}/direction-approved-mobile.png` }); assert.deepEqual(errors, []);
   await Promise.all(scopeFactReads);
   await writeFile(`${output}/safe-scope-facts.json`, JSON.stringify(safeScopeFacts, null, 2), { mode: 0o600 });
-  await writeFile(`${output}/result.json`, JSON.stringify({ passed: true, actualModel: true, scope: "synthetic UI inputs with configured real model; stale direction rejection, immutable confirmation, lost response original replay, reload, mobile readonly", execution: "blocked", publication: "not performed" }, null, 2));
+  await writeFile(`${output}/result.json`, JSON.stringify({ passed: true, actualModel: true, scope: narrowPlanFlow ? "synthetic UI inputs with one configured real model proposal; immediate human confirmation, lost response original replay, reload, mobile readonly" : "synthetic UI inputs with configured real model; stale direction rejection, immutable confirmation, lost response original replay, reload, mobile readonly", execution: "blocked", publication: "not performed" }, null, 2));
   console.log(JSON.stringify({ passed: true, actualModel: true, actualPhone: false, actualPublication: false }));
 } catch (error) {
   await Promise.allSettled(scopeFactReads);
