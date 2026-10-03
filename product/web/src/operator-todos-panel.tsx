@@ -35,6 +35,8 @@ export function OperatorTodosPanel({ active, readOnly, onExpired }: Props) {
   const [kind, setKind] = useState<"note" | "reported_processed">("note");
   const [pending, setPending] = useState<PreparedAssistanceNote | null>(null);
   const pendingCommand = useRef<PreparedAssistanceNote | null>(null);
+  const activeView = useRef(active);
+  activeView.current = active;
   const readSequence = useRef(0);
   const detailSequence = useRef(0);
   const selectedTodoId = useRef<string | null>(null);
@@ -118,8 +120,8 @@ export function OperatorTodosPanel({ active, readOnly, onExpired }: Props) {
     try {
       await command.submit(); pendingCommand.current = null; setPending(null); setDraft(""); setKind("note");
       setMessage("说明已记录。待办仍需基于新的设备事实复核，不代表权限恢复或事项已解决。");
-      if (!active) return;
-      await refresh(); if (selected) await openTodo(selected.todo);
+      if (!activeView.current) return;
+      await refresh();
     } catch (cause) {
       if (cause instanceof ProductApiError && cause.status === 401) { onExpired(cause); return; }
       if (isDefinitiveAssistanceRejection(cause)) {
