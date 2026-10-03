@@ -442,15 +442,20 @@ class MainActivity : ComponentActivity() {
         root.addView(label("根凭据只保存在本机安全存储中。", 14f, secondary), wrapWrap().apply { topMargin = dp(12) })
         setContentView(root)
         executor.execute {
+            var loadStage = "credential"
             try {
                 var stored = installationStore.ensureCredential()
+                loadStage = "session"
                 var token = stored.activeSessionToken()
                 if (token == null || refreshSession) {
+                    loadStage = "bootstrap"
                     val auth = associationApi.bootstrap(stored.credential, newIdempotencyKey("installation-bootstrap"))
                     stored = installationStore.saveAuth(stored, auth)
                     token = stored.activeSessionToken() ?: error("inactive installation session")
                 }
+                loadStage = "state_request"
                 val state = associationApi.installationState(token)
+                loadStage = "state_presentation"
                 if (state.state == "unassociated") {
                     val existing = stored.activeAssociation()
                     val association = if (existing != null) {
@@ -473,7 +478,8 @@ class MainActivity : ComponentActivity() {
                 }
             } catch (error: ProviderApiException) {
                 mainHandler.post { if (generation == screenGeneration) showInstallationFailure(error.message, error.code == "AUTHENTICATION_REQUIRED") }
-            } catch (_: Exception) {
+            } catch (error: Exception) {
+                if (BuildConfig.ENDPOINT_DIAGNOSTICS) android.util.Log.d("SGEndpointDiagnostic", "installation_load_failed stage=$loadStage cause=${error.javaClass.simpleName}")
                 mainHandler.post { if (generation == screenGeneration) showInstallationFailure("无法连接服务，请检查网络后重试。") }
             }
         }
@@ -651,6 +657,27 @@ class MainActivity : ComponentActivity() {
         }, matchWrap().apply { topMargin = dp(18) })
         root.addView(secondaryButton("刷新状态").apply { setOnClickListener { showInstallationLoading() } }, matchHeight(54).apply { topMargin = dp(28) })
         root.addView(label("本机参与确认单独开启；接入、控制权及每次动作仍由系统核验。撤回不会被当成手机已停止。", 14f, secondary), matchWrap().apply { topMargin = dp(16) })
+        if (BuildConfig.ENDPOINT_DIAGNOSTICS) {
+            val endpointStatus = label(EndpointReportingService.statusText(), 14f, secondary)
+            root.addView(endpointStatus, matchWrap().apply { topMargin = dp(12) })
+            val endpointScreen = screenGeneration
+            fun refreshEndpointStatus() {
+                if (endpointScreen != screenGeneration || isDestroyed || isFinishing) return
+                endpointStatus.text = EndpointReportingService.statusText()
+                mainHandler.postDelayed({ refreshEndpointStatus() }, 500)
+            }
+            refreshEndpointStatus()
+            root.addView(secondaryButton("开启端口自动上报").apply {
+                isEnabled = Build.VERSION.SDK_INT >= 34 && state.state in setOf("associated_pending_access", "access_ready")
+                setOnClickListener {
+                    try { ContextCompat.startForegroundService(this@MainActivity, Intent(this@MainActivity, EndpointReportingService::class.java).setAction(EndpointReportingService.START)) }
+                    catch (_: Exception) { Toast.makeText(this@MainActivity, "端口上报服务未能启动", Toast.LENGTH_LONG).show() }
+                }
+            }, matchHeight(54).apply { topMargin = dp(8) })
+            root.addView(secondaryButton("停止端口自动上报").apply {
+                setOnClickListener { if (EndpointReportingService.running) startService(Intent(this@MainActivity, EndpointReportingService::class.java).setAction(EndpointReportingService.STOP)) }
+            }, matchHeight(54).apply { topMargin = dp(8) })
+        }
         val participationStatus=label(ParticipationService.statusText(),14f,secondary)
         root.addView(participationStatus,matchWrap().apply { topMargin=dp(8) })
         val participationScreen=screenGeneration

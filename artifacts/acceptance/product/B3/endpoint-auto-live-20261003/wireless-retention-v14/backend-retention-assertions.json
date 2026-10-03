@@ -1,0 +1,17 @@
+{
+  "checkedAt": "2026-10-03T13:51:13.470548+00:00",
+  "runId": "31da6f17-3c56-4ef4-98be-840ebcdaf437",
+  "activeLauncherSamples": 12,
+  "backgroundSpanSeconds": 71.731597,
+  "firstBackgroundAt": "2026-10-03T13:47:17.635017+00:00",
+  "lastBackgroundAt": "2026-10-03T13:48:29.366614+00:00",
+  "firstSequence": "444",
+  "lastSequence": "458",
+  "allSamplesCurrentAssociationAndUnrevoked": true,
+  "sampledValidityMaintained": true,
+  "participationRetainedAtLastRead": true,
+  "withdrawalTested": false,
+  "formalAdmission": false,
+  "actionPermissionGranted": false,
+  "physicalStopConfirmed": false
+}

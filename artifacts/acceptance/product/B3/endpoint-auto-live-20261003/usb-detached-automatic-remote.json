@@ -1,0 +1,52 @@
+{
+  "checkedAt": "2026-10-03T05:22:05.910530+00:00",
+  "actualDevices": "List of devices attached\n127.0.0.1:34323\tdevice",
+  "usbDetached": true,
+  "remoteSerial": "127.0.0.1:34323",
+  "hardwareSerial": "RFCW40MYYCV",
+  "endpoint": {
+    "protocolVersion": "remote-adb-diagnostic-v1",
+    "epoch": "14e170e7-6f43-44b9-972d-c129674873b3",
+    "sequence": 138,
+    "report": {
+      "protocolVersion": "remote-adb-diagnostic-v1",
+      "epoch": "14e170e7-6f43-44b9-972d-c129674873b3",
+      "reportId": "d795bc8b-ed2c-4ecb-8063-429999e3c126",
+      "sequence": 138,
+      "observedAt": "2026-10-03T05:22:04.466Z",
+      "connect": {
+        "status": "candidate",
+        "port": 43883
+      },
+      "pairing": {
+        "status": "unknown",
+        "port": null
+      }
+    },
+    "receivedAt": "2026-10-03T05:22:03.304Z",
+    "formalAdmission": false,
+    "actionPermissionGranted": false,
+    "freshAtWrite": true,
+    "deviceId": "0fef3177-636c-4b82-8209-1af38134e00f",
+    "sourceNodeId": "6610812155148788",
+    "sourceTailnetIp": "100.118.89.89",
+    "installationId": "b0bf106f-a844-4087-a42b-9cb23899ec9e",
+    "installationGeneration": "1",
+    "evidenceScope": "authenticated_diagnostic_not_formal_admission"
+  },
+  "connection": {
+    "at": "2026-10-03T05:22:05.645Z",
+    "serial": "127.0.0.1:34323",
+    "targetPort": 43883,
+    "state": "connected_target_verified",
+    "attempts": 3,
+    "targetIdentityVerified": true,
+    "reusedHostAuthorization": true,
+    "newPairingAttempted": false,
+    "formalAdmission": false,
+    "actionPermissionGranted": false
+  },
+  "independentHttpsReporter": true,
+  "adbReverseRequired": false,
+  "formalAdmission": false
+}

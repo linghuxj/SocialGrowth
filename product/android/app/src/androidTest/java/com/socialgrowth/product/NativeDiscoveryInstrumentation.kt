@@ -21,6 +21,24 @@ class NativeDiscoveryInstrumentation : Instrumentation() {
         var checks = 0
         fun check(value: Boolean) { require(value); checks++ }
         try {
+            if (BuildConfig.ENDPOINT_DIAGNOSTICS) {
+                try {
+                    val connection = java.net.URL(BuildConfig.API_BASE_URL).openConnection() as java.net.HttpURLConnection
+                    try {
+                        connection.connectTimeout = 10_000; connection.readTimeout = 10_000
+                        connection.instanceFollowRedirects = false
+                        result.putInt("diagnosticHttpsStatus", connection.responseCode)
+                        check(connection.responseCode == 403) // Auth denied, TLS transport reachable; no business call.
+                    } finally { connection.disconnect() }
+                    try {
+                        ProviderApiClient(BuildConfig.API_BASE_URL).post("/", org.json.JSONObject())
+                        error("Unauthenticated transport probe must be denied")
+                    } catch (e: ProviderApiException) { check(e.code == "HTTP_403") }
+                } catch (e: Exception) {
+                    result.putString("diagnosticNetworkFailure", e.javaClass.simpleName.takeIf { it in setOf("UnknownHostException", "SSLHandshakeException", "SocketTimeoutException", "ConnectException") } ?: "network_unavailable")
+                    throw e
+                }
+            }
             runOnMainSync { discovery = NativeEndpointDiscovery(targetContext); discovery!!.start() }
             val started = discovery!!.snapshot()
             check(started.generation != null)

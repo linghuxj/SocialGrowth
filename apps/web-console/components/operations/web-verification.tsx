@@ -21,6 +21,9 @@ export type VerificationJob = {
   startedAt: string;
   finishedAt?: string;
   mode?: string;
+  allowLocalParticipationStart?: boolean;
+  allowEndpointReportingStart?: boolean;
+  allowParticipationWithdrawal?: boolean;
   platform?: string;
   diagnostics?: {
     taskStatus: string;
@@ -39,6 +42,7 @@ export function WebVerification({
   jobs: VerificationJob[];
   reload: () => Promise<void>;
 }) {
+  const [mode, setMode] = useState('observe');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const requestId = useRef<string | null>(null);
@@ -49,7 +53,7 @@ export function WebVerification({
         本入口真实启动一个 Artemis
         任务。只读协作模式不操作设备，用于观察与人工协助验收；Facebook
         发布前模式验证登录、身份和 Reel
-        准备，禁止公开发布。自有客户端测试只检查已关联手机的后台参与与撤回，不注册、不登录、不恢复参与。均不创建业务发布授权或消费原排期，设备需先接管。
+        准备，禁止公开发布。自有客户端测试检查已关联手机的后台参与，默认保持参与；撤回需单独授权。不注册、不登录；勾选单次授权后可首次确认参与，过期或失败后不自动恢复。均不创建业务发布授权或消费原排期，设备需先接管。
       </Notice>
       {error && <p role="alert" className="op-error">{error}</p>}
       
@@ -77,6 +81,9 @@ export function WebVerification({
                   platform: form.get('platform'),
                   mode: form.get('mode'),
                   goal: form.get('goal'),
+                  allowLocalParticipationStart: mode === 'client_test' && form.get('allowLocalParticipationStart') === 'on',
+                  allowEndpointReportingStart: ['client_test', 'connectivity_test'].includes(mode) && form.get('allowEndpointReportingStart') === 'on',
+                  allowParticipationWithdrawal: mode === 'client_test' && form.get('allowParticipationWithdrawal') === 'on',
                   acknowledgeNoPublication: true,
                 });
                 requestId.current = null;
@@ -92,10 +99,11 @@ export function WebVerification({
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                <label htmlFor="verification-platform" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                   平台
                 </label>
                 <select
+                  id="verification-platform"
                   name="platform"
                   aria-label="平台"
                   className="w-full h-8 px-2.5 rounded-lg border border-slate-300 bg-transparent text-xs"
@@ -106,28 +114,32 @@ export function WebVerification({
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                <label htmlFor="verification-mode" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                   执行模式
                 </label>
                 <select
+                  id="verification-mode"
                   name="mode"
                   aria-label="执行模式"
-                  defaultValue="observe"
+                  value={mode}
+                  onChange={(e) => setMode(e.target.value)}
                   className="w-full h-8 px-2.5 rounded-lg border border-slate-300 bg-transparent text-xs"
                 >
                   <option value="observe">只读观察与人工协助</option>
                   <option value="preflight">Facebook 登录至发布前验收</option>
-                  <option value="client_test">自有客户端后台参与与撤回</option>
+                  <option value="connectivity_test">自有手机远程连接准备</option>
+                  <option value="client_test">自有客户端后台参与验证</option>
                 </select>
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+              <label htmlFor="verification-goal" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                 任务目标（禁止凭证）
               </label>
               <Textarea
-                name="goal"
+                id="verification-goal"
+                  name="goal"
                 aria-label="任务目标（禁止凭证）"
                 maxLength={2000}
                 defaultValue="观察当前页面，向人工说明阻断并请求确认，然后重新观察；不登录、不请求验证码、不发布。"
@@ -138,10 +150,11 @@ export function WebVerification({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                <label htmlFor="verification-expectedName" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                   预期账号显示名
                 </label>
                 <Input
+                  id="verification-expectedName"
                   name="expectedName"
                   aria-label="预期账号显示名"
                   required
@@ -150,10 +163,11 @@ export function WebVerification({
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                <label htmlFor="verification-expectedProfileId" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                   预期平台身份 ID
                 </label>
                 <Input
+                  id="verification-expectedProfileId"
                   name="expectedProfileId"
                   aria-label="预期平台身份 ID"
                   required
@@ -164,11 +178,12 @@ export function WebVerification({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+              <label htmlFor="verification-caption" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                 验收文案
               </label>
               <Input
-                name="caption"
+                id="verification-caption"
+                  name="caption"
                 aria-label="验收文案"
                 required
                 maxLength={1000}
@@ -177,10 +192,25 @@ export function WebVerification({
               />
             </div>
 
+            {['client_test', 'connectivity_test'].includes(mode) && <div className="flex items-center gap-2">
+              <input type="checkbox" id="client-endpoint-start" name="allowEndpointReportingStart" />
+              <label htmlFor="client-endpoint-start" className="text-xs text-slate-600 dark:text-slate-400">授权本次开启自有客户端的端口自动上报</label>
+            </div>}
+            {mode === 'client_test' && <div className="flex items-center gap-2">
+              <input type="checkbox" id="client-initial-start" name="allowLocalParticipationStart" />
+              <label htmlFor="client-initial-start" className="text-xs text-slate-600 dark:text-slate-400">
+                授权本次测试首次确认参与一次；失败或过期后不恢复
+              </label>
+            </div>}
+
+            {mode === 'client_test' && <div className="flex items-center gap-2">
+              <input type="checkbox" id="client-withdrawal-test" name="allowParticipationWithdrawal" />
+              <label htmlFor="client-withdrawal-test" className="text-xs text-slate-600 dark:text-slate-400">授权本次测试撤回参与；默认保持参与</label>
+            </div>}
             <div className="flex items-center gap-2">
               <input type="checkbox" id="no-pub-ack" required className="rounded border-slate-300" />
               <label htmlFor="no-pub-ack" className="text-xs text-slate-600 dark:text-slate-400">
-                我确认本次验收范围；客户端模式只测试后台参与和撤回，禁止公开发布
+                我确认本次验收范围；客户端默认保留参与，撤回需单独授权，禁止公开发布
               </label>
             </div>
 
@@ -220,6 +250,10 @@ export function WebVerification({
           <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">
             目标：{j.expectedName} / <span className="font-mono">{j.expectedProfileId}</span>；模式：{j.mode ?? '历史发布前验收'}；平台：{j.platform ?? 'facebook'}
           </p>
+          {['client_test', 'connectivity_test'].includes(j.mode ?? '') && <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">
+            本次首次参与：{j.allowLocalParticipationStart ? '已授权一次' : '未授权'}；端口上报：{j.allowEndpointReportingStart ? '已授权开启' : '未授权开启'}
+            ；参与撤回：{j.allowParticipationWithdrawal === undefined ? '历史流程，查看原回执' : j.allowParticipationWithdrawal ? '已授权测试' : '未授权，保持参与'}
+          </p>}
           {j.errorCode && (
             <p className="text-xs text-rose-600 dark:text-rose-400 font-mono mb-1">
               错误码：{j.errorCode}

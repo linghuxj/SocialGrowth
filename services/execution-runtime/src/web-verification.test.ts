@@ -1,22 +1,40 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID, createHash } from "node:crypto";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, rmSync, mkdirSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { RuntimeStore } from "./store.ts";
 import { HumanAssistance } from "./human-assistance.ts";
-import { WebVerification, clientDiagnosticResult } from "./web-verification.ts";
+import { WebVerification, clientDiagnosticResult, connectivityDiagnosticResult, nativeDiagnosticEnvelope, verificationInput } from "./web-verification.ts";
 
 const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
   "base64",
 );
+test("empty successful SDK result reads only its bound native note; failed or conflicting results and redirected paths cannot pass", async () => {
+  const root = mkdtempSync(join(tmpdir(), "sg-native-note-")), trace = randomUUID(), notes = join(root, "traces", trace, "notes");
+  mkdirSync(notes, { recursive: true });
+  const payload = { resultCode: "CLIENT_TEST_COMPLETED", loginSubmitCount: 0, finalSubmitClicked: false, backgroundObserved: true, withdrawalObserved: false, participationRetained: true };
+  const file = join(notes, "client-test-result.md"), raw = { result: "", test_summary: { task_status: "completed", passed: 7, failed: 0, inconclusive: 0 } };
+  writeFileSync(file, JSON.stringify(payload));
+  try {
+    const result = await nativeDiagnosticEnvelope(raw, root, trace, "client_test"); assert.deepEqual(result.value, payload); assert.match(result.noteDigest!, /^[a-f0-9]{64}$/);
+    for (const blocked of [{ ...raw, result: "UNCONFIRMED" }, { ...raw, test_summary: { ...raw.test_summary, failed: 1 } }, { result: "" }])
+      assert.deepEqual((await nativeDiagnosticEnvelope(blocked, root, trace, "client_test")).value, blocked);
+    await assert.rejects(nativeDiagnosticEnvelope(raw, root, "../other", "client_test"));
+    await assert.rejects(nativeDiagnosticEnvelope(raw, root, randomUUID(), "client_test"));
+    writeFileSync(file, JSON.stringify({ ...payload, permissionGranted: true })); await assert.rejects(nativeDiagnosticEnvelope(raw, root, trace, "client_test"));
+    writeFileSync(file, "x".repeat(16385)); await assert.rejects(nativeDiagnosticEnvelope(raw, root, trace, "client_test"));
+    rmSync(file); symlinkSync(join(root, "outside"), file); await assert.rejects(nativeDiagnosticEnvelope(raw, root, trace, "client_test"));
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
 test("native report adapter accepts only one bounded final diagnostic JSON, never conflicting or business results", () => {
   const result = { resultCode: "CLIENT_TEST_COMPLETED", loginSubmitCount: 0, finalSubmitClicked: false,
     backgroundObserved: true, withdrawalObserved: true };
   const report = `Native UI observations\n${JSON.stringify(result)}`;
   assert.deepEqual(clientDiagnosticResult({ result: report }), result);
+  assert.deepEqual(clientDiagnosticResult({ result: `Native UI observations\n\x60\x60\x60json\n${JSON.stringify(result)}\n\x60\x60\x60` }), result);
   for (const value of [
     `${JSON.stringify(result)}\n${report}`,
     `UNCONFIRMED\n${JSON.stringify(result)}`,
@@ -26,6 +44,15 @@ test("native report adapter accepts only one bounded final diagnostic JSON, neve
     `Native UI\n${JSON.stringify(result)}\nTrailing text`,
     `${"x".repeat(16_384)}\n${JSON.stringify(result)}`,
   ]) assert.throws(() => clientDiagnosticResult({ result: value }));
+});
+test("connectivity adapter accepts a single terminal JSON fence while rejecting conflicting or malformed reports", () => {
+  const result = { resultCode: "CONNECTIVITY_SETUP_COMPLETED", loginSubmitCount: 0, finalSubmitClicked: false };
+  const report = `Connectivity preparation observed\n\x60\x60\x60json\n${JSON.stringify(result)}\n\x60\x60\x60`;
+  assert.deepEqual(connectivityDiagnosticResult({ result: report }), result);
+  for (const raw of [
+    `UNCONFIRMED\n${report}`, `${JSON.stringify(result)}\n${report}`, `${report}\nTrailing text`,
+    report.slice(0, -3), report.replace('false', 'true'), report.replace('loginSubmitCount":0', 'loginSubmitCount":1'),
+  ]) assert.throws(() => connectivityDiagnosticResult({ result: raw }));
 });
 test("SDK prose containing native JSON still requires successful independent checker counts", async () => {
   const result = `Native observations\n${JSON.stringify({ resultCode: "CLIENT_TEST_COMPLETED", loginSubmitCount: 0,
@@ -37,7 +64,7 @@ test("SDK prose containing native JSON still requires successful independent che
     } finally { await f.close(); }
   }
 });
-function fixture(result: unknown, mode: "preflight" | "observe" | "client_test" = "preflight") {
+function fixture(result: unknown, mode: "preflight" | "observe" | "client_test" | "connectivity_test" = "preflight") {
   const directory = mkdtempSync(join(tmpdir(), "sg-web-verify-")),
     mediaPath = join(directory, "test.mp4");
   const bytes = Buffer.from("0000ftyp0000");
@@ -45,6 +72,7 @@ function fixture(result: unknown, mode: "preflight" | "observe" | "client_test" 
   const store = new RuntimeStore(":memory:"),
     assistance = new HumanAssistance(store);
   let starts = 0;
+  let taskDescription = "";
   const verification = new WebVerification(
     store,
     assistance,
@@ -64,11 +92,17 @@ function fixture(result: unknown, mode: "preflight" | "observe" | "client_test" 
         call: async (name, args) => {
           if (name === "mobile_run_task") {
             starts++;
+            taskDescription = String(args.task_desc);
             if (mode === "client_test") {
               assert.equal(Object.hasOwn(args, "locked_app_package"), false);
-              assert.ok(String(args.task_desc).includes("撤回本机参与 ONCE"));
-              assert.ok(String(args.task_desc).includes("Never click 确认当前参与"));
+              assert.ok(String(args.task_desc).includes("撤回本机参与 ONCE") || String(args.task_desc).includes("KEEP current participation active"));
+
               assert.ok(String(args.task_desc).includes("Never use manage_app"));
+            } else if (mode === "connectivity_test") {
+              assert.equal(Object.hasOwn(args, "locked_app_package"), false);
+              assert.ok(String(args.task_desc).includes("Never open any pairing-code"));
+              assert.ok(String(args.task_desc).includes("Do not change account"));
+              assert.ok(String(args.task_desc).includes("do not register, associate or confirm participation"));
             } else if (mode === "observe") {
               assert.equal(Object.hasOwn(args, "locked_app_package"), false);
               assert.ok(String(args.task_desc).includes("Observe current device screen only"));
@@ -78,7 +112,7 @@ function fixture(result: unknown, mode: "preflight" | "observe" | "client_test" 
             }
             return { trace_id: randomUUID() };
           }
-          return { status: "completed", result: mode === "client_test" ? {
+          return { status: "completed", result: ["client_test", "connectivity_test"].includes(mode) ? {
             test_summary: { task_status: "completed", passed: 5, failed: 0, inconclusive: 0 },
             ...(result as object),
           } : result };
@@ -89,11 +123,12 @@ function fixture(result: unknown, mode: "preflight" | "observe" | "client_test" 
   const input = {
     requestId: randomUUID(),
     expectedName: "Test",
-    expectedProfileId: mode === "client_test" ? "com.socialgrowth.product" : "123456789",
-    platform: mode === "client_test" ? "socialgrowth" : "facebook",
+    expectedProfileId: ["client_test", "connectivity_test"].includes(mode) ? "com.socialgrowth.product" : "123456789",
+    platform: ["client_test", "connectivity_test"].includes(mode) ? "socialgrowth" : "facebook",
     caption: "DO NOT PUBLISH",
     acknowledgeNoPublication: true,
     mode,
+    allowParticipationWithdrawal: mode === "client_test",
   };
   return {
     store,
@@ -101,6 +136,7 @@ function fixture(result: unknown, mode: "preflight" | "observe" | "client_test" 
     verification,
     input,
     starts: () => starts,
+    description: () => taskDescription,
     hold: () =>
       store.db
         .prepare("INSERT INTO device_holds VALUES (?,?,?)")
@@ -136,6 +172,20 @@ test("native client diagnostic has its own package and result boundary, never co
       assert.equal(scope.passwordAttempts, 0);
       assert.equal(scope.loginSubmits, 0);
       assert.equal(f.store.db.prepare("SELECT count(*) n FROM tasks").get()!.n, 0);
+    } finally { await f.close(); }
+  }
+});
+test("withdrawal is off by default; retained participation requires actual retention proof and cannot silently authorize withdrawal", async () => {
+  assert.equal(verificationInput.parse(fixtureInput()).allowParticipationWithdrawal, false);
+  for (const withdrawalObserved of [false, true]) {
+    const f = fixture({ resultCode: "CLIENT_TEST_COMPLETED", loginSubmitCount: 0, finalSubmitClicked: false,
+      backgroundObserved: true, withdrawalObserved, participationRetained: !withdrawalObserved }, "client_test");
+    try {
+      f.hold(); const input = { ...f.input, allowParticipationWithdrawal: false };
+      f.verification.start(input);
+      assert.throws(() => f.verification.start({ ...input, allowParticipationWithdrawal: true }), /ID_CONFLICT/);
+      assert.equal((await f.finish()).resultCode, withdrawalObserved ? "UNCONFIRMED" : "CLIENT_TEST_COMPLETED");
+      assert.ok(f.description().includes("KEEP current participation active"));
     } finally { await f.close(); }
   }
 });
@@ -240,5 +290,41 @@ test("completed task with contradictory publication or repeated login is not acc
     } finally {
       await f.close();
     }
+  }
+});
+
+test("initial participation delegation is off by default, client-only and part of request identity", async () => {
+  assert.equal(verificationInput.parse(fixtureInput()).allowLocalParticipationStart, false);
+  const result = { resultCode: "UNCONFIRMED", loginSubmitCount: 0, finalSubmitClicked: false };
+  for (const allowed of [false, true]) {
+    const f = fixture(result, "client_test");
+    try {
+      f.hold(); const job = f.verification.start({ ...f.input, allowLocalParticipationStart: allowed });
+      assert.throws(() => f.verification.start({ ...f.input, allowLocalParticipationStart: !allowed }), /ID_CONFLICT/);
+      assert.equal(f.verification.start({ ...f.input, allowLocalParticipationStart: allowed }).id, job.id);
+      await f.finish();
+      assert.ok(f.description().includes(allowed ? "ONE initial tap" : "Never click 确认当前参与"));
+      assert.ok(f.description().includes("never retry or restore participation") === allowed);
+    } finally { await f.close(); }
+  }
+  const f = fixture(result, "observe");
+  try { f.hold(); assert.throws(() => f.verification.start({ ...f.input, allowLocalParticipationStart: true }), /CLIENT_INITIAL_START_SCOPE_INVALID/); }
+  finally { await f.close(); }
+});
+function fixtureInput() {
+  return { requestId: randomUUID(), expectedName: "Test", expectedProfileId: "123456789", caption: "NO PUBLICATION", acknowledgeNoPublication: true };
+}
+
+test("connectivity preparation is native-only, excludes codes, and requires checker evidence", async () => {
+  for (const failed of [0, 1]) {
+    const f = fixture({ resultCode: "CONNECTIVITY_SETUP_COMPLETED", loginSubmitCount: 0, finalSubmitClicked: false,
+      test_summary: { task_status: "completed", passed: 1, failed, inconclusive: 0 } }, "connectivity_test");
+    try {
+      f.hold();
+      assert.throws(() => f.verification.start({ ...f.input, allowLocalParticipationStart: true }), /CLIENT_INITIAL_START_SCOPE_INVALID/);
+      f.verification.start({ ...f.input, allowEndpointReportingStart: true });
+      assert.equal((await f.finish()).resultCode, failed ? "UNCONFIRMED" : "CONNECTIVITY_SETUP_COMPLETED");
+      assert.ok(f.description().includes("Tap 开启端口自动上报 once"));
+    } finally { await f.close(); }
   }
 });

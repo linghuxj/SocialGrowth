@@ -1,0 +1,19 @@
+{
+  "checkedAt": "2026-10-03T13:19:41.023729+00:00",
+  "actualHardwareMatches": true,
+  "usbTransportAbsent": true,
+  "automaticReportedConnect": {
+    "status": "candidate",
+    "port": 37133
+  },
+  "sequence": 36,
+  "observedAt": "2026-10-03T13:19:38.693Z",
+  "receivedAt": "2026-10-03T13:19:37.416Z",
+  "centerState": "connected_target_verified",
+  "connectionAttempts": 1,
+  "targetIdentityVerified": true,
+  "manualPortInserted": false,
+  "newPairingAttempted": false,
+  "formalAdmission": false,
+  "actionPermissionGranted": false
+}

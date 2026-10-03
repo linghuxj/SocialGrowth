@@ -15,6 +15,8 @@
         android:theme="@style/Theme.SocialGrowth">
         <service android:name=".ParticipationService" android:exported="false"
             android:foregroundServiceType="connectedDevice" />
+        <service android:name=".EndpointReportingService" android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
         <activity
             android:name=".MainActivity"
             android:exported="true">

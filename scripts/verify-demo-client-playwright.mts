@@ -2,34 +2,76 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile, lstat, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { chromium } from "playwright";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { diagnosticConnectPort } from "./remote-adb-report-source.mts";
 
 assert.equal(process.env.SG_DEMO_REAL_CLIENT_TEST, "authorized");
+const mode = process.env.SG_DEMO_CLIENT_MODE ?? "client_test";
+assert.ok(["client_test", "connectivity_test"].includes(mode));
+if (mode === "connectivity_test") assert.equal(process.env.SG_DEMO_REAL_CONNECTIVITY_TEST, "authorized");
+const expectedResult = mode === "client_test" ? "CLIENT_TEST_COMPLETED" : "CONNECTIVITY_SETUP_COMPLETED";
+const allowInitialStart = process.env.SG_DEMO_CLIENT_INITIAL_CONFIRM === "authorized";
+const allowEndpointStart = process.env.SG_DEMO_ENDPOINT_REPORTER_START === "authorized";
+const allowWithdrawal = process.env.SG_DEMO_CLIENT_WITHDRAWAL_TEST === "authorized";
 const output = resolve(process.env.SOCIALGROWTH_VERIFICATION_OUTPUT ?? "artifacts/acceptance/product/B3/blocker-resolution-live-20261002/client-artemis");
 await mkdir(output, { recursive: true, mode: 0o700 });
 const intent = resolve(output, "launch-intent.json");
 const phase = process.env.SG_DEMO_CLIENT_PHASE ?? "launch";
-assert.ok(["launch", "reconcile"].includes(phase));
+assert.ok(["launch", "reconcile", "cancel"].includes(phase));
 if (phase === "launch") {
   try { await lstat(intent); throw new Error("Original native test exists; reconcile before launching another"); }
   catch (error) { if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error; }
 }
 const save = (name: string, data: unknown) => writeFile(resolve(output, name), JSON.stringify(data, null, 2), { mode: 0o600 });
+async function requireAutomaticRemote() {
+  if (process.env.SG_DEMO_REQUIRE_AUTOMATIC_REMOTE !== "authorized") return;
+  try {
+    const expected = { tailnetIp: process.env.SG_DIAGNOSTIC_TAILNET_IP ?? "", deviceId: process.env.SG_DIAGNOSTIC_PRODUCT_DEVICE_ID ?? "", nodeId: process.env.SG_DIAGNOSTIC_SOURCE_NODE_ID ?? "" };
+    assert.match(expected.nodeId, /^\d+$/);
+    const port = await diagnosticConnectPort(expected); assert.ok(port !== null);
+    const path = resolve(".runtime/product-local-live/remote-adb-connection.json"), stat = await lstat(path);
+    assert.ok(stat.isFile() && !stat.isSymbolicLink() && (stat.mode & 0o077) === 0);
+    const connection = JSON.parse(await readFile(path, "utf8")) as { at: string; serial: string; state: string; targetPort: number; targetIdentityVerified: boolean; formalAdmission: boolean; actionPermissionGranted: boolean };
+    assert.equal(connection.serial, "127.0.0.1:34323"); assert.equal(connection.targetPort, port);
+    assert.equal(connection.state, "connected_target_verified"); assert.equal(connection.targetIdentityVerified, true);
+    assert.equal(connection.formalAdmission, false); assert.equal(connection.actionPermissionGranted, false);
+    assert.ok(Date.parse(connection.at) <= Date.now() && Date.now() - Date.parse(connection.at) < 8000);
+    const run = promisify(execFile), adb = "/Users/linghuxj/Library/Android/sdk/platform-tools/adb";
+    const hardware = await run(adb, ["-s", connection.serial, "shell", "getprop", "ro.serialno"], { timeout: 6000 });
+    assert.equal(hardware.stdout.trim(), "RFCW40MYYCV");
+    const devices = await run(adb, ["devices"], { timeout: 5000 }); assert.ok(!devices.stdout.includes("RFCW40MYYCV\t"));
+    assert.equal(await diagnosticConnectPort(expected), port);
+    await save("automatic-remote-precondition.json", { at: new Date().toISOString(), targetHardwareVerified: true, freshAutomaticEndpoint: true, usbAbsent: true, formalAdmission: false, actionPermissionGranted: false });
+  } catch {
+    await save("automatic-remote-precondition-blocked.json", { at: new Date().toISOString(), code: "FRESH_VERIFIED_REMOTE_REQUIRED", businessTaskDispatched: false });
+    throw new Error("FRESH_VERIFIED_REMOTE_REQUIRED");
+  }
+}
+if (phase === "launch") await requireAutomaticRemote();
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
 page.setDefaultTimeout(30_000);
 const web = process.env.SOCIALGROWTH_WEB_URL ?? "http://127.0.0.1:3000";
-if (phase === "reconcile") {
+if (phase === "reconcile" || phase === "cancel") {
   try {
     const ack = JSON.parse(await readFile(resolve(output, "launch-ack.json"), "utf8")) as { taskId: string };
     assert.match(ack.taskId, /^[a-f0-9-]{36}$/);
     await page.goto(`${web}/#/connections`);
     const card = page.locator(`[data-verification-id="${ack.taskId}"]`);
     await card.waitFor();
+    if (phase === "cancel") {
+      const stop = card.getByRole("button", { name: "停止该验收任务", exact: true });
+      if (await stop.count()) { await stop.click(); await stop.waitFor({ state: "detached", timeout: 60000 }); }
+      await save("operator-stop.json", { at: new Date().toISOString(), taskId: ack.taskId, initiatedThrough: "actual Demo Web", stoppedText: await card.innerText(), taskRelaunched: false });
+      console.log(JSON.stringify({ event: "original_native_task_stopped_through_web", taskId: ack.taskId }));
+      process.exitCode = 0;
+    } else {
     const text = await card.innerText();
     assert.ok(!text.includes("running ·"), "Reconcile original terminal task only");
     const checks = text.match(/Artemis 检查：([^；]+)；通过 (\d+)，失败 (\d+)，待确认 (\d+)/);
     assert.ok(checks, "Original checker diagnostics must be visible");
-    const accepted = text.includes("finished · CLIENT_TEST_COMPLETED") &&
+    const accepted = text.includes(`finished · ${expectedResult}`) &&
       checks[1] === "completed" && Number(checks[2]) > 0 && Number(checks[3]) === 0 && Number(checks[4]) === 0;
     if (!accepted && text.includes("CLIENT_TEST_COMPLETED")) {
       await card.locator('[data-client-acceptance="failed"]').waitFor();
@@ -41,6 +83,7 @@ if (phase === "reconcile") {
       backendStateWritten: false, historicalResultRewritten: false });
     console.log(JSON.stringify({ event: "original_client_test_reconciled", taskId: ack.taskId,
       acceptance: accepted ? "passed" : "failed", taskRelaunched: false }));
+    }
   } finally { await browser.close(); }
   process.exit(0);
 }
@@ -56,16 +99,25 @@ try {
   const panel = page.locator("section").filter({ has: page.getByRole("heading", { name: "真机发布前验收", exact: true }) });
   await panel.getByRole("button", { name: "从 Web 启动完整验收", exact: true }).waitFor();
   await panel.getByLabel("平台", { exact: true }).selectOption("socialgrowth");
-  await panel.getByLabel("执行模式", { exact: true }).selectOption("client_test");
+  await panel.getByLabel("执行模式", { exact: true }).selectOption(mode);
   await panel.getByLabel("预期账号显示名", { exact: true }).fill("SocialGrowth 自有客户端");
   await panel.getByLabel("预期平台身份 ID", { exact: true }).fill("com.socialgrowth.product");
-  await panel.getByLabel("任务目标（禁止凭证）", { exact: true }).fill("用户已授权 Artemis 直接操作已关联的 Samsung 自有客户端，测试现有参与在后台持续以及撤回。禁止注册、登录、恢复参与、设置修改、其他 App、内容发布；保留历史 unknown。");
+  await panel.getByLabel("任务目标（禁止凭证）", { exact: true }).fill(allowWithdrawal ? "本轮明确授权后台参与与一次撤回测试；禁止其他授权、自动恢复或发布。" : "用户要求保留当前连接与参与，暂不测试撤回。测试后台参与持续后保持参与；首次确认按本次单独勾选授权执行；禁止撤回、注册、登录、自动恢复参与、设置修改、其他 App、内容发布；保留历史 unknown。");
+  if (mode === "connectivity_test") await panel.getByLabel("任务目标（禁止凭证）", { exact: true }).fill(
+    process.env.SG_DEMO_ROTATE_WIRELESS_PORT === "authorized" ? "ROTATE_WIRELESS_PORT_ONCE: 恢复现有 Tailscale，切换无线调试一次并回到已关联 App；不配对、不发布。" : "恢复现有授权 Tailscale 和无线调试，返回自有 App 核对事实并开启本次端口上报；不配对、不发布。");
   await panel.getByLabel("验收文案", { exact: true }).fill("NATIVE PARTICIPATION TEST - NO PUBLICATION");
-  await panel.getByRole("checkbox").check();
-  await save("launch-intent.json", { at: new Date().toISOString(), scope: "native_background_and_withdraw", noPublication: true });
+  if (allowInitialStart) { assert.equal(mode, "client_test"); }
+  if (allowInitialStart) await panel.locator("#client-initial-start").check();
+  if (allowEndpointStart) await panel.locator("#client-endpoint-start").check();
+  if (allowWithdrawal) { assert.equal(mode, "client_test"); await panel.locator("#client-withdrawal-test").check(); }
+  await panel.locator("#no-pub-ack").check();
+  await requireAutomaticRemote();
+  await save("launch-intent.json", { at: new Date().toISOString(), scope: mode, expectedResult, noPublication: true, allowInitialStart, allowEndpointStart, allowWithdrawal });
   const responsePromise = page.waitForResponse(r => new URL(r.url()).pathname === "/api/runtime/verifications" && r.request().method() === "POST");
   await panel.getByRole("button", { name: "从 Web 启动完整验收", exact: true }).click();
-  const response = await responsePromise; assert.equal(response.status(), 200);
+  const response = await responsePromise;
+  await save("launch-http-result.json", { status: response.status(), mode });
+  assert.equal(response.status(), 200);
   const launched = await response.json() as { id: string; deviceId: string; status: string };
   assert.equal(launched.deviceId, "RFCW40MYYCV"); assert.equal(launched.status, "running");
   taskId = launched.id; assert.match(taskId, /^[a-f0-9-]{36}$/);
@@ -80,7 +132,7 @@ try {
     if (!text.includes("running ·")) { result = text; break; }
     await page.waitForTimeout(2000);
   }
-  assert.match(result, /finished · CLIENT_TEST_COMPLETED/);
+  assert.ok(result.includes(`finished · ${expectedResult}`), "Actual native diagnostic receipt must be confirmed");
   assert.match(result, /Artemis 检查：completed；通过 [1-9]\d*，失败 0，待确认 0/);
   assert.match(result, /登录提交：0/); assert.match(result, /内容提交：未点击/);
   await card.screenshot({ path: resolve(output, "native-web-receipt.png") });
@@ -101,7 +153,7 @@ try {
     cleanupConfirmed = true;
   } catch { process.exitCode = 2; }
   await save("result.json", { checkedAt: new Date().toISOString(), taskId, traceId, result, cleanupConfirmed,
-    initiatedThrough: "pnpm test:playwright / actual Demo Web", backendWithdrawalIndependentlyRequired: true,
+    initiatedThrough: "pnpm test:playwright / actual Demo Web", backendWithdrawalIndependentlyRequired: mode === "client_test" && allowWithdrawal, backendParticipationRetentionRequired: mode === "client_test" && !allowWithdrawal,
     businessQueueConsumed: false, oldUnknownResolved: false, physicalStopConfirmed: false, publicationAttempted: false });
   console.log(JSON.stringify({ event: "native_web_test_result", taskId, result, cleanupConfirmed }));
   await browser.close();

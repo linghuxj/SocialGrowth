@@ -1,0 +1,15 @@
+{
+  "checkedAt": "2026-10-03T14:00:06.670554+00:00",
+  "runId": "31da6f17-3c56-4ef4-98be-840ebcdaf437",
+  "activeLauncherSamples": 12,
+  "backgroundSpanSeconds": 64.578784,
+  "firstBackgroundAt": "2026-10-03T13:56:37.245347+00:00",
+  "lastBackgroundAt": "2026-10-03T13:57:41.824131+00:00",
+  "sameExistingRunRetained": true,
+  "participationRetainedAtLastRead": true,
+  "initialConfirmationRepeated": false,
+  "withdrawalTested": false,
+  "formalAdmission": false,
+  "actionPermissionGranted": false,
+  "physicalStopConfirmed": false
+}

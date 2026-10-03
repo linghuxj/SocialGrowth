@@ -1,0 +1,39 @@
+{
+  "checkedAt": "2026-10-03T14:04:03.734Z",
+  "taskId": "62fa59b5-1a17-49a7-8648-2df0dc8b1302",
+  "traceId": "6e401a53-0eb2-42b3-947d-c922c4ac7cb2",
+  "status": "finished",
+  "resultCode": "CLIENT_TEST_COMPLETED",
+  "sdkResultTextExplicitlyEmpty": false,
+  "sdkTestSummary": {
+    "task_status": "completed",
+    "passed": 4,
+    "failed": 0,
+    "inconclusive": 0,
+    "unchecked": 0,
+    "failed_items": [],
+    "retired": 0,
+    "retired_items": []
+  },
+  "diagnosticNoteDigest": null,
+  "parsedDiagnostic": {
+    "resultCode": "CLIENT_TEST_COMPLETED",
+    "loginSubmitCount": 0,
+    "finalSubmitClicked": false,
+    "backgroundObserved": true,
+    "withdrawalObserved": false,
+    "participationRetained": true,
+    "test_summary": {
+      "task_status": "completed",
+      "passed": 4,
+      "failed": 0,
+      "inconclusive": 0,
+      "unchecked": 0,
+      "failed_items": [],
+      "retired": 0,
+      "retired_items": []
+    }
+  },
+  "readOnly": true,
+  "historicalV14Rewritten": false
+}

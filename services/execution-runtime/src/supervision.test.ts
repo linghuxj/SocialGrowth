@@ -315,3 +315,14 @@ test("recovery budget bounded, publishing uncertainty freezes all writes, task i
     f.close();
   }
 });
+
+test("connectivity test permits navigation only and never unmanaged recovery or credential operations", () => {
+  const store = new RuntimeStore(":memory:"), human = new HumanAssistance(store);
+  try {
+    const session = human.open({ taskId: randomUUID(), deviceId: "phone", serial: "RFC_TEST", packageName: "com.socialgrowth.product",
+      expectedIdentity: "authorized connectivity diagnostic", mode: "diagnostic", expiresAt: new Date(Date.now() + 60000).toISOString(), policy: { mode: "connectivity_test" } });
+    assert.equal(human.supervision.gate(session.sessionId, { action: "click", category: "navigate" }).allowed, true);
+    for (const category of ["recovery", "login_submit", "install", "publish", "create_identity", "unmanaged"])
+      assert.throws(() => human.supervision.gate(session.sessionId, { action: "click", category }), /CLIENT_TEST_ACTION_NOT_AUTHORIZED/);
+  } finally { human.close(); store.close(); }
+});

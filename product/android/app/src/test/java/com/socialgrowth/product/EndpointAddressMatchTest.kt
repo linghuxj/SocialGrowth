@@ -34,4 +34,14 @@ class EndpointAddressMatchTest {
         assertFalse(sameDiscoveryAddress(v4(169, 254, 1, 2), v6(7, 1)))
         assertFalse(sameDiscoveryAddress(v6(7, 1), v4(169, 254, 1, 2)))
     }
+    @Test fun assignedUnscopedLocalLinkAddressUsesOnlyItsActualInterfaceAndRemoteScopeRemainsStrict() {
+        val assigned = v6(0, 1)
+        assertTrue(sameDiscoveryAddress(v6(45, 1), localDiscoveryAddress(assigned, 45)))
+        assertFalse(sameDiscoveryAddress(v6(44, 1), localDiscoveryAddress(assigned, 45)))
+        assertFalse(sameDiscoveryAddress(v6(0, 1), localDiscoveryAddress(assigned, 45)))
+        assertFalse(sameDiscoveryAddress(v6(45, 2), localDiscoveryAddress(assigned, 45)))
+        assertFalse(sameDiscoveryAddress(v6(45, 1), localDiscoveryAddress(assigned, null)))
+        assertFalse(sameDiscoveryAddress(v6(45, 1), localDiscoveryAddress(assigned, 0)))
+        assertFalse(sameDiscoveryAddress(v6(45, 1), localDiscoveryAddress(v6(44, 1), 45)))
+    }
 }

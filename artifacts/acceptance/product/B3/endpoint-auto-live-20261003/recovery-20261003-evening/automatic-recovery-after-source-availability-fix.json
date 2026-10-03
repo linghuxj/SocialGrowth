@@ -1,0 +1,19 @@
+{
+  "checkedAt": "2026-10-03T13:43:59.896829+00:00",
+  "actualAuthenticatedConnect": {
+    "status": "candidate",
+    "port": 40925
+  },
+  "sequence": 80,
+  "observedAt": "2026-10-03T13:43:56.773Z",
+  "receivedAt": "2026-10-03T13:43:55.515Z",
+  "centerState": "connected_target_verified",
+  "connectionAttempts": 3,
+  "targetIdentityVerified": true,
+  "ownerWirelessDebuggingRecoveryRequired": true,
+  "manualPortInserted": false,
+  "newPairingAttempted": false,
+  "formalAdmission": false,
+  "actionPermissionGranted": false,
+  "withdrawalAttempted": false
+}

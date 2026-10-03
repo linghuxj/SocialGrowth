@@ -25,10 +25,14 @@ android {
 
     buildTypes {
         getByName("debug") {
-            buildConfigField("String", "API_BASE_URL", "\"http://127.0.0.1:4320\"")
+            val debugBase = providers.environmentVariable("SG_PRODUCT_ANDROID_DEBUG_API_BASE_URL").orElse("http://127.0.0.1:4320").get()
+            require(debugBase == "http://127.0.0.1:4320" || Regex("^https://[a-z0-9-]+\\.tail[a-z0-9]+\\.ts\\.net:8443$").matches(debugBase))
+            buildConfigField("String", "API_BASE_URL", "\"$debugBase\"")
+            buildConfigField("boolean", "ENDPOINT_DIAGNOSTICS", (debugBase.startsWith("https://")).toString())
             manifestPlaceholders["usesCleartextTraffic"] = "true"
         }
         getByName("release") {
+            buildConfigField("boolean", "ENDPOINT_DIAGNOSTICS", "false")
             val releaseApiBaseUrl = providers.environmentVariable("SG_PRODUCT_ANDROID_API_BASE_URL")
                 .orElse("https://api.invalid.socialgrowth.example")
                 .get()

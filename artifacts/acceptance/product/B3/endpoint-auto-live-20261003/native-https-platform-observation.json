@@ -1,0 +1,26 @@
+{
+  "observedAt": "2026-10-03T05:11:42.639773+00:00",
+  "deviceSerial": "RFCW40MYYCV",
+  "transport": "USB supplemental instrumentation",
+  "apkSha256": "4537d675724bf5d91e3c69e68854f55227399d1e999f5e08e1b2635f937252e9",
+  "command": "adb -s RFCW40MYYCV shell am instrument -w -r com.socialgrowth.product.test/com.socialgrowth.product.NativeDiscoveryInstrumentation",
+  "diagnosticHttpsStatus": 403,
+  "certificateAndHostnameValidation": true,
+  "nativeChecks": {
+    "passed": 8,
+    "failed": 0
+  },
+  "connectStatus": "CANDIDATE",
+  "pairingStatus": "UNKNOWN",
+  "businessAcceptance": false,
+  "formalAdmission": false,
+  "privateKeyIncluded": false,
+  "tlsCertificateExpiry": "2026-10-05T04:30:56Z",
+  "unauthenticatedGetStatus": 403,
+  "unauthenticatedPostStatus": 403,
+  "connectCandidatePort": 42805,
+  "androidUnitTests": {
+    "passed": 40,
+    "failed": 0
+  }
+}

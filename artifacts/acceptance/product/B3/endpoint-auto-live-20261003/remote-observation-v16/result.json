@@ -1,0 +1,14 @@
+{
+  "checkedAt": "2026-10-03T14:05:20.926Z",
+  "taskId": "c4816145-26fe-4efd-9f1c-75a50da629e5",
+  "requestId": "e9c673ca-9f35-4027-a37b-23f578e8c375",
+  "traceId": "68627441-6999-4fe4-94f6-847699fe95ff",
+  "result": "observation_and_web_feedback_confirmed",
+  "responded": true,
+  "initiatedThrough": "pnpm test:playwright / real Demo Web",
+  "publicationAttempted": false,
+  "businessQueueConsumed": false,
+  "oldUnknownTaskResolved": false,
+  "ownedHoldReleased": true,
+  "cleanupConfirmed": true
+}

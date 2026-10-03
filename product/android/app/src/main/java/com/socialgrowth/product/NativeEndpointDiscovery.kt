@@ -13,10 +13,11 @@ import android.os.Handler
 import android.os.Looper
 import java.net.Inet6Address
 import java.net.InetAddress
+import java.net.NetworkInterface
 import java.util.UUID
 
-// Main-thread-owned, bounded observation. A future foreground lifecycle consumer
-// must close on background/pause; this class is not a persistent service.
+// Main-thread-owned, bounded observation. Activity consumers close on pause;
+// the explicitly started foreground service owns its separate bounded window.
 @RequiresApi(34)
 class NativeEndpointDiscovery(context: Context) {
     private val app = context.applicationContext
@@ -32,7 +33,14 @@ class NativeEndpointDiscovery(context: Context) {
     }
     fun snapshot() = state.snapshot()
     fun start(windowMillis: Long = 20_000): EndpointDiscoverySnapshot {
-        requireMain(); require(windowMillis in 1_000..30_000) { "Invalid observation window" }
+        require(windowMillis in 1_000..30_000) { "Invalid observation window" }
+        return startWindow(windowMillis)
+    }
+    // Called only by an explicitly started visible connected-device foreground
+    // service. No boot/sticky observer; lifetime remains bounded to one hour.
+    internal fun startForegroundWindow(): EndpointDiscoverySnapshot = startWindow(60 * 60_000L)
+    private fun startWindow(windowMillis: Long): EndpointDiscoverySnapshot {
+        requireMain()
         close(); val generation = state.begin()
         try {
             val cm = app.getSystemService(ConnectivityManager::class.java)
@@ -92,6 +100,7 @@ class NativeEndpointDiscovery(context: Context) {
                             val hosts = service.hostAddresses
                             if (hosts.isEmpty() || service.network == null || service.serviceName != name || service.serviceType.trimEnd('.') != type.trimEnd('.')) { state.problem(current.generation, purpose, "resolution_failed"); return }
                             val local = service.network == current.wifi && hosts.all { host -> current.locals.any { sameAddress(host, it) } }
+                            if (BuildConfig.ENDPOINT_DIAGNOSTICS) android.util.Log.d("SGEndpointDiagnostic", "nsd_resolution purpose=${purpose.name} hosts=${hosts.size} matched=${hosts.count { host -> current.locals.any { sameAddress(host, it) } }} wifi=${service.network == current.wifi} unscopedLinkLocal=${hosts.count { it is Inet6Address && it.isLinkLocalAddress && it.scopeId == 0 }}")
                             state.resolved(current.generation, purpose, name, ticket, local, service.port)
                         } catch (_: RuntimeException) { state.problem(current.generation, purpose, "resolution_failed") }
                     }
@@ -116,7 +125,11 @@ class NativeEndpointDiscovery(context: Context) {
         try { current.nsd.unregisterServiceInfoCallback(callback) } catch (_: RuntimeException) { state.problem(current.generation, purpose, "resolution_failed") }
     }
     private fun live(current: Run) = run === current
-    private fun addresses(properties: LinkProperties?) = properties?.linkAddresses?.map { it.address }?.filter { !it.isLoopbackAddress && !it.isAnyLocalAddress }.orEmpty()
+    private fun addresses(properties: LinkProperties?): List<InetAddress> {
+        val index = properties?.interfaceName?.let { NetworkInterface.getByName(it)?.index }
+        return properties?.linkAddresses?.map { localDiscoveryAddress(it.address, index) }
+            ?.filter { !it.isLoopbackAddress && !it.isAnyLocalAddress }.orEmpty()
+    }
     private fun fingerprints(addresses: List<InetAddress>) = addresses.map { it.address.joinToString(",") + "/" + ((it as? Inet6Address)?.scopeId ?: 0) }.toSet()
     private fun sameAddress(a: InetAddress, b: InetAddress): Boolean = sameDiscoveryAddress(a, b)
     private fun requireMain() { check(Looper.myLooper() == Looper.getMainLooper()) { "Discovery lifecycle requires main thread" } }
