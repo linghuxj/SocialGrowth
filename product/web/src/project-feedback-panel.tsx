@@ -35,9 +35,9 @@ const missingReasonLabel: Record<NonNullable<MetricSnapshot["missingReason"]>, s
 function timestamp(value: string | null): string {
   if (!value) return "未知";
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? "时间格式未知" : new Intl.DateTimeFormat("zh-CN", {
-    dateStyle: "medium", timeStyle: "short", timeZone: "UTC", timeZoneName: "short",
-  }).format(parsed);
+  return Number.isNaN(parsed.getTime()) ? "时间格式未知" : `${new Intl.DateTimeFormat("zh-CN", {
+    dateStyle: "medium", timeStyle: "short", timeZone: "UTC",
+  }).format(parsed)} UTC`;
 }
 
 function metricStatus(metric: MetricSnapshot): string {
