@@ -3,6 +3,9 @@ import { generateKeyPairSync, randomUUID } from "node:crypto";
 import { Server, Socket } from "node:net";
 import test from "node:test";
 import { TailscaleAdmissionRuntime, type AdmissionRevisionPort } from "./tailscale-admission-runtime.js";
+import { NetworkAdmissionApi } from "./network-admission-api.js";
+import { NetworkAdmissionStore } from "./network-admission-store.js";
+import { InstallationAuthService } from "./installation-auth-service.js";
 import { DirectTailnetConnections } from "./tailscale-source-verifier.js";
 import { createAdmissionRecord, confirmRestriction } from "./network-admission-core.js";
 import type { AuthenticatedAdmissionState } from "./network-admission-store.js";
@@ -50,6 +53,47 @@ test("revision mismatch, stale/future observations, absent enrollment and offlin
   const runtime = new TailscaleAdmissionRuntime(f.transports, { lookup: async () => raw }, revision(), null);
   assert.equal(await runtime.observe(f.handle, f.state, AbortSignal.timeout(1000)), null);
   assert.equal(await runtime.observe(f.handle, { ...f.state, record: null }, AbortSignal.timeout(1000)), null);
+});
+test("pinned node or key mismatch is rejected before reading the policy revision", async () => {
+  for (const pinned of [
+    { nodeId: "n_otherphone", nodeKey, networkRevision: 1 },
+    { nodeId: "n_testphone", nodeKey: `nodekey:${"b".repeat(64)}`, networkRevision: 1 },
+  ]) {
+    const f = fixture();
+    f.state.record!.node = pinned;
+    let revisionReads = 0;
+    const runtime = new TailscaleAdmissionRuntime(f.transports, { lookup: async () => node() }, {
+      read: async () => { revisionReads++; return { revision: 1, observedAt: new Date().toISOString() }; },
+    }, null);
+    assert.equal(await runtime.observe(f.handle, f.state, AbortSignal.timeout(1000)), null);
+    assert.equal(revisionReads, 0);
+  }
+});
+test("main business API keeps state read-only and begin closed without a trusted verifier", async () => {
+  const f = fixture();
+  let begins = 0;
+  const store = {
+    authenticatedState: async () => f.state,
+    beginAuthenticated: async () => { begins++; throw new Error("must remain unreachable"); },
+  } as unknown as NetworkAdmissionStore;
+  const auth = {} as InstallationAuthService;
+  const api = new NetworkAdmissionApi(store, auth, null);
+  const token = `Bearer ${"A".repeat(43)}`;
+  const read = await api.handle("state", { protocolVersion: "2026-09-30.admission-v1", requestId: "request_12345678" }, token, f.socket);
+  assert.equal(read.status, 200);
+  assert.deepEqual(read.body, {
+    protocolVersion: "2026-09-30.admission-v1",
+    scope: f.state.scope,
+    enrollment: { enrollmentId: f.state.record!.enrollmentId, enrollmentGeneration: "1", version: f.state.record!.version,
+      phase: "restricted", expiresAt: f.state.record!.expiresAt },
+    verifierReady: false,
+    networkAdmissionGranted: false,
+    actionPermissionGranted: false,
+  });
+  const begin = await api.handle("begin", { protocolVersion: "2026-09-30.admission-v1", requestId: "request_12345678",
+    requestKey: "request_key_123456", publicKeySpki: f.state.record!.publicKeySpki }, token, f.socket);
+  assert.equal(begin.status, 503);
+  assert.equal(begins, 0);
 });
 test("hung ports and revoked transport cannot outlive abort or become admission evidence", async () => {
   const f = fixture(), runtime = new TailscaleAdmissionRuntime(f.transports, { lookup: () => new Promise(() => {}) }, revision(), null);
