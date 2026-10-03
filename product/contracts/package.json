@@ -12,8 +12,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && pnpm generate:check",
     "check": "tsc -p tsconfig.json --noEmit && pnpm generate:check",
-    "generate": "tsx src/generate-contracts.ts && tsx src/generate-participation-contract.ts",
-    "generate:check": "tsx src/generate-contracts.ts --check && tsx src/generate-participation-contract.ts --check",
+    "generate": "tsx src/generate-contracts.ts && tsx src/generate-participation-contract.ts && tsx src/generate-admission-api.ts",
+    "generate:check": "tsx src/generate-contracts.ts --check && tsx src/generate-participation-contract.ts --check && tsx src/generate-admission-api.ts --check",
     "lint": "oxlint src",
     "test": "tsx --test src/*.test.ts && python3 -m unittest discover -s python/tests -p 'test_*.py'"
   },

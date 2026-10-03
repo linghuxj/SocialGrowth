@@ -651,6 +651,21 @@ class MainActivity : ComponentActivity() {
         facts.addView(detailRow("连接确认", DeviceFactPresentation.CONNECTION_UNKNOWN))
         facts.addView(divider(), matchHeight(1).apply { topMargin = dp(14); bottomMargin = dp(14) })
         facts.addView(detailRow("事实更新时间", formatFactTime(state.updatedAt)))
+        val networkFact = label("网络核验状态读取中", 14f, secondary)
+        facts.addView(networkFact, matchWrap().apply { topMargin = dp(14) })
+        val factScreen = screenGeneration
+        runNetwork(action = {
+            val identity = installationStore.load() ?: error("Missing installation")
+            val token = identity.activeSessionToken() ?: error("Inactive installation")
+            val installation = UUID.fromString(identity.installationId)
+            NetworkAdmissionStateClient(api).state(token, installation, requireNotNull(identity.generation).toString()).also {
+                require(it.scope.deviceId == state.deviceId && it.scope.ownershipVersion == state.factVersion.toString())
+            }
+        }, success = { fact ->
+            if (factScreen == screenGeneration) networkFact.text = if (fact.verifierReady) "网络核验可用；当前接入许可仍待独立确认" else "网络核验尚未就绪"
+        }, failure = {
+            if (factScreen == screenGeneration) networkFact.text = "网络核验状态暂时无法读取"
+        })
         root.addView(facts, matchWrap().apply { topMargin = dp(24) })
         root.addView(label(DeviceFactPresentation.ACCESS_BOUNDARY, 14f, secondary).apply {
             gravity = Gravity.CENTER

@@ -41,3 +41,42 @@ export const enrollmentProofSchema = z.strictObject({
 export type NodeIdentity = z.infer<typeof nodeIdentitySchema>;
 export type EnrollmentChallenge = z.infer<typeof enrollmentChallengeSchema>;
 export type EnrollmentProof = z.infer<typeof enrollmentProofSchema>;
+
+const admissionRequest = {
+  protocolVersion: z.literal(admissionProtocolVersion),
+  requestId: z.string().regex(/^[A-Za-z0-9_-]{8,128}$/),
+};
+const requestKey = z.string().regex(/^[A-Za-z0-9_-]{16,128}$/);
+export const admissionStateRequestSchema = z.strictObject(admissionRequest);
+export const admissionBeginRequestSchema = z.strictObject({ ...admissionRequest, requestKey,
+  publicKeySpki: z.string().regex(/^[A-Za-z0-9_-]{100,256}$/) });
+export const admissionChallengeRequestSchema = z.strictObject({ ...admissionRequest, requestKey,
+  enrollmentId: uuidSchema, expectedVersion: z.int().min(0) });
+export const admissionProofRequestSchema = z.strictObject({ ...admissionChallengeRequestSchema.shape, proof: enrollmentProofSchema });
+export const admissionScopeSchema = z.strictObject({ deviceId: uuidSchema, installationId: uuidSchema,
+  installationGeneration: admissionGenerationSchema, ownershipVersion: admissionGenerationSchema });
+export const admissionSnapshotSchema = z.strictObject({
+  protocolVersion: z.literal(admissionProtocolVersion), scope: admissionScopeSchema,
+  enrollment: z.strictObject({ enrollmentId: uuidSchema, enrollmentGeneration: admissionGenerationSchema,
+    version: z.int().min(0), phase: z.enum(["awaiting_restriction", "restricted", "proof_verified", "permission_pending", "admitted", "reclaim_pending", "reclaimed"]),
+    expiresAt: timestampSchema }).nullable(),
+  verifierReady: z.boolean(),
+  // Snapshot/proof consumption is not a current formal permit or ADB action.
+  networkAdmissionGranted: z.literal(false), actionPermissionGranted: z.literal(false),
+});
+export const admissionChallengeResponseSchema = z.strictObject({ ...admissionSnapshotSchema.shape, challenge: enrollmentChallengeSchema }).superRefine((value, context) => {
+  const c = value.challenge, e = value.enrollment, s = value.scope;
+  if (!e || e.phase !== "restricted" || c.enrollmentId !== e.enrollmentId
+    || c.enrollmentGeneration !== e.enrollmentGeneration || c.deviceId !== s.deviceId
+    || c.installationId !== s.installationId || c.installationGeneration !== s.installationGeneration
+    || compareTimestamps(c.expiresAt, e.expiresAt) === 1) {
+    context.addIssue({ code: "custom", path: ["challenge"], message: "Challenge scope does not match current enrollment" });
+  }
+});
+export const admissionErrorResponseSchema = z.strictObject({
+  protocolVersion: z.literal(admissionProtocolVersion), requestId: admissionRequest.requestId,
+  error: z.strictObject({ code: z.enum(["INPUT_INVALID", "PROTOCOL_UNSUPPORTED", "AUTHENTICATION_REQUIRED", "AUTHORITY_CHANGED",
+    "STALE_FACT", "EXPIRED", "INVALID_PHASE", "INVALID_EVIDENCE", "INVALID_PROOF", "SOURCE_MISMATCH", "VERIFIER_UNAVAILABLE", "INTERNAL_ERROR"]),
+    retryable: z.boolean() }),
+});
+export type AdmissionSnapshot = z.infer<typeof admissionSnapshotSchema>;

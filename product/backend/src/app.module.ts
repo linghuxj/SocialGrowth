@@ -11,6 +11,9 @@ import { InvitationManagementService } from "./invitation-management-service.js"
 import { IdentityTransactionService } from "./identity-transactions.js";
 import { InstallationAuthService } from "./installation-auth-service.js";
 import { InstallationController } from "./installation.controller.js";
+import { NetworkAdmissionController } from "./network-admission.controller.js";
+import { NetworkAdmissionApi } from "./network-admission-api.js";
+import { NetworkAdmissionStore } from "./network-admission-store.js";
 import { LocalParticipationController } from "./local-participation.controller.js";
 import { LocalParticipationService } from "./local-participation-service.js";
 import { OperatorAuthService } from "./operator-auth-service.js";
@@ -131,6 +134,7 @@ const providerAuthProvider = {
     MaterialRegistryController,
     DevelopmentProviderSmsController,
     InstallationController,
+    NetworkAdmissionController,
     LocalParticipationController,
     OperatorController,
     ProviderController,
@@ -153,6 +157,9 @@ const providerAuthProvider = {
     invitationManagementProvider,
     identityTransactionProvider,
     installationAuthProvider,
+    // Main business listener cannot mint a trusted verifier socket or revision.
+    // Read current authenticated facts; mutations close until real ports exist.
+    { provide: NetworkAdmissionApi, inject: [Pool, InstallationAuthService], useFactory: (pool: Pool, auth: InstallationAuthService) => new NetworkAdmissionApi(new NetworkAdmissionStore(pool), auth, null) },
     { provide: LocalParticipationService, inject: [Pool, InstallationAuthService], useFactory: (pool: Pool, auth: InstallationAuthService) => new LocalParticipationService(pool, auth) },
     smsRuntimeProvider,
     providerAuthProvider,

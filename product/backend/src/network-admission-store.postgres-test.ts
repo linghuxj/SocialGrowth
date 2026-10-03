@@ -9,6 +9,11 @@ import { Pool } from "pg";
 
 import { AdmissionError, challengeSigningBytes, type AdmissionRecord } from "./network-admission-core.js";
 import { NetworkAdmissionStore } from "./network-admission-store.js";
+import { InstallationAuthService } from "./installation-auth-service.js";
+import { ProductTransactionError } from "./product-transaction-error.js";
+import { NetworkAdmissionApi, type NetworkAdmissionRuntime } from "./network-admission-api.js";
+import { Socket } from "node:net";
+import { admissionProtocolVersion, admissionSnapshotSchema, admissionChallengeResponseSchema } from "@socialgrowth/product-contracts";
 
 const databaseUrl = process.env.SG_PRODUCT_TEST_DATABASE_URL;
 if (!databaseUrl || process.env.SG_PRODUCT_TEST_ALLOW_RESET !== "1") {
@@ -16,6 +21,7 @@ if (!databaseUrl || process.env.SG_PRODUCT_TEST_ALLOW_RESET !== "1") {
 }
 const pool = new Pool({ connectionString: databaseUrl, max: 8 });
 const store = new NetworkAdmissionStore(pool);
+const auth = new InstallationAuthService(pool, "isolated-admission-http-test-pepper");
 const requestKey = () => `request_${randomUUID().replaceAll("-", "")}`;
 const digest = (value: string) => createHash("sha256").update(value).digest();
 let counter = 0;
@@ -81,6 +87,99 @@ async function challengedFixture(nodeId = `node-${randomUUID()}`) {
   return { ...f, challenged, proof, nodeId };
 }
 const stale = (error: unknown) => error instanceof AdmissionError && error.code === "STALE_FACT";
+
+async function sessionFor(installationId: string) {
+  const token = digest(randomUUID()).toString("base64url"), sessionId = randomUUID();
+  await pool.query(`INSERT INTO socialgrowth_product.installation_sessions(session_id,installation_id,token_digest,expires_at)
+    VALUES($1,$2,$3,clock_timestamp()+interval '1 hour')`, [sessionId, installationId, digest(token)]);
+  return { token, sessionId };
+}
+const apiBody = (extra: Record<string, unknown> = {}) => ({ protocolVersion: admissionProtocolVersion, requestId: requestKey(), ...extra });
+
+test("authenticated state and API scope never expose another installation or accept client evidence", async () => {
+  const f = await fixture(), s = await sessionFor(f.context.installationId);
+  const api = new NetworkAdmissionApi(store, auth), socket = new Socket();
+  const result = await api.handle("state", apiBody(), `Bearer ${s.token}`, socket);
+  assert.equal(result.status, 200);
+  const body = admissionSnapshotSchema.parse(result.body);
+  assert.equal(body.scope.installationId, f.context.installationId);
+  assert.equal(body.enrollment?.enrollmentId, f.record.enrollmentId);
+  assert.equal(body.verifierReady, false); assert.equal(body.networkAdmissionGranted, false);
+  const spoof = await api.handle("state", apiBody({ node: { nodeId: "claimed" }, networkAdmissionGranted: true }), `Bearer ${s.token}`, socket);
+  assert.equal(spoof.status, 400);
+  assert.equal((await api.handle("state", apiBody(), undefined, socket)).status, 401);
+  assert.equal((await api.handle("state", apiBody({ protocolVersion: "other" }), `Bearer ${s.token}`, socket)).status, 400);
+  const other = await fixture();
+  await assert.rejects(store.applyAuthenticated(auth, s.token, other.record.enrollmentId, 0, requestKey(),
+    { kind: "issue_challenge", source: await source() }), error => error instanceof AdmissionError && error.code === "AUTHORITY_CHANGED");
+});
+
+test("unconfigured policy/source ports close begin without creating extra intents or credentials", async () => {
+  const f = await fixture(), s = await sessionFor(f.context.installationId);
+  const api = new NetworkAdmissionApi(store, auth);
+  assert.equal((await api.handle("begin", apiBody({ publicKeySpki: f.publicKey, requestKey: requestKey() }), `Bearer ${s.token}`, new Socket())).status, 503);
+  const intents = await pool.query(`SELECT kind FROM socialgrowth_product.network_operation_intents WHERE enrollment_id=$1`, [f.record.enrollmentId]);
+  assert.deepEqual(intents.rows.map(row => row.kind), ["apply_restricted_policy"]);
+  const saved = await store.authenticatedState(auth, s.token);
+  assert.deepEqual(saved.record, f.record);
+});
+
+test("authenticated challenge/proof API consumes once and retries the identical proof after response loss", async () => {
+  const f = await challengedFixture(), s = await sessionFor(f.context.installationId);
+  const socket = new Socket(), handle = Object.freeze({});
+  const runtime: NetworkAdmissionRuntime = { transportFor: value => value === socket ? handle : null,
+    canBegin: async () => true, observe: async () => source(f.nodeId) };
+  const api = new NetworkAdmissionApi(store, auth, runtime), key = requestKey();
+  const challengeResult = await api.handle("challenge", apiBody({ enrollmentId: f.record.enrollmentId,
+    expectedVersion: f.challenged.version, requestKey: requestKey() }), `Bearer ${s.token}`, socket);
+  assert.equal(challengeResult.status, 200);
+  assert.equal(admissionChallengeResponseSchema.parse(challengeResult.body).challenge.challengeId, f.proof.challengeId);
+  const body = apiBody({ enrollmentId: f.record.enrollmentId, expectedVersion: f.challenged.version, requestKey: key, proof: f.proof });
+  const consumed = await api.handle("proof", body, `Bearer ${s.token}`, socket);
+  const repeated = await api.handle("proof", body, `Bearer ${s.token}`, socket);
+  assert.equal(consumed.status, 200); assert.deepEqual(consumed.body, repeated.body);
+  assert.equal(admissionSnapshotSchema.parse(consumed.body).enrollment?.phase, "proof_verified");
+  assert.equal(admissionSnapshotSchema.parse(consumed.body).actionPermissionGranted, false);
+  assert.equal((await api.handle("proof", { ...body, proof: { ...f.proof, signature: "A".repeat(86) } }, `Bearer ${s.token}`, socket)).status, 409);
+});
+
+test("revocation between source observation and proof consumption rolls back with no consumed challenge", async () => {
+  const f = await challengedFixture(), s = await sessionFor(f.context.installationId);
+  const runtime: NetworkAdmissionRuntime = { transportFor: () => ({}), canBegin: async () => true,
+    observe: async () => { await pool.query(`UPDATE socialgrowth_product.installation_sessions SET revoked_at=clock_timestamp() WHERE session_id=$1`, [s.sessionId]); return source(f.nodeId); } };
+  const result = await new NetworkAdmissionApi(store, auth, runtime).handle("proof", apiBody({ enrollmentId: f.record.enrollmentId,
+    expectedVersion: f.challenged.version, requestKey: requestKey(), proof: f.proof }), `Bearer ${s.token}`, new Socket());
+  assert.equal(result.status, 401);
+  const row = await pool.query<{ record: AdmissionRecord }>(`SELECT record FROM socialgrowth_product.network_enrollments WHERE enrollment_id=$1`, [f.record.enrollmentId]);
+  assert.deepEqual(row.rows[0]?.record, f.challenged);
+});
+
+test("session revocation while authentication waits for authority locks fails after the wait", async () => {
+  const f = await fixture(), s = await sessionFor(f.context.installationId), blocker = await pool.connect();
+  try {
+    await blocker.query("BEGIN");
+    await blocker.query(`SELECT provider_id FROM socialgrowth_product.providers WHERE provider_id=$1 FOR UPDATE`, [f.providerId]);
+    const pending = store.authenticatedState(auth, s.token);
+    await new Promise(resolve => setTimeout(resolve, 80));
+    await pool.query(`UPDATE socialgrowth_product.installation_sessions SET revoked_at=clock_timestamp() WHERE session_id=$1`, [s.sessionId]);
+    await blocker.query("COMMIT");
+    await assert.rejects(pending, error => error instanceof ProductTransactionError && error.code === "AUTHENTICATION_REQUIRED");
+  } finally { await blocker.query("ROLLBACK"); blocker.release(); }
+});
+
+test("authenticated idempotent retry refuses stale or invalid observations, disabled providers and expired sessions", async () => {
+  const f = await challengedFixture(), s = await sessionFor(f.context.installationId), key = requestKey();
+  const command = { kind: "consume_proof" as const, proof: f.proof, source: await source(f.nodeId) };
+  await store.applyAuthenticated(auth, s.token, f.record.enrollmentId, f.challenged.version, key, command);
+  for (const observedAt of ["invalid", new Date(Date.now() - 11_000).toISOString(), new Date(Date.now()+30_000).toISOString()]) {
+    await assert.rejects(store.applyAuthenticated(auth, s.token, f.record.enrollmentId, f.challenged.version, key,
+      { ...command, source: { ...command.source, observedAt } }), error => error instanceof AdmissionError && error.code === "INVALID_EVIDENCE");
+  }
+  await pool.query(`UPDATE socialgrowth_product.providers SET status='disabled' WHERE provider_id=$1`, [f.providerId]);
+  await assert.rejects(store.authenticatedState(auth, s.token), AdmissionError);
+  await pool.query(`UPDATE socialgrowth_product.installation_sessions SET created_at=clock_timestamp()-interval '2 hours',expires_at=clock_timestamp()-interval '1 hour' WHERE session_id=$1`, [s.sessionId]);
+  await assert.rejects(store.authenticatedState(auth, s.token), ProductTransactionError);
+});
 
 test("migration from prior product schema preserves existing identity and rejects missing JSON facts", async () => {
   const legacy = await pool.query<{ display_name: string }>(`SELECT display_name FROM socialgrowth_product.providers WHERE provider_id=$1`, [legacyProviderId]);

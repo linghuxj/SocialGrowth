@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 
-import type { AuthenticatedInstallation } from "./installation-auth-service.js";
+import type { AuthenticatedInstallation, InstallationAuthService } from "./installation-auth-service.js";
+import { ProductTransactionError } from "./product-transaction-error.js";
 import {
   AdmissionError,
   confirmFormalPermission, confirmReclamation, confirmRestriction,
@@ -50,6 +51,8 @@ async function transact<T>(pool: Pool, operation: (client: PoolClient) => Promis
   catch { throw new Error("Admission database unavailable"); }
   try {
     await client.query("BEGIN");
+    await client.query("SET LOCAL lock_timeout='3s'");
+    await client.query("SET LOCAL statement_timeout='5s'");
     const result = await operation(client);
     await client.query("COMMIT");
     return result;
@@ -57,12 +60,39 @@ async function transact<T>(pool: Pool, operation: (client: PoolClient) => Promis
     try { await client.query("ROLLBACK"); }
     catch { throw new Error("Admission transaction rollback failed"); }
     // Do not surface raw query bindings or driver diagnostic/detail strings.
-    if (error instanceof AdmissionError) throw error;
+    if (error instanceof AdmissionError || error instanceof ProductTransactionError) throw error;
     if (typeof error === "object" && error !== null && "code" in error && error.code === "23505") {
       throw new AdmissionError("STALE_FACT");
     }
     throw new Error("Admission transaction failed");
   } finally { client.release(); }
+}
+
+interface InstallationRequest { context: AuthenticatedInstallation; auth: InstallationAuthService; token: string }
+export interface AuthenticatedAdmissionState {
+  scope: { deviceId: string; installationId: string; installationGeneration: string; ownershipVersion: string };
+  record: AdmissionRecord | null;
+}
+async function requireSession(client: PoolClient, request: InstallationRequest): Promise<void> {
+  const current = await request.auth.authenticate(request.token, client);
+  if (current.installationId !== request.context.installationId || current.installationGeneration !== request.context.installationGeneration)
+    throw new AdmissionError("AUTHORITY_CHANGED");
+  // Same provider -> installation -> session order as local participation.
+  // Hold session through commit, so a concurrent revocation cannot pass between
+  // pre-authentication and consumption. Recheck expiry again before commit.
+  const row = await client.query(
+    `SELECT session_id FROM ${schema}.installation_sessions WHERE installation_id=$1 AND token_digest=$2
+      AND revoked_at IS NULL AND expires_at>clock_timestamp() FOR SHARE`, [current.installationId, digest(request.token)]);
+  if (row.rowCount !== 1) throw new ProductTransactionError("AUTHENTICATION_REQUIRED", "Installation session unavailable");
+}
+function requireCurrent(row: EnrollmentRow, record: AdmissionRecord, current: CurrentAssociation) {
+  const authority = currentAuthority(row, record, current);
+  if (!authority.eligible || authority.installationGeneration !== record.authority.installationGeneration
+    || authority.ownershipVersion !== record.authority.ownershipVersion) throw new AdmissionError("AUTHORITY_CHANGED");
+}
+function requireFreshSource(source: ObservedSource, now: number): void {
+  const observed = Date.parse(source.observedAt);
+  if (!Number.isFinite(observed) || observed > now || now - observed >= 10_000) throw new AdmissionError("INVALID_EVIDENCE");
 }
 async function dbNow(client: PoolClient): Promise<string> {
   const result = await client.query<{ now: Date }>("SELECT clock_timestamp() AS now");
@@ -152,6 +182,31 @@ export interface AdmissionReconciliationBatch {
 export class NetworkAdmissionStore {
   constructor(private readonly pool: Pool) {}
 
+  async authenticatedState(auth: InstallationAuthService, token: string): Promise<AuthenticatedAdmissionState> {
+    const context = await auth.authenticate(token), request = { context, auth, token };
+    return transact(this.pool, async client => {
+      const current = await lockAuthority(client, context.installationId);
+      if (!current?.eligible || BigInt(current.generation) !== context.installationGeneration) throw new AdmissionError("AUTHORITY_CHANGED");
+      await requireSession(client, request);
+      const rows = await client.query<EnrollmentRow>(
+        `SELECT * FROM ${schema}.network_enrollments WHERE installation_id=$1 ORDER BY generation DESC LIMIT 1 FOR SHARE`, [context.installationId]);
+      const row = rows.rows[0], record = row ? parseAdmissionRecord(row.record) : null;
+      if (row && record) requireCurrent(row, record, current);
+      await requireSession(client, request);
+      return { scope: { deviceId: current.device_id, installationId: context.installationId,
+        installationGeneration: current.generation, ownershipVersion: current.fact_version }, record };
+    });
+  }
+  async beginAuthenticated(auth: InstallationAuthService, token: string, publicKeySpki: string, requestKey: string) {
+    const context = await auth.authenticate(token);
+    return this.beginScoped(context, publicKeySpki, requestKey, { context, auth, token });
+  }
+  async applyAuthenticated(auth: InstallationAuthService, token: string, enrollmentId: string, expectedVersion: number,
+    requestKey: string, command: Extract<AdmissionCommand, { kind: "issue_challenge" | "consume_proof" }>) {
+    const context = await auth.authenticate(token);
+    return this.applyScoped(enrollmentId, expectedVersion, requestKey, command, { context, auth, token });
+  }
+
   // Single bounded pass, no worker/HTTP or external effects. The scheduler must
   // resume nextCursor until null, then start a new sweep. Failed rows do not
   // silently stop other devices, and never lose their actual remaining access.
@@ -229,10 +284,14 @@ export class NetworkAdmissionStore {
   }
 
   async begin(context: AuthenticatedInstallation, publicKeySpki: string, requestKey: string): Promise<AdmissionRecord> {
+    return this.beginScoped(context, publicKeySpki, requestKey);
+  }
+  private async beginScoped(context: AuthenticatedInstallation, publicKeySpki: string, requestKey: string, request?: InstallationRequest): Promise<AdmissionRecord> {
     key(requestKey);
     return transact(this.pool, async (client) => {
       const current = await lockAuthority(client, context.installationId);
       if (!current?.eligible || BigInt(current.generation) !== context.installationGeneration) throw new AdmissionError("AUTHORITY_CHANGED");
+      if (request) await requireSession(client, request);
       const repeated = await client.query<EnrollmentRow>(
         `SELECT * FROM ${schema}.network_enrollments WHERE installation_id=$1 AND request_key=$2 FOR UPDATE`,
         [context.installationId, requestKey],
@@ -243,6 +302,7 @@ export class NetworkAdmissionStore {
         if (existing.association_id !== current.association_id || existing.provider_id !== current.provider_id
           || saved.authority.installationGeneration !== current.generation || saved.authority.ownershipVersion !== current.fact_version
           || !existing.key_digest.equals(digest(publicKeySpki))) throw new AdmissionError("AUTHORITY_CHANGED");
+        if (request) await requireSession(client, request);
         return saved;
       }
       const generationResult = await client.query<{ next: string }>(
@@ -265,11 +325,15 @@ export class NetworkAdmissionStore {
       );
       await intent(client, record, "apply_restricted_policy");
       await audit(client, record, requestKey, "network_enrollment.created", true);
+      if (request) await requireSession(client, request);
       return record;
     });
   }
 
   async apply(enrollmentId: string, expectedVersion: number, requestKey: string, command: AdmissionCommand): Promise<AdmissionRecord> {
+    return this.applyScoped(enrollmentId, expectedVersion, requestKey, command);
+  }
+  private async applyScoped(enrollmentId: string, expectedVersion: number, requestKey: string, command: AdmissionCommand, request?: InstallationRequest): Promise<AdmissionRecord> {
     key(requestKey);
     // Socket observation time is server transport metadata, not the client's
     // command content. A retried identical signed proof arrives on a new socket
@@ -285,7 +349,9 @@ export class NetworkAdmissionStore {
         `SELECT installation_id FROM ${schema}.network_enrollments WHERE enrollment_id=$1`, [enrollmentId],
       );
       if (!locator.rows[0]) throw new AdmissionError("AUTHORITY_CHANGED");
+      if (request && locator.rows[0].installation_id !== request.context.installationId) throw new AdmissionError("AUTHORITY_CHANGED");
       const current = await lockAuthority(client, locator.rows[0].installation_id);
+      if (request) await requireSession(client, request);
       const rows = await client.query<EnrollmentRow>(
         `SELECT * FROM ${schema}.network_enrollments WHERE enrollment_id=$1 FOR UPDATE`, [enrollmentId],
       );
@@ -303,6 +369,10 @@ export class NetworkAdmissionStore {
       if (duplicate.rows[0]) {
         if (!duplicate.rows[0].payload_digest.equals(fingerprint)) throw new AdmissionError("STALE_FACT");
         // Report current fact, not historical admitted state after later exit.
+        if (request) {
+          await requireSession(client, request);
+          if ("source" in command) requireFreshSource(command.source, Date.parse(await dbNow(client)));
+        }
         return record;
       }
       const now = await dbNow(client);
@@ -336,6 +406,13 @@ export class NetworkAdmissionStore {
         }
       }
       await audit(client, next, requestKey, `network_enrollment.${command.kind}`);
+      if (request) {
+        await requireSession(client, request);
+        const finalNow = Date.parse(await dbNow(client));
+        if ("source" in command) requireFreshSource(command.source, finalNow);
+        if (finalNow >= Date.parse(record.expiresAt) || (command.kind === "consume_proof" && record.challenge && finalNow >= Date.parse(record.challenge.expiresAt)))
+          throw new AdmissionError("EXPIRED");
+      }
       return next;
     });
   }

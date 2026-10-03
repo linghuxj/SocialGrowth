@@ -1,0 +1,11 @@
+{
+  "startedAt": "2026-10-03T15:33:59.761Z",
+  "maximumMinutes": 15,
+  "transport": "pinned_serve_proxy_v1_then_tls",
+  "tlsScope": "existing_debug_ca_not_production_tls",
+  "certificateExpiresAt": "2026-10-05T04:30:56.000Z",
+  "policyMutationPerformed": false,
+  "networkRevisionProducerConfigured": false,
+  "networkAdmissionGranted": false,
+  "actionPermissionGranted": false
+}
