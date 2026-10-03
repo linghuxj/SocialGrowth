@@ -210,6 +210,14 @@ test("material-backed schedule atomically persists current-scope plan, Task, quo
   assert.equal(rows[0]!.publication_allowed, false); assert.equal(rows[0]!.purpose, "current_check_reference");
   assert.equal(rows[0]!.outbox_state, "pending_current_checks"); assert.equal(rows[0]!.outbox_execution_allowed, false); assert.equal(rows[0]!.outbox_publication_allowed, false);
   assert.equal(rows[0]!.quota_snapshot.slots.length, 1); assert.equal(rows[0]!.quota_snapshot.slots[0].taskId, rows[0]!.task_id);
+  const checks = await f.service.currentChecks(f.token, f.projectId);
+  assert.equal(checks.tasks.length, 1); assert.equal(checks.tasks[0]?.taskId, rows[0]!.task_id);
+  assert.equal(checks.tasks[0]?.expectedMaterialRevision, 1); assert.equal(checks.tasks[0]?.current.materialRevision, 1);
+  assert.ok(checks.tasks[0]?.blockers.includes("action_inspector_unavailable"));
+  assert.ok(checks.tasks[0]?.blockers.includes("device_association_missing"));
+  assert.ok(checks.tasks[0]?.blockers.includes("current_fact_unknown"));
+  assert.deepEqual(checks.tasks[0]?.impactReferences, []);
+  assert.equal(checks.executionAllowed, false); assert.equal(checks.publicationAllowed, false);
   assert.deepEqual(await planRowCounts(f.projectId), { revisions: 1, tasks: 1, outbox: 1, commands: 1, audits: 1 });
   makeArrangement = confirmationSuggestion;
 });

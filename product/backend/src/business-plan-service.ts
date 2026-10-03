@@ -9,6 +9,8 @@ import { MaterialRuntime } from "./material-runtime.js";
 import { BusinessModelCoordinator, type BusinessModelPort } from "./business-model-coordinator.js";
 import { parseContentQuota, type ContentQuotaSnapshot } from "./content-quota-core.js";
 import { checkBusinessSuggestion, type BusinessSuggestion, type BusinessSuggestionContext } from "./business-suggestion-core.js";
+import { businessPlanCurrentChecksResponseSchema, type BusinessPlanCurrentChecksResponse } from "@socialgrowth/product-contracts";
+import { parsePhoneControlRecord } from "./action-permission-core.js";
 
 const s = "socialgrowth_product";
 const unavailable = () => new ProductTransactionError("INTERNAL_ERROR", "Business planning is unavailable", true);
@@ -93,6 +95,139 @@ export class BusinessPlanService {
     const project = uuidSchema.safeParse(projectInput);
     if (!project.success) throw new ProductTransactionError("INPUT_INVALID", "Invalid project identifier");
     return this.tx(token, null, c => this.view(c, project.data.toLowerCase()));
+  }
+
+  async currentChecks(token: string, projectInput: string): Promise<BusinessPlanCurrentChecksResponse> {
+    const project = uuidSchema.safeParse(projectInput);
+    if (!project.success) throw new ProductTransactionError("INPUT_INVALID", "Invalid project identifier");
+    return this.tx(token, null, async c => {
+      const projectId = project.data.toLowerCase();
+      const view = await this.view(c, projectId);
+      const now = (await c.query<{ checked_at: Date }>("SELECT clock_timestamp() AS checked_at")).rows[0]?.checked_at;
+      if (!now) throw unavailable();
+      const record = (await c.query<{ plan_id: string | null; current_revision: string }>(
+        `SELECT plan_id,current_revision::text FROM ${s}.business_plan_records WHERE project_id=$1`, [projectId])).rows[0];
+      const plan = record?.plan_id && view.plan ? { planId: record.plan_id, revision: Number(record.current_revision),
+        projectVersion: view.plan.projectVersion, approvalId: view.plan.approvalId } : null;
+      const tasks = (await c.query<{ task_id: string; task_revision: string; plan_id: string; plan_revision: string; variant_id: string;
+        material_revision: string; identity_id: string; platform: "facebook" | "youtube";
+        form: "facebook_video" | "facebook_image_text" | "youtube_shorts" | "youtube_video"; scheduled_at: string }>(
+        `SELECT task_id,task_revision::text,plan_id,plan_revision::text,variant_id,material_revision::text,identity_id,platform,form,scheduled_at
+           FROM ${s}.business_plan_tasks WHERE project_id=$1 ORDER BY recorded_at,task_id LIMIT 1001`, [projectId])).rows;
+      if (tasks.length > 1000) throw new ProductTransactionError("INPUT_INVALID", "Project task inventory exceeds the bounded current-check read");
+      const materials = await this.materialRuntime.registry().listCurrentForBusinessPlan(c, projectId);
+      const materialByVariant = new Map(materials.map(item => [item.variantId, item]));
+      const deviceFacts = tasks.length ? (await c.query<{ task_id: string; reserved_device_id: string | null; device_state: string | null;
+        association_id: string | null; installation_id: string | null; installation_generation: string | null; installation_status: string | null;
+        provider_status: string | null; network_phase: string | null; network_expires_at: Date | null;
+        participation_run_id: string | null; phone_record: unknown; latest_control_action: string | null }>(
+        `SELECT t.task_id,r.device_id AS reserved_device_id,d.state AS device_state,a.association_id,a.installation_id,
+          i.generation::text AS installation_generation,i.status AS installation_status,p.status AS provider_status,
+          n.phase AS network_phase,n.expires_at AS network_expires_at,l.run_id AS participation_run_id,
+          j.record AS phone_record,ctl.action AS latest_control_action
+         FROM ${s}.business_plan_tasks t
+         LEFT JOIN ${s}.project_identity_reservations r ON r.project_id=t.project_id AND r.identity_id=t.identity_id
+         LEFT JOIN ${s}.devices d ON d.device_id=r.device_id
+         LEFT JOIN LATERAL (SELECT a0.association_id,a0.installation_id,a0.provider_id FROM ${s}.device_associations a0
+           WHERE a0.device_id=d.device_id AND a0.ended_at IS NULL ORDER BY a0.confirmed_at DESC LIMIT 1) a ON true
+         LEFT JOIN ${s}.installations i ON i.installation_id=a.installation_id
+         LEFT JOIN ${s}.providers p ON p.provider_id=a.provider_id
+         LEFT JOIN LATERAL (SELECT e.phase,e.expires_at FROM ${s}.network_enrollments e
+           WHERE e.device_id=d.device_id AND e.installation_id=i.installation_id AND e.association_id=a.association_id
+             AND e.generation=i.generation AND e.phase<>'reclaimed' ORDER BY e.generation DESC LIMIT 1) n ON true
+         LEFT JOIN LATERAL (SELECT pr.run_id FROM ${s}.local_participation_runs pr JOIN ${s}.installation_sessions iss ON iss.session_id=pr.session_id
+           WHERE pr.device_id=d.device_id AND pr.installation_id=i.installation_id AND pr.association_id=a.association_id
+             AND pr.installation_generation=i.generation::text AND pr.revoked_at IS NULL AND iss.revoked_at IS NULL
+             AND iss.expires_at>clock_timestamp() ORDER BY pr.started_at DESC LIMIT 1) l ON true
+         LEFT JOIN ${s}.phone_control_journals j ON j.device_id=d.device_id
+         LEFT JOIN LATERAL (SELECT ar.action FROM ${s}.audit_records ar WHERE ar.object_type='device' AND ar.object_id=d.device_id
+           AND ar.action IN ('provider_device_control.pause_requested','provider_device_control.resume_requested','installation_device_control.pause_requested')
+           ORDER BY ar.occurred_at DESC,ar.audit_record_id DESC LIMIT 1) ctl ON true
+         WHERE t.project_id=$1 ORDER BY t.recorded_at,t.task_id`, [projectId])).rows : [];
+      const factByTask = new Map(deviceFacts.map(item => [item.task_id, item]));
+      const impactStoreAvailable = (await c.query<{ present: boolean }>(
+        `SELECT to_regclass('socialgrowth_product.business_plan_outbox_impacts') IS NOT NULL AS present`)).rows[0]?.present === true;
+      const impacts = tasks.length && impactStoreAvailable ? (await c.query<{ task_id: string; impact_revision: string; reason: "project_scope_changed" | "material_revision_changed";
+        observed_project_version: string; observed_material_revision: string | null; recorded_at: Date }>(
+        `SELECT i.task_id,i.impact_revision::text,i.reason,i.observed_project_version::text,i.observed_material_revision::text,i.recorded_at
+         FROM ${s}.business_plan_outbox_impacts i JOIN ${s}.business_plan_tasks t USING(task_id)
+         WHERE t.project_id=$1 ORDER BY i.task_id,i.impact_revision`, [projectId])).rows : [];
+      const impactsByTask = new Map<string, typeof impacts>();
+      for (const impact of impacts) impactsByTask.set(impact.task_id, [...(impactsByTask.get(impact.task_id) ?? []), impact]);
+      const response = {
+        projectId,
+        checkedAt: now.toISOString(),
+        plan,
+        tasks: tasks.map(task => {
+          const material = materialByVariant.get(task.variant_id) ?? null;
+          const fact = factByTask.get(task.task_id);
+          let controlIntent: "active" | "pause_requested" | "paused" | "resume_requested" | "exit_pending" | "exited" | null = null;
+          let controlStop: "not_requested" | "requested" | "confirmed" | "unknown" | null = null;
+          if (fact?.device_state) {
+            let disposition: "enabled" | "stop_requested" | "stopped" | null = null;
+            if (fact.phone_record !== null && fact.phone_record !== undefined) {
+              try {
+                const parsed = parsePhoneControlRecord(fact.phone_record);
+                if (parsed.deviceId === fact.reserved_device_id) disposition = parsed.disposition;
+              } catch { /* corrupt/unavailable journal becomes an explicit unknown blocker below */ }
+            }
+            controlIntent = fact.device_state === "exit_pending" || fact.device_state === "exited" ? fact.device_state
+              : fact.latest_control_action?.endsWith("resume_requested") ? "resume_requested"
+                : fact.latest_control_action?.endsWith("pause_requested") ? disposition === "stopped" ? "paused" : "pause_requested"
+                  : fact.device_state === "paused" ? disposition === "stopped" ? "paused" : "pause_requested" : "active";
+            controlStop = disposition === null ? "unknown" : disposition === "enabled" ? "not_requested"
+              : disposition === "stopped" ? "confirmed" : "requested";
+          }
+          const associationCurrent = fact?.association_id !== null && fact?.association_id !== undefined
+            && fact.installation_status === "active" && fact.provider_status === "active";
+          const networkAdmitted = fact?.network_phase === "admitted" && fact.network_expires_at !== null
+            && fact.network_expires_at !== undefined && fact.network_expires_at > now;
+          const participationCurrent = Boolean(fact?.participation_run_id);
+          const refs = impactsByTask.get(task.task_id) ?? [];
+          const blockers = new Set<"plan_missing" | "plan_stale" | "project_scope_changed" | "material_missing" | "material_revision_changed"
+            | "material_not_eligible" | "identity_reservation_missing" | "device_association_missing" | "installation_missing" | "device_paused"
+            | "stop_unconfirmed" | "participation_missing" | "network_not_admitted" | "action_inspector_unavailable" | "current_fact_unknown">();
+          if (!plan) blockers.add("plan_missing");
+          if (view.plan?.scopeState === "stale") blockers.add("plan_stale");
+          if (view.currentScope.projectVersion !== (plan?.projectVersion ?? view.currentScope.projectVersion)
+            || refs.some(item => item.reason === "project_scope_changed")) blockers.add("project_scope_changed");
+          if (!material) blockers.add("material_missing");
+          else {
+            if (material.currentRevision !== Number(task.material_revision)) blockers.add("material_revision_changed");
+            if (material.status !== "candidate" || !material.candidateAllowed) blockers.add("material_not_eligible");
+          }
+          if (!fact?.reserved_device_id) blockers.add("identity_reservation_missing");
+          if (associationCurrent === false) blockers.add("device_association_missing");
+          if (fact?.association_id && !fact.installation_generation) blockers.add("installation_missing");
+          if (controlIntent && controlIntent !== "active") blockers.add("device_paused");
+          if (controlStop === "requested" || controlStop === "unknown") blockers.add("stop_unconfirmed");
+          if (!participationCurrent) blockers.add("participation_missing");
+          if (!networkAdmitted) blockers.add("network_not_admitted");
+          // The production executor is deliberately absent; this read cannot create authority.
+          blockers.add("action_inspector_unavailable");
+          if (!impactStoreAvailable || !fact || !fact.reserved_device_id || associationCurrent === null || !fact.installation_generation
+            || controlIntent === null || controlStop === null || material === null) blockers.add("current_fact_unknown");
+          return {
+            taskId: task.task_id, taskRevision: Number(task.task_revision), planId: task.plan_id, planRevision: Number(task.plan_revision),
+            variantId: task.variant_id, expectedMaterialRevision: Number(task.material_revision), identityId: task.identity_id,
+            platform: task.platform, form: task.form, scheduledAt: task.scheduled_at,
+            current: { projectVersion: view.currentScope.projectVersion, approvalId: view.currentScope.approvalId,
+              materialRevision: material?.currentRevision ?? null, materialStatus: material?.status ?? null,
+              materialCandidateAllowed: material?.candidateAllowed ?? null, reservedDeviceId: fact?.reserved_device_id ?? null,
+              associationCurrent: fact ? associationCurrent : null, installationGeneration: fact?.installation_generation ?? null,
+              controlIntent, controlStop, participationCurrent: fact ? participationCurrent : null,
+              networkAdmitted: fact ? networkAdmitted : null },
+            impactReferences: refs.map(item => ({ impactRevision: Number(item.impact_revision), reason: item.reason,
+              observedProjectVersion: Number(item.observed_project_version), observedMaterialRevision: item.observed_material_revision === null ? null : Number(item.observed_material_revision),
+              recordedAt: item.recorded_at.toISOString() })),
+            blockers: [...blockers],
+          };
+        }),
+        executionAllowed: false as const,
+        publicationAllowed: false as const,
+      };
+      return businessPlanCurrentChecksResponseSchema.parse(response);
+    });
   }
 
   private async snapshot(c: PoolClient, projectId: string): Promise<Snapshot | null> {
