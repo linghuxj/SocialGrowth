@@ -246,14 +246,16 @@ test("plan candidate cannot select a later reserved identity outside the exact a
 
 test("final transaction reruns the schedule check after delay before any plan or outbox write", async () => {
   arrangementCalls = 0; arrangementGate = null;
-  const now = Date.now(), f = await approvedProject(undefined, {
-    startsAt: new Date(now - 60_000).toISOString(), endsAt: new Date(now + 5_000).toISOString(),
+  const f = await approvedProject(undefined, {
+    startsAt: "2026-01-01T00:00:00.000Z", endsAt: "2027-01-01T00:00:00.000Z",
   });
   await seedCandidateMaterial(f);
+  const scheduleClock = (await pool.query<{ now: Date }>("SELECT clock_timestamp() AS now")).rows[0]!.now;
+  const scheduledAt = new Date(scheduleClock.getTime() + 2_000).toISOString();
   makeArrangement = context => {
     const base = scheduleSuggestion(context) as ReturnType<typeof scheduleSuggestion>;
     return { ...base, changes: [{ ...base.changes[0]!, publication: {
-      ...base.changes[0]!.publication, scheduledAt: new Date(Date.now() + 2_000).toISOString(),
+      ...base.changes[0]!.publication, scheduledAt,
     } }] };
   };
   const current = await f.service.read(f.token, f.projectId);
@@ -263,14 +265,46 @@ test("final transaction reruns the schedule check after delay before any plan or
   const service = f.service as unknown as { tx: Tx };
   const originalTx = service.tx.bind(f.service);
   let csrfTransactions = 0;
+  let finalGuardWaitObserved = false;
   service.tx = async (token, csrf, fn) => {
-    // The first CSRF transaction checks for an idempotent replay. Delay the
-    // second (final persistence) transaction to model time spent waiting to
-    // enter the final locked section.
-    if (csrf !== null && ++csrfTransactions === 2) await new Promise(resolve => setTimeout(resolve, 2_300));
+    // The first CSRF transaction is the replay check. For the second (final
+    // persistence) transaction, hold the exact guard it must acquire and
+    // release it only after PostgreSQL's own clock has passed scheduledAt.
+    // This models a real lock wait and removes Node/DB clock skew and wrapper
+    // call-count timing as sources of a false pass.
+    if (csrf !== null && ++csrfTransactions === 2) {
+      const blocker = await pool.connect();
+      try {
+        await blocker.query("BEGIN");
+        await blocker.query("SELECT 1 FROM socialgrowth_product.business_plan_guard FOR UPDATE");
+        const pending = originalTx(token, csrf, fn);
+        const waitDeadline = Date.now() + 10_000;
+        while (true) {
+          const waiting = await pool.query<{ count: number }>(`SELECT count(*)::int AS count FROM pg_stat_activity
+            WHERE datname=current_database() AND pid<>pg_backend_pid() AND wait_event_type='Lock'
+              AND query LIKE '%business_plan_guard%'`);
+          if (waiting.rows[0]!.count > 0) break;
+          if (Date.now() >= waitDeadline) throw new Error("Final transaction did not wait on the held business-plan guard");
+          await new Promise(resolve => setTimeout(resolve, 20));
+        }
+        finalGuardWaitObserved = true;
+        while (true) {
+          const elapsed = (await blocker.query<{ elapsed: boolean }>(
+            "SELECT clock_timestamp() > $1::timestamptz AS elapsed", [scheduledAt])).rows[0]!.elapsed;
+          if (elapsed) break;
+          await new Promise(resolve => setTimeout(resolve, 20));
+        }
+        await blocker.query("COMMIT");
+        return await pending;
+      } catch (error) {
+        await blocker.query("ROLLBACK").catch(() => undefined);
+        throw error;
+      } finally { blocker.release(); }
+    }
     return originalTx(token, csrf, fn);
   };
   await assert.rejects(f.service.arrange(f.token, f.csrf, f.projectId, request), error("FACT_VERSION_STALE"));
+  assert.equal(finalGuardWaitObserved, true, "the final persistence transaction must have waited on the PostgreSQL business-plan guard");
   assert.deepEqual(await planRowCounts(f.projectId), { revisions: 0, tasks: 0, outbox: 0, commands: 0, audits: 0 });
   makeArrangement = confirmationSuggestion;
 });
