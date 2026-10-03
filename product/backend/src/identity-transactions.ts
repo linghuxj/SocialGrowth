@@ -22,6 +22,7 @@ import {
   uuidSchema,
 } from "@socialgrowth/product-contracts";
 import type { Pool, PoolClient, QueryResult } from "pg";
+import type { ProviderAuthService } from "./provider-auth-service.js";
 
 import { ProductTransactionError } from "./product-transaction-error.js";
 
@@ -88,7 +89,7 @@ interface RegistrationContext {
   verifiedPhoneVerificationId: string;
 }
 
-export interface ProviderContext {
+interface ProviderContext {
   providerId: string;
 }
 
@@ -802,47 +803,41 @@ export class IdentityTransactionService {
   }
 
   async renameProviderDevice(
+    auth: ProviderAuthService,
+    sessionToken: string,
     deviceId: string,
     input: ProviderDeviceLabelRequest,
-    context: ProviderContext,
   ): Promise<ReturnType<typeof providerDeviceLabelResponseSchema.parse>> {
     const request = providerDeviceLabelRequestSchema.parse(input);
     const targetDeviceId = uuidSchema.parse(deviceId).toLowerCase();
     return inTransaction(this.pool, async (client) => {
-      const provider = await client.query<{ status: string }>(
-        `SELECT status FROM ${schema}.providers WHERE provider_id=$1 FOR UPDATE`,
-        [context.providerId],
-      );
-      if (provider.rows[0]?.status !== "active") {
-        throw new ProductTransactionError("AUTHORIZATION_DENIED", "Provider identity is no longer active");
-      }
+      const actor = await auth.authenticateSessionInTransaction(client, sessionToken);
       const now = await databaseWallClock(client);
-      const identity: IdempotencyIdentity = {
-        operation: "rename_provider_device_label",
-        principalId: context.providerId,
-        principalType: "provider",
-      };
-      const existing = await beginIdempotentRequest(
-        client,
-        identity,
-        request.metadata.idempotencyKey,
-        requestDigest(request),
-        now,
-      );
-      if (existing) return providerDeviceLabelResponseSchema.parse(existing.response_body);
-
       const owned = await client.query<{ association_id: string; display_name: string; device_id: string; fact_version: string; state: string; updated_at: Date }>(
         `SELECT a.association_id,d.display_name,d.device_id,d.fact_version::text,d.state,d.updated_at
            FROM ${schema}.device_associations a
            JOIN ${schema}.devices d ON d.device_id=a.device_id
           WHERE a.device_id=$1 AND a.provider_id=$2 AND a.ended_at IS NULL
           FOR UPDATE OF a,d`,
-        [targetDeviceId, context.providerId],
+        [targetDeviceId, actor.providerId],
       );
       const current = owned.rows[0];
       if (!current) {
         throw new ProductTransactionError("AUTHORIZATION_DENIED", "Device is not currently associated with this provider");
       }
+      const identity: IdempotencyIdentity = {
+        operation: "rename_provider_device_label",
+        principalId: actor.providerId,
+        principalType: "provider",
+      };
+      const existing = await beginIdempotentRequest(
+        client,
+        identity,
+        request.metadata.idempotencyKey,
+        requestDigest({ ...request, deviceId: targetDeviceId }),
+        now,
+      );
+      if (existing) return providerDeviceLabelResponseSchema.parse(existing.response_body);
       const currentVersion = Number(current.fact_version);
       if (currentVersion !== request.expectedFactVersion || currentVersion >= Number.MAX_SAFE_INTEGER) {
         throw new ProductTransactionError("FACT_VERSION_STALE", "Device facts changed; re-read the current device");
@@ -879,7 +874,7 @@ export class IdentityTransactionService {
       await writeAudit(
         client,
         "provider",
-        context.providerId,
+        actor.providerId,
         "device.label_renamed",
         "device",
         row.device_id,

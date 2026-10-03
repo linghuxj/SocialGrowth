@@ -17,11 +17,11 @@ const body = {
 test("device label route authenticates provider and passes only path identity and strict versioned input", async () => {
   const calls: unknown[][] = [];
   const controller = new ProviderDeviceLabelController(
-    { authenticate: async (value: string) => { assert.equal(value, token); return { providerId: "provider-1" }; } } as unknown as ProviderAuthService,
+    {} as ProviderAuthService,
     { renameProviderDevice: async (...args: unknown[]) => { calls.push(args); return { device: { deviceId, displayName: "Desk phone", factVersion: 3 } }; } } as unknown as IdentityTransactionService,
   );
   await controller.rename(deviceId, body, `Bearer ${token}`);
-  assert.deepEqual(calls, [[deviceId, { ...body, displayName: "Desk phone" }, { providerId: "provider-1" }]]);
+  assert.deepEqual(calls, [[{}, token, deviceId, { ...body, displayName: "Desk phone" }]]);
   await assert.rejects(controller.rename(deviceId, { ...body, providerId: "forged" }, `Bearer ${token}`), (error: unknown) => error instanceof HttpException && error.getStatus() === 400);
   await assert.rejects(controller.rename("not-a-uuid", body, `Bearer ${token}`), (error: unknown) => error instanceof HttpException && error.getStatus() === 400);
   await assert.rejects(controller.rename(deviceId, body, undefined), (error: unknown) => error instanceof HttpException && error.getStatus() === 401);
@@ -30,7 +30,7 @@ test("device label route authenticates provider and passes only path identity an
 
 test("device label route masks unexpected service errors", async () => {
   const controller = new ProviderDeviceLabelController(
-    { authenticate: async () => ({ providerId: "provider-1" }) } as unknown as ProviderAuthService,
+    {} as ProviderAuthService,
     { renameProviderDevice: async () => { throw new Error("fixture-private-device-fact"); } } as unknown as IdentityTransactionService,
   );
   await assert.rejects(controller.rename(deviceId, body, `Bearer ${token}`), (error: unknown) => {
