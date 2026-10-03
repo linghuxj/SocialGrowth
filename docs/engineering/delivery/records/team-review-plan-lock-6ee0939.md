@@ -1,0 +1,13 @@
+# Independent Plan lock-wait fixture findings
+
+Reviewer: `/root/adversary`
+
+Base: `34aea3a0a688a8172128b8dfae4b097fcc43cbca`
+
+Head: `6ee0939677d2e0b843e31bbff01e4bc4bddd4dcd`
+
+Verdict: **changes_requested** for the one-file PostgreSQL test change; production logic is unchanged.
+
+**PLAN-FIXTURE-CLEANUP-01 (P2): pending transaction rejection is not handled during lock observation and cleanup.** The test starts originalTx, whose lock timeout is five seconds, then polls for up to ten seconds before attaching an await to that promise. A delayed/failed observation can leave its rejection unhandled. If polling throws, catch releases the blocker but never awaits the transaction, so it can race later test cleanup. Attach a settlement handler immediately and, after releasing the blocker in all paths, await the pending transaction before completing or rethrowing. Preserve actual lock observation, PostgreSQL-clock cutoff and zero-persistence assertions.
+
+Using the database clock and actual guard contention is a sound correction to the old host-clock/sleep fixture. Author typecheck/diff checks passed; the new PostgreSQL scenario has not run yet and is not marked passed.
