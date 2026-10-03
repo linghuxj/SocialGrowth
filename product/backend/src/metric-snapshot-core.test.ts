@@ -26,11 +26,12 @@ test("separate cumulative observations and source definitions are not added or t
 test("real zero, missing, delayed old data and unknown coverage/cutoff remain distinct", () => {
   const row = fixture();
   for (const patch of [{ value: "0" }, { value: null, availability: "missing", missingReason: "no_data" },
-    { value: "2", availability: "delayed", missingReason: "source_unavailable" }, { coverage: null, statisticsCutoffAt: null, sourceTimeZone: null }]) {
+    { value: null, availability: "delayed", missingReason: "source_unavailable" }, { coverage: null, statisticsCutoffAt: null, sourceTimeZone: null }]) {
     const history = appendMetricSnapshot([], { ...row, ...patch }).history;
     assert.deepEqual(history[0], { ...row, ...patch });
   }
-  for (const patch of [{ value: null }, { value: "0", availability: "missing", missingReason: "no_data" }, { availability: "delayed" }, { missingReason: "no_data" }]) assert.throws(() => appendMetricSnapshot([], { ...row, ...patch }), code("INPUT_INVALID"));
+  for (const patch of [{ value: null }, { value: "0", availability: "missing", missingReason: "no_data" },
+    { value: "2", availability: "delayed", missingReason: "source_unavailable" }, { availability: "delayed" }, { missingReason: "no_data" }]) assert.throws(() => appendMetricSnapshot([], { ...row, ...patch }), code("INPUT_INVALID"));
 });
 test("account observations cannot acquire invented content/task attribution; corrections retain original project/source scope", () => {
   const row = { ...fixture(), subject: { kind: "account" as const } }, history = appendMetricSnapshot([], row).history;
