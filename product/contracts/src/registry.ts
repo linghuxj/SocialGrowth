@@ -6,7 +6,8 @@ import { centralPublicationTaskSchema, taskDispatchNoticeSchema, taskExecutionOb
 import { saveMaterialDeclarationRequestSchema, materialCurrentViewSchema, saveMaterialDeclarationResponseSchema, batchMaterialDeclarationsRequestSchema, batchMaterialDeclarationsResponseSchema, materialHistoryQuerySchema, materialHistoryResponseSchema, materialLibraryQuerySchema, materialLibraryResponseSchema } from "./material-registry.js";
 import { prepareMaterialUploadRequestSchema, materialUploadTicketViewSchema, prepareMaterialUploadResponseSchema, uploadMaterialBytesCommandSchema, uploadMaterialBytesResponseSchema, materialUploadInventoryQuerySchema, materialUploadInventoryResponseSchema } from "./material-upload.js";
 import { commissionCursorSchema, providerCommissionRecordSchema, listProviderCommissionsResponseSchema } from "./commission.js";
-import { deviceAssistanceTodoSummarySchema, listDeviceAssistanceTodosResponseSchema, recordDeviceAssistanceNoteRequestSchema, recordDeviceAssistanceNoteResponseSchema, providerDeviceAssistanceTodoSummarySchema, listProviderDeviceAssistanceTodosResponseSchema, deviceAssistanceNoteViewSchema, listDeviceAssistanceNotesResponseSchema } from "./device-assistance.js";
+import { deviceAssistanceTodoSummarySchema, listDeviceAssistanceTodosResponseSchema, recordDeviceAssistanceNoteRequestSchema, recordDeviceAssistanceNoteResponseSchema, providerDeviceAssistanceTodoSummarySchema, listProviderDeviceAssistanceTodosResponseSchema, deviceAssistanceNoteViewSchema, listDeviceAssistanceNotesResponseSchema, deviceAssistanceImpactSchema, listDeviceAssistanceImpactsResponseSchema } from "./device-assistance.js";
+import { deviceControlSnapshotSchema, installationSelfControlCommandRequestSchema, providerDeviceControlCommandRequestSchema } from "./device-control.js";
 import { phoneActionRequestSchema } from "./action-permission.js";
 import { createProjectRequestSchema, updateProjectRequestSchema, projectResponseSchema, projectViewSchema, listProjectsResponseSchema } from "./project.js";
 import { projectPlanningInputsSchema, projectPlanningDraftViewSchema, projectPlanningResponseSchema, saveProjectPlanningRequestSchema } from "./project-planning.js";
@@ -23,6 +24,8 @@ import {
   installationStateRequestSchema,
   listProviderDevicesRequestSchema,
   listProviderDevicesResponseSchema,
+  providerDeviceLabelRequestSchema,
+  providerDeviceLabelResponseSchema,
   queryAssociationResultRequestSchema,
 } from "./association.js";
 import { productErrorResponseSchema } from "./errors.js";
@@ -126,7 +129,12 @@ export const firstBatchContractRegistry = {
   providerDeviceAssistanceTodoSummary: providerDeviceAssistanceTodoSummarySchema,
   listProviderDeviceAssistanceTodosResponse: listProviderDeviceAssistanceTodosResponseSchema,
   deviceAssistanceNoteView: deviceAssistanceNoteViewSchema,
+  deviceControlSnapshot: deviceControlSnapshotSchema,
+  installationSelfControlCommandRequest: installationSelfControlCommandRequestSchema,
+  providerDeviceControlCommandRequest: providerDeviceControlCommandRequestSchema,
   listDeviceAssistanceNotesResponse: listDeviceAssistanceNotesResponseSchema,
+  deviceAssistanceImpact: deviceAssistanceImpactSchema,
+  listDeviceAssistanceImpactsResponse: listDeviceAssistanceImpactsResponseSchema,
   projectPlanningInputs: projectPlanningInputsSchema,
   projectPlanningDraftView: projectPlanningDraftViewSchema,
   projectPlanningResponse: projectPlanningResponseSchema,
@@ -165,6 +173,8 @@ export const firstBatchContractRegistry = {
   listOperatorDeviceFactsResponse: listOperatorDeviceFactsResponseSchema,
   listProviderDevicesRequest: listProviderDevicesRequestSchema,
   listProviderDevicesResponse: listProviderDevicesResponseSchema,
+  providerDeviceLabelRequest: providerDeviceLabelRequestSchema,
+  providerDeviceLabelResponse: providerDeviceLabelResponseSchema,
   listInvitationsResponse: listInvitationsResponseSchema,
   operatorDeviceView: operatorDeviceViewSchema,
   operatorDeviceFact: operatorDeviceFactSchema,

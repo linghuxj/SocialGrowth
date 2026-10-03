@@ -14,6 +14,9 @@ import {
   installationSelfViewSchema,
   listOperatorDeviceFactsResponseSchema,
   listProviderDevicesResponseSchema,
+  listProviderDeviceAssistanceTodosResponseSchema,
+  listDeviceAssistanceImpactsResponseSchema,
+  providerDeviceLabelResponseSchema,
   productErrorResponseSchema,
 } from "@socialgrowth/product-contracts";
 import { Pool } from "pg";
@@ -35,6 +38,9 @@ const migrationUrls = [
   new URL("../migrations/0002_provider_phone_auth.sql", import.meta.url),
   new URL("../migrations/0003_provider_auth_recovery.sql", import.meta.url),
   new URL("../migrations/0004_installation_bootstrap_admission.sql", import.meta.url),
+  new URL("../migrations/0011_unassigned_device_todos.sql", import.meta.url),
+  new URL("../migrations/0012_device_assistance_feed_index.sql", import.meta.url),
+  new URL("../migrations/0013_device_assistance_notes_index.sql", import.meta.url),
 ];
 
 let app: NestApplication;
@@ -232,6 +238,7 @@ test("real HTTP keeps scan read-only and supports confirmation recovery and mult
     metadata: metadata("association-http-confirm-0001"),
     associationSessionId: inspected.associationSessionId,
     expectedInstallationId: inspected.installation.installationId,
+    deviceLabel: "Owner's execution phone A",
   };
   const confirmResult = await post(
     "/api/provider/association-sessions/confirm",
@@ -410,9 +417,116 @@ test("real HTTP keeps scan read-only and supports confirmation recovery and mult
   const devices = listProviderDevicesResponseSchema.parse(devicesResult.body);
   assert.deepEqual(
     devices.devices.map((device) => device.displayName),
-    ["Execution Phone A", "Execution Phone B"],
+    ["Owner's execution phone A", "Execution Phone B"],
   );
   assert.equal("installationId" in (devices.devices[0] ?? {}), false);
+
+  const currentDevice = devices.devices[0];
+  assert.ok(currentDevice);
+  const renameRequest = {
+    metadata: metadata("association-http-device-label-0001"),
+    expectedFactVersion: currentDevice.factVersion,
+    displayName: "Renamed execution phone A",
+  };
+  const renamedResult = await post(`/api/provider/devices/${currentDevice.deviceId}/label`, renameRequest, owner.token);
+  assert.equal(renamedResult.response.status, 201);
+  const renamed = providerDeviceLabelResponseSchema.parse(renamedResult.body);
+  assert.equal(renamed.device.displayName, renameRequest.displayName);
+  assert.equal(renamed.device.factVersion, currentDevice.factVersion + 1);
+
+  const replayedRename = await post(`/api/provider/devices/${currentDevice.deviceId}/label`, {
+    ...renameRequest,
+    metadata: { ...renameRequest.metadata, requestId: `request-${randomUUID()}` },
+  }, owner.token);
+  assert.deepEqual(providerDeviceLabelResponseSchema.parse(replayedRename.body), renamed);
+  const changedPayload = await post(`/api/provider/devices/${currentDevice.deviceId}/label`, {
+    ...renameRequest,
+    displayName: "Changed payload",
+  }, owner.token);
+  assert.equal(changedPayload.response.status, 409);
+  assert.equal(productErrorResponseSchema.parse(changedPayload.body).error.code, "IDEMPOTENCY_KEY_REUSED");
+
+  const foreignRename = await post(`/api/provider/devices/${currentDevice.deviceId}/label`, {
+    ...renameRequest,
+    metadata: metadata("association-http-device-label-foreign-0001"),
+  }, other.token);
+  assert.equal(foreignRename.response.status, 403);
+  assert.equal(productErrorResponseSchema.parse(foreignRename.body).error.code, "AUTHORIZATION_DENIED");
+  const staleRename = await post(`/api/provider/devices/${currentDevice.deviceId}/label`, {
+    ...renameRequest,
+    expectedFactVersion: currentDevice.factVersion,
+    metadata: metadata("association-http-device-label-stale-0001"),
+  }, owner.token);
+  assert.equal(staleRename.response.status, 409);
+  assert.equal(productErrorResponseSchema.parse(staleRename.body).error.code, "FACT_VERSION_STALE");
+
+  // Synthetic persisted journal rows exercise the existing provider feed over
+  // HTTP; this is backend route evidence, not an upstream event-producer claim.
+  const responsibleOperatorId = randomUUID();
+  const todoId = randomUUID();
+  await pool.query(
+    `INSERT INTO socialgrowth_product.operators(operator_id,login_name,display_name,password_hash,status)
+     VALUES($1,$2,'Assistance HTTP fixture','not-a-real-password','active')`,
+    [responsibleOperatorId, `assistance-${responsibleOperatorId}`],
+  );
+  await pool.query(
+    `INSERT INTO socialgrowth_product.device_assistance_todos(todo_id,occurrence_id,provider_id,initial_responsible_operator_id)
+     VALUES($1,$2,$3,$4)`,
+    [todoId, randomUUID(), owner.providerId, responsibleOperatorId],
+  );
+  await pool.query("INSERT INTO socialgrowth_product.device_assistance_notification_intents(todo_id) VALUES($1)", [todoId]);
+  await pool.query(
+    `INSERT INTO socialgrowth_product.device_assistance_impacts(todo_id,provider_id,device_id,association_id,recorded_device_version)
+     VALUES($1,$2,$3,$4,$5)`,
+    [todoId, owner.providerId, currentDevice.deviceId, confirmed.associationId, currentDevice.factVersion],
+  );
+  const impactOperatorToken = randomBytes(32).toString("base64url"), impactOperatorCsrf = randomBytes(32).toString("base64url");
+  const tokenDigest = (value: string) => createHash("sha256").update(value, "utf8").digest();
+  const operatorSessionId = randomUUID();
+  await pool.query(`INSERT INTO socialgrowth_product.operator_sessions(session_id,operator_id,token_digest,csrf_digest,credential_version,expires_at)
+    VALUES($1,$2,$3,$4,1,clock_timestamp()+interval '1 day')`, [operatorSessionId, responsibleOperatorId, tokenDigest(impactOperatorToken), tokenDigest(impactOperatorCsrf)]);
+  const impactResponse = await fetch(`${baseUrl}/api/operator/assistance-todos/${todoId}/impacts?pageSize=1`, {
+    headers: { cookie: `__Host-sg_operator_session=${impactOperatorToken}` },
+  });
+  assert.equal(impactResponse.status, 200);
+  assert.equal(impactResponse.headers.get("cache-control"), "no-store");
+  const impactPage = listDeviceAssistanceImpactsResponseSchema.parse(await impactResponse.json());
+  assert.equal(impactPage.todoId, todoId);
+  assert.deepEqual(impactPage.impacts, [{ deviceId: currentDevice.deviceId, recordedDeviceVersion: currentDevice.factVersion, recordedAt: impactPage.impacts[0]?.recordedAt }]);
+  assert.equal(impactPage.nextAfterDeviceId, null);
+  assert.deepEqual(Object.keys(impactPage).sort(), ["impacts", "nextAfterDeviceId", "todoId"]);
+  const noSessionImpact = await fetch(`${baseUrl}/api/operator/assistance-todos/${todoId}/impacts`);
+  assert.equal(noSessionImpact.status, 401);
+  const missingImpact = await fetch(`${baseUrl}/api/operator/assistance-todos/${randomUUID()}/impacts`, {
+    headers: { cookie: `__Host-sg_operator_session=${impactOperatorToken}` },
+  });
+  assert.equal(missingImpact.status, 409);
+  const badCursor = await fetch(`${baseUrl}/api/operator/assistance-todos/${todoId}/impacts?afterDeviceId=${randomUUID()}`, {
+    headers: { cookie: `__Host-sg_operator_session=${impactOperatorToken}` },
+  });
+  assert.equal(badCursor.status, 409);
+  await pool.query("UPDATE socialgrowth_product.operator_sessions SET revoked_at=clock_timestamp(),revoked_reason='logout' WHERE session_id=$1", [operatorSessionId]);
+  const revokedImpact = await fetch(`${baseUrl}/api/operator/assistance-todos/${todoId}/impacts`, {
+    headers: { cookie: `__Host-sg_operator_session=${impactOperatorToken}` },
+  });
+  assert.equal(revokedImpact.status, 401);
+  const ownFeedResponse = await fetch(`${baseUrl}/api/provider/assistance-todos`, {
+    headers: { authorization: `Bearer ${owner.token}` },
+  });
+  assert.equal(ownFeedResponse.status, 200);
+  assert.equal(ownFeedResponse.headers.get("cache-control"), "no-store");
+  const ownFeed = listProviderDeviceAssistanceTodosResponseSchema.parse(await ownFeedResponse.json());
+  assert.equal(ownFeed.todos.length, 1);
+  assert.deepEqual(ownFeed.todos[0]?.impacts, [{
+    deviceId: currentDevice.deviceId,
+    deviceLabel: renameRequest.displayName,
+    recordedDeviceVersion: currentDevice.factVersion,
+  }]);
+  const foreignFeedResponse = await fetch(`${baseUrl}/api/provider/assistance-todos`, {
+    headers: { authorization: `Bearer ${other.token}` },
+  });
+  assert.equal(foreignFeedResponse.status, 200);
+  assert.deepEqual(listProviderDeviceAssistanceTodosResponseSchema.parse(await foreignFeedResponse.json()).todos, []);
 
   const facts = await pool.query<{
     associations: string;
@@ -466,6 +580,13 @@ test("real HTTP keeps scan read-only and supports confirmation recovery and mult
   assert.ok(operatorFacts.devices.every((device) => device.connectionState === "unknown"));
   assert.ok(operatorFacts.devices.every((device) => device.lastConfirmedAt === null));
   assert.equal(JSON.stringify(operatorFacts).includes(installation.installation.installationId), false);
+
+  await pool.query("UPDATE socialgrowth_product.device_associations SET ended_at=clock_timestamp() WHERE association_id=$1", [confirmed.associationId]);
+  const formerOwnerFeedResponse = await fetch(`${baseUrl}/api/provider/assistance-todos`, {
+    headers: { authorization: `Bearer ${owner.token}` },
+  });
+  const formerOwnerFeed = listProviderDeviceAssistanceTodosResponseSchema.parse(await formerOwnerFeedResponse.json());
+  assert.deepEqual(formerOwnerFeed.todos[0]?.impacts, []);
 });
 
 test("public bootstrap is bounded by a database-backed source admission limit", async () => {

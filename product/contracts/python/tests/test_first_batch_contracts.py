@@ -142,13 +142,33 @@ class FirstBatchContractsTest(unittest.TestCase):
     def test_provider_assistance_summary_excludes_other_principals_and_keeps_calendar_cursor_semantics(self) -> None:
         value = {"todoId": self.installation_id, "originScope": "unassigned_device", "kind": "network_access_help", "status": "awaiting_recheck",
                  "factVersion": 2, "impactCount": 1, "noteCount": 1, "createdAt": "2026-09-30T00:00:00Z", "updatedAt": "2026-09-30T00:00:00Z"}
+        impact = {"deviceId": self.installation_id, "deviceLabel": "Provider phone", "recordedDeviceVersion": 7}
         self.contracts.validate("providerDeviceAssistanceTodoSummary", value)
-        self.contracts.validate("listProviderDeviceAssistanceTodosResponse", {"todos": [value], "nextAfterTodoId": self.installation_id})
+        feed_item = {**value, "impacts": [impact]}
+        self.contracts.validate("listProviderDeviceAssistanceTodosResponse", {"todos": [feed_item], "nextAfterTodoId": self.installation_id})
+        for patch in ({"impacts": [{**impact, "rawError": "private"}]}, {"impacts": [{**impact, "recordedDeviceVersion": -1}]}, {"impacts": [{**impact, "deviceLabel": ""}]}):
+            with self.assertRaises(ContractValidationError):
+                self.contracts.validate("listProviderDeviceAssistanceTodosResponse", {"todos": [{**feed_item, **patch}], "nextAfterTodoId": self.installation_id})
+        with self.assertRaises(ContractValidationError):
+            self.contracts.validate("listProviderDeviceAssistanceTodosResponse", {"todos": [value], "nextAfterTodoId": self.installation_id})
         for patch in ({"initialResponsibleOperatorId": self.installation_id}, {"providerId": self.installation_id}, {"text": "internal"}, {"noteCount": 0}, {"createdAt": "0000-01-01T00:00:00Z"}):
             with self.assertRaises(ContractValidationError):
                 self.contracts.validate("providerDeviceAssistanceTodoSummary", {**value, **patch})
         with self.assertRaises(ContractValidationError):
-            self.contracts.validate("listProviderDeviceAssistanceTodosResponse", {"todos": [value, value], "nextAfterTodoId": None})
+            self.contracts.validate("listProviderDeviceAssistanceTodosResponse", {"todos": [feed_item, feed_item], "nextAfterTodoId": None})
+        with self.assertRaises(ContractValidationError):
+            self.contracts.validate("listProviderDeviceAssistanceTodosResponse", {"todos": [{**value, "impacts": [impact, {**impact, "deviceId": self.installation_id.upper()}]}], "nextAfterTodoId": self.installation_id})
+
+    def test_provider_device_label_contract_keeps_current_fact_version_and_optional_association_label(self) -> None:
+        metadata = {"contractVersion": "2026-09-29.identity-v1", "requestId": "provider-label-request", "idempotencyKey": "provider-label-command-01"}
+        self.contracts.validate("confirmAssociationRequest", {"metadata": metadata, "associationSessionId": self.installation_id, "expectedInstallationId": self.installation_id})
+        self.contracts.validate("confirmAssociationRequest", {"metadata": metadata, "associationSessionId": self.installation_id, "expectedInstallationId": self.installation_id, "deviceLabel": "My phone"})
+        request = {"metadata": metadata, "expectedFactVersion": 4, "displayName": "Provider phone"}
+        self.contracts.validate("providerDeviceLabelRequest", request)
+        with self.assertRaises(ContractValidationError):
+            self.contracts.validate("providerDeviceLabelRequest", {**request, "providerId": self.installation_id})
+        with self.assertRaises(ContractValidationError):
+            self.contracts.validate("providerDeviceLabelRequest", {**request, "expectedFactVersion": -1})
 
     def test_operator_notes_page_has_strict_current_count_and_cursor(self) -> None:
         summary = {"todoId": self.installation_id, "occurrenceId": self.installation_id, "providerId": self.installation_id, "initialResponsibleOperatorId": self.installation_id,

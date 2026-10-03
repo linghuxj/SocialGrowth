@@ -16,3 +16,17 @@ test("notes HTTP masks storage faults rather than echoing note bodies or credent
   const controller = new DeviceAssistanceNotesController({ list: async () => { throw new Error("fixture-private-note-or-token"); } } as unknown as DeviceAssistanceNotesService);
   await assert.rejects(controller.list(id, {}, request), (e: unknown) => e instanceof HttpException && productErrorResponseSchema.parse(e.getResponse()).error.code === "INTERNAL_ERROR" && !JSON.stringify(e.getResponse()).includes("fixture-private"));
 });
+test("impact HTTP forwards only strict bounded device cursor and active operator session", async () => {
+  let calls = 0;
+  const controller = new DeviceAssistanceNotesController({
+    listImpacts: async (t: string, todo: string, query: unknown) => {
+      calls++; assert.equal(t, token); assert.equal(todo, id); assert.deepEqual(query, { afterDeviceId: null, pageSize: 20 });
+      return { todoId: id, impacts: [], nextAfterDeviceId: null };
+    },
+  } as unknown as DeviceAssistanceNotesService);
+  assert.deepEqual(await controller.listImpacts(id, {}, request), { todoId: id, impacts: [], nextAfterDeviceId: null });
+  for (const query of [{ afterNoteId: id }, { pageSize: "51" }, { pageSize: ["1", "2"] }, { afterDeviceId: "bad" }]) {
+    await assert.rejects(controller.listImpacts(id, query, request), (e: unknown) => e instanceof HttpException && e.getStatus() === 400);
+  }
+  assert.equal(calls, 1);
+});
