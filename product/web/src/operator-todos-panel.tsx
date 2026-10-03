@@ -139,13 +139,14 @@ export function OperatorTodosPanel({ active, readOnly, onExpired }: Props) {
   useEffect(() => { if (active) void refresh(); else { readSequence.current += 1; detailSequence.current += 1; } }, [active]);
   if (!active) return null;
   return <section className="operator-todos" aria-labelledby="operator-todos-title">
-    <header className="operator-todos__header"><div><p className="operator-todos__eyebrow">设备协助 · 运营待办</p><h2 id="operator-todos-title">设备接入待办</h2><p>只展示已记录的未分配设备协助事项。说明和“报告已处理”都不会批准恢复、验证设备或关闭事项。</p></div><button type="button" className="outline-button" onClick={() => void refresh()} disabled={loading}>{loading ? "读取中…" : "刷新"}</button></header>
+    <header className="operator-todos__header"><div><h2 id="operator-todos-title">未分配设备协助</h2><p>只展示已记录的网络接入协助事项。说明和“报告已处理”都不会批准恢复、验证设备或关闭事项。</p></div><button type="button" className="outline-button" onClick={() => void refresh()} disabled={loading}>{loading ? "读取中…" : "刷新"}</button></header>
     {readOnly && <p className="operator-todos__notice" role="note">手机端只读；请在电脑提交运营说明。</p>}
     {message && <p className="operator-todos__feedback" role="status">{message}</p>}
     {error && <p className="operator-todos__error" role="alert">{error}</p>}
     <div className="operator-todos__layout">
       <section className="operator-todos__list" aria-label="设备接入待办列表">
         <div className="operator-todos__list-head"><h3>待办列表</h3><span>{todos.length} 条已载入</span></div>
+        {loading && todos.length === 0 && <p className="operator-todos__loading" role="status">正在读取当前待办…</p>}
         {todos.length === 0 && !loading ? <div className="operator-todos__empty"><h4>当前没有可显示的设备接入待办</h4><p>没有从设备事件或人工记录读取到事项；页面不会创建演示待办。</p></div> : null}
         {todos.map(todo => <button key={todo.todoId} type="button" className={`operator-todos__row ${selected?.todo.todoId === todo.todoId ? "is-selected" : ""}`} disabled={Boolean(pending)} onClick={() => void openTodo(todo)}>
           <span className={`operator-todos__status ${todo.status}`}>{statusLabel(todo.status)}</span><strong>{todo.kind === "network_access_help" ? "设备网络接入协助" : todo.kind}</strong>
