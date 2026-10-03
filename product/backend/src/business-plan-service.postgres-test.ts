@@ -286,6 +286,55 @@ test("material-backed schedule atomically persists current-scope plan, Task, quo
   makeArrangement = confirmationSuggestion;
 });
 
+test("logical attempt is source-bound, idempotent, and never enables execution", async () => {
+  arrangementCalls = 0; arrangementGate = null; makeArrangement = scheduleSuggestion;
+  const f = await approvedProject(); await seedCandidateMaterial(f);
+  const current = await f.service.read(f.token, f.projectId);
+  const plan = await f.service.arrange(f.token, f.csrf, f.projectId, { metadata: metadata(),
+    expectedProjectVersion: current.currentScope.projectVersion, expectedApprovalId: current.currentScope.approvalId!, expectedPlanRevision: 0 });
+  assert.equal(plan.tasks.length, 1);
+  const taskId = plan.tasks[0]!.taskId;
+  const before = await f.service.currentChecks(f.token, f.projectId);
+  assert.equal(before.tasks[0]?.attempt, null);
+  const command = { metadata: metadata(), expectedPlanRevision: plan.plan!.revision, expectedTaskRevision: 1 };
+
+  await assert.rejects(f.service.createTaskAttempt(f.token, f.csrf, f.projectId, taskId,
+    { ...command, expectedTaskRevision: 2 }), error("FACT_VERSION_STALE"));
+  assert.equal((await pool.query(`SELECT count(*)::int count FROM socialgrowth_product.business_plan_task_attempts WHERE project_id=$1`, [f.projectId])).rows[0]!.count, 0);
+
+  const created = await f.service.createTaskAttempt(f.token, f.csrf, f.projectId, taskId, command);
+  assert.equal(created.outcome, "created");
+  assert.equal(created.taskId, taskId);
+  assert.equal(created.attempt?.attemptNumber, 1);
+  assert.equal(created.attempt?.assignmentSemantics, "logical_reservation_bound");
+  assert.equal(created.attempt?.state, "pending_current_checks");
+  assert.equal(created.attempt?.startedAt, null);
+  assert.equal(created.attempt?.executionAllowed, false);
+  assert.equal(created.attempt?.publicationAllowed, false);
+  assert.ok(created.blockers.includes("action_inspector_unavailable"));
+  assert.ok(created.blockers.includes("device_association_missing"));
+
+  const replay = await f.service.createTaskAttempt(f.token, f.csrf, f.projectId, taskId,
+    { ...command, metadata: { ...command.metadata, requestId: `retry-${randomUUID()}` } });
+  assert.equal(replay.outcome, "replayed");
+  assert.equal(replay.attempt?.taskAttemptId, created.attempt?.taskAttemptId);
+  assert.equal(replay.executionAllowed, false);
+  assert.equal(replay.publicationAllowed, false);
+  await assert.rejects(f.service.createTaskAttempt(f.token, f.csrf, f.projectId, taskId,
+    { ...command, metadata: metadata() }), error("FACT_VERSION_STALE"));
+  const counts = (await pool.query(`SELECT
+    (SELECT count(*)::int FROM socialgrowth_product.business_plan_task_attempts WHERE project_id=$1) attempts,
+    (SELECT count(*)::int FROM socialgrowth_product.business_plan_commands WHERE project_id=$1) commands,
+    (SELECT count(*)::int FROM socialgrowth_product.audit_records WHERE object_type='business_plan_task_attempt' AND object_id=$2) audits`,
+    [f.projectId, created.attempt!.taskAttemptId])).rows[0];
+  assert.deepEqual(counts, { attempts: 1, commands: 2, audits: 1 });
+
+  const otherProject = await approvedProject();
+  await assert.rejects(f.service.createTaskAttempt(f.token, f.csrf, otherProject.projectId, taskId, command), error("IDEMPOTENCY_KEY_REUSED"));
+  assert.equal((await pool.query(`SELECT count(*)::int count FROM socialgrowth_product.business_plan_task_attempts WHERE project_id=$1`, [otherProject.projectId])).rows[0]!.count, 0);
+  makeArrangement = confirmationSuggestion;
+});
+
 test("project and material mutations append idempotent impact references in their source transactions", async () => {
   arrangementCalls = 0; arrangementGate = null; makeArrangement = scheduleSuggestion;
   const f = await approvedProject(), material = await seedCandidateMaterial(f), beforePlan = await f.service.read(f.token, f.projectId);
