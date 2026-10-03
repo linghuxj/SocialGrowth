@@ -65,7 +65,7 @@ Inventory仅接受内部identity依赖明确关联到同一schema的identity seq
 | `SG_PRODUCT_ANDROID_SIGNING_STORE_PASSWORD` / `SG_PRODUCT_ANDROID_SIGNING_KEY_PASSWORD` | 构建进程环境中的签名凭据 |
 | `SG_PRODUCT_ANDROID_SIGNING_CERT_SHA256` | 预先可信的公开证书 SHA-256 指纹，可带冒号 |
 
-Gradle只在正式变体路径取这些provider值；构建时校验版本单调、HTTPS host、keystore可用签名条目及证书指纹。仓库和CI不保存签名秘密或正式证书。本仓库的CI继续构建debug，并用缺项、占位endpoint、非递增版本的负例及临时生成的合成测试证书指纹不匹配确认release fail closed；不会使用该合成证书签包或保存它。它不会生成/签署正式包。不要把Gradle构建日志、环境诊断或公开metadata用于输出签名密码/keystore内容。
+正式变体的输出版本由同一显式version输入设置；release打包任务无论使用完整名还是Gradle缩写都会先运行门禁，校验版本单调、HTTPS host、keystore可用签名条目及证书指纹。仓库和CI不保存签名秘密或正式证书。本仓库的CI继续构建debug，并用缺项（含`:app:aR`缩写）、占位endpoint、非递增版本的负例及临时生成的合成测试证书指纹不匹配确认release fail closed；不会使用该合成证书签包或保存它。它不会生成/签署正式包。不要把Gradle构建日志、环境诊断或公开metadata用于输出签名密码/keystore内容。
 
 这只是正式构建配置门禁，不证明真实发布签名、升级后安装身份/本地状态保留、旧客户端兼容、回滚/前向修复、设备安装或用户验收；上述AC-53/60证据仍需真实受控候选和运营资源。
 

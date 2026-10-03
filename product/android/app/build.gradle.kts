@@ -7,10 +7,6 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-val releaseRequested = gradle.startParameter.taskNames.any { task ->
-    val name = task.substringAfterLast(':')
-    name.contains("release", ignoreCase = true) || name in setOf("assemble", "build", "bundle")
-}
 val releaseInputs = mapOf(
     "versionCode" to "SG_PRODUCT_ANDROID_VERSION_CODE",
     "versionName" to "SG_PRODUCT_ANDROID_VERSION_NAME",
@@ -92,11 +88,6 @@ val verifyProductAndroidReleaseInputs = tasks.register("verifyProductAndroidRele
     }
 }
 
-if (releaseRequested) {
-    // Fail during configuration for release tasks even if the requested task does not package an APK.
-    validateReleaseInputs()
-}
-
 android {
     namespace = "com.socialgrowth.product"
     compileSdk = 36
@@ -105,9 +96,8 @@ android {
         applicationId = "com.socialgrowth.product"
         minSdk = 27
         targetSdk = 36
-        versionCode = if (releaseRequested) requireReleaseValue("versionCode").toIntOrNull()
-            ?: error("SG_PRODUCT_ANDROID_VERSION_CODE must be a positive integer") else 1
-        versionName = if (releaseRequested) requireReleaseValue("versionName") else "0.0.0"
+        versionCode = 1
+        versionName = "0.0.0"
         val nativeDiscoveryChecks = providers.gradleProperty("sgNativeDiscoveryChecks").orElse("false").get()
         val verifierTransportChecks = providers.gradleProperty("sgVerifierTransportChecks").orElse("false").get()
         val admissionApiChecks = providers.gradleProperty("sgAdmissionApiChecks").orElse("false").get()
@@ -136,12 +126,11 @@ android {
         }
         getByName("release") {
             buildConfigField("boolean", "ENDPOINT_DIAGNOSTICS", "false")
-            val releaseApiBaseUrl = if (releaseRequested) requireReleaseValue("apiBaseUrl") else "https://release-input-required.invalid"
+            val releaseApiBaseUrl = releaseValue("apiBaseUrl") ?: "https://release-input-required.invalid"
             buildConfigField("String", "API_BASE_URL", "\"$releaseApiBaseUrl\"")
             manifestPlaceholders["usesCleartextTraffic"] = "false"
-            val signingValuesPresent = releaseRequested &&
-                listOf("keystore", "keyAlias", "storePassword", "keyPassword", "certificateSha256")
-                    .all { !releaseValue(it).isNullOrBlank() }
+            val signingValuesPresent = listOf("keystore", "keyAlias", "storePassword", "keyPassword", "certificateSha256")
+                .all { !releaseValue(it).isNullOrBlank() }
             if (signingValuesPresent) {
                 signingConfig = signingConfigs.create("productRelease") {
                     storeFile = file(requireReleaseValue("keystore"))
@@ -159,13 +148,24 @@ android {
     }
 }
 
-if (releaseRequested) {
-    tasks.configureEach {
-        val releaseArtifactTask = name.contains("release", ignoreCase = true) &&
-            listOf("package", "assemble", "bundle").any { name.startsWith(it, ignoreCase = true) }
-        if (name == "preReleaseBuild" || releaseArtifactTask) {
-            dependsOn(verifyProductAndroidReleaseInputs)
+androidComponents {
+    onVariants(selector().withBuildType("release")) { variant ->
+        variant.outputs.forEach { output ->
+            output.versionCode.set(
+                providers.environmentVariable("SG_PRODUCT_ANDROID_VERSION_CODE").map(String::toInt).orElse(1),
+            )
+            output.versionName.set(
+                providers.environmentVariable("SG_PRODUCT_ANDROID_VERSION_NAME").orElse("0.0.0"),
+            )
         }
+    }
+}
+
+tasks.configureEach {
+    val releaseArtifactTask = name.contains("release", ignoreCase = true) &&
+        listOf("package", "assemble", "bundle").any { name.startsWith(it, ignoreCase = true) }
+    if (name == "preReleaseBuild" || releaseArtifactTask) {
+        dependsOn(verifyProductAndroidReleaseInputs)
     }
 }
 

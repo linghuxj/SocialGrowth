@@ -78,6 +78,11 @@ jobs:
           expect_rejected() {
             local expected="$1"
             shift
+            local task="assembleRelease"
+            if [[ "${1:-}" == :app:* ]]; then
+              task="$1"
+              shift
+            fi
             local output
             output="$(mktemp)"
             if env -u SG_PRODUCT_ANDROID_VERSION_CODE \
@@ -89,7 +94,7 @@ jobs:
               -u SG_PRODUCT_ANDROID_SIGNING_STORE_PASSWORD \
               -u SG_PRODUCT_ANDROID_SIGNING_KEY_PASSWORD \
               -u SG_PRODUCT_ANDROID_SIGNING_CERT_SHA256 \
-              "$@" product/android/gradlew -p product/android assembleRelease --no-daemon >"$output" 2>&1; then
+              "$@" product/android/gradlew -p product/android "$task" --no-daemon >"$output" 2>&1; then
               cat "$output"
               rm -f "$output"
               echo "Expected release gate rejection: $expected" >&2
@@ -104,6 +109,7 @@ jobs:
             rm -f "$output"
           }
           expect_rejected "Missing required Android release input: versionCode" env
+          expect_rejected "Missing required Android release input: versionCode" :app:aR env
           expect_rejected "must not use a reserved placeholder or local hostname" \
             env SG_PRODUCT_ANDROID_VERSION_CODE=2 \
               SG_PRODUCT_ANDROID_VERSION_NAME=2.0.0 \
@@ -127,7 +133,7 @@ jobs:
             -keystore "$fixture_dir/test-only.p12" \
             -storepass "$fixture_password" -keypass "$fixture_password" \
             -alias synthetic-only -keyalg RSA -keysize 2048 -validity 1 \
-            -dname "CN=synthetic release-gate fixture"
+            -dname "CN=synthetic release-gate fixture" >/dev/null 2>&1
           fingerprint_output="$(mktemp)"
           if env SG_PRODUCT_ANDROID_VERSION_CODE=2 \
             SG_PRODUCT_ANDROID_VERSION_NAME=2.0.0 \
