@@ -1,8 +1,8 @@
 # Independent plan database-clock review
 
-Reviewer: `/root/adversary`  
-Base: `0dd23effd77fd02745f6e6c51a96c97d827f804e`  
-Head: `e75b4197577085eedfc00266febaf7065d8ad4c0`  
+Reviewer: `/root/adversary`
+Base: `0dd23effd77fd02745f6e6c51a96c97d827f804e`
+Head: `e75b4197577085eedfc00266febaf7065d8ad4c0`
 Verdict: **approved**, findings: none.
 
 Scope is exactly four backend coordinator/service and regression-test files. The business-plan/task contract is unchanged. This is an incremental source approval, not approval of every ancestor in the base branch.

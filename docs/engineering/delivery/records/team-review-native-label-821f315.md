@@ -1,8 +1,8 @@
 # Independent Android device-label recovery review
 
-Reviewer: `/root/adversary`  
-Base: `a3406bd863bcd2288de4b28475dc6060ecca90b6`  
-Head: `821f3156552fa85363cc7317d46378ba5f76c03f`  
+Reviewer: `/root/adversary`
+Base: `a3406bd863bcd2288de4b28475dc6060ecca90b6`
+Head: `821f3156552fa85363cc7317d46378ba5f76c03f`
 Verdict: **approved**, findings: none.
 
 Scope is exactly MainActivity, AssociationApiClient and new ProviderDeviceLabelCommandStore. Contract provider-assistance-device-label revision 1 remains accepted by provider and UX. The withdrawn 3182810 candidate was not approved.
