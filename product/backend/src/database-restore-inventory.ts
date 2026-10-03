@@ -59,7 +59,11 @@ async function inventory(c: PoolClient): Promise<DatabaseRestoreInventory> {
 // Technical bounds are not capacity/RPO/RTO. Exported snapshot lives only until
 // callback ends; its consumer MUST use this exact snapshot for the trusted dump.
 // Digests are internal sensitive metadata, not source approval or current facts.
-export async function withDatabaseInventorySnapshot<T>(pool: Pool, useSnapshot: (value: { snapshotId: string; inventory: DatabaseRestoreInventory }) => Promise<T>): Promise<T> {
+export async function withDatabaseInventorySnapshot<T>(pool: Pool, useSnapshot: (value: {
+  snapshotId: string;
+  inventory: DatabaseRestoreInventory;
+  query: (text: string, values?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>;
+}) => Promise<T>): Promise<T> {
   let c: PoolClient | undefined, destroy = false;
   try {
     c = await pool.connect(); await c.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
@@ -68,7 +72,14 @@ export async function withDatabaseInventorySnapshot<T>(pool: Pool, useSnapshot: 
     await c.query("SET LOCAL bytea_output='hex'"); await c.query("SET LOCAL extra_float_digits=3"); await c.query("SET LOCAL IntervalStyle='postgres'");
     const result = await inventory(c), snapshotId: string = (await c.query("SELECT pg_export_snapshot() snapshot")).rows[0].snapshot;
     if (!/^[0-9A-Fa-f-]{1,100}$/.test(snapshotId)) throw new DatabaseInventoryError("INVENTORY_UNAVAILABLE");
-    const output = await useSnapshot({ snapshotId, inventory: structuredClone(result) }); await c.query("COMMIT"); return output;
+    const output = await useSnapshot({
+      snapshotId,
+      inventory: structuredClone(result),
+      // Trusted maintenance-only, same-transaction, read-only SQL for facts
+      // that must correspond to the inventory snapshot. PG enforces READ ONLY.
+      query: (text, values) => c!.query(text, values),
+    });
+    await c.query("COMMIT"); return output;
   } catch {
     if (c) { try { await c.query("ROLLBACK"); } catch { destroy = true; } }
     throw new DatabaseInventoryError("INVENTORY_UNAVAILABLE");
