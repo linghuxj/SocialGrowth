@@ -14,9 +14,10 @@ function current(version: number, variant = id(3)): MaterialCurrentView {
     sourceId: id(4), sourceRecordId: id(5), languageTag: "en", currentRevision: version,
     identity: { mediaKind: "image_text", businessKind: "product", businessEntityId: id(6), seriesId: null, episodeNumber: null },
     declaration: { name: "Synthetic concurrency fixture", description: "Source functions only", businessFacts: "Synthetic facts",
-      sourceStatement: "Synthetic source", sourceEvidenceIds: [id(7)], firstUseDeclaration: "declared_not_previously_published" },
+      sourceStatement: "Synthetic source", sourceEvidenceIds: [id(7)], firstUseDeclaration: "declared_not_previously_published",
+      expectedApprovedDirectionId: null, expectedApprovedProjectVersion: null, contentRulesReviewed: false },
     objects: [{ objectId: id(8), sha256: "a".repeat(64), bytes: 3, contentType: "image/png" }],
-    recordedAt: "2026-10-02T00:00:00Z", status: "pending_validation", candidateAllowed: false, publicationAllowed: false });
+    recordedAt: "2026-10-02T00:00:00Z", status: "pending_validation", candidateAllowed: false, eligibilityReason: "direction_not_approved", publicationAllowed: false });
 }
 interface SourceRow { id: string; observed?: MaterialCurrentView; saved: MaterialCurrentView;
   input: { expectedCurrentRevision: number; metadata: { contractVersion: typeof contractVersion; requestId: string; idempotencyKey: string } }; }

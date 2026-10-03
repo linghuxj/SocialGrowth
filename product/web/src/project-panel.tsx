@@ -5,6 +5,7 @@ import { isDefinitiveProjectRejection, listProjects, newIdempotencyKey, ProductA
 import { MaterialWorkspace } from "./material-workspace.js";
 import { ProjectPlanningPanel } from "./project-planning-panel.js";
 import { AccountPreparationPanel } from "./account-preparation-panel.js";
+import { BusinessPlanPanel } from "./business-plan-panel.js";
 
 interface Draft { basics: ProjectBasics; base?: ProjectView; key: string | null; uncertain?: boolean }
 const empty = (): ProjectBasics => ({ name: "", kind: "company_owned", customerName: null, ownerOperatorId: null, notificationEmail: null });
@@ -21,9 +22,10 @@ export function ProjectPanel({ active, refreshVersion, operators, readOnly, onEx
 }) {
   const [projects, setProjects] = useState<ProjectView[] | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  const [tab, setTab] = useState<"overview" | "materials" | "settings">("overview");
+  const [tab, setTab] = useState<"overview" | "materials" | "settings" | "business-plan">("overview");
   const [materialProjects, setMaterialProjects] = useState<string[]>([]);
   const [planningProjects, setPlanningProjects] = useState<string[]>([]);
+  const [businessPlanProjects, setBusinessPlanProjects] = useState<string[]>([]);
   const [planningRefresh, setPlanningRefresh] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [loading, setLoading] = useState(false), [busy, setBusy] = useState(false), [message, setMessage] = useState("");
@@ -56,6 +58,10 @@ export function ProjectPanel({ active, refreshVersion, operators, readOnly, onEx
   function showPlanning() {
     if (!current) return;
     setPlanningProjects(ids => ids.includes(current.projectId) ? ids : [...ids, current.projectId]); setTab("settings");
+  }
+  function showBusinessPlan() {
+    if (!current) return;
+    setBusinessPlanProjects(ids => ids.includes(current.projectId) ? ids : [...ids, current.projectId]); setTab("business-plan");
   }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -98,7 +104,7 @@ export function ProjectPanel({ active, refreshVersion, operators, readOnly, onEx
     </section> : <>
       <div className="project-heading"><h1>{current?.name ?? "新建筹备项目"}</h1><span className="status">筹备中</span><button className="text-button" disabled={busy} onClick={() => openList()}><ArrowLeft size={18} />返回项目列表</button></div>
       {current && <>
-        <div className="project-tabs" aria-label="项目内导航"><button className="text-button" aria-current={tab === "overview" ? "page" : undefined} onClick={() => setTab("overview")}>概览</button><button className="text-button" aria-current={tab === "materials" ? "page" : undefined} onClick={showMaterials}>素材</button><span>发布安排 · 待接入</span><span>效果与复盘 · 待接入</span><button className="text-button" aria-current={tab === "settings" ? "page" : undefined} onClick={showPlanning}>设置 · 目标与周期</button></div>
+        <div className="project-tabs" aria-label="项目内导航"><button className="text-button" aria-current={tab === "overview" ? "page" : undefined} onClick={() => setTab("overview")}>概览</button><button className="text-button" aria-current={tab === "materials" ? "page" : undefined} onClick={showMaterials}>素材</button><button className="text-button" aria-current={tab === "business-plan" ? "page" : undefined} onClick={showBusinessPlan}>排期与任务</button><span>效果与复盘 · 待接入</span><button className="text-button" aria-current={tab === "settings" ? "page" : undefined} onClick={showPlanning}>设置 · 目标与周期</button></div>
         <div hidden={tab !== "overview"}>
         <section className="project-direction-note"><Info size={24} /><div><h3>发布前确认方向，准备可并行推进</h3><p>进入设置读取已确认方向与范围。保存资料不确认方向，也不启动发布；其他准备项按自身条件继续。</p></div></section>
         <section className="panel project-readiness"><h3>准备清单</h3><p className="muted">资料已保存、检查通过、方向确认与设备就绪分别判断，不手工勾选为通过。</p>
@@ -114,7 +120,7 @@ export function ProjectPanel({ active, refreshVersion, operators, readOnly, onEx
         <div className="project-followthrough"><section className="panel"><h3>当前可推进</h3><p>补充基本信息、负责人和提醒邮箱，进入素材页上传成品及整理人工资料。目标和资源准备继续分段接入，不推断已就绪。</p></section><section className="panel"><h3>确认后的执行方式</h3><p>后续确认明确方向后，就绪任务可在批准范围内自主执行；未就绪条件保留阻断，不增加独立启动审批。</p></section></div>
         </div>
       </>}
-      {draft && <section className="panel" id="project-basics" hidden={!!current && tab === "materials"}><div className="section-heading"><div><h3>{current ? "基本信息" : "建立项目"}</h3><p className="muted">仅保存名称、类型、客户、负责人及提醒邮箱，不保存目标或批准。</p></div><span>{hasDraft ? "本窗口有未保存输入" : current ? `已保存版本 ${current.factVersion}` : "尚未保存"}</span></div>
+      {draft && <section className="panel" id="project-basics" hidden={!!current && (tab === "materials" || tab === "business-plan")}><div className="section-heading"><div><h3>{current ? "基本信息" : "建立项目"}</h3><p className="muted">仅保存名称、类型、客户、负责人及提醒邮箱，不保存目标或批准。</p></div><span>{hasDraft ? "本窗口有未保存输入" : current ? `已保存版本 ${current.factVersion}` : "尚未保存"}</span></div>
         {readOnly ? <dl className="project-facts"><dt>项目名称</dt><dd>{draft.basics.name || "尚未填写"}</dd><dt>项目类型</dt><dd>{draft.basics.kind === "company_owned" ? "公司自营" : "客户代运营"}</dd><dt>客户</dt><dd>{draft.basics.customerName ?? "不适用"}</dd><dt>提醒邮箱</dt><dd>{draft.basics.notificationEmail ?? "尚未配置"}</dd></dl> : <form className="project-form" onSubmit={event => void submit(event)}>
           <fieldset disabled={busy || draft.uncertain}><label>项目名称<input required maxLength={150} value={draft.basics.name} onChange={e => change({ name: e.target.value })} /></label>
             <label>项目类型<select value={draft.basics.kind} onChange={e => change({ kind: e.target.value as ProjectBasics["kind"], customerName: null })}><option value="company_owned">公司自营</option><option value="client_managed">客户代运营</option></select></label>
@@ -134,6 +140,7 @@ export function ProjectPanel({ active, refreshVersion, operators, readOnly, onEx
     {materialProjects.map(id => <MaterialWorkspace key={id} projectId={id} active={active && selected === id && tab === "materials"} readOnly={readOnly} onExpired={onExpired} />)}
     {planningProjects.map(id => <ProjectPlanningPanel key={id} projectId={id} active={active && selected === id && tab === "settings"} readOnly={readOnly} onExpired={onExpired} onFactsChanged={() => setPlanningRefresh(v => v + 1)} />)}
     {planningProjects.map(id => <AccountPreparationPanel key={id} projectId={id} active={active && selected === id && tab === "settings"} readOnly={readOnly} onExpired={onExpired} />)}
+    {businessPlanProjects.map(id => <BusinessPlanPanel key={id} projectId={id} active={active && selected === id && tab === "business-plan"} readOnly={readOnly} onExpired={onExpired} />)}
   </div>;
   function openList() { setSelected(null); setMessage(""); }
 }

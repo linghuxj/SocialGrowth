@@ -1,0 +1,36 @@
+.business-plan { color: #173b37; }
+.business-plan__header { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; margin-bottom:20px; }
+.business-plan__header h2 { margin:3px 0 8px; font-size:28px; }
+.business-plan__header p:last-child { max-width:760px; margin:0; color:#61736f; line-height:1.6; }
+.business-plan__eyebrow { margin:0; color:#397267; font-size:12px; font-weight:700; letter-spacing:.08em; }
+.business-plan__scope, .business-plan__plan, .business-plan__tasks { margin:16px 0; padding:18px; border:1px solid #dbe4e1; border-radius:14px; background:#fff; }
+.business-plan__scope { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+.business-plan__scope div { display:grid; gap:5px; min-width:0; }
+.business-plan__scope span, .business-plan__plan dt { color:#61736f; font-size:12px; }
+.business-plan__scope strong { overflow-wrap:anywhere; font-size:14px; }
+.business-plan__scope p { grid-column:1/-1; margin:0; color:#61736f; font-size:12px; }
+.business-plan__section-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+.business-plan__section-heading > div { display:flex; align-items:center; gap:8px; }
+.business-plan__section-heading h3 { margin:0; }
+.business-plan__section-heading > span { color:#61736f; font-size:13px; }
+.business-plan__section-heading button, .business-plan__pending button { border:0; border-radius:8px; padding:10px 16px; background:#176b5d; color:white; font:inherit; font-weight:700; cursor:pointer; }
+.business-plan__section-heading button:disabled, .business-plan__pending button:disabled { opacity:.55; cursor:wait; }
+.business-plan__plan dl { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+.business-plan__plan dl div { min-width:0; }
+.business-plan__plan dd { margin:5px 0 0; overflow-wrap:anywhere; }
+.business-plan__empty { display:flex; align-items:center; gap:10px; padding:18px; border-radius:10px; background:#f5f8f7; color:#61736f; }
+.business-plan__tasks table { width:100%; border-collapse:collapse; }
+.business-plan__tasks th, .business-plan__tasks td { padding:10px; border-bottom:1px solid #e6ecea; text-align:left; }
+.business-plan__tasks th { color:#61736f; font-size:12px; }
+.business-plan__tasks td { overflow-wrap:anywhere; font-size:13px; }
+.business-plan__guard { color:#61736f; font-size:12px; line-height:1.55; }
+.business-plan__permissions { display:flex; flex-wrap:wrap; gap:10px; }
+.business-plan__permissions span { padding:8px 11px; border-radius:999px; background:#edf3f1; color:#42635c; font-size:12px; font-weight:600; }
+.business-plan__pending, .business-plan__error, .business-plan__message { margin:12px 0; padding:12px; border-radius:9px; }
+.business-plan__pending { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; background:#fff7e7; }
+.business-plan__pending p, .business-plan__error, .business-plan__message { line-height:1.5; }
+.business-plan__pending p { margin:0; }
+.business-plan__error { background:#fff0ed; color:#8b3023; }
+.business-plan__message { background:#e9f5ee; color:#205d39; }
+.business-plan__message.is-attention { background:#fff7e7; color:#73501a; }
+@media(max-width:700px) { .business-plan__header { flex-direction:column; } .business-plan__scope { grid-template-columns:minmax(0,1fr); } .business-plan__plan dl { grid-template-columns:minmax(0,1fr); } .business-plan__tasks .table-wrap { overflow-x:auto; } }
