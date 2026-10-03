@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { listInvitations, listOperators, ProductApiError } from "./operator-api.js";
-import { isDefinitiveAssistanceRejection, listAssistanceNotes, listAssistanceTodos, prepareAssistanceNote, type AssistanceNote, type AssistanceTodo, type PreparedAssistanceNote } from "./device-assistance-api.js";
+import { isDefinitiveAssistanceRejection, listAssistanceImpacts, listAssistanceNotes, listAssistanceTodos, prepareAssistanceNote, type AssistanceImpactsPage, type AssistanceNote, type AssistanceTodo, type PreparedAssistanceNote } from "./device-assistance-api.js";
 import type { InvitationView, OperatorView } from "@socialgrowth/product-contracts";
 
 interface Props { active: boolean; readOnly: boolean; onExpired(error: unknown): void }
-type NoteState = { todo: AssistanceTodo; notes: AssistanceNote[]; nextAfterNoteId: string | null };
+type NoteState = { todo: AssistanceTodo; notes: AssistanceNote[]; nextAfterNoteId: string | null; impacts: AssistanceImpactsPage["impacts"]; nextAfterDeviceId: string | null };
 
 function contactName(id: string, operators: OperatorView[], invitations: InvitationView[]): string {
   const operator = operators.find(item => item.operatorId.toLowerCase() === id.toLowerCase());
@@ -29,6 +29,7 @@ export function OperatorTodosPanel({ active, readOnly, onExpired }: Props) {
   const [invitations, setInvitations] = useState<InvitationView[]>([]);
   const [loading, setLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [impactLoading, setImpactLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [draft, setDraft] = useState("");
@@ -39,6 +40,7 @@ export function OperatorTodosPanel({ active, readOnly, onExpired }: Props) {
   activeView.current = active;
   const readSequence = useRef(0);
   const detailSequence = useRef(0);
+  const impactSequence = useRef(0);
   const selectedTodoId = useRef<string | null>(null);
 
   async function refresh(append = false): Promise<void> {
@@ -59,9 +61,10 @@ export function OperatorTodosPanel({ active, readOnly, onExpired }: Props) {
       setNextTodo(page.nextAfterTodoId); setOperators(nextOperators); setInvitations(nextInvitations);
       if (detailTarget && !append && selectedTodoId.current === detailTarget) {
         const detailRequest = ++detailSequence.current;
-        const details = await listAssistanceNotes(detailTarget);
-        if (sequence !== readSequence.current || detailRequest !== detailSequence.current || selectedTodoId.current !== detailTarget) return;
-        setSelected({ todo: details.todo, notes: details.notes, nextAfterNoteId: details.nextAfterNoteId });
+        ++impactSequence.current; setImpactLoading(false);
+        const [details, impacts] = await Promise.all([listAssistanceNotes(detailTarget), listAssistanceImpacts(detailTarget)]);
+        if (sequence !== readSequence.current || detailRequest !== detailSequence.current || selectedTodoId.current !== detailTarget || impacts.todoId.toLowerCase() !== detailTarget.toLowerCase()) return;
+        setSelected({ todo: details.todo, notes: details.notes, nextAfterNoteId: details.nextAfterNoteId, impacts: impacts.impacts, nextAfterDeviceId: impacts.nextAfterDeviceId });
       }
     } catch (cause) {
       if (sequence !== readSequence.current) return;
@@ -75,12 +78,15 @@ export function OperatorTodosPanel({ active, readOnly, onExpired }: Props) {
     const switching = selectedTodoId.current !== todo.todoId;
     selectedTodoId.current = todo.todoId;
     const request = ++detailSequence.current;
+    ++impactSequence.current;
+    setImpactLoading(false);
     if (switching) { setDraft(""); setKind("note"); }
     setSelected(null); setDetailLoading(true); setError(""); setMessage("");
     try {
-      const response = await listAssistanceNotes(todo.todoId);
+      const [response, impacts] = await Promise.all([listAssistanceNotes(todo.todoId), listAssistanceImpacts(todo.todoId)]);
       if (request !== detailSequence.current || selectedTodoId.current !== todo.todoId) return;
-      setSelected({ todo: response.todo, notes: response.notes, nextAfterNoteId: response.nextAfterNoteId });
+      if (impacts.todoId.toLowerCase() !== todo.todoId.toLowerCase()) throw new Error("Assistance impact response target mismatch");
+      setSelected({ todo: response.todo, notes: response.notes, nextAfterNoteId: response.nextAfterNoteId, impacts: impacts.impacts, nextAfterDeviceId: impacts.nextAfterDeviceId });
     } catch (cause) {
       if (request !== detailSequence.current || selectedTodoId.current !== todo.todoId) return;
       if (cause instanceof ProductApiError && cause.status === 401) onExpired(cause);
@@ -103,6 +109,24 @@ export function OperatorTodosPanel({ active, readOnly, onExpired }: Props) {
       if (cause instanceof ProductApiError && cause.status === 401) onExpired(cause);
       else setError("历史说明读取失败；已显示部分不会被覆盖。");
     } finally { if (request === detailSequence.current && selectedTodoId.current === todoId) setDetailLoading(false); }
+  }
+
+  async function loadMoreImpacts(): Promise<void> {
+    if (!selected?.nextAfterDeviceId) return;
+    const todoId = selected.todo.todoId, cursor = selected.nextAfterDeviceId;
+    const request = ++impactSequence.current;
+    setImpactLoading(true);
+    try {
+      const response = await listAssistanceImpacts(todoId, cursor);
+      if (request !== impactSequence.current || selectedTodoId.current !== todoId) return;
+      if (response.todoId.toLowerCase() !== todoId.toLowerCase()) throw new Error("Assistance impact response target mismatch");
+      setSelected(current => current?.todo.todoId === todoId ? { ...current,
+        impacts: [...current.impacts, ...response.impacts], nextAfterDeviceId: response.nextAfterDeviceId } : current);
+    } catch (cause) {
+      if (request !== impactSequence.current || selectedTodoId.current !== todoId) return;
+      if (cause instanceof ProductApiError && cause.status === 401) onExpired(cause);
+      else setError("历史影响记录读取失败；已显示部分不会被覆盖。");
+    } finally { if (request === impactSequence.current && selectedTodoId.current === todoId) setImpactLoading(false); }
   }
 
   async function sendNote(): Promise<void> {
@@ -136,7 +160,7 @@ export function OperatorTodosPanel({ active, readOnly, onExpired }: Props) {
     }
   }
 
-  useEffect(() => { if (active) void refresh(); else { readSequence.current += 1; detailSequence.current += 1; } }, [active]);
+  useEffect(() => { if (active) void refresh(); else { readSequence.current += 1; detailSequence.current += 1; impactSequence.current += 1; } }, [active]);
   if (!active) return null;
   return <section className="operator-todos" aria-labelledby="operator-todos-title">
     <header className="operator-todos__header"><div><p className="operator-todos__eyebrow">设备协助 · 运营待办</p><h2 id="operator-todos-title">设备接入待办</h2><p>只展示已记录的未分配设备协助事项。说明和“报告已处理”都不会批准恢复、验证设备或关闭事项。</p></div><button type="button" className="outline-button" onClick={() => void refresh()} disabled={loading}>{loading ? "读取中…" : "刷新"}</button></header>
@@ -159,7 +183,12 @@ export function OperatorTodosPanel({ active, readOnly, onExpired }: Props) {
         {!selected && !detailLoading ? <div className="operator-todos__empty"><h3>选择一条待办</h3><p>页面将显示负责人、提供者、当前接口可提供的历史说明和事实版本。</p></div> : null}
         {selected && <>
           <div className="operator-todos__detail-head"><div><span className={`operator-todos__status ${selected.todo.status}`}>{statusLabel(selected.todo.status)}</span><h3>协助事项记录</h3><p>来源：未分配设备 · 网络接入协助</p></div><code>事实版本 {selected.todo.factVersion}</code></div>
-          <dl className="operator-todos__facts"><div><dt>提供者</dt><dd>{contactName(selected.todo.providerId, operators, invitations)}</dd></div><div><dt>初始负责人</dt><dd>{contactName(selected.todo.initialResponsibleOperatorId, operators, invitations)}</dd></div><div><dt>创建时间</dt><dd>{time(selected.todo.createdAt)}</dd></div><div><dt>影响设备</dt><dd>{selected.todo.impactCount} 台；当前接口未提供设备级历史明细</dd></div><div><dt>通知</dt><dd>未配置；没有发送记录</dd></div></dl>
+          <dl className="operator-todos__facts"><div><dt>提供者</dt><dd>{contactName(selected.todo.providerId, operators, invitations)}</dd></div><div><dt>初始负责人</dt><dd>{contactName(selected.todo.initialResponsibleOperatorId, operators, invitations)}</dd></div><div><dt>创建时间</dt><dd>{time(selected.todo.createdAt)}</dd></div><div><dt>影响设备</dt><dd>{selected.todo.impactCount} 台历史影响；下方仅显示已记录的事件时事实</dd></div><div><dt>通知</dt><dd>未配置；没有发送记录</dd></div></dl>
+          <div className="operator-todos__history"><div className="operator-todos__list-head"><h4>历史影响设备</h4><span>{selected.impacts.length} 条已载入 / {selected.todo.impactCount} 台聚合影响</span></div>
+            {selected.impacts.length ? <ul className="operator-todos__impacts">{selected.impacts.map(impact => <li key={impact.deviceId}><code>{impact.deviceId}</code><span>记录版本 {impact.recordedDeviceVersion} · {time(impact.recordedAt)}</span></li>)}</ul> : <p className="operator-todos__empty-inline">当前没有读取到设备级历史记录。</p>}
+            <p className="operator-todos__history-note">记录版本和时间来自历史事件，不代表设备当前状态、健康或现场复核结果。</p>
+            {selected.nextAfterDeviceId && <button type="button" className="text-button" disabled={impactLoading} onClick={() => void loadMoreImpacts()}>{impactLoading ? "读取中…" : "加载更多影响记录"}</button>}
+          </div>
           <div className="operator-todos__history"><div className="operator-todos__list-head"><h4>历史说明</h4><span>{selected.todo.noteCount} 条</span></div>
             {selected.notes.length ? selected.notes.map(note => <article className="operator-todos__note" key={note.noteId}><header><strong>{kindLabel(note.kind)}</strong><time>{time(note.recordedAt)}</time></header><p>{note.text}</p><small>记录人：{contactName(note.actorId, operators, invitations)}</small></article>) : <p className="operator-todos__empty-inline">暂无说明记录</p>}
             {selected.nextAfterNoteId && <button type="button" className="text-button" disabled={detailLoading} onClick={() => void loadOlderNotes()}>加载后续说明</button>}
