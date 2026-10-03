@@ -162,6 +162,18 @@ test("plan persistence replays exact command once and never promotes advisory to
     (SELECT count(*)::int FROM socialgrowth_product.business_plan_commands WHERE project_id=$1) commands`, [f.projectId])).rows[0], { revisions: 1, tasks: 0, outbox: 0, commands: 1 });
 });
 
+test("model description budget covers the adapter's bounded startup without making it unbounded", async () => {
+  const f = await approvedProject(), initial = await f.service.read(f.token, f.projectId);
+  const delayedDescribe = { ...planModel, describe: async () => {
+    await new Promise(resolve => setTimeout(resolve, 5_500));
+    return { providerKey: "synthetic-port", modelKey: "fixture-plan" };
+  } };
+  f.service = new BusinessPlanService(pool, auth, new MaterialRuntime(pool, auth, null), delayedDescribe);
+  const response = await f.service.arrange(f.token, f.csrf, f.projectId, { metadata: metadata(), expectedProjectVersion: initial.currentScope.projectVersion,
+    expectedApprovalId: initial.currentScope.approvalId!, expectedPlanRevision: 0 });
+  assert.equal(response.outcome, "direction_confirmation_required");
+});
+
 test("concurrent arrangements against one expected revision cannot both become current", async () => {
   arrangementCalls = 0; gateEntries = 0;
   const f = await approvedProject(), initial = await f.service.read(f.token, f.projectId);
