@@ -89,7 +89,7 @@ try {
       assert.equal(await panel.locator(".operator-todos__form").count(), 0);
     }
     await page.screenshot({ path: `${output}/todos-${width}.png`, fullPage: true,
-      mask: [panel.locator(".operator-todos__row"), panel.locator(".operator-todos__facts"), panel.locator(".operator-todos__note")] });
+      mask: [panel.locator(".operator-todos__row"), panel.locator(".operator-todos__facts"), panel.locator(".operator-todos__impacts"), panel.locator(".operator-todos__note")] });
   }
   assert.deepEqual(errors, []);
   const result = { checkedAt: new Date().toISOString(), page: "operator device assistance todos", actualFeedItems: rowCount,

@@ -12,6 +12,19 @@ const errors: string[] = []; for (const p of [page, second]) p.on("pageerror", (
 const modelAttempts: { outcome: "proposed" | "unavailable"; elapsedMs: number }[] = [];
 const safeScopeFacts: Array<Record<string, unknown>> = [];
 const scopeFactReads: Promise<void>[] = [];
+const planResponseDelayMs = Number(process.env.SG_PRODUCT_DIRECTION_PLAN_RESPONSE_DELAY_MS ?? "0");
+assert.ok(Number.isInteger(planResponseDelayMs) && planResponseDelayMs >= 0 && planResponseDelayMs <= 60_000, "plan response delay must be 0..60000ms");
+let originalPlanRequestBody: string | null = null, planPostResponses = 0;
+if (planResponseDelayMs > 0) await page.route("**/api/operator/projects/*/business-plan", async route => {
+  if (route.request().method() !== "POST") return route.continue();
+  const body = route.request().postData() ?? "";
+  if (originalPlanRequestBody === null) originalPlanRequestBody = body;
+  else assert.equal(body, originalPlanRequestBody, "explicit continuation must preserve the exact original plan request body/key");
+  const actualResponse = await route.fetch();
+  planPostResponses++;
+  if (planPostResponses === 1) await new Promise(resolve => setTimeout(resolve, planResponseDelayMs));
+  await route.fulfill({ response: actualResponse });
+});
 page.on("response", response => {
   const path = new URL(response.url()).pathname;
   if (!/^\/api\/operator\/projects\/[0-9a-f-]+\/(?:direction|materials(?:\/[0-9a-f-]+)?)$/i.test(path)) return;
@@ -123,14 +136,34 @@ try {
     const planTasks = project(page).getByRole("region", { name: "排期与任务", exact: true });
     await planTasks.getByRole("heading", { name: "排期与任务", exact: true, level: 2 }).waitFor();
     await planTasks.getByText("执行许可：关闭", { exact: true }).waitFor(); await planTasks.getByText("发布许可：关闭", { exact: true }).waitFor();
+    const actualPlanResponse = planResponseDelayMs > 0 ? page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/business-plan")
+      && response.request().method() === "POST", { timeout: 75_000 }) : null;
     await planTasks.getByRole("button", { name: "根据当前范围安排", exact: true }).click();
+    if (planResponseDelayMs > 0) {
+      await planTasks.getByRole("alert").filter({ hasText: "安排请求超过等待时限，结果未知" }).waitFor({ timeout: 75_000 });
+      const currentRead = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/business-plan") && response.request().method() === "GET");
+      await planTasks.getByRole("button", { name: "读取当前事实", exact: true }).click();
+      assert.ok((await currentRead).ok(), "current plan facts must be read over the actual GET before retry is enabled");
+      await planTasks.getByRole("button", { name: "接续同一安排请求", exact: true }).waitFor();
+      assert.equal(await planTasks.getByRole("button", { name: "接续同一安排请求", exact: true }).isEnabled(), true);
+      const firstResponse = await actualPlanResponse!;
+      assert.ok(firstResponse.ok(), `delayed actual plan POST response returned ${firstResponse.status()}`);
+      assert.equal(originalPlanRequestBody === null, false);
+      const replayResponse = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/business-plan")
+        && response.request().method() === "POST", { timeout: 30_000 });
+      await planTasks.getByRole("button", { name: "接续同一安排请求", exact: true }).click();
+      const replayed = await replayResponse;
+      assert.ok(replayed.ok(), `same-key stored plan command replay returned ${replayed.status()}`);
+      assert.equal(planPostResponses, 2, "only the original actual model command and its stored-response replay are allowed");
+    }
     await planTasks.getByText(/已根据当前权威事实生成并保存排期与待核查任务。|当前排期未变化。|当前资料不足，服务没有安排新任务。|模型要求运营先确认方向调整；请回到方向页复核提案。/).waitFor({ timeout: 90_000 });
     const planOutcome = await planTasks.locator(".business-plan__message").innerText();
     const planTaskRows = await planTasks.locator(".business-plan__tasks tbody tr").count();
     assert.equal(await planTasks.getByText("执行许可：关闭", { exact: true }).count(), 1);
     assert.equal(await planTasks.getByText("发布许可：关闭", { exact: true }).count(), 1);
     await writeFile(`${materialOutput}/business-plan-result.json`, JSON.stringify({ outcome: planOutcome, currentPlanVisible: await planTasks.getByRole("heading", { name: "当前排期", exact: true }).count() === 1,
-      taskRows: planTaskRows, executionAllowed: false, publicationAllowed: false, actionByBrowser: "no external platform execution or publication" }, null, 2));
+      taskRows: planTaskRows, executionAllowed: false, publicationAllowed: false, actionByBrowser: "no external platform execution or publication",
+      delayedActualResponseUnknownRecovery: planResponseDelayMs > 0, sameOriginalBodyAndKeyReplay: planResponseDelayMs > 0 && planPostResponses === 2 }, null, 2));
     if (await planTasks.getByText("已根据当前权威事实生成并保存排期与待核查任务。", { exact: true }).count()) {
       await planTasks.getByRole("heading", { name: "当前排期", exact: true }).waitFor();
       await planTasks.getByText("待核查当前条件").first().waitFor();
