@@ -9,8 +9,11 @@ import { createTailnetPolicyCas, readTailnetPolicyWriteConfiguration, type Tailn
 
 const configDocument = { tailnet: "-", clientId: "fixture-client", clientSecret: "fixture-secret-value-1234567890" };
 const original = JSON.stringify({ grants: [{ src: ["*"], dst: ["*"], ip: ["*"] }] });
-const scope = { pendingAddresses: ["100.100.0.2"], verifierAddresses: ["100.100.0.1"], preservedAddresses: ["100.100.0.1"], verifierPort: 9443 };
+const scope = { pendingAddresses: ["100.100.0.2"], verifierAddresses: ["100.100.0.1"], preservedAddresses: ["100.100.0.1", "100.100.0.3"], verifierPort: 9443 };
 const hash = (text: string) => createSha256("sha256").update(text).digest("hex");
+const inventoryRows = [{ id: "device-pending", addresses: ["100.100.0.2"] }, { id: "device-verifier", addresses: ["100.100.0.1"] },
+  { id: "device-preserved", addresses: ["100.100.0.3"] }];
+const inventorySha256 = hash(JSON.stringify([...inventoryRows].sort((a, b) => a.id.localeCompare(b.id))));
 async function readFixtureConfiguration(directory: string) {
   const path = join(directory, "write.json"); await writeFile(path, JSON.stringify(configDocument), { mode: 0o600 });
   return readTailnetPolicyWriteConfiguration(path);
@@ -20,7 +23,7 @@ const grantedScopes = "policy_file devices:core:read devices:posture_attributes"
 const token = () => Response.json({ access_token: "fixture-access-token-1234567890", token_type: "Bearer", expires_in: 3600, scope: grantedScopes });
 const proposal = buildRestrictedProposal(original, scope);
 
-function fixture(options: { staleBeforeWrite?: boolean; writeStatus?: number; loseWriteAck?: boolean; badReadback?: boolean } = {}) {
+function fixture(options: { staleBeforeWrite?: boolean; inventoryChanges?: boolean; writeStatus?: number; loseWriteAck?: boolean; badReadback?: boolean } = {}) {
   let current = snapshot(original, '"before"'), writes = 0, validateCount = 0, conflict = options.staleBeforeWrite ?? false;
   const calls: { path: string; method: string; headers: Headers; body: string }[] = [];
   const request: typeof fetch = async (input, init) => {
@@ -35,6 +38,11 @@ function fixture(options: { staleBeforeWrite?: boolean; writeStatus?: number; lo
     if (url.pathname.endsWith("/acl") && method === "GET") {
       if (conflict && writes === 0 && calls.filter(v => v.path.endsWith("/acl") && v.method === "GET").length > 1) current = snapshot(original, '"concurrent"');
       return new Response(current.text, { headers: { etag: current.etag } });
+    }
+    if (url.pathname.endsWith("/devices") && method === "GET") {
+      const reads = calls.filter(v => v.path.endsWith("/devices") && v.method === "GET").length;
+      const rows = options.inventoryChanges && reads > 1 ? [{ ...inventoryRows[0]!, id: "changed-device" }, inventoryRows[1]] : inventoryRows;
+      return Response.json({ devices: rows });
     }
     if (url.pathname.endsWith("/acl") && method === "POST") {
       if (options.writeStatus !== undefined) return new Response("", { status: options.writeStatus });
@@ -87,7 +95,7 @@ test("policy apply recomputes the narrow candidate, validates it, saves recovery
   const dir = await mkdtemp(join(tmpdir(), "sg-tailnet-cas-")), f = fixture(), configuration = await readFixtureConfiguration(dir);
   try {
     const result = await createTailnetPolicyCas(configuration, f.request).applyReviewedProposal({ expectedCurrentEtag: '"before"',
-      expectedCurrentSha256: hash(original), reviewedCandidateSha256: proposal.summary.candidateSha256, recoveryFile: join(dir, "recovery.json"), scope });
+      expectedCurrentSha256: hash(original), expectedInventorySha256: inventorySha256, reviewedCandidateSha256: proposal.summary.candidateSha256, recoveryFile: join(dir, "recovery.json"), scope });
     assert.equal(result.status, "applied_and_read_back"); assert.equal(result.candidateSha256, proposal.summary.candidateSha256);
     assert.equal(result.isolationVerified, false); assert.equal(result.networkAdmissionGranted, false); assert.equal(result.actionPermissionGranted, false);
     const write = f.calls.find(v => v.method === "POST" && v.path.endsWith("/acl"));
@@ -96,15 +104,37 @@ test("policy apply recomputes the narrow candidate, validates it, saves recovery
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
+test("apply snapshots review inputs and recovery path before its first async read", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "sg-tailnet-cas-")), f = fixture(), configuration = await readFixtureConfiguration(dir);
+  try {
+    const input = { expectedCurrentEtag: '"before"', expectedCurrentSha256: hash(original), expectedInventorySha256: inventorySha256,
+      reviewedCandidateSha256: proposal.summary.candidateSha256, recoveryFile: join(dir, "recovery-approved.json"),
+      scope: { ...scope, pendingAddresses: [...scope.pendingAddresses], preservedAddresses: ["100.100.0.1", "100.100.0.3"] } };
+    const changedScope = { ...input.scope, pendingAddresses: ["100.100.0.3"], preservedAddresses: ["100.100.0.1", "100.100.0.2"] };
+    const changedProposal = buildRestrictedProposal(original, changedScope);
+    const pending = createTailnetPolicyCas(configuration, f.request).applyReviewedProposal(input);
+    input.scope.pendingAddresses[0] = "100.100.0.3";
+    input.scope.preservedAddresses.splice(0, input.scope.preservedAddresses.length, "100.100.0.2");
+    input.reviewedCandidateSha256 = changedProposal.summary.candidateSha256;
+    input.recoveryFile = join(dir, "recovery-unreviewed.json");
+    const result = await pending;
+    assert.equal(result.candidateSha256, proposal.summary.candidateSha256);
+    assert.equal(result.recoveryFile, join(dir, "recovery-approved.json"));
+    assert.equal((await stat(join(dir, "recovery-approved.json"))).isFile(), true);
+    await assert.rejects(stat(join(dir, "recovery-unreviewed.json")));
+    assert.equal(f.calls.find(v => v.method === "POST" && v.path.endsWith("/acl"))?.body, proposal.text);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
 test("stale current ETag and changed reviewed proposal stop before policy mutation", async () => {
   const dir = await mkdtemp(join(tmpdir(), "sg-tailnet-cas-")), stale = fixture({ staleBeforeWrite: true }), mismatched = fixture(), configuration = await readFixtureConfiguration(dir);
   try {
     const cas = createTailnetPolicyCas(configuration, stale.request);
     await assert.rejects(cas.applyReviewedProposal({ expectedCurrentEtag: '"before"', expectedCurrentSha256: hash(original),
-      reviewedCandidateSha256: proposal.summary.candidateSha256, recoveryFile: join(dir, "stale.json"), scope }), { code: "CURRENT_POLICY_STALE" });
+      expectedInventorySha256: inventorySha256, reviewedCandidateSha256: proposal.summary.candidateSha256, recoveryFile: join(dir, "stale.json"), scope }), { code: "CURRENT_POLICY_STALE" });
     assert.equal(stale.writes(), 0);
     await assert.rejects(createTailnetPolicyCas(configuration, mismatched.request).applyReviewedProposal({ expectedCurrentEtag: '"before"',
-      expectedCurrentSha256: hash(original), reviewedCandidateSha256: "0".repeat(64), recoveryFile: join(dir, "mismatch.json"), scope }),
+      expectedCurrentSha256: hash(original), expectedInventorySha256: inventorySha256, reviewedCandidateSha256: "0".repeat(64), recoveryFile: join(dir, "mismatch.json"), scope }),
       { code: "REVIEWED_CANDIDATE_MISMATCH" });
     assert.equal(mismatched.writes(), 0); assert.equal(mismatched.validates(), 0);
   } finally { await rm(dir, { recursive: true, force: true }); }
@@ -113,13 +143,17 @@ test("stale current ETag and changed reviewed proposal stop before policy mutati
 test("HTTP ETag conflict and post-write mismatch never become an applied result", async () => {
   const dir = await mkdtemp(join(tmpdir(), "sg-tailnet-cas-")), configuration = await readFixtureConfiguration(dir), conflict = fixture({ writeStatus: 412 }), mismatch = fixture({ badReadback: true });
   try {
-    const input = { expectedCurrentEtag: '"before"', expectedCurrentSha256: hash(original), reviewedCandidateSha256: proposal.summary.candidateSha256, scope };
+    const input = { expectedCurrentEtag: '"before"', expectedCurrentSha256: hash(original), expectedInventorySha256: inventorySha256, reviewedCandidateSha256: proposal.summary.candidateSha256, scope };
     await assert.rejects(createTailnetPolicyCas(configuration, conflict.request).applyReviewedProposal({ ...input, recoveryFile: join(dir, "conflict.json") }), { code: "CURRENT_POLICY_STALE" });
     assert.equal(conflict.calls.find(v => v.method === "POST" && v.path.endsWith("/acl"))?.headers.get("If-Match"), '"before"');
     assert.equal(conflict.writes(), 0);
     await assert.rejects(createTailnetPolicyCas(configuration, mismatch.request).applyReviewedProposal({ ...input, recoveryFile: join(dir, "mismatch-readback.json") }),
       { code: "POLICY_READBACK_MISMATCH" });
     assert.equal(mismatch.writes(), 1);
+    const changedInventory = fixture({ inventoryChanges: true });
+    await assert.rejects(createTailnetPolicyCas(configuration, changedInventory.request).applyReviewedProposal({ ...input, recoveryFile: join(dir, "changed-inventory.json") }),
+      { code: "CURRENT_POLICY_STALE" });
+    assert.equal(changedInventory.writes(), 0);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
@@ -128,7 +162,7 @@ test("policy test failure, broad/unsupported policy, and missing private recover
   try {
     const failValidation: typeof fetch = async (input, init) => String(input).endsWith("/acl/validate") ? Response.json({ errors: ["failed"] }) : f.request(input, init);
     await assert.rejects(createTailnetPolicyCas(configuration, failValidation).applyReviewedProposal({ expectedCurrentEtag: '"before"', expectedCurrentSha256: hash(original),
-      reviewedCandidateSha256: proposal.summary.candidateSha256, recoveryFile: join(directory, "validation.json"), scope }), { code: "POLICY_REJECTED" });
+      expectedInventorySha256: inventorySha256, reviewedCandidateSha256: proposal.summary.candidateSha256, recoveryFile: join(directory, "validation.json"), scope }), { code: "POLICY_REJECTED" });
     assert.equal(f.writes(), 0);
     const f2 = fixture(), unsupportedText = JSON.stringify({ acls: [{ action: "accept", src: ["*"], dst: ["*:*"] }] });
     const unsupported: typeof fetch = async (input, init) => {
@@ -136,11 +170,11 @@ test("policy test failure, broad/unsupported policy, and missing private recover
       return f2.request(input, init);
     };
     await assert.rejects(createTailnetPolicyCas(configuration, unsupported).applyReviewedProposal({ expectedCurrentEtag: '"before"', expectedCurrentSha256: hash(unsupportedText),
-      reviewedCandidateSha256: proposal.summary.candidateSha256, recoveryFile: join(directory, "unsupported.json"), scope }), { code: "POLICY_REJECTED" });
+      expectedInventorySha256: inventorySha256, reviewedCandidateSha256: proposal.summary.candidateSha256, recoveryFile: join(directory, "unsupported.json"), scope }), { code: "POLICY_REJECTED" });
     assert.equal(f2.writes(), 0);
     const f3 = fixture();
     await assert.rejects(createTailnetPolicyCas(configuration, f3.request).applyReviewedProposal({ expectedCurrentEtag: '"before"', expectedCurrentSha256: hash(original),
-      reviewedCandidateSha256: proposal.summary.candidateSha256, recoveryFile: join(directory, "missing-dir/recovery.json"), scope }), { code: "RECOVERY_UNAVAILABLE" });
+      expectedInventorySha256: inventorySha256, reviewedCandidateSha256: proposal.summary.candidateSha256, recoveryFile: join(directory, "missing-dir/recovery.json"), scope }), { code: "RECOVERY_UNAVAILABLE" });
     assert.equal(f3.writes(), 0);
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
@@ -149,7 +183,7 @@ test("lost policy-write acknowledgment stays unknown and is not retried", async 
   const dir = await mkdtemp(join(tmpdir(), "sg-tailnet-cas-")), f = fixture({ loseWriteAck: true }), configuration = await readFixtureConfiguration(dir);
   try {
     await assert.rejects(createTailnetPolicyCas(configuration, f.request).applyReviewedProposal({ expectedCurrentEtag: '"before"', expectedCurrentSha256: hash(original),
-      reviewedCandidateSha256: proposal.summary.candidateSha256, recoveryFile: join(dir, "recovery.json"), scope }), { code: "POLICY_WRITE_UNKNOWN" });
+      expectedInventorySha256: inventorySha256, reviewedCandidateSha256: proposal.summary.candidateSha256, recoveryFile: join(dir, "recovery.json"), scope }), { code: "POLICY_WRITE_UNKNOWN" });
     assert.equal(f.writes(), 1);
     assert.equal((await createTailnetPolicyCas(configuration, f.request).readCurrent()).sha256, proposal.summary.candidateSha256);
     assert.equal(f.writes(), 1); assert.ok(f.calls.some(v => v.path.endsWith("/acl") && v.method === "GET"));
@@ -161,7 +195,7 @@ test("rollback requires the exact post-write ETag and verifies the restored byte
   try {
     const cas = createTailnetPolicyCas(configuration, f.request), recovery = join(dir, "recovery.json");
     const applied = await cas.applyReviewedProposal({ expectedCurrentEtag: '"before"', expectedCurrentSha256: hash(original),
-      reviewedCandidateSha256: proposal.summary.candidateSha256, recoveryFile: recovery, scope });
+      expectedInventorySha256: inventorySha256, reviewedCandidateSha256: proposal.summary.candidateSha256, recoveryFile: recovery, scope });
     await assert.rejects(cas.restoreRecovery(recovery, '"stale"', applied.currentSha256), { code: "RECOVERY_ETAG_STALE" });
     assert.equal(f.writes(), 1);
     assert.deepEqual(await cas.restoreRecovery(recovery, applied.currentEtag, applied.currentSha256), { restored: true, policyMutationPerformed: true });
