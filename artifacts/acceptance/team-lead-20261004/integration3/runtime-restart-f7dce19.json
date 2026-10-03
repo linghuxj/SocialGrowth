@@ -1,0 +1,37 @@
+{
+  "checkedAt": "2026-10-03T23:41:43.033Z",
+  "scope": "owned local restart and readonly supplements",
+  "launcherSource": "f7dce190c716e78cd8381a0ae4c3a15a5d81e983",
+  "backendCodeEquivalentTo": "2c7910eee3d6e597c8310b692b7631e067734e60",
+  "web": "working tree; frontend code unchanged since2c7910e",
+  "healthStatus": 200,
+  "webStatus": 200,
+  "counts": {
+    "business_plan_tasks": 0,
+    "business_plan_outbox": 0,
+    "phone_control_commands": 0,
+    "phone_control_holder_grants": 0
+  },
+  "demo": {
+    "taskStatuses": {
+      "cancelled": 1,
+      "completed": 6,
+      "unknown": 1
+    },
+    "deviceHoldCount": 0
+  },
+  "databaseReset": false,
+  "executorEnabled": false,
+  "actualDeviceWebVerification": {
+    "passed": true,
+    "accessReady": false,
+    "scope": "actual read-only browser verify; no device mutation"
+  },
+  "stopFailure": "previous stop loop ESRCH interrupted paired-Web termination",
+  "temporarySolution": "exact owned PID/pgrp/cwd cleanup then helper tolerating vanished owned groups;2 real process regression cases passed",
+  "helperApprovedCandidate": "dba7b344de5d55d304b50ed650abb5c9aefd34e4",
+  "limitations": [
+    "Current running launcher started before latest helper refinement; next controlled restart uses current helper",
+    "Health/counts do not prove physical execution, trusted source, production or whole acceptance"
+  ]
+}

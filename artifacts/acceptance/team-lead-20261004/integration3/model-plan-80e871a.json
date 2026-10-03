@@ -1,0 +1,54 @@
+{
+  "source": "80e871a5f1055aba747944869e88619cf8bfdab8",
+  "actor": "/root/web",
+  "scope": "real narrow browser model flow with synthetic inputs in owned isolated services",
+  "directionModelAttempts": [
+    {
+      "outcome": "proposed",
+      "elapsedMs": 12968
+    }
+  ],
+  "browserPlanResult": {
+    "outcome": "当前排期未变化。",
+    "currentPlanVisible": true,
+    "taskRows": 0,
+    "executionAllowed": false,
+    "publicationAllowed": false,
+    "actionByBrowser": "no external platform execution or publication",
+    "delayedActualResponseUnknownRecovery": false,
+    "sameOriginalBodyAndKeyReplay": false,
+    "bodySha256": null,
+    "idempotencyKeySha256": null
+  },
+  "readonlyBeforeCleanup": {
+    "source": "isolated temporary PostgreSQL; read-only supplemental evidence",
+    "commandCount": 1,
+    "commandReceipts": [
+      {
+        "idempotencyKeySha256": "aad0315ddfcae432f4ad3d681d22ddf53f5e93f0aee5cae3b0135866178e876d",
+        "payloadDigestSha256": "d65e48d8f1072b79b3c13ca947a82a881c8be8e26a2545bfab2fd606a9d81314",
+        "outcome": "unchanged",
+        "planRevision": 1
+      }
+    ],
+    "revisionCount": 1,
+    "taskCount": 0,
+    "outboxCount": 0
+  },
+  "cleanup": {
+    "ownedServicesExited": true,
+    "ownedContainersRemovedCount": 2,
+    "temporaryCredentialsRemoved": true
+  },
+  "planPostgres": {
+    "result": "passed",
+    "tests": 7,
+    "boundary": "author Web actual isolated run; fixed approved259bdb6 test on this source, not independently repeated by root"
+  },
+  "limits": [
+    "Actual unchanged response and first plan revision1, not nonempty task or execution success",
+    "Unknown/delayed recovery and original same-key replay not exercised",
+    "Prior direction schema-invalid and Plan timeout failures retained; retry4PG6/7 failure not overwritten",
+    "No raw output, body, idempotency key, credentials or screenshot copied"
+  ]
+}
