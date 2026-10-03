@@ -22,6 +22,7 @@ import { OperatorAuthService } from "./operator-auth-service.js";
 import { OperatorController } from "./operator.controller.js";
 import { ProviderAuthService } from "./provider-auth-service.js";
 import { ProviderController } from "./provider.controller.js";
+import { ProviderDeviceLabelController } from "./provider-device-label.controller.js";
 import { ProjectService } from "./project-service.js";
 import { ProjectController } from "./project.controller.js";
 import { ResourceReservationStore } from "./resource-reservation-store.js";
@@ -142,6 +143,7 @@ const providerAuthProvider = {
     ProviderDeviceControlController,
     OperatorController,
     ProviderController,
+    ProviderDeviceLabelController,
     ProjectController,
     ResourcePreparationController,
     MediaCredentialsController,

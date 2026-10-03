@@ -24,8 +24,8 @@ export class ProviderDeviceLabelController {
       requireSupportedContract(body);
       const targetDeviceId = uuidSchema.parse(deviceId);
       const request = providerDeviceLabelRequestSchema.parse(body);
-      const context = await this.auth.authenticate(bearerTokenFrom(authorization, "Provider"));
-      return await this.identity.renameProviderDevice(targetDeviceId, request, context);
+      const sessionToken = bearerTokenFrom(authorization, "Provider");
+      return await this.identity.renameProviderDevice(this.auth, sessionToken, targetDeviceId, request);
     } catch (error) {
       rethrowHttp(error, requestId || `request-${randomUUID()}`);
     }

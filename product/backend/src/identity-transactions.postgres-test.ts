@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { after, before, test } from "node:test";
 
@@ -17,6 +17,7 @@ import {
   verifyOperatorPassword,
 } from "./operator-auth-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
+import { ProviderAuthService, UnavailableSmsDeliveryPort } from "./provider-auth-service.js";
 
 const databaseUrl = process.env.SG_PRODUCT_TEST_DATABASE_URL;
 if (!databaseUrl || process.env.SG_PRODUCT_TEST_ALLOW_RESET !== "1") {
@@ -27,6 +28,8 @@ if (!databaseUrl || process.env.SG_PRODUCT_TEST_ALLOW_RESET !== "1") {
 
 const pool = new Pool({ connectionString: databaseUrl, max: 8 });
 const service = new IdentityTransactionService(pool);
+const providerAuthPepper = "identity-provider-label-fixture-pepper-0001";
+const providerAuth = new ProviderAuthService(pool, providerAuthPepper, new UnavailableSmsDeliveryPort());
 const operatorService = new OperatorAuthService(
   pool,
   "test-only-operator-auth-pepper-0000000000000001",
@@ -127,6 +130,18 @@ async function seedProvider(phone: string): Promise<string> {
     [providerId, phone],
   );
   return providerId;
+}
+
+async function seedProviderSession(providerId: string): Promise<{ sessionId: string; token: string }> {
+  const sessionId = randomUUID();
+  const token = randomBytes(32).toString("base64url");
+  const tokenDigest = createHmac("sha256", providerAuthPepper).update(token).digest();
+  await pool.query(
+    `INSERT INTO socialgrowth_product.provider_sessions (session_id,provider_id,token_digest,expires_at)
+     VALUES ($1,$2,$3,clock_timestamp()+interval '1 day')`,
+    [sessionId, providerId, tokenDigest],
+  );
+  return { sessionId, token };
 }
 
 async function seedInstallation(): Promise<string> {
@@ -872,6 +887,8 @@ test("provider device labels enforce ownership and fact versions with stable ide
   const installationId = await seedInstallation();
   const providerId = await seedProvider("+8613800000091");
   const otherProviderId = await seedProvider("+8613800000092");
+  const providerSession = await seedProviderSession(providerId);
+  const otherProviderSession = await seedProviderSession(otherProviderId);
   const session = await service.createAssociationSession(
     { deviceLabel: "Installation label", metadata: metadata("label-create-session-0001") },
     { installationGeneration: 1n, installationId },
@@ -887,46 +904,61 @@ test("provider device labels enforce ownership and fact versions with stable ide
     displayName: "Renamed provider device",
     metadata: metadata("provider-device-label-key-0001"),
   };
-  const first = await service.renameProviderDevice(association.deviceId, rename, { providerId });
+  const first = await service.renameProviderDevice(providerAuth, providerSession.token, association.deviceId, rename);
   assert.equal(first.device.displayName, rename.displayName);
   assert.equal(first.device.factVersion, 2);
-  const retry = await service.renameProviderDevice(association.deviceId, {
+  const retry = await service.renameProviderDevice(providerAuth, providerSession.token, association.deviceId, {
     ...rename,
     metadata: { ...rename.metadata, requestId: `retry-${randomUUID()}` },
-  }, { providerId });
+  });
   assert.deepEqual(retry, first);
 
+  const secondInstallationId = await seedInstallation();
+  const secondSession = await service.createAssociationSession(
+    { deviceLabel: "Another device", metadata: metadata("label-second-device-create-0001") },
+    { installationGeneration: 1n, installationId: secondInstallationId },
+  );
+  const secondAssociation = await service.confirmAssociation({
+    associationSessionId: secondSession.associationSessionId,
+    expectedInstallationId: secondInstallationId,
+    metadata: metadata("label-second-device-confirm-0001"),
+  }, { providerId });
   await assert.rejects(
-    service.renameProviderDevice(association.deviceId, { ...rename, displayName: "Different payload" }, { providerId }),
+    service.renameProviderDevice(providerAuth, providerSession.token, secondAssociation.deviceId, rename),
+    (error: unknown) => error instanceof ProductTransactionError && error.code === "IDEMPOTENCY_KEY_REUSED",
+  );
+
+  await assert.rejects(
+    service.renameProviderDevice(providerAuth, providerSession.token, association.deviceId, { ...rename, displayName: "Different payload" }),
     (error: unknown) => error instanceof ProductTransactionError && error.code === "IDEMPOTENCY_KEY_REUSED",
   );
   await assert.rejects(
-    service.renameProviderDevice(association.deviceId, {
+    service.renameProviderDevice(providerAuth, providerSession.token, association.deviceId, {
       ...rename,
       expectedFactVersion: 1,
       metadata: metadata("provider-device-label-stale-0001"),
-    }, { providerId }),
+    }),
     (error: unknown) => error instanceof ProductTransactionError && error.code === "FACT_VERSION_STALE",
   );
   await assert.rejects(
-    service.renameProviderDevice(association.deviceId, {
+    service.renameProviderDevice(providerAuth, otherProviderSession.token, association.deviceId, {
       ...rename,
       metadata: metadata("provider-device-label-other-0001"),
-    }, { providerId: otherProviderId }),
+    }),
     (error: unknown) => error instanceof ProductTransactionError && error.code === "AUTHORIZATION_DENIED",
   );
 
   const racing = await Promise.allSettled([
-    service.renameProviderDevice(association.deviceId, {
+    service.renameProviderDevice(providerAuth, providerSession.token, association.deviceId, {
       expectedFactVersion: 2,
       displayName: "Race label A",
       metadata: metadata("provider-device-label-race-A1"),
-    }, { providerId }),
-    service.renameProviderDevice(association.deviceId, {
+    }),
+    service.renameProviderDevice(providerAuth, providerSession.token, association.deviceId, {
       expectedFactVersion: 2,
       displayName: "Race label B",
       metadata: metadata("provider-device-label-race-B1"),
-    }, { providerId }),
+    }),
   ]);
   assert.equal(racing.filter(result => result.status === "fulfilled").length, 1);
   const stale = racing.find(result => result.status === "rejected");
@@ -934,6 +966,57 @@ test("provider device labels enforce ownership and fact versions with stable ide
   assert.ok(stale.reason instanceof ProductTransactionError);
   assert.equal(stale.reason.code, "FACT_VERSION_STALE");
   assert.equal((await service.listProviderDevices({ providerId })).devices[0]?.factVersion, 3);
+
+  await pool.query("UPDATE socialgrowth_product.device_associations SET ended_at=clock_timestamp() WHERE device_id=$1 AND ended_at IS NULL", [association.deviceId]);
+  await assert.rejects(
+    service.renameProviderDevice(providerAuth, providerSession.token, association.deviceId, rename),
+    (error: unknown) => error instanceof ProductTransactionError && error.code === "AUTHORIZATION_DENIED",
+  );
+});
+
+test("provider device label waits for session revocation and rejects a token revoked before transaction authorization", async () => {
+  const installationId = await seedInstallation();
+  const providerId = await seedProvider("+8613800000093");
+  const session = await seedProviderSession(providerId);
+  const associationSession = await service.createAssociationSession(
+    { deviceLabel: "Revocation fixture", metadata: metadata("label-revoke-create-0001") },
+    { installationGeneration: 1n, installationId },
+  );
+  const association = await service.confirmAssociation({
+    associationSessionId: associationSession.associationSessionId,
+    expectedInstallationId: installationId,
+    metadata: metadata("label-revoke-confirm-0001"),
+  }, { providerId });
+  const blocker = await pool.connect();
+  let pending: Promise<unknown> | undefined;
+  try {
+    await blocker.query("BEGIN");
+    await blocker.query("UPDATE socialgrowth_product.provider_sessions SET revoked_at=clock_timestamp() WHERE session_id=$1", [session.sessionId]);
+    pending = service.renameProviderDevice(providerAuth, session.token, association.deviceId, {
+      expectedFactVersion: 1,
+      displayName: "Must not commit",
+      metadata: metadata("label-revoke-rename-0001"),
+    });
+    const rejection = assert.rejects(pending, (error: unknown) => error instanceof ProductTransactionError && error.code === "AUTHENTICATION_REQUIRED");
+    let waiting = false;
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      const result = await pool.query(
+        `SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND state='active' AND wait_event_type='Lock'
+          AND query LIKE '%provider_sessions%FOR UPDATE%' AND pid<>pg_backend_pid()`,
+      );
+      if (result.rowCount) { waiting = true; break; }
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    assert.ok(waiting, "rename should serialize behind the uncommitted logout");
+    await blocker.query("COMMIT");
+    await rejection;
+    const current = await pool.query<{ display_name: string; fact_version: string }>("SELECT display_name,fact_version::text FROM socialgrowth_product.devices WHERE device_id=$1", [association.deviceId]);
+    assert.deepEqual(current.rows[0], { display_name: "Revocation fixture", fact_version: "1" });
+  } finally {
+    await blocker.query("ROLLBACK");
+    blocker.release();
+    await pending?.catch(() => undefined);
+  }
 });
 
 test("one-time association session permits only one concurrent provider", async () => {
