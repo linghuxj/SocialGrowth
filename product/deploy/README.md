@@ -50,6 +50,25 @@ Inventory仅接受内部identity依赖明确关联到同一schema的identity seq
 
 正式OPS须先落实维护权限、离线密钥保管与轮换、保留/频率/RPO/RTO及实际容量；恢复前停止消费，只接受受信任来源SQL并核对目标/完整备份/当前设备及外部事实。数据库恢复成功后先核对最新暂停、撤权、分配、在途/提交未知、对象与队列，不能直接重放历史消息。没有正式联合恢复、Android签名升级与回滚证据时，AC-52/53/60和B5保持未验收。
 
+## Android正式构建输入门禁
+
+现有 `assembleDebug` 命令不变，继续使用本地调试端点默认值。`assembleRelease`、`bundleRelease` 以及会生成release变体的聚合 `assemble`/`build`/`bundle` 必须显式提供以下环境变量；release没有demo/调试签名回退：
+
+| 变量 | 用途 |
+| --- | --- |
+| `SG_PRODUCT_ANDROID_VERSION_CODE` | 本候选正整数版本码 |
+| `SG_PRODUCT_ANDROID_VERSION_NAME` | 简短版本名 |
+| `SG_PRODUCT_ANDROID_PREVIOUS_VERSION_CODE` | 明确提供的上一版版本码；候选必须更大，门禁不猜生产版本 |
+| `SG_PRODUCT_ANDROID_API_BASE_URL` | 真实服务 HTTPS URL，拒绝保留示例/本机域名 |
+| `SG_PRODUCT_ANDROID_SIGNING_KEYSTORE` | 外部提供的正式 keystore 路径 |
+| `SG_PRODUCT_ANDROID_SIGNING_KEY_ALIAS` | 正式签名 alias |
+| `SG_PRODUCT_ANDROID_SIGNING_STORE_PASSWORD` / `SG_PRODUCT_ANDROID_SIGNING_KEY_PASSWORD` | 构建进程环境中的签名凭据 |
+| `SG_PRODUCT_ANDROID_SIGNING_CERT_SHA256` | 预先可信的公开证书 SHA-256 指纹，可带冒号 |
+
+Gradle只在正式变体路径取这些provider值；构建时校验版本单调、HTTPS host、keystore可用签名条目及证书指纹。仓库和CI不保存签名秘密或正式证书。本仓库的CI继续构建debug，并用缺项、占位endpoint、非递增版本的负例及临时生成的合成测试证书指纹不匹配确认release fail closed；不会使用该合成证书签包或保存它。它不会生成/签署正式包。不要把Gradle构建日志、环境诊断或公开metadata用于输出签名密码/keystore内容。
+
+这只是正式构建配置门禁，不证明真实发布签名、升级后安装身份/本地状态保留、旧客户端兼容、回滚/前向修复、设备安装或用户验收；上述AC-53/60证据仍需真实受控候选和运营资源。
+
 `pnpm --filter @socialgrowth/product-backend exec tsx --test --test-concurrency=1 src/database-maintenance-recovery.pg-test.ts`在自有回环PG17/MinIO容器上实际联验同包采集、provider/install撤权与installation/association/participation变化、未解决holder/outbox、对象删除后未核验和默认关闭许可。该演练只应用其文件列出的维护依赖migration子集与测试identity fixture；不是完整产品schema恢复、消费者停止、物理fence、生产灾备或业务验收证据。
 
 [只读恢复清单阶段](../../docs/engineering/delivery/records/WP-27-stage2.md)提供维护端一致快照与同snapshot dump回调、受限schema/行指纹比较；不会调用生产pg_restore/写文件/开Worker。技术行/字节上限和SQL/idle超时不是生产容量/RTO，sameSchemaAndRows也不是可重新执行；未知关系/类型/RLS不可读关闭。清单摘要仅维护端敏感元数据，不通过HTTP或日志公开，正式backup清单绑定、跨cluster/globals/ACL及联合当前事实/恢复fence仍须另验。
