@@ -85,21 +85,24 @@ class AssociationApiClient(private val http: ProviderApiClient) {
             ),
         )
 
-    fun renameDevice(
+    internal fun renameDevice(
         providerToken: String,
         device: ProviderDevice,
-        displayName: String,
-        idempotencyKey: String,
+        command: ProviderDeviceLabelCommand,
     ): ProviderDevice {
-        val normalized = displayName.trim()
-        require(normalized.codePointCount(0, normalized.length) in 1..100)
+        require(command.deviceId == device.deviceId)
+        val normalized = command.displayName
+        require(normalized.trim() == normalized && normalized.length in 1..100)
         val body = JSONObject()
-            .put("metadata", http.metadata(idempotencyKey))
-            .put("expectedFactVersion", device.factVersion)
+            .put("metadata", JSONObject()
+                .put("contractVersion", command.contractVersion)
+                .put("requestId", command.requestId)
+                .put("idempotencyKey", command.idempotencyKey))
+            .put("expectedFactVersion", command.expectedFactVersion)
             .put("displayName", normalized)
         return AssociationContractBoundary.parseRenamedDevice(
             http.post("/api/provider/devices/${device.deviceId}/label", body, providerToken),
-        ).also { require(it.deviceId == device.deviceId && it.factVersion == device.factVersion + 1L) }
+        ).also { require(it.deviceId == device.deviceId && it.factVersion == command.expectedFactVersion + 1L) }
     }
 
     private fun associationTarget(
