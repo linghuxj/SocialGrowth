@@ -17,8 +17,16 @@ Run from the candidate repository root. This reproduces the temporary-copy trans
 ```sh
 set -eu
 repo="$(pwd)"
-source="$repo/product/backend/src/database-maintenance-recovery.pg-test.ts"
-temporary="$repo/product/backend/src/database-maintenance-recovery.full-schema.pg-test.ts"
+temporary="$(python3 - "$repo/product/backend/src" <<'PY'
+import os
+import sys
+import tempfile
+
+fd, path = tempfile.mkstemp(prefix="database-maintenance-recovery.full-schema-", suffix=".pg-test.ts", dir=sys.argv[1])
+os.close(fd)
+print(path)
+PY
+)"
 trap 'rm -f "$temporary"' EXIT HUP INT TERM
 
 git show 353889c9094e8efa08f34059885892a8a2567520:product/backend/src/database-maintenance-recovery.pg-test.ts > "$temporary"
@@ -40,13 +48,13 @@ if text.count(old) != 1:
 path.write_text(text.replace(old, new, 1))
 PY
 
-pnpm --filter @socialgrowth/product-backend exec tsx --test --test-concurrency=1 src/database-maintenance-recovery.full-schema.pg-test.ts
+pnpm --filter @socialgrowth/product-backend exec tsx --test --test-concurrency=1 "$temporary"
 rm -f "$temporary"
 trap - EXIT HUP INT TERM
 test ! -e "$temporary"
 ```
 
-The selector transformation is intentionally limited to the temporary file. The test computes each selected migration's SHA-256 for backup metadata and applies the SQL in sorted filename order. The run uses the fixture's existing guardrails: uniquely named `--rm` PostgreSQL and MinIO containers, per-run label, loopback-only ephemeral ports, fixture-owned database/volume checks, synthetic credentials held only in process memory, an exact temporary encrypted backup directory, and cleanup assertions in the test's `after` hook.
+The selector transformation is intentionally limited to the uniquely created temporary file. The test computes each selected migration's SHA-256 for backup metadata and applies the SQL in sorted filename order. The run uses the fixture's existing guardrails: uniquely named `--rm` PostgreSQL and MinIO containers, per-run label, loopback-only ephemeral ports, fixture-owned database/volume checks, randomly generated synthetic fixture credentials (not production configuration; not recorded in repository artifacts), an exact temporary encrypted backup directory, and cleanup assertions in the test's `after` hook.
 
 ## Exact migration set
 
@@ -91,7 +99,7 @@ The shared `BE-OPS-WIRING` task record reported this exact diagnostic as **1 pas
 
 Cleanup implementation/evidence paths in the frozen candidate:
 
-- Temporary test path: `product/backend/src/database-maintenance-recovery.full-schema.pg-test.ts`; it was removed after the supplemental run and is absent from the worktree when this note was prepared.
+- Temporary test path: a uniquely created `product/backend/src/database-maintenance-recovery.full-schema-<random>.pg-test.ts`; the per-run path is removed by the command trap. This documentation reproduction uses a new exclusive path and cannot overwrite a pre-existing test file.
 - Encrypted fixture directory: created by `mkdtemp(join(tmpdir(), \`sg-maintenance-${runId}-\`))`, realpathed before use, and removed in the `after` hook after verifying only the expected encrypted backup file could remain. That file is unlinked and the directory removed.
 - PostgreSQL and MinIO containers: unique `sg-maint-pg-<run>` / `sg-maint-s3-<run>` names, exact self-created container IDs, run label, image, loopback port and volume ownership are rechecked before `docker stop`; both were started with `--rm`, and the hook asserts the IDs are absent after stop.
 - Post-run workspace check: `git status --short` was empty at frozen HEAD `353889c`; `docker ps --filter name=sg-maint-` returned no owned fixture container. The tracked candidate tree remained at the same SHA.
