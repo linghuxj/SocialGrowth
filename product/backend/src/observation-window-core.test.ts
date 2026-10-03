@@ -45,7 +45,8 @@ test("publication at a proven source day boundary has no partial day, and unknow
 });
 test("ending time alone cannot make missing, delayed, unknown-cutoff or mismatched coverage data ready", () => {
   const f = fixture(); assert.equal(f.read([]).stage, "data_insufficient"); assert.equal(f.read([], "2026-09-01T13:00:00Z").stage, "observing");
-  for (const patch of [{ availability: "missing", value: null, missingReason: "no_data" }, { availability: "delayed", missingReason: "source_unavailable" }, { statisticsCutoffAt: null }, { sourceTimeZone: null }, { coverage: null }, { coverage: { startsAt: "2026-09-01T00:00:00Z", endsAt: f.window.endsAt } }, { collectedAt: "2026-09-04T00:00:00Z" }]) assert.equal(f.read([{ ...f.snapshot, ...patch }]).stage, "data_insufficient");
+  for (const patch of [{ availability: "missing", value: null, missingReason: "no_data" }, { availability: "delayed", value: null, missingReason: "source_unavailable" }, { statisticsCutoffAt: null }, { sourceTimeZone: null }, { coverage: null }, { coverage: { startsAt: "2026-09-01T00:00:00Z", endsAt: f.window.endsAt } }, { collectedAt: "2026-09-04T00:00:00Z" }]) assert.equal(f.read([{ ...f.snapshot, ...patch }]).stage, "data_insufficient");
+  assert.throws(() => f.read([{ ...f.snapshot, availability: "delayed", value: "0", missingReason: "source_unavailable" }]), code("METRIC_INVALID"));
   assert.equal(f.read().stage, "ready_for_evidence_review"); assert.equal(f.read().snapshotId, f.snapshot.snapshotId);
 });
 test("account-level data, wrong publication/task/identity and source calendar never become content evidence", () => {
