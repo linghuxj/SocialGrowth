@@ -161,7 +161,9 @@ android {
 
 if (releaseRequested) {
     tasks.configureEach {
-        if (name in setOf("preReleaseBuild", "packageRelease", "assembleRelease", "bundleRelease")) {
+        val releaseArtifactTask = name.contains("release", ignoreCase = true) &&
+            listOf("package", "assemble", "bundle").any { name.startsWith(it, ignoreCase = true) }
+        if (name == "preReleaseBuild" || releaseArtifactTask) {
             dependsOn(verifyProductAndroidReleaseInputs)
         }
     }
