@@ -5,6 +5,7 @@ export * from "./local-participation.js";
 export * from "./association.js";
 export * from "./common.js";
 export * from "./commission.js";
+export * from "./metric-feedback.js";
 export * from "./device-facts.js";
 export * from "./device-assistance.js";
 export * from "./device-control.js";
