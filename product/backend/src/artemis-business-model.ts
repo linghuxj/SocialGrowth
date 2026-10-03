@@ -64,7 +64,7 @@ export class ArtemisBusinessModel implements BusinessModelPort, InitialDirection
     return { responseId: response.responseId, outputText: response.outputText };
   }
 }
-export function readInitialDirectionModel(environment: NodeJS.ProcessEnv = process.env): InitialDirectionModel | null {
+export function readInitialDirectionModel(environment: NodeJS.ProcessEnv = process.env): ArtemisBusinessModel | null {
   const mode = environment.SG_PRODUCT_BUSINESS_MODEL_MODE ?? "unavailable";
   if (mode === "unavailable" && environment.SG_PRODUCT_ARTEMIS_ROOT === undefined) return null;
   if (mode !== "artemis_configured" || !environment.SG_PRODUCT_ARTEMIS_ROOT) throw new Error("ARTEMIS_BUSINESS_CONFIG_REQUIRED");
