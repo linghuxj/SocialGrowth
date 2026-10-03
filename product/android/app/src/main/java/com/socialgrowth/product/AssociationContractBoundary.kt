@@ -164,6 +164,11 @@ object AssociationContractBoundary {
         }
     }
 
+    fun parseRenamedDevice(raw: String): ProviderDevice = wrap {
+        val root = JSONObject(raw).exact("device")
+        parseDevices(JSONObject().put("devices", JSONArray().put(root.objectValue("device"))).toString()).single()
+    }
+
     private fun JSONObject.exact(vararg keys: String): JSONObject {
         val actual = buildSet {
             val iterator = this@exact.keys()

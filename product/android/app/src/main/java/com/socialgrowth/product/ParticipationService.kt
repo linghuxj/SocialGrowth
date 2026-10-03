@@ -56,10 +56,10 @@ class ParticipationService : Service() {
         confirmedUntil=0L;phase="正在连接中心确认本机参与。"
         val manager=getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel(CHANNEL,"本机参与状态",NotificationManager.IMPORTANCE_LOW))
-        val stop=PendingIntent.getService(this,0,Intent(this,ParticipationService::class.java).setAction(STOP),PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val open=PendingIntent.getActivity(this,0,Intent(this,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val notification=Notification.Builder(this,CHANNEL).setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("SocialGrowth 本机参与确认").setContentText("保持与中心连接；尚不代表可执行任务。")
-            .setOngoing(true).addAction(Notification.Action.Builder(null,"撤回参与",stop).build()).build()
+            .setContentTitle("SocialGrowth 本机状态").setContentText("当前使用状态无法确认；操作前请打开 App 查看并暂停。")
+            .setContentIntent(open).setOngoing(true).build()
         try {
             if(Build.VERSION.SDK_INT>=29) startForeground(2401,notification,ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
             else startForeground(2401,notification)

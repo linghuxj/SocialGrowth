@@ -16,10 +16,13 @@ import { NetworkAdmissionApi } from "./network-admission-api.js";
 import { NetworkAdmissionStore } from "./network-admission-store.js";
 import { LocalParticipationController } from "./local-participation.controller.js";
 import { LocalParticipationService } from "./local-participation-service.js";
+import { DeviceControlService } from "./device-control-service.js";
+import { InstallationSelfControlController, ProviderDeviceControlController } from "./device-control.controller.js";
 import { OperatorAuthService } from "./operator-auth-service.js";
 import { OperatorController } from "./operator.controller.js";
 import { ProviderAuthService } from "./provider-auth-service.js";
 import { ProviderController } from "./provider.controller.js";
+import { ProviderDeviceLabelController } from "./provider-device-label.controller.js";
 import { ProjectService } from "./project-service.js";
 import { ProjectController } from "./project.controller.js";
 import { ResourceReservationStore } from "./resource-reservation-store.js";
@@ -138,8 +141,11 @@ const providerAuthProvider = {
     InstallationController,
     NetworkAdmissionController,
     LocalParticipationController,
+    InstallationSelfControlController,
+    ProviderDeviceControlController,
     OperatorController,
     ProviderController,
+    ProviderDeviceLabelController,
     ProjectController,
     ResourcePreparationController,
     MediaCredentialsController,
@@ -164,6 +170,7 @@ const providerAuthProvider = {
     // Read current authenticated facts; mutations close until real ports exist.
     { provide: NetworkAdmissionApi, inject: [Pool, InstallationAuthService], useFactory: (pool: Pool, auth: InstallationAuthService) => new NetworkAdmissionApi(new NetworkAdmissionStore(pool), auth, null) },
     { provide: LocalParticipationService, inject: [Pool, InstallationAuthService], useFactory: (pool: Pool, auth: InstallationAuthService) => new LocalParticipationService(pool, auth) },
+    { provide: DeviceControlService, inject: [Pool, ProviderAuthService, InstallationAuthService], useFactory: (pool: Pool, providerAuth: ProviderAuthService, installationAuth: InstallationAuthService) => new DeviceControlService(pool, providerAuth, installationAuth) },
     smsRuntimeProvider,
     providerAuthProvider,
     { provide: MaterialRuntime, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new MaterialRuntime(pool, auth, readMaterialRuntimeConfig()) },

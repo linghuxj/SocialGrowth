@@ -54,10 +54,13 @@ class AssociationApiClient(private val http: ProviderApiClient) {
         providerToken: String,
         inspection: AssociationInspection,
         idempotencyKey: String,
+        deviceLabel: String? = null,
     ): AssociationReceipt = AssociationContractBoundary.parseReceipt(
         http.post(
             "/api/provider/association-sessions/confirm",
-            associationTarget(inspection, idempotencyKey),
+            associationTarget(inspection, idempotencyKey).apply {
+                deviceLabel?.trim()?.takeIf(String::isNotEmpty)?.let { put("deviceLabel", it) }
+            },
             providerToken,
         ),
     )
@@ -81,6 +84,23 @@ class AssociationApiClient(private val http: ProviderApiClient) {
                 providerToken,
             ),
         )
+
+    fun renameDevice(
+        providerToken: String,
+        device: ProviderDevice,
+        displayName: String,
+        idempotencyKey: String,
+    ): ProviderDevice {
+        val normalized = displayName.trim()
+        require(normalized.codePointCount(0, normalized.length) in 1..100)
+        val body = JSONObject()
+            .put("metadata", http.metadata(idempotencyKey))
+            .put("expectedFactVersion", device.factVersion)
+            .put("displayName", normalized)
+        return AssociationContractBoundary.parseRenamedDevice(
+            http.post("/api/provider/devices/${device.deviceId}/label", body, providerToken),
+        ).also { require(it.deviceId == device.deviceId && it.factVersion == device.factVersion + 1L) }
+    }
 
     private fun associationTarget(
         inspection: AssociationInspection,
