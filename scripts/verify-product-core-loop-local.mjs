@@ -4,7 +4,7 @@
 // Run only with authorized temporary services and admitted browser access.
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { once } from "node:events";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -174,7 +174,43 @@ try {
   for (const { child } of children.toReversed()) {
     if (child.exitCode === null) { const ended = once(child, "exit"); process.kill(-child.pid, "SIGTERM"); await ended; }
   }
-  for (const item of children) await writeFile(join(output, `${item.name}.log`), item.log);
+  const backendLog = children.find(item => item.name === "backend")?.log ?? "";
+  const stages = new Set(["connection", "idempotency_read", "preflight", "model_fact_read", "persist_insufficient", "persist_plan", "model_describe", "model_coordinator"]);
+  const categories = new Set(["serialization_conflict", "deadlock", "lock_timeout", "statement_timeout", "integrity_constraint", "other", "database_unavailable", "rollback_failed", "application_internal", "describe_timeout", "describe_unavailable", "configuration_missing", "input_invalid", "facts_unavailable", "model_unavailable", "deadline_exceeded", "clock_invalid"]);
+  const directionCategories = new Set(["BUSINESS_MODEL_MODEL_TIMEOUT", "BUSINESS_MODEL_MODEL_RATE_LIMITED", "BUSINESS_MODEL_MODEL_CONFIGURATION_REJECTED", "BUSINESS_MODEL_MODEL_REQUEST_REJECTED", "BUSINESS_MODEL_MODEL_RESPONSE_INVALID", "BUSINESS_MODEL_CONFIGURED_MODEL_UNAVAILABLE", "BUSINESS_MODEL_UNAVAILABLE", "BUSINESS_MODEL_DEADLINE", "BUSINESS_MODEL_SCHEMA_INVALID", "BUSINESS_MODEL_NON_JSON_RESPONSE"]);
+  const diagnostics = [];
+  for (const line of backendLog.split("\n")) {
+    try {
+      const value = JSON.parse(line);
+      if (value?.event === "business_plan_failure" && stages.has(value.stage) && categories.has(value.category)) diagnostics.push({ event: value.event, stage: value.stage, category: value.category });
+      else if (value?.event === "project_direction_model_failed" && directionCategories.has(value.category)) diagnostics.push({ event: value.event, category: value.category });
+      else if (value?.event === "direction_output_invalid" && Number.isSafeInteger(value.bytes) && value.bytes >= 0
+        && Array.isArray(value.fields) && value.fields.every(field => ["direction", "rationale", "limitations", "object"].includes(String(field))))
+        diagnostics.push({ event: value.event, bytes: value.bytes, fields: value.fields });
+    } catch { /* Drop all backend log text outside the finite diagnostics schema. */ }
+  }
+  for (const item of children) await writeFile(join(output, `${item.name}.log`), item.name === "backend" ? `${diagnostics.map(entry => JSON.stringify(entry)).join("\n")}\n` : item.log);
+  if (pool) {
+    try {
+      const counts = (await pool.query(`SELECT
+        (SELECT count(*)::int FROM socialgrowth_product.business_plan_commands) AS command_count,
+        (SELECT count(*)::int FROM socialgrowth_product.business_plan_revisions) AS revision_count,
+        (SELECT count(*)::int FROM socialgrowth_product.business_plan_tasks) AS task_count,
+        (SELECT count(*)::int FROM socialgrowth_product.business_plan_outbox) AS outbox_count`)).rows[0];
+      const commands = await pool.query(`SELECT request_key,payload_digest,response->>'outcome' AS outcome,response->'plan'->>'revision' AS plan_revision
+        FROM socialgrowth_product.business_plan_commands ORDER BY recorded_at`);
+      const allowedOutcomes = new Set(["planned", "unchanged", "insufficient_data", "direction_confirmation_required"]);
+      const rows = commands.rows.map(row => ({ idempotencyKeySha256: createHash("sha256").update(String(row.request_key)).digest("hex"),
+        payloadDigestSha256: Buffer.isBuffer(row.payload_digest) ? row.payload_digest.toString("hex") : null,
+        outcome: allowedOutcomes.has(String(row.outcome)) ? row.outcome : "unknown",
+        planRevision: row.plan_revision !== null && Number.isSafeInteger(Number(row.plan_revision)) ? Number(row.plan_revision) : null }));
+      await writeFile(join(output, "business-plan-readonly-facts.json"), JSON.stringify({ source: "isolated temporary PostgreSQL; read-only supplemental evidence",
+        commandCount: counts.command_count, commandReceipts: rows, revisionCount: counts.revision_count, taskCount: counts.task_count, outboxCount: counts.outbox_count }, null, 2), { mode: 0o600 });
+    } catch {
+      await writeFile(join(output, "business-plan-readonly-facts.json"), JSON.stringify({ source: "isolated temporary PostgreSQL; read-only supplemental evidence", available: false, category: "read_only_query_failed" }, null, 2), { mode: 0o600 });
+    }
+  }
+  await writeFile(join(output, "business-plan-diagnostics.json"), JSON.stringify({ entries: diagnostics }, null, 2), { mode: 0o600 });
   await pool?.end(); s3?.destroy();
   for (const owned of containers.toReversed()) {
     const current = JSON.parse(docker(["inspect", owned.cid]))[0];
