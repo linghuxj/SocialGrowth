@@ -89,6 +89,7 @@ async function seedCandidateMaterial(f: Awaited<ReturnType<typeof approvedProjec
   const objectId = randomUUID(), sourceId = randomUUID(), sourceRecordId = randomUUID(), businessEntityId = randomUUID();
   const object = { storageLocationId: randomUUID(), storageBindingDigest: "a".repeat(64), projectId: f.projectId, objectId,
     key: `projects/${f.projectId}/objects/${objectId}`, sha256: randomBytes(32).toString("hex"), bytes: 128, contentType: "video/mp4" };
+  const identity = { mediaKind: "video" as const, businessKind: "product" as const, businessEntityId, seriesId: null, episodeNumber: null };
   const current = await f.service.read(f.token, f.projectId);
   const declaration = materialDeclarationSchema.parse({ name: "Synthetic fixture material", description: "No external claim", businessFacts: "Fixture only",
     sourceStatement: "Synthetic isolated material", sourceEvidenceIds: [randomUUID()], firstUseDeclaration: "declared_not_previously_published",
@@ -105,7 +106,7 @@ async function seedCandidateMaterial(f: Awaited<ReturnType<typeof approvedProjec
     await c.query(`INSERT INTO socialgrowth_product.project_identity_reservations(identity_id,account_id,platform,device_id,project_id,reserved_by_operator_id)
       VALUES($1,$2,'facebook',$3,$4,$5)`, [identityId, accountId, deviceId, f.projectId, f.operatorId]);
     await c.query(`INSERT INTO socialgrowth_product.material_content_units(content_unit_id,project_id,source_id,source_record_id,identity) VALUES($1,$2,$3,$4,$5)`,
-      [contentUnitId, f.projectId, sourceId, sourceRecordId, JSON.stringify({ mediaKind: "video", businessKind: "product", businessEntityId, seriesId: null, episodeNumber: null })]);
+      [contentUnitId, f.projectId, sourceId, sourceRecordId, JSON.stringify(identity)]);
     await c.query(`INSERT INTO socialgrowth_product.material_object_manifests(object_id,project_id,reference) VALUES($1,$2,$3)`, [objectId, f.projectId, JSON.stringify(object)]);
     await c.query(`INSERT INTO socialgrowth_product.material_variants(variant_id,content_unit_id,project_id,language_tag,current_revision) VALUES($1,$2,$3,'en',1)`, [variantId, contentUnitId, f.projectId]);
     await c.query(`INSERT INTO socialgrowth_product.material_variant_revisions(variant_id,revision,declaration,object_references,recorded_by_operator_id,recorded_at)
@@ -120,7 +121,7 @@ async function seedCandidateMaterial(f: Awaited<ReturnType<typeof approvedProjec
     assert.equal(material.length, 1); assert.equal(material[0]?.candidateAllowed, true, `reason=${material[0]?.eligibilityReason}`); assert.equal(material[0]?.eligibilityReason, null);
   } finally { checkClient.release(); }
   f.service = new BusinessPlanService(pool, auth, { registry: () => registry } as unknown as MaterialRuntime, planModel);
-  return { contentUnitId, variantId, identityId };
+  return { contentUnitId, variantId, identityId, sourceId, sourceRecordId, identity, object, declaration };
 }
 
 async function seedOutOfScopeIdentity(f: Awaited<ReturnType<typeof approvedProject>>) {
@@ -236,6 +237,88 @@ test("material-backed schedule atomically persists current-scope plan, Task, quo
   assert.equal(staleGeneration.tasks[0]?.current.installationGeneration, "2");
   assert.ok(staleGeneration.tasks[0]?.blockers.includes("device_association_missing"));
   assert.deepEqual(await planRowCounts(f.projectId), { revisions: 1, tasks: 1, outbox: 1, commands: 1, audits: 1 });
+  makeArrangement = confirmationSuggestion;
+});
+
+test("project and material mutations append idempotent impact references in their source transactions", async () => {
+  arrangementCalls = 0; arrangementGate = null; makeArrangement = scheduleSuggestion;
+  const f = await approvedProject(), material = await seedCandidateMaterial(f), beforePlan = await f.service.read(f.token, f.projectId);
+  const arranged = await f.service.arrange(f.token, f.csrf, f.projectId, { metadata: metadata(),
+    expectedProjectVersion: beforePlan.currentScope.projectVersion, expectedApprovalId: beforePlan.currentScope.approvalId!, expectedPlanRevision: 0 });
+  assert.equal(arranged.tasks.length, 1);
+  const taskId = arranged.tasks[0]!.taskId;
+  const impactState = async () => (await pool.query(`SELECT o.current_impact_revision::int head,
+      count(i.impact_revision)::int impacts, array_agg(i.reason ORDER BY i.impact_revision) FILTER (WHERE i.reason IS NOT NULL) reasons,
+      array_agg(i.impact_revision::int ORDER BY i.impact_revision) FILTER (WHERE i.impact_revision IS NOT NULL) revisions
+    FROM socialgrowth_product.business_plan_outbox o LEFT JOIN socialgrowth_product.business_plan_outbox_impacts i USING(task_id)
+    WHERE o.task_id=$1 GROUP BY o.current_impact_revision`, [taskId])).rows[0];
+  assert.deepEqual(await impactState(), { head: 0, impacts: 0, reasons: null, revisions: null });
+
+  const materialMetadata = { metadata: metadata() };
+  const materialRequest = { ...materialMetadata, projectId: f.projectId, contentUnitId: material.contentUnitId, sourceId: material.sourceId,
+    sourceRecordId: material.sourceRecordId, identity: material.identity, variantId: material.variantId, languageTag: "en", expectedCurrentRevision: 1,
+    declaration: materialDeclarationSchema.parse({ ...material.declaration, name: "Corrected isolated declaration",
+      expectedApprovedDirectionId: beforePlan.currentScope.approvalId, expectedApprovedProjectVersion: beforePlan.currentScope.projectVersion,
+      contentRulesReviewed: true }), objectIds: [material.object.objectId] };
+  const registry = new MaterialRegistryStore(pool, auth, { verify: async () => [material.object] });
+  const saved = await registry.save(f.token, f.csrf, materialRequest);
+  assert.equal(saved.currentRevision, 2); assert.equal(saved.changed, true); assert.equal(saved.replayed, false);
+  assert.deepEqual(await impactState(), { head: 1, impacts: 1, reasons: ["material_revision_changed"], revisions: [1] });
+  assert.deepEqual((await pool.query(`SELECT reason,source_version::int,observed_project_version::int,observed_material_revision::int
+    FROM socialgrowth_product.business_plan_outbox_impacts WHERE task_id=$1`, [taskId])).rows,
+  [{ reason: "material_revision_changed", source_version: 2, observed_project_version: beforePlan.currentScope.projectVersion, observed_material_revision: 2 }]);
+  const materialReplay = await registry.save(f.token, f.csrf, materialRequest);
+  assert.equal(materialReplay.replayed, true); assert.equal(materialReplay.changed, false);
+  assert.deepEqual(await impactState(), { head: 1, impacts: 1, reasons: ["material_revision_changed"], revisions: [1] });
+
+  const projects = new ProjectService(pool, auth);
+  const currentProject = (await pool.query<{ project_id: string; name: string; kind: "company_owned"; customer_name: string | null;
+    owner_operator_id: string; notification_email: string | null; fact_version: string }>(
+      `SELECT project_id,name,kind,customer_name,owner_operator_id,notification_email,fact_version::text FROM socialgrowth_product.projects WHERE project_id=$1`, [f.projectId])).rows[0]!;
+  const updateMeta = metadata(), updateInput = { metadata: updateMeta, projectId: f.projectId, expectedFactVersion: Number(currentProject.fact_version), basics: {
+    name: `${currentProject.name} revised`, kind: currentProject.kind, customerName: currentProject.customer_name,
+    ownerOperatorId: currentProject.owner_operator_id, notificationEmail: currentProject.notification_email } };
+  const updated = await projects.save(f.token, f.csrf, updateInput, "update");
+  assert.equal(updated.project.factVersion, Number(currentProject.fact_version) + 1);
+  assert.deepEqual(await impactState(), { head: 2, impacts: 2, reasons: ["material_revision_changed", "project_scope_changed"], revisions: [1, 2] });
+  assert.deepEqual((await pool.query(`SELECT reason,source_version::int,observed_project_version::int,observed_material_revision::int
+    FROM socialgrowth_product.business_plan_outbox_impacts WHERE task_id=$1 ORDER BY impact_revision`, [taskId])).rows,
+  [{ reason: "material_revision_changed", source_version: 2, observed_project_version: beforePlan.currentScope.projectVersion, observed_material_revision: 2 },
+    { reason: "project_scope_changed", source_version: updated.project.factVersion, observed_project_version: updated.project.factVersion, observed_material_revision: null }]);
+  const projectReplay = await projects.save(f.token, f.csrf, updateInput, "update");
+  assert.equal(projectReplay.project.factVersion, updated.project.factVersion);
+  assert.deepEqual(await impactState(), { head: 2, impacts: 2, reasons: ["material_revision_changed", "project_scope_changed"], revisions: [1, 2] });
+
+  const rollbackInput = { ...updateInput, metadata: metadata(), expectedFactVersion: updated.project.factVersion,
+    basics: { ...updateInput.basics, name: `${updated.project.name} rollback-probe` } };
+  await pool.query(`CREATE FUNCTION socialgrowth_product.test_reject_impact_reference() RETURNS trigger LANGUAGE plpgsql AS $fixture$
+    BEGIN RAISE EXCEPTION 'synthetic impact insert failure'; END $fixture$`);
+  await pool.query(`CREATE TRIGGER test_reject_impact_reference BEFORE INSERT ON socialgrowth_product.business_plan_outbox_impacts
+    FOR EACH ROW EXECUTE FUNCTION socialgrowth_product.test_reject_impact_reference()`);
+  await assert.rejects(projects.save(f.token, f.csrf, rollbackInput, "update"), error("INTERNAL_ERROR"));
+  const rolledBackProject = (await pool.query<{ fact_version: string; name: string }>(
+    `SELECT fact_version::text,name FROM socialgrowth_product.projects WHERE project_id=$1`, [f.projectId])).rows[0]!;
+  assert.equal(Number(rolledBackProject.fact_version), updated.project.factVersion);
+  assert.equal(rolledBackProject.name, updated.project.name);
+  assert.deepEqual(await impactState(), { head: 2, impacts: 2, reasons: ["material_revision_changed", "project_scope_changed"], revisions: [1, 2] });
+  await pool.query("DROP TRIGGER test_reject_impact_reference ON socialgrowth_product.business_plan_outbox_impacts");
+  await pool.query("DROP FUNCTION socialgrowth_product.test_reject_impact_reference()");
+  const retried = await projects.save(f.token, f.csrf, rollbackInput, "update");
+  assert.equal(retried.project.factVersion, updated.project.factVersion + 1);
+  assert.deepEqual(await impactState(), { head: 3, impacts: 3, reasons: ["material_revision_changed", "project_scope_changed", "project_scope_changed"], revisions: [1, 2, 3] });
+
+  const concurrentBase = (await pool.query<{ name: string; kind: "company_owned"; customer_name: string | null;
+    owner_operator_id: string; notification_email: string | null; fact_version: string }>(
+      `SELECT name,kind,customer_name,owner_operator_id,notification_email,fact_version::text FROM socialgrowth_product.projects WHERE project_id=$1`, [f.projectId])).rows[0]!;
+  const concurrent = (suffix: string) => projects.save(f.token, f.csrf, { metadata: metadata(), projectId: f.projectId,
+    expectedFactVersion: Number(concurrentBase.fact_version), basics: { name: `${concurrentBase.name} ${suffix}`, kind: concurrentBase.kind,
+      customerName: concurrentBase.customer_name, ownerOperatorId: concurrentBase.owner_operator_id, notificationEmail: concurrentBase.notification_email } }, "update");
+  const competing = await Promise.allSettled([concurrent("A"), concurrent("B")]);
+  assert.equal(competing.filter(result => result.status === "fulfilled").length, 1);
+  const rejected = competing.find(result => result.status === "rejected");
+  assert.ok(rejected?.status === "rejected" && error("FACT_VERSION_STALE")(rejected.reason));
+  assert.deepEqual(await impactState(), { head: 4, impacts: 4,
+    reasons: ["material_revision_changed", "project_scope_changed", "project_scope_changed", "project_scope_changed"], revisions: [1, 2, 3, 4] });
   makeArrangement = confirmationSuggestion;
 });
 

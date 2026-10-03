@@ -4,6 +4,7 @@ import { createProjectRequestSchema, updateProjectRequestSchema, projectResponse
 import type { Pool, PoolClient } from "pg";
 import { OperatorAuthService, type OperatorSessionContext } from "./operator-auth-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
+import { appendProjectScopeChanged } from "./business-plan-task-impact-writer.js";
 
 const schema = "socialgrowth_product";
 interface Row { project_id: string; name: string; kind: ProjectBasics["kind"]; customer_name: string | null; owner_operator_id: string | null;
@@ -91,6 +92,7 @@ export class ProjectService {
             fact_version=fact_version+1,updated_at=clock_timestamp() WHERE project_id=$1 RETURNING *`, values);
       if (!result.rows[0]) throw stale();
       const project = view(result.rows[0]);
+      if (kind === "update") await appendProjectScopeChanged(client, projectId, project.factVersion);
       await client.query(`INSERT INTO ${schema}.project_metadata_commands(actor_id,request_key,kind,payload_digest,project_id) VALUES($1,$2,$3,$4,$5)`, [actor, parsed.metadata.idempotencyKey, kind, hash, projectId]);
       await client.query(`INSERT INTO ${schema}.audit_records(audit_record_id,actor_type,actor_id,action,object_type,object_id,request_id,facts)
         VALUES($1,'operator',$2,$3,'project',$4,$5,$6)`, [randomUUID(), actor, `project.${kind}`, projectId, parsed.metadata.requestId,
