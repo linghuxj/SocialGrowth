@@ -23,7 +23,7 @@ async function signIn(target: Page): Promise<void> {
   await target.getByRole("button", { name: "登录", exact: true }).click();
   await target.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
   await target.getByRole("button", { name: "设备接入待办", exact: true }).click();
-  await target.getByRole("heading", { name: "设备接入待办", exact: true }).waitFor();
+  await target.getByRole("heading", { name: "设备接入待办", exact: true, level: 1 }).waitFor();
 }
 
 try {
@@ -37,7 +37,16 @@ try {
   await panel.getByRole("button", { name: "刷新", exact: true }).click();
   await panel.getByRole("alert").waitFor();
   await page.unroute("**/api/operator/assistance-todos?**");
+  const recoveredFeed = page.waitForResponse(response => new URL(response.url()).pathname === "/api/operator/assistance-todos"
+    && response.request().method() === "GET");
   await panel.getByRole("button", { name: "刷新", exact: true }).click();
+  const recovered = await recoveredFeed;
+  assert.ok(recovered.ok(), `actual assistance feed GET failed with ${recovered.status()}`);
+  await panel.getByRole("button", { name: "刷新", exact: true }).waitFor({ state: "visible" });
+  await page.waitForFunction(() => {
+    const button = [...document.querySelectorAll(".operator-todos__header button")].find(item => item.textContent?.trim() === "刷新");
+    return button instanceof HTMLButtonElement && !button.disabled;
+  });
   await panel.getByRole("alert").waitFor({ state: "hidden" });
 
   const rows = panel.locator(".operator-todos__row");
