@@ -24,6 +24,8 @@ import {
   installationStateRequestSchema,
   listProviderDevicesRequestSchema,
   listProviderDevicesResponseSchema,
+  providerDeviceLabelRequestSchema,
+  providerDeviceLabelResponseSchema,
   queryAssociationResultRequestSchema,
 } from "./association.js";
 import { productErrorResponseSchema } from "./errors.js";
@@ -169,6 +171,8 @@ export const firstBatchContractRegistry = {
   listOperatorDeviceFactsResponse: listOperatorDeviceFactsResponseSchema,
   listProviderDevicesRequest: listProviderDevicesRequestSchema,
   listProviderDevicesResponse: listProviderDevicesResponseSchema,
+  providerDeviceLabelRequest: providerDeviceLabelRequestSchema,
+  providerDeviceLabelResponse: providerDeviceLabelResponseSchema,
   listInvitationsResponse: listInvitationsResponseSchema,
   operatorDeviceView: operatorDeviceViewSchema,
   operatorDeviceFact: operatorDeviceFactSchema,

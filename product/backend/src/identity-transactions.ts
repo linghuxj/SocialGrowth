@@ -10,12 +10,16 @@ import {
   inspectAssociationCodeRequestSchema,
   installationSelfViewSchema,
   listProviderDevicesResponseSchema,
+  providerDeviceLabelRequestSchema,
+  providerDeviceLabelResponseSchema,
   queryAssociationResultRequestSchema,
   registerProviderRequestSchema,
   registerProviderResponseSchema,
   type ConfirmAssociationRequest,
   type QueryAssociationResultRequest,
   type RegisterProviderRequest,
+  type ProviderDeviceLabelRequest,
+  uuidSchema,
 } from "@socialgrowth/product-contracts";
 import type { Pool, PoolClient, QueryResult } from "pg";
 
@@ -84,7 +88,7 @@ interface RegistrationContext {
   verifiedPhoneVerificationId: string;
 }
 
-interface ProviderContext {
+export interface ProviderContext {
   providerId: string;
 }
 
@@ -745,7 +749,7 @@ export class IdentityTransactionService {
         `INSERT INTO ${schema}.devices (
            device_id, display_name, fact_version, state, created_at, updated_at
          ) VALUES ($1, $2, 1, 'associated_pending_access', $3, $3)`,
-        [deviceId, session.device_label, now],
+        [deviceId, request.deviceLabel ?? session.device_label, now],
       );
       await client.query(
         `INSERT INTO ${schema}.device_associations (
@@ -792,6 +796,95 @@ export class IdentityTransactionService {
         associationId,
         request.metadata.requestId,
         { deviceId, installationId: session.installation_id },
+      );
+      return response;
+    });
+  }
+
+  async renameProviderDevice(
+    deviceId: string,
+    input: ProviderDeviceLabelRequest,
+    context: ProviderContext,
+  ): Promise<ReturnType<typeof providerDeviceLabelResponseSchema.parse>> {
+    const request = providerDeviceLabelRequestSchema.parse(input);
+    const targetDeviceId = uuidSchema.parse(deviceId).toLowerCase();
+    return inTransaction(this.pool, async (client) => {
+      const provider = await client.query<{ status: string }>(
+        `SELECT status FROM ${schema}.providers WHERE provider_id=$1 FOR UPDATE`,
+        [context.providerId],
+      );
+      if (provider.rows[0]?.status !== "active") {
+        throw new ProductTransactionError("AUTHORIZATION_DENIED", "Provider identity is no longer active");
+      }
+      const now = await databaseWallClock(client);
+      const identity: IdempotencyIdentity = {
+        operation: "rename_provider_device_label",
+        principalId: context.providerId,
+        principalType: "provider",
+      };
+      const existing = await beginIdempotentRequest(
+        client,
+        identity,
+        request.metadata.idempotencyKey,
+        requestDigest(request),
+        now,
+      );
+      if (existing) return providerDeviceLabelResponseSchema.parse(existing.response_body);
+
+      const owned = await client.query<{ association_id: string; display_name: string; device_id: string; fact_version: string; state: string; updated_at: Date }>(
+        `SELECT a.association_id,d.display_name,d.device_id,d.fact_version::text,d.state,d.updated_at
+           FROM ${schema}.device_associations a
+           JOIN ${schema}.devices d ON d.device_id=a.device_id
+          WHERE a.device_id=$1 AND a.provider_id=$2 AND a.ended_at IS NULL
+          FOR UPDATE OF a,d`,
+        [targetDeviceId, context.providerId],
+      );
+      const current = owned.rows[0];
+      if (!current) {
+        throw new ProductTransactionError("AUTHORIZATION_DENIED", "Device is not currently associated with this provider");
+      }
+      const currentVersion = Number(current.fact_version);
+      if (currentVersion !== request.expectedFactVersion || currentVersion >= Number.MAX_SAFE_INTEGER) {
+        throw new ProductTransactionError("FACT_VERSION_STALE", "Device facts changed; re-read the current device");
+      }
+
+      const updatedAt = await databaseWallClock(client);
+      const updated = await client.query<{ display_name: string; device_id: string; fact_version: string; state: string; updated_at: Date }>(
+        `UPDATE ${schema}.devices
+            SET display_name=$2,fact_version=fact_version+1,updated_at=$3
+          WHERE device_id=$1 AND fact_version=$4
+          RETURNING device_id,display_name,fact_version::text,state,updated_at`,
+        [current.device_id, request.displayName, updatedAt, request.expectedFactVersion],
+      );
+      const row = updated.rows[0];
+      if (!row) throw new ProductTransactionError("FACT_VERSION_STALE", "Device facts changed; re-read the current device");
+      const response = providerDeviceLabelResponseSchema.parse({
+        device: {
+          deviceId: row.device_id,
+          displayName: row.display_name,
+          state: row.state,
+          factVersion: Number(row.fact_version),
+          updatedAt: row.updated_at.toISOString(),
+          lastObservedAt: null,
+        },
+      });
+      await completeIdempotentRequest(
+        client,
+        identity,
+        request.metadata.idempotencyKey,
+        response,
+        "device",
+        row.device_id,
+      );
+      await writeAudit(
+        client,
+        "provider",
+        context.providerId,
+        "device.label_renamed",
+        "device",
+        row.device_id,
+        request.metadata.requestId,
+        { factVersion: Number(row.fact_version) },
       );
       return response;
     });

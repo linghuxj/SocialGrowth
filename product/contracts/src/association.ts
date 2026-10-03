@@ -47,6 +47,7 @@ export const confirmAssociationRequestSchema = z.strictObject({
   metadata: requestMetadataSchema,
   associationSessionId: uuidSchema,
   expectedInstallationId: uuidSchema,
+  deviceLabel: z.string().trim().min(1).max(100).optional(),
 });
 
 export const confirmAssociationResponseSchema = z.strictObject({
@@ -88,6 +89,19 @@ export const listProviderDevicesRequestSchema = z.strictObject({
 export const listProviderDevicesResponseSchema = z.strictObject({
   devices: z.array(providerDeviceViewSchema),
 });
+
+export const providerDeviceLabelRequestSchema = z.strictObject({
+  metadata: requestMetadataSchema,
+  expectedFactVersion: z.int().min(0),
+  displayName: z.string().trim().min(1).max(100),
+});
+
+export const providerDeviceLabelResponseSchema = z.strictObject({
+  device: providerDeviceViewSchema,
+});
+
+export type ProviderDeviceLabelRequest = z.infer<typeof providerDeviceLabelRequestSchema>;
+export type ProviderDeviceLabelResponse = z.infer<typeof providerDeviceLabelResponseSchema>;
 
 export type ConfirmAssociationRequest = z.infer<
   typeof confirmAssociationRequestSchema

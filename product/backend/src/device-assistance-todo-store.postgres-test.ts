@@ -92,6 +92,35 @@ test("no-project journal derives inviter from canonical registration, persists o
   assert.equal((await pool.query("SELECT count(*)::int n FROM socialgrowth_product.projects")).rows[0]?.n, 0);
   assert.equal((await pool.query("SELECT state FROM socialgrowth_product.devices WHERE device_id=$1", [f.d.deviceId])).rows[0]?.state, "associated_pending_access");
 });
+test("provider assistance feed returns only current owned impacts with current label and recorded historical version", async () => {
+  const f = await fixture(), secondDevice = await device(f.p), otherProvider = await provider(f.a);
+  const ownSession = await providerSession(f.p.providerId);
+  const otherSession = await providerSession(otherProvider.providerId);
+  const first = await store.ingestUnassignedDeviceEvent(f.input);
+  await store.ingestUnassignedDeviceEvent(event(secondDevice.deviceId, f.input.occurrenceId));
+  const own = await providerFeed.list(ownSession.token, { afterTodoId: null, pageSize: 20 });
+  assert.equal(own.todos.length, 1);
+  assert.equal(own.todos[0]?.impactCount, 2);
+  assert.deepEqual(own.todos[0]?.impacts.map(i => [i.deviceId, i.deviceLabel, i.recordedDeviceVersion]), [
+    [f.d.deviceId, "Todo phone", 0],
+    [secondDevice.deviceId, "Todo phone", 0],
+  ].sort((left, right) => String(left[0]).localeCompare(String(right[0]))));
+
+  await pool.query("UPDATE socialgrowth_product.devices SET display_name='Renamed current phone',fact_version=fact_version+1 WHERE device_id=$1", [secondDevice.deviceId]);
+  const renamed = await providerFeed.list(ownSession.token, { afterTodoId: null, pageSize: 20 });
+  assert.deepEqual(renamed.todos[0]?.impacts.find(i => i.deviceId === secondDevice.deviceId), {
+    deviceId: secondDevice.deviceId,
+    deviceLabel: "Renamed current phone",
+    recordedDeviceVersion: 0,
+  });
+  await pool.query("UPDATE socialgrowth_product.device_associations SET ended_at=clock_timestamp() WHERE association_id=$1", [secondDevice.associationId]);
+  const current = await providerFeed.list(ownSession.token, { afterTodoId: null, pageSize: 20 });
+  assert.deepEqual(current.todos[0]?.impacts, [{ deviceId: f.d.deviceId, deviceLabel: "Todo phone", recordedDeviceVersion: 0 }]);
+  assert.equal(current.todos[0]?.impactCount, 2); // Aggregate history is not current per-device state.
+  const other = await providerFeed.list(otherSession.token, { afterTodoId: null, pageSize: 20 });
+  assert.deepEqual(other.todos, []);
+  assert.equal((await counts(first.todoId)).impacts, 2);
+});
 test("same provider occurrence merges distinct phones, different provider occurrence stays separate, repeated impact does not renotify", async () => {
   const f = await fixture(), d2 = await device(f.p), first = await store.ingestUnassignedDeviceEvent(f.input);
   const merged = await store.ingestUnassignedDeviceEvent(event(d2.deviceId, f.input.occurrenceId));

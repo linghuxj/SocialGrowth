@@ -39,7 +39,21 @@ export const providerDeviceAssistanceTodoSummarySchema = z.strictObject({
   if (v.status === "awaiting_recheck" && v.noteCount === 0) ctx.addIssue({ code: "custom", message: "Recheck status needs a recorded processing report" });
   if (assistanceTimestampSchema.safeParse(v.createdAt).success && assistanceTimestampSchema.safeParse(v.updatedAt).success && compareTimestamps(v.updatedAt, v.createdAt) === -1) ctx.addIssue({ code: "custom", message: "Assistance update predates creation" });
 });
-export const listProviderDeviceAssistanceTodosResponseSchema = z.strictObject({ todos: z.array(providerDeviceAssistanceTodoSummarySchema).max(50), nextAfterTodoId: uuidSchema.nullable() })
+export const providerDeviceAssistanceImpactSchema = z.strictObject({
+  deviceId: uuidSchema,
+  deviceLabel: z.string().min(1).max(100),
+  // Historical device fact version captured by the event producer, not a
+  // current device-health or live-check result.
+  recordedDeviceVersion: z.int().min(0),
+});
+export const providerDeviceAssistanceTodoSchema = providerDeviceAssistanceTodoSummarySchema.extend({
+  impacts: z.array(providerDeviceAssistanceImpactSchema),
+}).superRefine((v, ctx) => {
+  if (new Set(v.impacts.map(i => i.deviceId.toLowerCase())).size !== v.impacts.length) {
+    ctx.addIssue({ code: "custom", message: "Assistance impacts cannot repeat device identities" });
+  }
+});
+export const listProviderDeviceAssistanceTodosResponseSchema = z.strictObject({ todos: z.array(providerDeviceAssistanceTodoSchema).max(50), nextAfterTodoId: uuidSchema.nullable() })
   .superRefine((v, ctx) => {
     if (new Set(v.todos.map(t => t.todoId.toLowerCase())).size !== v.todos.length
       || (v.nextAfterTodoId !== null && v.nextAfterTodoId.toLowerCase() !== v.todos.at(-1)?.todoId.toLowerCase())) ctx.addIssue({ code: "custom", message: "Assistance page cursor or identity is inconsistent" });
