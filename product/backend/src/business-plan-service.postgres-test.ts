@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { after, before, test } from "node:test";
+import { NestFactory } from "@nestjs/core";
 import { Pool } from "pg";
 import { contractVersion, emptyProjectPlanningInputs, type ProjectPlanningInputs } from "@socialgrowth/product-contracts";
 import { BusinessPlanService } from "./business-plan-service.js";
@@ -13,6 +14,8 @@ import { ProjectService } from "./project-service.js";
 import { ProjectPlanningService } from "./project-planning-service.js";
 import { ProjectDirectionService } from "./project-direction-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
+import { BusinessPlanController } from "./business-plan.controller.js";
+import { ProductExceptionFilter } from "./product-exception.filter.js";
 import type { BusinessModelPort } from "./business-model-coordinator.js";
 import type { BusinessSuggestionContext } from "./business-suggestion-core.js";
 import { parseContentQuota } from "./content-quota-core.js";
@@ -24,6 +27,8 @@ const pool = new Pool({ connectionString: url, max: 8 });
 const auth = new OperatorAuthService(pool, "isolated-business-plan-pepper-only-00001");
 const metadata = () => ({ contractVersion, requestId: `request-${randomUUID()}`, idempotencyKey: `business-plan-${randomUUID()}` });
 const error = (code: string) => (e: unknown) => e instanceof ProductTransactionError && e.code === code;
+
+class CurrentChecksHttpFixtureModule {}
 
 before(async () => {
   await pool.query("DROP SCHEMA IF EXISTS socialgrowth_product CASCADE");
@@ -195,6 +200,25 @@ async function planRowCounts(projectId: string) {
     (SELECT count(*)::int FROM socialgrowth_product.audit_records WHERE object_type='business_plan' AND object_id=$1) audits`, [projectId])).rows[0];
 }
 
+async function currentChecksOverHttp(service: BusinessPlanService, projectId: string, token: string) {
+  const app = await NestFactory.create({ module: CurrentChecksHttpFixtureModule,
+    controllers: [BusinessPlanController], providers: [{ provide: BusinessPlanService, useValue: service }] }, { logger: false });
+  app.useGlobalFilters(new ProductExceptionFilter());
+  await app.listen(0, "127.0.0.1");
+  try {
+    const address = app.getHttpServer().address() as { port: number };
+    const url = `http://127.0.0.1:${address.port}/api/operator/projects/${projectId}/business-plan/current-checks`;
+    const response = await fetch(url, { headers: { cookie: `__Host-sg_operator_session=${token}` } });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    const body = await response.json() as { tasks: Array<{ taskId: string; expectedFiles: Array<{ sha256: string }> }>; executionAllowed: boolean; publicationAllowed: boolean };
+    assert.equal(body.executionAllowed, false); assert.equal(body.publicationAllowed, false);
+    const denied = await fetch(url);
+    assert.equal(denied.status, 401);
+    return body;
+  } finally { await app.close(); }
+}
+
 test("material-backed schedule atomically persists current-scope plan, Task, quota slot and check-reference outbox", async () => {
   arrangementCalls = 0; arrangementGate = null; makeArrangement = scheduleSuggestion;
   const f = await approvedProject(), material = await seedCandidateMaterial(f), current = await f.service.read(f.token, f.projectId);
@@ -215,11 +239,16 @@ test("material-backed schedule atomically persists current-scope plan, Task, quo
   const checks = await f.service.currentChecks(f.token, f.projectId);
   assert.equal(checks.tasks.length, 1); assert.equal(checks.tasks[0]?.taskId, rows[0]!.task_id);
   assert.equal(checks.tasks[0]?.expectedMaterialRevision, 1); assert.equal(checks.tasks[0]?.current.materialRevision, 1);
+  assert.deepEqual(checks.tasks[0]?.expectedFiles, [{ objectId: material.object.objectId, sha256: material.object.sha256,
+    bytes: material.object.bytes, contentType: material.object.contentType }]);
+  assert.deepEqual(checks.tasks[0]?.currentFiles, checks.tasks[0]?.expectedFiles);
   assert.ok(checks.tasks[0]?.blockers.includes("action_inspector_unavailable"));
   assert.ok(checks.tasks[0]?.blockers.includes("device_association_missing"));
   assert.ok(checks.tasks[0]?.blockers.includes("current_fact_unknown"));
   assert.deepEqual(checks.tasks[0]?.impactReferences, []);
   assert.equal(checks.executionAllowed, false); assert.equal(checks.publicationAllowed, false);
+  const httpChecks = await currentChecksOverHttp(f.service, f.projectId, f.token);
+  assert.deepEqual(httpChecks.tasks[0]?.expectedFiles, checks.tasks[0]?.expectedFiles);
   const providerId = randomUUID(), installationId = randomUUID(), associationSessionId = randomUUID(), associationId = randomUUID();
   const reservedDeviceId = checks.tasks[0]!.current.reservedDeviceId!;
   await pool.query(`INSERT INTO socialgrowth_product.providers(provider_id,phone_e164,display_name,status) VALUES($1,$2,'Generation fixture','active')`,
@@ -264,6 +293,11 @@ test("project and material mutations append idempotent impact references in thei
   const saved = await registry.save(f.token, f.csrf, materialRequest);
   assert.equal(saved.currentRevision, 2); assert.equal(saved.changed, true); assert.equal(saved.replayed, false);
   assert.deepEqual(await impactState(), { head: 1, impacts: 1, reasons: ["material_revision_changed"], revisions: [1] });
+  const afterMaterialImpact = await f.service.currentChecks(f.token, f.projectId);
+  assert.deepEqual(afterMaterialImpact.tasks[0]?.impactReferences.map(ref => ref.reason), ["material_revision_changed"]);
+  assert.equal(afterMaterialImpact.tasks[0]?.expectedFiles[0]?.sha256, material.object.sha256);
+  assert.equal(afterMaterialImpact.tasks[0]?.currentFiles?.[0]?.sha256, material.object.sha256);
+  assert.ok(afterMaterialImpact.tasks[0]?.blockers.includes("material_revision_changed"));
   assert.deepEqual((await pool.query(`SELECT reason,source_version::int,observed_project_version::int,observed_material_revision::int
     FROM socialgrowth_product.business_plan_outbox_impacts WHERE task_id=$1`, [taskId])).rows,
   [{ reason: "material_revision_changed", source_version: 2, observed_project_version: beforePlan.currentScope.projectVersion, observed_material_revision: 2 }]);
@@ -281,6 +315,9 @@ test("project and material mutations append idempotent impact references in thei
   const updated = await projects.save(f.token, f.csrf, updateInput, "update");
   assert.equal(updated.project.factVersion, Number(currentProject.fact_version) + 1);
   assert.deepEqual(await impactState(), { head: 2, impacts: 2, reasons: ["material_revision_changed", "project_scope_changed"], revisions: [1, 2] });
+  const afterProjectImpact = await f.service.currentChecks(f.token, f.projectId);
+  assert.deepEqual(afterProjectImpact.tasks[0]?.impactReferences.map(ref => ref.reason), ["material_revision_changed", "project_scope_changed"]);
+  assert.ok(afterProjectImpact.tasks[0]?.blockers.includes("project_scope_changed"));
   assert.deepEqual((await pool.query(`SELECT reason,source_version::int,observed_project_version::int,observed_material_revision::int
     FROM socialgrowth_product.business_plan_outbox_impacts WHERE task_id=$1 ORDER BY impact_revision`, [taskId])).rows,
   [{ reason: "material_revision_changed", source_version: 2, observed_project_version: beforePlan.currentScope.projectVersion, observed_material_revision: 2 },

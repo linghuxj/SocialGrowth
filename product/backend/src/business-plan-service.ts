@@ -161,6 +161,12 @@ export class BusinessPlanService {
         plan,
         tasks: tasks.map(task => {
           const material = materialByVariant.get(task.variant_id) ?? null;
+          const expectedRevision = material?.revisions.find(revision => revision.revision === Number(task.material_revision));
+          const files = (objects: NonNullable<typeof expectedRevision>["objects"]) => objects
+            .map(file => ({ objectId: file.objectId, sha256: file.sha256, bytes: file.bytes, contentType: file.contentType }))
+            .sort((left, right) => left.objectId.localeCompare(right.objectId));
+          const expectedFiles = expectedRevision ? files(expectedRevision.objects) : [];
+          const currentFiles = material ? files(material.revisions.at(-1)?.objects ?? []) : null;
           const fact = factByTask.get(task.task_id);
           let controlIntent: "active" | "pause_requested" | "paused" | "resume_requested" | "exit_pending" | "exited" | null = null;
           let controlStop: "not_requested" | "requested" | "confirmed" | "unknown" | null = null;
@@ -198,6 +204,8 @@ export class BusinessPlanService {
             if (material.currentRevision !== Number(task.material_revision)) blockers.add("material_revision_changed");
             if (material.status !== "candidate" || !material.candidateAllowed) blockers.add("material_not_eligible");
           }
+          if (!expectedFiles.length || !currentFiles?.length) blockers.add("material_missing");
+          if (currentFiles && canonicalMaterial(expectedFiles) !== canonicalMaterial(currentFiles)) blockers.add("material_revision_changed");
           if (!fact?.reserved_device_id) blockers.add("identity_reservation_missing");
           if (associationCurrent === false) blockers.add("device_association_missing");
           if (fact?.association_id && !fact.installation_generation) blockers.add("installation_missing");
@@ -208,11 +216,11 @@ export class BusinessPlanService {
           // The production executor is deliberately absent; this read cannot create authority.
           blockers.add("action_inspector_unavailable");
           if (!impactStoreAvailable || !fact || !fact.reserved_device_id || associationCurrent === null || !fact.installation_generation
-            || controlIntent === null || controlStop === null || material === null) blockers.add("current_fact_unknown");
+            || controlIntent === null || controlStop === null || material === null || !expectedFiles.length || !currentFiles?.length) blockers.add("current_fact_unknown");
           return {
             taskId: task.task_id, taskRevision: Number(task.task_revision), planId: task.plan_id, planRevision: Number(task.plan_revision),
             variantId: task.variant_id, expectedMaterialRevision: Number(task.material_revision), identityId: task.identity_id,
-            platform: task.platform, form: task.form, scheduledAt: task.scheduled_at,
+            platform: task.platform, form: task.form, scheduledAt: task.scheduled_at, expectedFiles, currentFiles,
             current: { projectVersion: view.currentScope.projectVersion, approvalId: view.currentScope.approvalId,
               materialRevision: material?.currentRevision ?? null, materialStatus: material?.status ?? null,
               materialCandidateAllowed: material?.candidateAllowed ?? null, reservedDeviceId: fact?.reserved_device_id ?? null,

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { timestampSchema, uuidSchema } from "./common.js";
+import { materialUploadContentTypeSchema } from "./material-upload.js";
 
 const version = z.int().min(0).max(Number.MAX_SAFE_INTEGER);
 const positiveVersion = z.int().min(1).max(Number.MAX_SAFE_INTEGER);
@@ -9,6 +10,11 @@ const blocker = z.enum([
   "device_paused", "stop_unconfirmed", "participation_missing", "network_not_admitted",
   "action_inspector_unavailable", "current_fact_unknown",
 ]);
+const materialFileBindingSchema = z.strictObject({ objectId: uuidSchema, sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  bytes: z.int().min(1).max(128 * 1024 * 1024), contentType: materialUploadContentTypeSchema });
+function orderedFiles(files: Array<{ objectId: string }>) {
+  return files.every((file, index) => index === 0 || files[index - 1]!.objectId.toLowerCase() < file.objectId.toLowerCase());
+}
 
 export const businessPlanCurrentImpactReferenceSchema = z.strictObject({
   impactRevision: positiveVersion,
@@ -36,6 +42,8 @@ export const businessPlanCurrentCheckTaskSchema = z.strictObject({
   platform: z.enum(["facebook", "youtube"]),
   form: z.enum(["facebook_video", "facebook_image_text", "youtube_shorts", "youtube_video"]),
   scheduledAt: timestampSchema,
+  expectedFiles: z.array(materialFileBindingSchema).max(20),
+  currentFiles: z.array(materialFileBindingSchema).max(20).nullable(),
   current: z.strictObject({
     projectVersion: version.nullable(),
     approvalId: uuidSchema.nullable(),
@@ -52,6 +60,20 @@ export const businessPlanCurrentCheckTaskSchema = z.strictObject({
   }),
   impactReferences: z.array(businessPlanCurrentImpactReferenceSchema).max(1000),
   blockers: z.array(blocker).min(1).max(15),
+}).superRefine((value, ctx) => {
+  if (!orderedFiles(value.expectedFiles) || (value.currentFiles !== null && !orderedFiles(value.currentFiles))) {
+    ctx.addIssue({ code: "custom", message: "Material file manifests must be unique and objectId ordered" });
+  }
+  if (value.expectedFiles.length === 0 && (!value.blockers.includes("material_missing") || !value.blockers.includes("current_fact_unknown"))) {
+    ctx.addIssue({ code: "custom", message: "Missing expected manifest must remain blocked" });
+  }
+  if (value.currentFiles === null && (!value.blockers.includes("material_missing") || !value.blockers.includes("current_fact_unknown"))) {
+    ctx.addIssue({ code: "custom", message: "Missing current manifest must remain blocked" });
+  }
+  if (value.currentFiles !== null && JSON.stringify(value.expectedFiles) !== JSON.stringify(value.currentFiles)
+    && !value.blockers.includes("material_revision_changed")) {
+    ctx.addIssue({ code: "custom", message: "Different current files must remain blocked" });
+  }
 });
 
 export const businessPlanCurrentChecksResponseSchema = z.strictObject({
