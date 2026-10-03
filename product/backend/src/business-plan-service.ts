@@ -34,6 +34,10 @@ function recordPlanDiagnostic(stage: DiagnosticStage, category: DiagnosticCatego
 }
 interface BusinessPlanModel extends BusinessModelPort { describe(signal: AbortSignal): Promise<{ providerKey: string; modelKey: string }> }
 type CurrentScope = BusinessPlanCurrentView["currentScope"];
+// Artemis' bounded --describe subprocess includes interpreter/import startup
+// (40s maximum in ArtemisBusinessModel). Reserve a small fixed return margin;
+// model coordination still has its separate 30s deadline after configuration.
+const MODEL_DESCRIBE_DEADLINE_MS = 45_000;
 interface Snapshot {
   context: BusinessSuggestionContext;
   descriptions: Array<{ factId: string; version: number; text: string }>;
@@ -248,7 +252,7 @@ export class BusinessPlanService {
     let configured: { providerKey: string; modelKey: string };
     let describeTimedOut = false;
     try {
-      const described = await Promise.race([this.model.describe(controller.signal), new Promise<never>((_, reject) => { timer = setTimeout(() => { describeTimedOut = true; controller.abort(); reject(unavailable()); }, 5000); })]);
+      const described = await Promise.race([this.model.describe(controller.signal), new Promise<never>((_, reject) => { timer = setTimeout(() => { describeTimedOut = true; controller.abort(); reject(unavailable()); }, MODEL_DESCRIBE_DEADLINE_MS); })]);
       configured = { providerKey: described.providerKey, modelKey: described.modelKey };
     } catch {
       clearTimeout(timer); controller.abort();

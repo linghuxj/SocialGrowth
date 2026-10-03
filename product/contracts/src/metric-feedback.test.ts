@@ -26,3 +26,8 @@ test("feedback projection is strict and rejects cross-project rows", () => {
   assert.equal(projectFeedbackResponseSchema.safeParse({ ...base, sourceState: "available", sourceReasonCode: null, metrics: [otherProject] }).success, false);
   assert.equal(projectFeedbackResponseSchema.safeParse({ ...base, sourceState: "unknown", sourceReasonCode: "no_authoritative_report", metrics: [], executionAllowed: true }).success, false);
 });
+
+test("delayed observations cannot carry a numeric value", () => {
+  const delayedValue = { ...snapshot, availability: "delayed", value: "0", missingReason: "source_unavailable" };
+  assert.equal(projectFeedbackResponseSchema.safeParse({ ...base, sourceState: "available", sourceReasonCode: null, metrics: [delayedValue] }).success, false);
+});

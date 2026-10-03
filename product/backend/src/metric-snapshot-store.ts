@@ -35,7 +35,7 @@ export class MetricSnapshotStore {
       await c.query("BEGIN ISOLATION LEVEL REPEATABLE READ");
       await c.query("SET LOCAL lock_timeout='5s'");
       await c.query("SET LOCAL statement_timeout='10s'");
-      await this.auth.authenticateSessionInTransaction(c, sessionToken);
+      const context = await this.auth.authenticateSessionInTransaction(c, sessionToken);
       const project = await c.query<{ observed_at: Date }>(`SELECT clock_timestamp() AS observed_at FROM ${s}.projects WHERE project_id=$1`, [projectId]);
       if (!project.rows[0]) throw denied();
       const observedAt = project.rows[0].observed_at.toISOString();
@@ -66,6 +66,12 @@ export class MetricSnapshotStore {
       const response = projectFeedbackResponseSchema.parse({ projectId, observedAt, sourceState,
         sourceReasonCode: metrics.length ? null : this.resolver ? "no_authoritative_report" : "source_not_configured", metrics,
         contentAttribution: { state: "unknown", reason: "verified_task_publication_source_missing" } });
+      // Authentication locks the operator/session rows before the potentially
+      // expensive report-history read. Recheck wall-clock expiry at the end so
+      // that a session cannot expire during projection and still receive data.
+      const sessionStillValid = await c.query(`SELECT 1 FROM ${s}.operator_sessions
+        WHERE session_id=$1 AND revoked_at IS NULL AND expires_at>clock_timestamp()`, [context.sessionId]);
+      if (sessionStillValid.rowCount !== 1) throw new ProductTransactionError("AUTHENTICATION_REQUIRED", "Operator session expired");
       await c.query("COMMIT");
       return response;
     } catch (error) {
