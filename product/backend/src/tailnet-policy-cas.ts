@@ -42,7 +42,8 @@ export interface TailnetPolicyApplied {
 
 type FetchPort = typeof fetch;
 const sha = (text: string) => createHash("sha256").update(text).digest("hex");
-const etagValid = (value: string | null): value is string => !!value && value.length <= 256 && /^[\x21-\x7e]+$/.test(value);
+const etagValid = (value: string | null): value is string => !!value && value.length >= 3 && value.length <= 256
+  && /^"[\x21\x23-\x7e]+"$/.test(value);
 
 /** A separately supplied owner-only write credential is mandatory. This never
  * falls back to the read-only inspection credential or expands runtime grants. */

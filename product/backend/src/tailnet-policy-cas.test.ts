@@ -72,6 +72,17 @@ test("read-only policy credentials cannot open a write session", async () => {
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
+test("wildcard, weak, unquoted, and empty ETags cannot qualify for CAS", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "sg-tailnet-cas-")), configuration = await readFixtureConfiguration(dir);
+  try {
+    for (const etag of ["*", 'W/"weak"', "unquoted", '""']) {
+      const invalid: typeof fetch = async input => String(input).endsWith("/oauth/token") ? token()
+        : new Response(original, { headers: { etag } });
+      await assert.rejects(createTailnetPolicyCas(configuration, invalid).readCurrent(), { code: "POLICY_UNAVAILABLE" });
+    }
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
 test("policy apply recomputes the narrow candidate, validates it, saves recovery, uses If-Match and reads back", async () => {
   const dir = await mkdtemp(join(tmpdir(), "sg-tailnet-cas-")), f = fixture(), configuration = await readFixtureConfiguration(dir);
   try {
