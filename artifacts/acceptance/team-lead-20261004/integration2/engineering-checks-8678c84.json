@@ -1,0 +1,34 @@
+{
+  "candidate": "8678c84",
+  "scope": "engineering_checks_only",
+  "checks": {
+    "productTypeAndContractCheck": {
+      "passed": true,
+      "packageCount": 4
+    },
+    "backendUnit": {
+      "passed": 394,
+      "failed": 0,
+      "durationMs": 12529.52864,
+      "sessionId": 73542
+    },
+    "backendBuild": {
+      "passed": true
+    },
+    "webBuild": {
+      "passed": true,
+      "warning": "bundle larger than 500 kB"
+    },
+    "documentationStructure": {
+      "passed": true,
+      "requirements": 158,
+      "workPackages": 30,
+      "acceptanceGroups": 61,
+      "localLinks": 290
+    }
+  },
+  "limitations": [
+    "Not a real-browser, real-device, external-platform, deployment or whole-product acceptance result."
+  ],
+  "rawTapIndependentlySaved": false
+}
