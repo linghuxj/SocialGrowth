@@ -50,9 +50,10 @@ def execute(describe: bool) -> dict[str, Any]:
               "forms, time window, frequency and constraints; explain readiness limitations. Output does not approve "
               "or start anything. Write a concise Chinese direction and rationale, each within 350 characters, "
               "and at most five concise limitations. For business_suggestion return the given schema and distinguish insufficient data. "
-              "Return JSON only, no markdown or tool calls. For initial_direction return exactly one object with "
-              "the three required keys direction (string), rationale (string), limitations (array of strings). "
-              "Do not repeat input scope, goals, identities, autonomy or metadata as output keys. "
+              "Return JSON only, no markdown or tool calls. For initial_direction return exactly one flat JSON object "
+              "with exactly these three keys and no others: direction (non-empty string), rationale (non-empty string), "
+              "limitations (array of strings). Do not add nested objects, analysis, summaries, metadata, or any "
+              "other properties. Do not repeat input scope, goals, identities, autonomy or metadata as output keys. "
               "Required output schema: " + json.dumps(request["outputSchema"]))
     response = model.invoke([SystemMessage(content=system), HumanMessage(content=json.dumps(request["input"], ensure_ascii=False))])
     content = response.content
