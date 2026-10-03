@@ -2,7 +2,9 @@ import { z } from "zod";
 import { materialHumanIdentitySchema, materialHumanDeclarationSchema, saveMaterialDeclarationRequestSchema, uuidSchema } from "@socialgrowth/product-contracts";
 const id = uuidSchema.transform(v => v.toLowerCase());
 export const materialIdentitySchema = materialHumanIdentitySchema.transform(v => ({ ...v, businessEntityId: v.businessEntityId.toLowerCase(), seriesId: v.seriesId?.toLowerCase() ?? null }));
-export const materialDeclarationSchema = materialHumanDeclarationSchema.transform(v => ({ ...v, sourceEvidenceIds: v.sourceEvidenceIds.map(id => id.toLowerCase()) }));
+export const materialDeclarationSchema = materialHumanDeclarationSchema.transform(v => ({ ...v, sourceEvidenceIds: v.sourceEvidenceIds.map(id => id.toLowerCase()),
+  expectedApprovedDirectionId: v.expectedApprovedDirectionId?.toLowerCase() ?? null, expectedApprovedProjectVersion: v.expectedApprovedProjectVersion ?? null,
+  contentRulesReviewed: v.contentRulesReviewed ?? false }));
 export const materialSaveSchema = saveMaterialDeclarationRequestSchema.transform(v => ({ ...v, projectId: v.projectId.toLowerCase(), contentUnitId: v.contentUnitId.toLowerCase(),
   sourceId: v.sourceId.toLowerCase(), sourceRecordId: v.sourceRecordId.toLowerCase(), variantId: v.variantId.toLowerCase(), languageTag: v.languageTag.toLowerCase(),
   identity: materialIdentitySchema.parse(v.identity), declaration: materialDeclarationSchema.parse(v.declaration), objectIds: v.objectIds.map(id => id.toLowerCase()) }));
