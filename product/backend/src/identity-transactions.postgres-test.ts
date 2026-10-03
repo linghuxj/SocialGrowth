@@ -834,6 +834,7 @@ test("association session replacement and confirmation are atomic and idempotent
   const request = {
     associationSessionId: secondSession.associationSessionId,
     expectedInstallationId: installationId,
+    deviceLabel: "My work phone",
     metadata: metadata("association-confirm-key-0001"),
   };
   const first = await service.confirmAssociation(request, { providerId });
@@ -854,6 +855,7 @@ test("association session replacement and confirmation are atomic and idempotent
     consumed: "1",
     state: "associated_pending_access",
   });
+  assert.equal((await service.listProviderDevices({ providerId })).devices[0]?.displayName, "My work phone");
   const audit = await pool.query<{ actions: string[] }>(
     `SELECT array_agg(action ORDER BY action) AS actions
        FROM socialgrowth_product.audit_records
@@ -864,6 +866,74 @@ test("association session replacement and confirmation are atomic and idempotent
     "association_session.created",
     "device.associated",
   ]);
+});
+
+test("provider device labels enforce ownership and fact versions with stable idempotent receipts", async () => {
+  const installationId = await seedInstallation();
+  const providerId = await seedProvider("+8613800000091");
+  const otherProviderId = await seedProvider("+8613800000092");
+  const session = await service.createAssociationSession(
+    { deviceLabel: "Installation label", metadata: metadata("label-create-session-0001") },
+    { installationGeneration: 1n, installationId },
+  );
+  const association = await service.confirmAssociation({
+    associationSessionId: session.associationSessionId,
+    expectedInstallationId: installationId,
+    deviceLabel: "Provider label",
+    metadata: metadata("label-confirm-association-0001"),
+  }, { providerId });
+  const rename = {
+    expectedFactVersion: 1,
+    displayName: "Renamed provider device",
+    metadata: metadata("provider-device-label-key-0001"),
+  };
+  const first = await service.renameProviderDevice(association.deviceId, rename, { providerId });
+  assert.equal(first.device.displayName, rename.displayName);
+  assert.equal(first.device.factVersion, 2);
+  const retry = await service.renameProviderDevice(association.deviceId, {
+    ...rename,
+    metadata: { ...rename.metadata, requestId: `retry-${randomUUID()}` },
+  }, { providerId });
+  assert.deepEqual(retry, first);
+
+  await assert.rejects(
+    service.renameProviderDevice(association.deviceId, { ...rename, displayName: "Different payload" }, { providerId }),
+    (error: unknown) => error instanceof ProductTransactionError && error.code === "IDEMPOTENCY_KEY_REUSED",
+  );
+  await assert.rejects(
+    service.renameProviderDevice(association.deviceId, {
+      ...rename,
+      expectedFactVersion: 1,
+      metadata: metadata("provider-device-label-stale-0001"),
+    }, { providerId }),
+    (error: unknown) => error instanceof ProductTransactionError && error.code === "FACT_VERSION_STALE",
+  );
+  await assert.rejects(
+    service.renameProviderDevice(association.deviceId, {
+      ...rename,
+      metadata: metadata("provider-device-label-other-0001"),
+    }, { providerId: otherProviderId }),
+    (error: unknown) => error instanceof ProductTransactionError && error.code === "AUTHORIZATION_DENIED",
+  );
+
+  const racing = await Promise.allSettled([
+    service.renameProviderDevice(association.deviceId, {
+      expectedFactVersion: 2,
+      displayName: "Race label A",
+      metadata: metadata("provider-device-label-race-A1"),
+    }, { providerId }),
+    service.renameProviderDevice(association.deviceId, {
+      expectedFactVersion: 2,
+      displayName: "Race label B",
+      metadata: metadata("provider-device-label-race-B1"),
+    }, { providerId }),
+  ]);
+  assert.equal(racing.filter(result => result.status === "fulfilled").length, 1);
+  const stale = racing.find(result => result.status === "rejected");
+  assert.ok(stale && stale.status === "rejected");
+  assert.ok(stale.reason instanceof ProductTransactionError);
+  assert.equal(stale.reason.code, "FACT_VERSION_STALE");
+  assert.equal((await service.listProviderDevices({ providerId })).devices[0]?.factVersion, 3);
 });
 
 test("one-time association session permits only one concurrent provider", async () => {

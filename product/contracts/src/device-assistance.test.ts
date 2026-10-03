@@ -32,12 +32,17 @@ test("all assistance response shapes share representable calendar years without 
   assert.equal(deviceAssistanceTodoSummarySchema.safeParse({ ...summary, createdAt: first, updatedAt: later }).success, true);
   assert.equal(deviceAssistanceTodoSummarySchema.safeParse({ ...summary, createdAt: later, updatedAt: first }).success, false);
 });
-test("provider summary preserves same todo progress but excludes operator responsibility and private history", () => {
+test("provider summary preserves aggregate progress but excludes operator responsibility and private history", () => {
   const value = { todoId: id, originScope: summary.originScope, kind: summary.kind, status: summary.status, factVersion: summary.factVersion, impactCount: 1, noteCount: 1, createdAt: summary.createdAt, updatedAt: summary.updatedAt };
   assert.deepEqual(providerDeviceAssistanceTodoSummarySchema.parse(value), value);
   for (const patch of [{ providerId: id }, { initialResponsibleOperatorId: id }, { text: "internal" }, { notificationStatus: "sent" }, { noteCount: 0 }, { createdAt: "0000-01-01T00:00:00Z" }]) assert.equal(providerDeviceAssistanceTodoSummarySchema.safeParse({ ...value, ...patch }).success, false);
-  assert.equal(listProviderDeviceAssistanceTodosResponseSchema.safeParse({ todos: [value], nextAfterTodoId: id }).success, true);
-  assert.equal(listProviderDeviceAssistanceTodosResponseSchema.safeParse({ todos: [value, { ...value, todoId: id.toUpperCase() }], nextAfterTodoId: null }).success, false);
+  const impact = { deviceId: id, deviceLabel: "Main phone", recordedDeviceVersion: 7 };
+  const withImpact = { ...value, impacts: [impact] };
+  assert.deepEqual(listProviderDeviceAssistanceTodosResponseSchema.parse({ todos: [withImpact], nextAfterTodoId: id }).todos[0]?.impacts, [impact]);
+  for (const patch of [{ impacts: [{ ...impact, rawError: "private" }] }, { impacts: [{ ...impact, recordedDeviceVersion: -1 }] }, { impacts: [{ ...impact, deviceLabel: "" }] }, { impacts: [impact, { ...impact, deviceId: id.toUpperCase() }] }]) {
+    assert.equal(listProviderDeviceAssistanceTodosResponseSchema.safeParse({ todos: [{ ...withImpact, ...patch }], nextAfterTodoId: id }).success, false);
+  }
+  assert.equal(listProviderDeviceAssistanceTodosResponseSchema.safeParse({ todos: [withImpact, { ...withImpact, todoId: id.toUpperCase() }], nextAfterTodoId: null }).success, false);
   assert.equal(listProviderDeviceAssistanceTodosResponseSchema.safeParse({ todos: [], nextAfterTodoId: id }).success, false);
 });
 test("operator notes page preserves bounded recorded notes and consistent current count/cursor", () => {
