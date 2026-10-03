@@ -823,7 +823,7 @@ class MainActivity : ComponentActivity() {
             controlStatus.text = "无法读取控制进展；本机身份会话已失效。"
             pause.isEnabled = false
         } else runNetwork(
-            action = { DeviceControlApiClient(BuildConfig.API_BASE_URL).installation(initialToken).also { require(it.deviceId == state.deviceId) } },
+            action = { DeviceControlApiClient(BuildConfig.API_BASE_URL).installation(initialToken, requireNotNull(state.deviceId)) },
             success = { fact ->
                 if (controlScreen == screenGeneration) {
                     controlStatus.text = controlStatusText(fact)
@@ -969,13 +969,13 @@ class MainActivity : ComponentActivity() {
         runNetwork(
             action = {
                 try {
-                    ControlAttempt(client.pauseInstallation(token, request), requestAccepted = true, knownRejected = false)
+                    ControlAttempt(client.pauseInstallation(token, deviceId, request), requestAccepted = true, knownRejected = false)
                 } catch (error: Exception) {
                     val response = (error as? DeviceControlRequestException)
                     if (response != null && response.status in 400..499) {
                         ControlAttempt(null, requestAccepted = false, knownRejected = true)
                     } else {
-                        val current = runCatching { client.installation(token) }.getOrNull()
+                        val current = runCatching { client.installation(token, deviceId) }.getOrNull()
                         ControlAttempt(current, requestAccepted = current?.requestId == request.requestId, knownRejected = false)
                     }
                 }
