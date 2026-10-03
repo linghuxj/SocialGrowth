@@ -58,7 +58,7 @@ jobs:
           SG_PRODUCT_CORE_OUTPUT: artifacts/acceptance/ci-identity
         run: |
           docker pull postgres:17.11
-          docker pull registry.hub.docker.com/minio/minio:RELEASE.2024-01-11T07-46-16Z
+          docker pull minio/minio:RELEASE.2024-01-11T07-46-16Z
           pnpm exec node scripts/verify-product-core-loop-local.mjs
 
   android:

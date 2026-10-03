@@ -84,7 +84,7 @@ try {
   const suffix = randomUUID(), owner = `sg-core-local-${suffix}`;
   for (const [kind, image, variables, containerPort, command] of [
     ["pg", "postgres:17.11", { POSTGRES_DB: "sg_core_local", POSTGRES_USER: "sg_core_local", POSTGRES_PASSWORD: secrets[0] }, 5432, []],
-    ["storage", "registry.hub.docker.com/minio/minio:RELEASE.2024-01-11T07-46-16Z", { MINIO_ROOT_USER: "sg-core-local", MINIO_ROOT_PASSWORD: secrets[1] }, 9000, ["server", "/data"]],
+    ["storage", "minio/minio:RELEASE.2024-01-11T07-46-16Z", { MINIO_ROOT_USER: "sg-core-local", MINIO_ROOT_PASSWORD: secrets[1] }, 9000, ["server", "/data"]],
   ]) {
     const imageId = docker(["image", "inspect", "--format", "{{.Id}}", image]);
     const envFile = join(work, `${kind}.env`);
