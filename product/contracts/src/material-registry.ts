@@ -2,6 +2,7 @@ import { z } from "zod";
 import { compareTimestamps, requestMetadataSchema, requestTraceSchema, timestampSchema, uuidSchema } from "./common.js";
 import { productErrorResponseSchema } from "./errors.js";
 import { materialUploadContentTypeSchema } from "./material-upload.js";
+import { materialWithdrawalViewSchema } from "./project-lifecycle.js";
 const text = (max: number) => z.string().min(1).max(max).refine(v => v.trim() === v && !Array.from(v).some(c => c.codePointAt(0)! < 32 || c.codePointAt(0) === 127));
 const uniqueIds = (ids: string[]) => new Set(ids.map(id => id.toLowerCase())).size === ids.length;
 export const materialHumanIdentitySchema = z.strictObject({ mediaKind: z.enum(["video", "image_text"]), businessKind: z.enum(["product", "drama"]),
@@ -25,7 +26,8 @@ const fields = { projectId: uuidSchema, contentUnitId: uuidSchema, sourceId: uui
   variantId: uuidSchema, languageTag: z.string().regex(/^[a-z]{2,8}(?:-[a-z0-9]{1,8})*$/).max(100), currentRevision: z.int().min(1).max(1000),
   declaration: materialHumanDeclarationViewSchema, objects: z.array(objectView).min(1).max(20),
   recordedAt: timestampSchema.refine(v => !v.startsWith("0000-"), "Invalid recorded year"), status: z.enum(["pending_validation", "candidate"]),
-  candidateAllowed: z.boolean(), eligibilityReason: materialEligibilityReasonSchema.nullable(), publicationAllowed: z.literal(false) };
+  candidateAllowed: z.boolean(), eligibilityReason: materialEligibilityReasonSchema.nullable(), publicationAllowed: z.literal(false),
+  withdrawal: materialWithdrawalViewSchema.nullable() };
 function validObjects(v: { identity: { mediaKind: string }; objects: { objectId: string; contentType: string }[]; status: string; candidateAllowed: boolean; eligibilityReason: string | null }) {
   return uniqueIds(v.objects.map(o => o.objectId)) && (v.identity.mediaKind !== "video" || v.objects.length === 1)
     && v.objects.every(o => v.identity.mediaKind === "video" ? !o.contentType.startsWith("image/") : o.contentType !== "video/mp4")
