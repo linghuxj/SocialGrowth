@@ -21,17 +21,18 @@ const consent = process.env.SG_PRODUCT_CORE_BROWSER_ADMITTED;
 const sqlOnly = process.env.SG_PRODUCT_CORE_SQL_ONLY === "1";
 if (!sqlOnly && consent !== "1") throw new Error("First confirm actual browser policy admission; this runner cannot bypass a browser refusal");
 const scopes = (process.env.SG_PRODUCT_CORE_SCOPES ?? "materials,planning").split(",");
-assert.ok(scopes.length > 0 && scopes.every(scope => ["identity", "materials", "planning", "direction", "real-material-bytes", "operator-todos"].includes(scope)) && new Set(scopes).size === scopes.length);
+assert.ok(scopes.length > 0 && scopes.every(scope => ["identity", "materials", "planning", "direction", "real-material-bytes", "operator-todos", "business-plan-postgres"].includes(scope)) && new Set(scopes).size === scopes.length);
 const webMode = process.env.SG_PRODUCT_CORE_WEB_MODE ?? "development";
 assert.ok(["development", "preview"].includes(webMode), "web mode must be development or preview");
-const storageNeeded = !(scopes.length === 1 && scopes[0] === "identity");
+const postgresOnlyScope = scopes.length === 1 && scopes[0] === "business-plan-postgres";
+const storageNeeded = !(scopes.length === 1 && ["identity", "business-plan-postgres"].includes(scopes[0]));
 const webPort = Number(process.env.SG_PRODUCT_CORE_WEB_PORT ?? "3300");
 const backendPort = Number(process.env.SG_PRODUCT_CORE_BACKEND_PORT ?? "4420");
 for (const [name, port] of [["SG_PRODUCT_CORE_WEB_PORT", webPort], ["SG_PRODUCT_CORE_BACKEND_PORT", backendPort]]) {
   assert.ok(Number.isInteger(port) && port >= 1024 && port <= 65535, `${name} must be a loopback port between 1024 and 65535`);
 }
 assert.notEqual(webPort, backendPort, "web and backend require separate ports");
-if (sqlOnly) assert.deepEqual(scopes, ["direction"], "SQL-only supplemental scope must be explicit");
+if (sqlOnly) assert.ok((scopes.length === 1 && scopes[0] === "direction") || postgresOnlyScope, "SQL-only supplemental scope must be explicit");
 const artemisRoot = scopes.includes("direction") && !sqlOnly ? process.env.SG_PRODUCT_CORE_ARTEMIS_ROOT : null;
 if (scopes.includes("direction") && !sqlOnly) assert.ok(artemisRoot && artemisRoot.startsWith("/"), "Direction requires an explicitly selected existing Artemis environment");
 const realMaterialFiles = scopes.includes("real-material-bytes") ? process.env.SG_PRODUCT_CORE_REAL_MATERIAL_FILES : null;
@@ -111,6 +112,7 @@ try {
     await run("direction-postgres", "pnpm", ["--filter", "@socialgrowth/product-backend", "exec", "tsx", "--test", "src/project-direction-service.postgres-test.ts"], { SG_PRODUCT_TEST_DATABASE_URL: url, SG_PRODUCT_TEST_ALLOW_RESET: "1" });
     await run("business-plan-postgres", "pnpm", ["--filter", "@socialgrowth/product-backend", "exec", "tsx", "--test", "src/business-plan-service.postgres-test.ts"], { SG_PRODUCT_TEST_DATABASE_URL: url, SG_PRODUCT_TEST_ALLOW_RESET: "1" });
   }
+  if (postgresOnlyScope) await run("business-plan-postgres", "pnpm", ["--filter", "@socialgrowth/product-backend", "exec", "tsx", "--test", "src/business-plan-service.postgres-test.ts"], { SG_PRODUCT_TEST_DATABASE_URL: url, SG_PRODUCT_TEST_ALLOW_RESET: "1" });
   if (!sqlOnly) {
   const migrations = (await readdir(join(repo, "product/backend/migrations"))).filter(f => /^\d{4}.*\.sql$/.test(f)).sort();
   for (const file of migrations) await pool.query(await readFile(join(repo, "product/backend/migrations", file), "utf8"));
