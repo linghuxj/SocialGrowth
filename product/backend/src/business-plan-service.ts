@@ -8,7 +8,7 @@ import { canonicalMaterial, materialIdentitySchema } from "./material-registry-c
 import { MaterialRuntime } from "./material-runtime.js";
 import { BusinessModelCoordinator, type BusinessModelPort } from "./business-model-coordinator.js";
 import { parseContentQuota, type ContentQuotaSnapshot } from "./content-quota-core.js";
-import type { BusinessSuggestion, BusinessSuggestionContext } from "./business-suggestion-core.js";
+import { checkBusinessSuggestion, type BusinessSuggestion, type BusinessSuggestionContext } from "./business-suggestion-core.js";
 
 const s = "socialgrowth_product";
 const unavailable = () => new ProductTransactionError("INTERNAL_ERROR", "Business planning is unavailable", true);
@@ -102,7 +102,7 @@ export class BusinessPlanService {
     const materials = await this.materialRuntime.registry().listCurrentForBusinessPlan(c, projectId);
     const unitsRows = await c.query<{ content_unit_id: string; identity: unknown }>(`SELECT content_unit_id,identity FROM ${s}.material_content_units WHERE project_id=$1 ORDER BY content_unit_id`, [projectId]);
     const variantRows = await c.query<{ variant_id: string; content_unit_id: string }>(`SELECT variant_id,content_unit_id FROM ${s}.material_variants WHERE project_id=$1 ORDER BY variant_id`, [projectId]);
-    const identityRows = await c.query<{ identity_id: string; platform: "facebook" | "youtube" }>(`SELECT i.identity_id,i.platform FROM ${s}.project_identity_reservations r JOIN ${s}.publishing_identities i USING(identity_id)
+    const identityRows = await c.query<{ identity_id: string; platform: "facebook" | "youtube"; canonical_identity_ref: string }>(`SELECT i.identity_id,i.platform,i.canonical_identity_ref FROM ${s}.project_identity_reservations r JOIN ${s}.publishing_identities i USING(identity_id)
       WHERE r.project_id=$1 AND r.state='pending_initialization' ORDER BY i.identity_id`, [projectId]);
     const taskRows = await c.query<{ task_id: string; task_revision: string; content_unit_id: string; variant_id: string; material_revision: string; identity_id: string; platform: "facebook" | "youtube";
       form: "facebook_video" | "facebook_image_text" | "youtube_shorts" | "youtube_video"; language_tag: string; scheduled_at: string }>(`SELECT task_id,task_revision::text,content_unit_id,variant_id,material_revision::text,identity_id,platform,form,language_tag,scheduled_at FROM ${s}.business_plan_tasks WHERE project_id=$1 ORDER BY task_id`, [projectId]);
@@ -111,7 +111,9 @@ export class BusinessPlanService {
       return { contentUnitId: row.content_unit_id, projectId, mediaKind: identity.mediaKind, seriesId: identity.seriesId, episodeNumber: identity.episodeNumber };
     });
     const allVariants = variantRows.rows.map(row => ({ variantId: row.variant_id, contentUnitId: row.content_unit_id }));
-    const identities = identityRows.rows.map(row => ({ identityId: row.identity_id, projectId, platform: row.platform }));
+    const identities = identityRows.rows.filter(row => approval.proposal.scope.identities.some(approved =>
+      approved.platform === row.platform && approved.canonicalRef === row.canonical_identity_ref))
+      .map(row => ({ identityId: row.identity_id, projectId, platform: row.platform }));
     const slots = taskRows.rows.map(row => ({ contentUnitId: row.content_unit_id, platform: row.platform, variantId: row.variant_id, identityId: row.identity_id,
       taskId: row.task_id, state: "reserved" as const, evidenceId: null }));
     const seriesBindings = slots.flatMap(slot => { const unit = allUnits.find(row => row.contentUnitId === slot.contentUnitId); return unit?.seriesId ? [{ seriesId: unit.seriesId, platform: slot.platform, identityId: slot.identityId, projectId }] : []; })
@@ -151,9 +153,9 @@ export class BusinessPlanService {
     digest: Buffer, first: Snapshot) {
     const { requestId: _requestId, ...metadata } = request.metadata;
     return this.tx(token, csrf, async (c, actor) => {
-      const old = (await c.query<{ payload_digest: Buffer; response: unknown }>(`SELECT payload_digest,response FROM ${s}.business_plan_commands WHERE actor_id=$1 AND request_key=$2`, [actor, metadata.idempotencyKey])).rows[0];
+      const old = (await c.query<{ payload_digest: Buffer; project_id: string; response: unknown }>(`SELECT payload_digest,project_id,response FROM ${s}.business_plan_commands WHERE actor_id=$1 AND request_key=$2`, [actor, metadata.idempotencyKey])).rows[0];
       if (old) {
-        if (!old.payload_digest.equals(digest)) throw new ProductTransactionError("IDEMPOTENCY_KEY_REUSED", "Business plan key belongs to different inputs");
+        if (old.project_id !== projectId || !old.payload_digest.equals(digest)) throw new ProductTransactionError("IDEMPOTENCY_KEY_REUSED", "Business plan key belongs to different inputs");
         return arrangeBusinessPlanResponseSchema.parse(old.response);
       }
       const current = await this.snapshot(c, projectId);
@@ -178,13 +180,15 @@ export class BusinessPlanService {
     // The route path supplies project identity; the strict body intentionally
     // contains only operator metadata plus the expected current scope triple.
     const { requestId: _requestId, ...metadata } = request.metadata;
-    const digest = createHash("sha256").update(canonicalMaterial({ ...request, metadata })).digest();
+    // The route path is part of the command identity. A key replayed against
+    // another project must never disclose or return the first project's result.
+    const digest = createHash("sha256").update(canonicalMaterial({ projectId, ...request, metadata })).digest();
     // The idempotent POST replay is still a state-changing endpoint boundary;
     // authenticate its CSRF token before returning any saved response.
     const replay = await this.tx(token, csrf, async (c, actor) => {
-      const old = (await c.query<{ payload_digest: Buffer; response: unknown }>(`SELECT payload_digest,response FROM ${s}.business_plan_commands WHERE actor_id=$1 AND request_key=$2`, [actor, metadata.idempotencyKey])).rows[0];
+      const old = (await c.query<{ payload_digest: Buffer; project_id: string; response: unknown }>(`SELECT payload_digest,project_id,response FROM ${s}.business_plan_commands WHERE actor_id=$1 AND request_key=$2`, [actor, metadata.idempotencyKey])).rows[0];
       if (!old) return null;
-      if (!old.payload_digest.equals(digest)) throw new ProductTransactionError("IDEMPOTENCY_KEY_REUSED", "Business plan key belongs to different inputs");
+      if (old.project_id !== projectId || !old.payload_digest.equals(digest)) throw new ProductTransactionError("IDEMPOTENCY_KEY_REUSED", "Business plan key belongs to different inputs");
       return arrangeBusinessPlanResponseSchema.parse(old.response);
     });
     if (replay) return replay;
@@ -228,29 +232,35 @@ export class BusinessPlanService {
     // Series ordering is verified by current quota facts; it remains a check
     // only and never creates a previous-publication fact.
     return this.tx(token, csrf, async (c, actor) => {
-      const old = (await c.query<{ payload_digest: Buffer; response: unknown }>(`SELECT payload_digest,response FROM ${s}.business_plan_commands WHERE actor_id=$1 AND request_key=$2`, [actor, metadata.idempotencyKey])).rows[0];
+      const old = (await c.query<{ payload_digest: Buffer; project_id: string; response: unknown }>(`SELECT payload_digest,project_id,response FROM ${s}.business_plan_commands WHERE actor_id=$1 AND request_key=$2`, [actor, metadata.idempotencyKey])).rows[0];
       if (old) {
-        if (!old.payload_digest.equals(digest)) throw new ProductTransactionError("IDEMPOTENCY_KEY_REUSED", "Business plan key belongs to different inputs");
+        if (old.project_id !== projectId || !old.payload_digest.equals(digest)) throw new ProductTransactionError("IDEMPOTENCY_KEY_REUSED", "Business plan key belongs to different inputs");
         return arrangeBusinessPlanResponseSchema.parse(old.response);
       }
       const current = await this.snapshot(c, projectId.toLowerCase());
       if (!current || !first || comparableSnapshot(current) !== comparableSnapshot(first)
         || current.projectVersion !== request.expectedProjectVersion || current.approvalId !== request.expectedApprovalId || current.expectedPlanRevision !== request.expectedPlanRevision) throw stale();
       const now = (await c.query<{ now: Date }>("SELECT clock_timestamp() now")).rows[0]!.now;
+      // The model check can age while waiting for the final transaction and
+      // its locks. Re-run the same pure policy against the locked current
+      // snapshot and database time before any plan, Task, or outbox write.
+      let finalChecked: ReturnType<typeof checkBusinessSuggestion>;
+      try { finalChecked = checkBusinessSuggestion(current.context, suggestion, now.toISOString()); }
+      catch { throw stale(); }
       const oldPlan = (await c.query<{ current_revision: string; plan_id: string | null }>(`SELECT current_revision::text,plan_id FROM ${s}.business_plan_records WHERE project_id=$1 FOR UPDATE`, [projectId])).rows[0];
       const revision = Number(oldPlan?.current_revision ?? 0) + 1, planId = oldPlan?.plan_id ?? randomUUID();
       if (!Number.isSafeInteger(revision)) throw stale();
       if (!oldPlan) await c.query(`INSERT INTO ${s}.business_plan_records(project_id,current_revision,plan_id) VALUES($1,0,NULL) ON CONFLICT(project_id) DO NOTHING`, [projectId]);
       await c.query(`INSERT INTO ${s}.business_plan_revisions(project_id,revision,plan_id,project_version,approval_id,window_start,window_end,outcome,suggestion,quota_snapshot,recorded_by_operator_id,recorded_at)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, [projectId, revision, planId, current.projectVersion, current.approvalId,
-        current.context.approvedWindow!.startsAt, current.context.approvedWindow!.endsAt, outcome, suggestion, result.checked.tentativeQuota, actor, now]);
+        current.context.approvedWindow!.startsAt, current.context.approvedWindow!.endsAt, outcome, suggestion, finalChecked.tentativeQuota, actor, now]);
       await c.query(`UPDATE ${s}.business_plan_records SET current_revision=$2,plan_id=$3 WHERE project_id=$1`, [projectId, revision, planId]);
       const materialByVariant = new Map((await this.materialRuntime.registry().listCurrentForBusinessPlan(c, projectId.toLowerCase())).map(m => [m.variantId, m]));
       for (const task of outputTasks) {
         const material = materialByVariant.get(task.variantId);
         if (!material || !material.candidateAllowed || material.contentUnitId !== task.contentUnitId) throw stale();
         const platform = task.form.startsWith("facebook_") ? "facebook" : "youtube";
-        const slot = result.checked.tentativeQuota.slots.find(q => q.taskId === task.taskId && q.contentUnitId === task.contentUnitId && q.platform === platform);
+        const slot = finalChecked.tentativeQuota.slots.find(q => q.taskId === task.taskId && q.contentUnitId === task.contentUnitId && q.platform === platform);
         if (!slot) throw stale();
         const taskRow = await c.query(`INSERT INTO ${s}.business_plan_tasks(task_id,project_id,plan_id,plan_revision,content_unit_id,variant_id,material_revision,identity_id,platform,form,language_tag,scheduled_at,title,caption,recorded_by_operator_id)
           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`, [task.taskId, projectId, planId, revision, task.contentUnitId, task.variantId, material.currentRevision,
