@@ -12,7 +12,7 @@ const configurationSchema = z.strictObject({
 });
 type Configuration = z.infer<typeof configurationSchema>;
 export class TailnetInspectionError extends Error {
-  constructor(readonly code: "CONFIGURATION_UNAVAILABLE" | "OAUTH_UNAVAILABLE" | "POLICY_UNAVAILABLE" | "DEVICES_UNAVAILABLE") { super(code); }
+  constructor(readonly code: "CONFIGURATION_UNAVAILABLE" | "OAUTH_UNAVAILABLE" | "POLICY_UNAVAILABLE" | "DEVICES_UNAVAILABLE" | "VALIDATION_UNAVAILABLE") { super(code); }
 }
 
 /** Same descriptor for stat/read. Private owner-only regular file, no symlink,
@@ -74,7 +74,7 @@ async function limitedBody(response: Response, maximumBytes: number): Promise<st
  * Policy hash/ETag is an inventory fact, not the product's networkRevision or
  * evidence that any required/forbidden path is actually enforced.
  */
-export async function inspectTailnet(configuration: Configuration, request: FetchPort = fetch) {
+export async function openTailnetReadOnlySession(configuration: Configuration, request: FetchPort = fetch) {
   const parsed = configurationSchema.safeParse(configuration);
   if (!parsed.success) throw new TailnetInspectionError("CONFIGURATION_UNAVAILABLE");
   const config = parsed.data;
@@ -97,27 +97,73 @@ export async function inspectTailnet(configuration: Configuration, request: Fetc
     token = raw.access_token;
   } catch { throw new TailnetInspectionError("OAUTH_UNAVAILABLE"); }
   const prefix = `https://api.tailscale.com/api/v2/tailnet/${encodeURIComponent(config.tailnet)}`;
-  const options = { method: "GET", headers: { Authorization: `Bearer ${token}`, Accept: "application/json" }, redirect: "error" as const, signal };
-  let policy: string, policyEtag: string | null;
-  try {
-    const response = await request(`${prefix}/acl`, options);
-    policy = await limitedBody(response, 1_048_576);
-    if (!policy.trim()) throw new Error();
-    const etag = response.headers.get("etag");
-    policyEtag = etag && etag.length <= 256 && /^[\x20-\x7e]+$/.test(etag) ? etag : null;
-  } catch { throw new TailnetInspectionError("POLICY_UNAVAILABLE"); }
+  const expiresAt = Date.now() + 25_000;
+  const options = () => {
+    if (Date.now() >= expiresAt) throw new Error();
+    return { method: "GET", headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      redirect: "error" as const, signal: AbortSignal.timeout(10_000) };
+  };
+  // Internal private data. Callers must not print or commit raw policy/device
+  // contents. Fixed methods only; no general request or external mutation port.
+  return {
+    async readPolicy(hujson = false) {
+      try {
+        const opts = options(); if (hujson) opts.headers.Accept = "application/hujson";
+        const response = await request(`${prefix}/acl`, opts);
+        const text = await limitedBody(response, 1_048_576);
+        if (!text.trim()) throw new Error();
+        const rawEtag = response.headers.get("etag");
+        const etag = rawEtag && rawEtag.length <= 256 && /^[\x20-\x7e]+$/.test(rawEtag) ? rawEtag : null;
+        return { text, etag, sha256: createHash("sha256").update(text).digest("hex") };
+      } catch { throw new TailnetInspectionError("POLICY_UNAVAILABLE"); }
+    },
+    async readDevices(): Promise<Record<string, unknown>[]> {
+      try {
+        const response = await request(`${prefix}/devices`, options());
+        const raw = JSON.parse(await limitedBody(response, 2_097_152)) as Record<string, unknown>;
+        if (!Array.isArray(raw.devices) || raw.devices.some(v => !v || typeof v !== "object" || Array.isArray(v))) throw new Error();
+        return raw.devices;
+      } catch { throw new TailnetInspectionError("DEVICES_UNAVAILABLE"); }
+    },
+    async validatePolicy(candidate: string, savePrivateDiagnostics?: (body: string) => Promise<void>) {
+      try {
+        if (!candidate.trim() || Buffer.byteLength(candidate) > 1_048_576) throw new Error();
+        const opts = options();
+        const response = await request(`${prefix}/acl/validate`, { ...opts, method: "POST", body: candidate,
+          headers: { ...opts.headers, "Content-Type": "application/hujson" } });
+        // Official gitops-pusher checks both HTTP status and message/data. A 200
+        // alone is insufficient; unknown shapes and warnings stay reviewable.
+        const raw: unknown = JSON.parse(await limitedBody(response, 262_144));
+        if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error();
+        const data = raw as Record<string, unknown>;
+        if (savePrivateDiagnostics) await savePrivateDiagnostics(JSON.stringify(data, null, 2));
+        if (Object.keys(data).some(k => !["errors", "warnings", "message", "data"].includes(k))) throw new Error();
+        if (data.errors !== undefined && !Array.isArray(data.errors)) throw new Error();
+        if (data.warnings !== undefined && !Array.isArray(data.warnings)) throw new Error();
+        if (data.message !== undefined && typeof data.message !== "string") throw new Error();
+        if (data.data !== undefined && !Array.isArray(data.data)) throw new Error();
+        const errorCount = ((data.errors as unknown[] | undefined)?.length ?? 0)
+          + ((data.data as unknown[] | undefined)?.length ?? 0) + (data.message ? 1 : 0);
+        return { passed: errorCount === 0, errorCount, warningCount: (data.warnings as unknown[] | undefined)?.length ?? 0 };
+      } catch { throw new TailnetInspectionError("VALIDATION_UNAVAILABLE"); }
+    },
+  };
+}
+
+export async function inspectTailnet(configuration: Configuration, request: FetchPort = fetch) {
+  const session = await openTailnetReadOnlySession(configuration, request);
+  const snapshot = await session.readPolicy();
+  const policy = snapshot.text, policyEtag = snapshot.etag;
   let deviceCount: number, registeredExitNodeCandidates: number | null, enabledExitNodes: number | null;
   try {
-    const response = await request(`${prefix}/devices`, options);
-    const raw = JSON.parse(await limitedBody(response, 2_097_152)) as Record<string, unknown>;
-    if (!Array.isArray(raw.devices) || raw.devices.some(v => !v || typeof v !== "object" || Array.isArray(v))) throw new Error();
-    deviceCount = raw.devices.length;
+    const devices = await session.readDevices();
+    deviceCount = devices.length;
     const hasDefaultRoute = (routes: unknown) => Array.isArray(routes) && (routes.includes("0.0.0.0/0") || routes.includes("::/0"));
     // Core inventory can omit route fields. Missing data is unknown, never zero.
-    registeredExitNodeCandidates = raw.devices.every(v => Array.isArray((v as Record<string, unknown>).advertisedRoutes))
-      ? raw.devices.filter(v => hasDefaultRoute((v as Record<string, unknown>).advertisedRoutes)).length : null;
-    enabledExitNodes = raw.devices.every(v => Array.isArray((v as Record<string, unknown>).enabledRoutes))
-      ? raw.devices.filter(v => hasDefaultRoute((v as Record<string, unknown>).enabledRoutes)).length : null;
+    registeredExitNodeCandidates = devices.every(v => Array.isArray(v.advertisedRoutes))
+      ? devices.filter(v => hasDefaultRoute(v.advertisedRoutes)).length : null;
+    enabledExitNodes = devices.every(v => Array.isArray(v.enabledRoutes))
+      ? devices.filter(v => hasDefaultRoute(v.enabledRoutes)).length : null;
   } catch { throw new TailnetInspectionError("DEVICES_UNAVAILABLE"); }
   return {
     checkedAt: new Date().toISOString(), requestedScopes: [...tailnetReadOnlyScopes],

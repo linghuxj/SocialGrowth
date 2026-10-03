@@ -27,11 +27,16 @@ interface Connection {
   local: string; localPort: number;
 }
 
+export interface TrustedTailnetConnections {
+  transportFor(socket: Socket): object | null;
+  peerOf(handle: object): string | null;
+}
+
 /** Handles come exclusively from this listener's accepted sockets. A body,
  * header, socket-shaped object, or another listener cannot become a transport.
  * A Serve/proxy listener is intentionally unsupported until separately trusted.
  */
-export class DirectTailnetConnections {
+export class DirectTailnetConnections implements TrustedTailnetConnections {
   private readonly sockets = new WeakMap<Socket, object>();
   private readonly connections = new WeakMap<object, Connection>();
   private open = true;
@@ -94,11 +99,20 @@ export class TailscaleCliWhoIs implements TailnetWhoIsPort {
 export interface TailnetObservedNode { nodeId: string; nodeKey: string }
 /** StableID avoids precision loss in numeric control-plane NodeID values. */
 export function readTailnetNode(raw: unknown, peer: string, now = Date.now()): TailnetObservedNode | null {
+  const n = raw && typeof raw === "object" && "Node" in raw ? raw.Node : null;
+  if (!n || typeof n !== "object" || !("Online" in n) || n.Online !== true) return null;
+  return readTailnetNodeIdentity(raw, peer, now);
+}
+
+/** Identity inventory only. LocalAPI omits Online for Self. This helper cannot
+ * establish a live incoming source; admission uses readTailnetNode above.
+ */
+export function readTailnetNodeIdentity(raw: unknown, peer: string, now = Date.now()): TailnetObservedNode | null {
   if (!raw || typeof raw !== "object" || !("Node" in raw) || !raw.Node || typeof raw.Node !== "object") return null;
   const n = raw.Node as Record<string, unknown>;
   if (typeof n.StableID !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(n.StableID)
     || typeof n.Key !== "string" || !/^nodekey:[a-f0-9]{64}$/.test(n.Key)
-    || n.Online !== true || n.Expired === true || !Array.isArray(n.Addresses) || n.Addresses.length > 256) return null;
+    || n.Expired === true || !Array.isArray(n.Addresses) || n.Addresses.length > 256) return null;
   const normalized = tailnetAddress(peer);
   // Tailscale's zero Go time means no key expiry. Unknown expiry is not success.
   if (typeof n.KeyExpiry !== "string" || (n.KeyExpiry !== "0001-01-01T00:00:00Z"
@@ -123,7 +137,7 @@ function fresh(value: string, now: number): boolean {
  * proof, network admission, ADB authorization or action permission is created.
  */
 export class TailscaleEndpointSourceVerifier implements EndpointReportSourceVerifier {
-  constructor(private readonly transports: DirectTailnetConnections,
+  constructor(private readonly transports: TrustedTailnetConnections,
     private readonly whois: TailnetWhoIsPort, private readonly revisions: TailnetRevisionPort | null = null) {}
   async observe(transport: object, expected: EndpointAuthority["scope"], signal: AbortSignal) {
     const peer = this.transports.peerOf(transport);

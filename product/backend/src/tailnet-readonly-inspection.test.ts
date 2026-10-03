@@ -3,7 +3,7 @@ import { mkdtemp, writeFile, chmod, symlink, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { inspectTailnet, inspectPolicyBreadth, readTailnetInspectionConfiguration, tailnetReadOnlyScopes } from "./tailnet-readonly-inspection.js";
+import { inspectTailnet, inspectPolicyBreadth, readTailnetInspectionConfiguration, tailnetReadOnlyScopes, openTailnetReadOnlySession } from "./tailnet-readonly-inspection.js";
 
 const config = { tailnet: "-", clientId: "synthetic-client", clientSecret: "synthetic-secret-for-fixture-only" };
 const auth = () => ({ access_token: "synthetic-access-token-for-fixture", token_type: "Bearer", expires_in: 3600, scope: tailnetReadOnlyScopes.join(" ") });
@@ -19,6 +19,25 @@ const fixture = (oauth: object = auth(), policy: Response = new Response('{"gran
   };
   return { request, calls };
 };
+
+test("validation uses only official read-only endpoint and rejects unknown/failed 200 bodies", async () => {
+  for (const [body, passed] of [[{}, true], [{ message: "fixture-sensitive-detail" }, false], [{ data: [{}] }, false], [{ errors: ["fixture-sensitive-detail"] }, false]] as const) {
+    const calls: string[] = [];
+    const request: Fetch = async (url, options) => {
+      calls.push(String(url));
+      if (String(url).endsWith("/oauth/token")) return Response.json(auth());
+      assert.equal(String(url), "https://api.tailscale.com/api/v2/tailnet/-/acl/validate");
+      assert.equal(options?.method, "POST"); assert.equal(options?.body, "{}");
+      assert.equal(new Headers(options?.headers).get("Content-Type"), "application/hujson");
+      return Response.json(body);
+    };
+    const result = await (await openTailnetReadOnlySession(config, request)).validatePolicy("{}");
+    assert.equal(result.passed, passed); assert.doesNotMatch(JSON.stringify(result), /fixture-sensitive-detail/);
+    assert.equal(calls.length, 2);
+  }
+  const request: Fetch = async url => String(url).endsWith("/oauth/token") ? Response.json(auth()) : Response.json({ unknown: "private" });
+  await assert.rejects((await openTailnetReadOnlySession(config, request)).validatePolicy("{}"), { message: "VALIDATION_UNAVAILABLE" });
+});
 
 test("configuration uses private owner-only descriptor; blank, extra and public files fail closed", async () => {
   const dir = await mkdtemp(join(tmpdir(), "sg-tailnet-readonly-")), path = join(dir, "config.json");

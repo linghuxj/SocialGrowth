@@ -14,9 +14,14 @@ android {
         versionCode = 1
         versionName = "0.0.0"
         val nativeDiscoveryChecks = providers.gradleProperty("sgNativeDiscoveryChecks").orElse("false").get()
+        val verifierTransportChecks = providers.gradleProperty("sgVerifierTransportChecks").orElse("false").get()
         require(nativeDiscoveryChecks in setOf("true", "false")) { "sgNativeDiscoveryChecks must be true or false" }
-        testInstrumentationRunner = if (nativeDiscoveryChecks == "true") "com.socialgrowth.product.NativeDiscoveryInstrumentation"
-            else "com.socialgrowth.product.EnrollmentCryptoInstrumentation"
+        require(verifierTransportChecks in setOf("true", "false") && !(nativeDiscoveryChecks == "true" && verifierTransportChecks == "true"))
+        testInstrumentationRunner = when {
+            verifierTransportChecks == "true" -> "com.socialgrowth.product.VerifierTransportInstrumentation"
+            nativeDiscoveryChecks == "true" -> "com.socialgrowth.product.NativeDiscoveryInstrumentation"
+            else -> "com.socialgrowth.product.EnrollmentCryptoInstrumentation"
+        }
     }
 
     buildFeatures {

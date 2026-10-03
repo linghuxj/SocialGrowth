@@ -1,0 +1,19 @@
+{
+  "checkedAt": "2026-10-03T15:10:38.867Z",
+  "deviceModel": "SM-S9110",
+  "androidApi": 36,
+  "deliveryTransport": "usb_adb_instrumentation",
+  "httpsSourceTransport": "actual_phone_tailnet_to_pinned_serve",
+  "actualPhoneIncomingSourceVerified": true,
+  "nativeChecksPassed": 9,
+  "nativeChecksFailed": 0,
+  "mainApkUpdated": false,
+  "participationFreshBefore": false,
+  "participationFreshAfter": false,
+  "noParticipationCommandIssued": true,
+  "networkAdmissionGranted": false,
+  "actionPermissionGranted": false,
+  "evidenceScope": "supplemental_native_tls_and_source_not_usb_free_or_business_acceptance",
+  "originalTestPackagePresent": true,
+  "testPackageRestored": true
+}

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { Server, Socket } from "node:net";
 import test from "node:test";
-import { tailnetAddress, DirectTailnetConnections, readTailnetNode, TailscaleCliWhoIs,
+import { tailnetAddress, DirectTailnetConnections, readTailnetNode, readTailnetNodeIdentity, TailscaleCliWhoIs,
   TailscaleEndpointSourceVerifier, type TailnetRevisionPort } from "./tailscale-source-verifier.js";
 
 // Synthetic source ports/listener events only: no enrollment/real network success.
@@ -81,6 +81,11 @@ test("offline, expired, unknown identity, route-only address and invalid JSON ar
 });
 test("canonical IPv6 host address and zero non-expiring key time are explicit", () => {
   assert.deepEqual(readTailnetNode({ Node: { ...node().Node, KeyExpiry: "0001-01-01T00:00:00Z", Addresses: ["FD7A:115C:A1E0:0:0:0:0:1/128"] } }, "fd7a:115c:a1e0::1"), { nodeId: "n_testphone", nodeKey });
+});
+test("Self inventory without Online can match identity but never become live source evidence", () => {
+  const { Online: _online, ...self } = node().Node;
+  assert.deepEqual(readTailnetNodeIdentity({ Node: self }, peer), { nodeId: "n_testphone", nodeKey });
+  assert.equal(readTailnetNode({ Node: self }, peer), null);
 });
 test("stale, future, missing and malformed revision observations are rejected", async () => {
   for (const value of [null, { revision: 1, observedAt: new Date(Date.now() - 4000).toISOString() },
