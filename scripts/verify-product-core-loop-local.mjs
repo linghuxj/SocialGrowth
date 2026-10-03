@@ -21,11 +21,11 @@ const consent = process.env.SG_PRODUCT_CORE_BROWSER_ADMITTED;
 const sqlOnly = process.env.SG_PRODUCT_CORE_SQL_ONLY === "1";
 if (!sqlOnly && consent !== "1") throw new Error("First confirm actual browser policy admission; this runner cannot bypass a browser refusal");
 const scopes = (process.env.SG_PRODUCT_CORE_SCOPES ?? "materials,planning").split(",");
-assert.ok(scopes.length > 0 && scopes.every(scope => ["identity", "materials", "planning", "direction", "real-material-bytes", "operator-todos", "business-plan-postgres"].includes(scope)) && new Set(scopes).size === scopes.length);
+assert.ok(scopes.length > 0 && scopes.every(scope => ["identity", "materials", "planning", "direction", "real-material-bytes", "operator-todos", "project-feedback", "business-plan-postgres"].includes(scope)) && new Set(scopes).size === scopes.length);
 const webMode = process.env.SG_PRODUCT_CORE_WEB_MODE ?? "development";
 assert.ok(["development", "preview"].includes(webMode), "web mode must be development or preview");
 const postgresOnlyScope = scopes.length === 1 && scopes[0] === "business-plan-postgres";
-const storageNeeded = !(scopes.length === 1 && ["identity", "business-plan-postgres"].includes(scopes[0]));
+const storageNeeded = !(scopes.length === 1 && ["identity", "project-feedback", "business-plan-postgres"].includes(scopes[0]));
 const webPort = Number(process.env.SG_PRODUCT_CORE_WEB_PORT ?? "3300");
 const backendPort = Number(process.env.SG_PRODUCT_CORE_BACKEND_PORT ?? "4420");
 for (const [name, port] of [["SG_PRODUCT_CORE_WEB_PORT", webPort], ["SG_PRODUCT_CORE_BACKEND_PORT", backendPort]]) {
@@ -157,6 +157,7 @@ try {
   if (realMaterialFiles) await run("real-material-bytes-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "real-material-bytes", SG_PRODUCT_REAL_MATERIAL_FILES: realMaterialFiles, SG_PRODUCT_REAL_MATERIAL_AUTHORIZED: "1", SG_PRODUCT_REAL_MATERIAL_FIRST_USE_CONFIRMED: process.env.SG_PRODUCT_CORE_REAL_MATERIAL_FIRST_USE_CONFIRMED ?? "0", SG_PRODUCT_REAL_MATERIAL_OUTPUT: join(output, "real-material-bytes") });
   if (scopes.includes("planning")) await run("planning-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "planning", SG_PRODUCT_PLANNING_SCREENSHOT_DIR: join(output, "planning") });
   if (scopes.includes("operator-todos")) await run("operator-todos-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "operator-todos", SG_PRODUCT_OPERATOR_TODOS_OUTPUT: join(output, "operator-todos") });
+  if (scopes.includes("project-feedback")) await run("project-feedback-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "project-feedback", SG_PRODUCT_PROJECT_FEEDBACK_OUTPUT: join(output, "project-feedback") });
   if (scopes.includes("direction")) await run("direction-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "direction", SG_PRODUCT_DIRECTION_SCREENSHOT_DIR: join(output, "direction"),
     SG_PRODUCT_DIRECTION_MATERIAL_CANDIDATE: process.env.SG_PRODUCT_DIRECTION_MATERIAL_CANDIDATE ?? "0", SG_PRODUCT_DIRECTION_PLAN_RESPONSE_DELAY_MS: process.env.SG_PRODUCT_DIRECTION_PLAN_RESPONSE_DELAY_MS ?? "0",
     SG_PRODUCT_DIRECTION_NARROW_PLAN_FLOW: process.env.SG_PRODUCT_DIRECTION_NARROW_PLAN_FLOW ?? "0",
