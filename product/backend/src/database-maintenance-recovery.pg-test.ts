@@ -69,7 +69,7 @@ async function waitFor(testReady: () => Promise<boolean>) {
   throw new Error("isolated maintenance fixture did not become ready");
 }
 
-test("synthetic prerequisite-migration maintenance rehearsal detects post-backup revocation and a deleted object, then keeps all release gates closed", async () => {
+test("full-current-migration maintenance rehearsal detects post-backup revocation and a deleted object, then keeps all release gates closed", async () => {
   assert.equal(text(["ps", "-aq", "--filter", `name=^/${pgName}$`]).trim(), "", "unique PG fixture name must be unused");
   assert.equal(text(["ps", "-aq", "--filter", `name=^/${minioName}$`]).trim(), "", "unique object-store fixture name must be unused");
   const pgStarted = text(["run", "-d", "--rm", "--name", pgName, "--label", label, "-p", "127.0.0.1::5432", "-e", "POSTGRES_PASSWORD=" + pgPassword, "postgres:17.11"]).trim(); pgId = pgStarted;
@@ -87,15 +87,15 @@ test("synthetic prerequisite-migration maintenance rehearsal detects post-backup
   source = new Pool({ connectionString: pgUrl.replace(/\/postgres$/, "/sg_ops_source"), max: 4, application_name: "sg-maintenance-joint-source" });
   target = new Pool({ connectionString: pgUrl.replace(/\/postgres$/, "/sg_ops_restore"), max: 4, application_name: "sg-maintenance-joint-target" });
   assert.equal(await databaseGuard(source, "sg_ops_source"), initialCluster); assert.equal(await databaseGuard(target, "sg_ops_restore"), initialCluster);
-  // Engineering fixture only: exercise the exact producer tables used by the
-  // maintenance snapshot, plus the identity sequence migration. This is not a
-  // complete product schema, migration acceptance, or production DR evidence.
-  const requiredMigrations = new Set(["0001_identity_and_device.sql", "0006_phone_control_journal.sql", "0008_project_basics.sql", "0019_material_registry.sql", "0021_task_recheck_outbox.sql", "0029_phone_holder_grants.sql", "0030_local_participation.sql"]);
+  // Engineering fixture only: apply every migration in this frozen source
+  // tree. Empty product tables prove schema/inventory comparability only, not
+  // business data recovery or production disaster-recovery readiness.
   const migrationDir = new URL("../migrations/", import.meta.url), available = (await readdir(migrationDir)).filter(name => /^\d{4}_[a-z0-9_]+\.sql$/.test(name));
-  assert.ok([...requiredMigrations].every(name => available.includes(name)), "all exact prerequisite migrations must exist");
-  const names = available.filter(name => requiredMigrations.has(name)).sort();
-  const migrationFiles = await Promise.all(names.map(async name => ({ name, sha256: createHash("sha256").update(await readFile(new URL(name, migrationDir))).digest("hex") })));
-  for (const migration of names) { await databaseGuard(source, "sg_ops_source"); await source.query(await readFile(new URL(migration, migrationDir), "utf8")); }
+  const names = available.sort();
+  assert.ok(names.length > 0 && names.every(name => /^\d{4}_[a-z0-9_]+\.sql$/.test(name)), "the frozen migration directory must contain the complete numbered SQL migration set");
+  const migrationBytes = await Promise.all(names.map(name => readFile(new URL(name, migrationDir))));
+  const migrationFiles = names.map((name, index) => ({ name, sha256: createHash("sha256").update(migrationBytes[index]!).digest("hex") }));
+  for (const [index, migration] of names.entries()) { await databaseGuard(source, "sg_ops_source"); await source.query(migrationBytes[index]!.toString("utf8")); }
   await source.query("CREATE TABLE socialgrowth_product.maintenance_identity_fixture (fixture_id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY)");
   assert.equal((await source.query<{ fixtureId: string }>("INSERT INTO socialgrowth_product.maintenance_identity_fixture DEFAULT VALUES RETURNING fixture_id::text \"fixtureId\"")).rows[0]?.fixtureId, "1");
   const operatorId = randomUUID(), providerId = randomUUID(), providerSessionId = randomUUID(), projectId = randomUUID();
@@ -147,7 +147,7 @@ test("synthetic prerequisite-migration maintenance rehearsal detects post-backup
     } });
   } } as unknown as Pool;
   const backupMetadata = { backupId, createdAt: new Date().toISOString(), postgresMajor: 17 as const, migrationFiles };
-  assert.ok(metadataSchema.safeParse(backupMetadata).success, "only the fixture's exact applied migrations enter backup metadata");
+  assert.ok(metadataSchema.safeParse(backupMetadata).success, "the complete exact applied migration manifest enters backup metadata");
   const capturePromise = captureAndStoreMaintenanceBackup({
     pool: diagnosticPool,
     archive: async snapshotId => { archiveStarted = true; const bytes = invoke(["exec", pgId!, "pg_dump", "-U", "postgres", "-d", "sg_ops_source", "-Fc", "--no-owner", "--no-acl", `--snapshot=${snapshotId}`]);
@@ -183,6 +183,7 @@ test("synthetic prerequisite-migration maintenance rehearsal detects post-backup
   try { invoke(["exec", "-i", pgId!, "pg_restore", "-U", "postgres", "-d", "sg_ops_restore", "--single-transaction", "--exit-on-error", "--no-owner", "--no-acl"], opened.dump); }
   finally { opened.dump.fill(0); }
   const result = await inspectMaintenanceRestore(source, target, storage, opened.manifest.inventory);
+  assert.deepEqual(opened.manifest.metadata.migrationFiles, migrationFiles, "backup metadata names and hashes must match the exact migration bytes applied to source");
   assert.equal(objectDeleteAcknowledged, true);
   assert.equal((await source.query<{ revoked: boolean }>("SELECT revoked_at IS NOT NULL revoked FROM socialgrowth_product.provider_sessions WHERE session_id=$1", [providerSessionId])).rows[0]?.revoked, true);
   assert.equal((await target.query<{ revoked: boolean }>("SELECT revoked_at IS NOT NULL revoked FROM socialgrowth_product.provider_sessions WHERE session_id=$1", [providerSessionId])).rows[0]?.revoked, false);
@@ -194,6 +195,19 @@ test("synthetic prerequisite-migration maintenance rehearsal detects post-backup
   assert.equal((await target.query<{ revoked: boolean }>("SELECT revoked_at IS NOT NULL revoked FROM socialgrowth_product.local_participation_runs WHERE run_id=$1", [participationRunId])).rows[0]?.revoked, false);
   assert.equal((await target.query<{ calls: { status: string }[] }>("SELECT record->'calls' calls FROM socialgrowth_product.phone_control_journals WHERE device_id=$1", [deviceId])).rows[0]?.calls[0]?.status, "unknown");
   assert.equal(result.databaseMatchesBackup, true);
+  const expectedNewTables = ["business_plan_guard", "business_plan_records", "business_plan_revisions", "business_plan_tasks", "business_plan_outbox", "business_plan_commands", "business_plan_outbox_impacts", "metric_snapshot_report_heads", "metric_snapshot_history", "business_plan_task_attempts", "project_lifecycle_intents", "material_withdrawal_intents", "business_plan_task_cancellations", "project_review_cycles"];
+  const inventoryTableNames = opened.manifest.inventory.tables.map(table => table.table);
+  assert.ok(expectedNewTables.every(name => inventoryTableNames.includes(name)), "all tables introduced by migrations 0031–0036 are included in the captured inventory");
+  const tableSchema = async (pool: Pool) => (await pool.query<{ table_name: string; column_name: string; ordinal_position: number; data_type: string; is_nullable: string; column_default: string | null; is_identity: string; identity_generation: string | null }>(
+    `SELECT table_name,column_name,ordinal_position,data_type,is_nullable,column_default,is_identity,identity_generation FROM information_schema.columns WHERE table_schema='socialgrowth_product' AND table_name=ANY($1::text[]) ORDER BY table_name COLLATE "C",ordinal_position`, [expectedNewTables])).rows;
+  const sourceNewTableSchema = await tableSchema(source), restoredNewTableSchema = await tableSchema(target);
+  assert.ok(expectedNewTables.every(name => sourceNewTableSchema.some(column => column.table_name === name)), "all tables introduced by migrations 0031–0036 exist in the source schema");
+  assert.deepEqual(restoredNewTableSchema, sourceNewTableSchema, "migration 0031–0036 table definitions match after empty-target restore");
+  const newTableRows = async (pool: Pool) => Promise.all(expectedNewTables.map(async table => ({ table,
+    rows: Number((await pool.query(`SELECT count(*)::text AS count FROM socialgrowth_product.${table}`)).rows[0]?.count) })));
+  const sourceNewTableRows = await newTableRows(source), restoredNewTableRows = await newTableRows(target);
+  assert.deepEqual(sourceNewTableRows, expectedNewTables.map(table => ({ table, rows: table === "business_plan_guard" ? 1 : 0 })), "tables added by migrations 0031–0036 contain only migration-owned singleton data in this schema-only fixture");
+  assert.deepEqual(restoredNewTableRows, sourceNewTableRows, "migration 0031–0036 table row inventory matches; empty tables do not prove business data recovery");
   assert.equal(result.currentAuthorityMatchesRestore, false, "source session revocation after backup must differ from restored authority");
   assert.equal(result.currentControlMatchesRestore, true, "unchanged unresolved holder journal must remain exactly in the restored state");
   assert.equal(result.currentHasActiveOrUnknownControl, true, "persisted unknown call/holder must remain classified unresolved");

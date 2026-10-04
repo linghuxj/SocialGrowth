@@ -1,0 +1,101 @@
+{
+  "failureType": "TimeoutError",
+  "stage": "wait for lifecycle panel heading",
+  "pageErrors": [],
+  "readEvidence": [
+    {
+      "event": "response",
+      "route": "materials-list",
+      "status": 200,
+      "errorCode": null
+    },
+    {
+      "event": "finished",
+      "route": "materials-list",
+      "status": 200,
+      "errorCode": null
+    },
+    {
+      "event": "response",
+      "route": "materials-list",
+      "status": 200,
+      "errorCode": null
+    },
+    {
+      "event": "finished",
+      "route": "materials-list",
+      "status": 200,
+      "errorCode": null
+    },
+    {
+      "event": "response",
+      "route": "current-checks",
+      "status": 200,
+      "errorCode": null
+    },
+    {
+      "event": "finished",
+      "route": "current-checks",
+      "status": 200,
+      "errorCode": null
+    },
+    {
+      "event": "response",
+      "route": "materials-list",
+      "status": 200,
+      "errorCode": null
+    },
+    {
+      "event": "finished",
+      "route": "materials-list",
+      "status": 200,
+      "errorCode": null
+    },
+    {
+      "event": "response",
+      "route": "lifecycle-intents",
+      "status": 200,
+      "errorCode": null
+    },
+    {
+      "event": "finished",
+      "route": "lifecycle-intents",
+      "status": 200,
+      "errorCode": null
+    }
+  ],
+  "alertCategory": "none",
+  "uiState": {
+    "panelPresent": true,
+    "panelVisible": true,
+    "lifecycleHeadingVisible": false,
+    "lifecycleFactRegionPresent": false,
+    "lifecycleFactRegionVisible": false,
+    "knownIntentVisible": false,
+    "lifecycleRevisionLabelPresent": false,
+    "lifecycleRevision": null,
+    "projectVersionLabelPresent": true,
+    "projectVersion": 0,
+    "pauseButtonEnabled": false,
+    "resumeButtonEnabled": false,
+    "endButtonEnabled": false,
+    "loadingStatusVisible": false,
+    "errorAlertVisible": false,
+    "navigationSelected": true
+  },
+  "actions": {
+    "pauseDelayedAck": null,
+    "endUnknownReplay": null,
+    "withdrawal": null
+  },
+  "pausePostCount": 0,
+  "endPostCount": 0,
+  "actualDirectionSource": "no approved direction created",
+  "actualExternalAction": false,
+  "candidateHeadSha": "a474a6179ae0e647523191fb64fb7a3f665bca6a",
+  "cleanup": {
+    "ownedServicesExited": true,
+    "ownedContainerCountRemoved": 2,
+    "temporaryCredentialsRemoved": true
+  }
+}

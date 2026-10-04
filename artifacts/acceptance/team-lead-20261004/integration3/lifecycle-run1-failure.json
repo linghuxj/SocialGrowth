@@ -1,0 +1,27 @@
+{
+  "recordedAt": "2026-10-04T05:23:37.016430+00:00",
+  "sourceBase": "8cb34181795c565acc18cc61248aec9cd941dbbf",
+  "sourceState": "base plus uncommitted navigation/runner/verifier; not frozen exact candidate",
+  "failure": {
+    "failureType": "TimeoutError",
+    "pageErrors": [],
+    "actions": {
+      "pauseDelayedAck": null,
+      "endUnknownReplay": null,
+      "withdrawal": null
+    },
+    "pausePostCount": 0,
+    "endPostCount": 0,
+    "actualDirectionSource": "no approved direction created",
+    "actualExternalAction": false
+  },
+  "cleanup": {
+    "ownedServicesExited": true,
+    "ownedContainerIdsRemoved": [
+      "b60a6c2948ac704c8bc3f279cfa704ad60a7ffc7a360debcbf56bc80d8fd98f7",
+      "d2fdd462fb3281819da9021feff901af9a6cdc895a7f391c8fbb8132d3d7a58a"
+    ],
+    "temporaryCredentialsRemoved": true
+  },
+  "boundary": "Timed out before lifecycle mutations; no direction/model phase; serial isolated run. No business acceptance. Add bounded fixed stages then freeze source before next justified run."
+}

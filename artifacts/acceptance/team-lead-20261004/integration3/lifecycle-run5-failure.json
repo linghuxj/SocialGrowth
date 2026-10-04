@@ -1,0 +1,94 @@
+{
+  "failureType": "TimeoutError",
+  "stage": "submit project A end intent and preserve unknown response",
+  "pageErrors": [],
+  "alertCategory": "lifecycle_read_unavailable",
+  "uiState": {
+    "panelPresent": true,
+    "panelVisible": false,
+    "lifecycleHeadingVisible": true,
+    "lifecycleFactRegionPresent": true,
+    "lifecycleFactRegionVisible": true,
+    "knownIntentVisible": false,
+    "lifecycleRevisionLabelPresent": true,
+    "lifecycleRevision": 2,
+    "projectVersionLabelPresent": true,
+    "projectVersion": 0,
+    "pauseButtonEnabled": false,
+    "resumeButtonEnabled": false,
+    "endButtonEnabled": false,
+    "loadingStatusVisible": false,
+    "errorAlertVisible": true,
+    "navigationSelected": true
+  },
+  "actions": {
+    "pauseDelayedAck": {
+      "bodySha256": "e4a1e4b3da843b1f0ac8189ed6f393c658d0c52cb0466f1a129eaf5a44636164",
+      "keySha256": "dcb08c4990e68460fefd8fef105a853c2da563a059a3f46b7bea4a8f8df3784e",
+      "status": 201,
+      "changed": true
+    },
+    "endUnknownReplay": null,
+    "withdrawal": {
+      "status": 201,
+      "changed": true,
+      "replayed": false,
+      "requestIdSha256": "98ae6cfeb5fe8d1e44ee4cdca96babc5d0ef5c3ebb68ab752548c78fba09f920"
+    }
+  },
+  "pausePostCount": 1,
+  "endPostCount": 1,
+  "actualDirectionSource": "no approved direction created",
+  "actualExternalAction": false,
+  "readEvidenceSummary": [
+    {
+      "event": "response",
+      "route": "materials-list",
+      "status": 200,
+      "errorCode": null,
+      "count": 10
+    },
+    {
+      "event": "finished",
+      "route": "materials-list",
+      "status": 200,
+      "errorCode": null,
+      "count": 10
+    },
+    {
+      "event": "response",
+      "route": "current-checks",
+      "status": 200,
+      "errorCode": null,
+      "count": 8
+    },
+    {
+      "event": "finished",
+      "route": "current-checks",
+      "status": 200,
+      "errorCode": null,
+      "count": 8
+    },
+    {
+      "event": "response",
+      "route": "lifecycle-intents",
+      "status": 200,
+      "errorCode": null,
+      "count": 8
+    },
+    {
+      "event": "finished",
+      "route": "lifecycle-intents",
+      "status": 200,
+      "errorCode": null,
+      "count": 8
+    }
+  ],
+  "candidateHeadSha": "91aafc79255435869afc638cdd55c063ddf79bb0",
+  "diagnosticLimit": "panelVisible used non-unique retained A/B locator; false cannot establish hidden active panel",
+  "cleanup": {
+    "ownedServicesExited": true,
+    "ownedContainerCountRemoved": 2,
+    "temporaryCredentialsRemoved": true
+  }
+}

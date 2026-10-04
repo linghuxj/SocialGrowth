@@ -15,7 +15,10 @@ const safeScopeFacts: Array<Record<string, unknown>> = [];
 const scopeFactReads: Promise<void>[] = [];
 const planResponseDelayMs = Number(process.env.SG_PRODUCT_DIRECTION_PLAN_RESPONSE_DELAY_MS ?? "0");
 const narrowPlanFlow = process.env.SG_PRODUCT_DIRECTION_NARROW_PLAN_FLOW === "1";
-if (narrowPlanFlow) assert.equal(process.env.SG_PRODUCT_DIRECTION_MATERIAL_CANDIDATE, "1", "narrow plan flow requires the real material UI slice");
+const cycleConfirmationOnly = process.env.SG_PRODUCT_DIRECTION_CYCLE_CONFIRMATION_ONLY === "1";
+if (narrowPlanFlow) assert.equal(process.env.SG_PRODUCT_DIRECTION_MATERIAL_CANDIDATE, cycleConfirmationOnly ? "0" : "1",
+  cycleConfirmationOnly ? "cycle confirmation scope must omit unrelated material/plan model work" : "narrow plan flow requires the real material UI slice");
+if (cycleConfirmationOnly) assert.equal(narrowPlanFlow, true, "cycle-only confirmation must use the single-proposal narrow UI flow");
 assert.ok(Number.isInteger(planResponseDelayMs) && planResponseDelayMs >= 0 && planResponseDelayMs <= 60_000, "plan response delay must be 0..60000ms");
 let originalPlanRequestBody: string | null = null, planPostResponses = 0;
 const planPostFacts: Array<{ sequence: number; bodySha256: string; idempotencyKeySha256: string | null; status: number; errorCode: string | null; retryable: boolean | null; backendElapsedMs: number }> = [];
@@ -32,7 +35,11 @@ if (planResponseDelayMs > 0) await page.route("**/api/operator/projects/*/busine
     if (typeof metadata?.idempotencyKey === "string") idempotencyKeySha256 = sha256(metadata.idempotencyKey);
   } catch { /* Only digests and fixed result codes are persisted. */ }
   const started = performance.now();
-  const actualResponse = await route.fetch();
+  // The bounded backend path includes both describe (45s) and coordination
+  // (30s), plus its final transaction. Let that actual request settle before
+  // delaying its genuine response below; the UI's 45s unknown deadline stays
+  // unchanged and is the behavior under test.
+  const actualResponse = await route.fetch({ timeout: 120_000 });
   planPostResponses++;
   let errorCode: string | null = null, retryable: boolean | null = null;
   if (!actualResponse.ok()) {
@@ -164,7 +171,7 @@ try {
     await planTasks.getByRole("heading", { name: "排期与任务", exact: true, level: 2 }).waitFor();
     await planTasks.getByText("执行许可：关闭", { exact: true }).waitFor(); await planTasks.getByText("发布许可：关闭", { exact: true }).waitFor();
     const actualPlanResponse = planResponseDelayMs > 0 ? page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/business-plan")
-      && response.request().method() === "POST", { timeout: 120_000 }) : null;
+      && response.request().method() === "POST", { timeout: 190_000 }) : null;
     await planTasks.getByRole("button", { name: "根据当前范围安排", exact: true }).click();
     if (planResponseDelayMs > 0) {
       await planTasks.getByRole("alert").filter({ hasText: "安排请求超过等待时限，结果未知" }).waitFor({ timeout: 75_000 });
@@ -236,7 +243,11 @@ try {
   await direction(page).screenshot({ path: `${output}/direction-approved-mobile.png` }); assert.deepEqual(errors, []);
   await Promise.all(scopeFactReads);
   await writeFile(`${output}/safe-scope-facts.json`, JSON.stringify(safeScopeFacts, null, 2), { mode: 0o600 });
-  await writeFile(`${output}/result.json`, JSON.stringify({ passed: true, actualModel: true, scope: narrowPlanFlow ? "synthetic UI inputs with one configured real model proposal; immediate human confirmation, lost response original replay, reload, mobile readonly" : "synthetic UI inputs with configured real model; stale direction rejection, immutable confirmation, lost response original replay, reload, mobile readonly", execution: "blocked", publication: "not performed" }, null, 2));
+  await writeFile(`${output}/result.json`, JSON.stringify({ passed: true, actualModel: true, scope: cycleConfirmationOnly
+    ? "synthetic UI inputs with one configured real model proposal; immediate human confirmation, exact lost-response replay, current cycle verified separately from readonly DB facts"
+    : narrowPlanFlow ? "synthetic UI inputs with one configured real model proposal; immediate human confirmation, lost response original replay, reload, mobile readonly"
+      : "synthetic UI inputs with configured real model; stale direction rejection, immutable confirmation, lost response original replay, reload, mobile readonly",
+    cycleConfirmationOnly, execution: "blocked", publication: "not performed" }, null, 2));
   console.log(JSON.stringify({ passed: true, actualModel: true, actualPhone: false, actualPublication: false }));
 } catch (error) {
   await Promise.allSettled(scopeFactReads);

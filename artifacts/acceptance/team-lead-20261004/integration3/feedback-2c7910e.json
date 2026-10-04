@@ -1,0 +1,35 @@
+{
+  "candidate": "2c7910eee3d6e597c8310b692b7631e067734e60",
+  "command": "SG_PRODUCT_CORE_BROWSER_ADMITTED=1 SG_PRODUCT_CORE_SCOPES=project-feedback SG_PRODUCT_CORE_OUTPUT=artifacts/acceptance/team-lead-20261004/integration3/feedback-root SG_PRODUCT_CORE_WEB_PORT=3702 SG_PRODUCT_CORE_BACKEND_PORT=4724 pnpm exec node scripts/verify-product-core-loop-local.mjs",
+  "passed": true,
+  "scope": "actual UI operations with synthetic business inputs in isolated owned PostgreSQL, no synthetic metric rows",
+  "result": {
+    "checkedAt": "2026-10-03T23:16:23.350Z",
+    "actualProjects": 1,
+    "feedbackSourceState": "not_configured",
+    "feedbackMetricRows": 0,
+    "projectScopedRead": true,
+    "switchedProjectVerified": false,
+    "transportFailureRecovery": true,
+    "viewportWidths": [
+      980,
+      700,
+      390
+    ],
+    "browserErrors": 0,
+    "createdProjectThroughUI": true,
+    "syntheticMetrics": 0,
+    "contentAttribution": "unknown"
+  },
+  "cleanup": {
+    "ownedServicesExited": true,
+    "ownedContainersRemovedCount": 1,
+    "temporaryCredentialsRemoved": true
+  },
+  "limitations": [
+    "Cross-project switch not verified (one UI-created project)",
+    "not_configured empty report does not verify real metric rows, model suggestions, real source availability or effect",
+    "This isolated check does not claim root live3100/4320 has this new code",
+    "No real platform publication, physical execution or production acceptance"
+  ]
+}

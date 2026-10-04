@@ -1,0 +1,111 @@
+{
+  "failureType": "TimeoutError",
+  "stage": "submit project A end intent and preserve unknown response",
+  "pageErrors": [],
+  "alertCategory": "other_safe_alert",
+  "uiState": {
+    "panelPresent": true,
+    "panelVisible": true,
+    "lifecycleHeadingVisible": true,
+    "lifecycleFactRegionPresent": true,
+    "lifecycleFactRegionVisible": true,
+    "knownIntentVisible": true,
+    "lifecycleRevisionLabelPresent": true,
+    "lifecycleRevision": 2,
+    "projectVersionLabelPresent": true,
+    "projectVersion": 0,
+    "pauseButtonEnabled": false,
+    "resumeButtonEnabled": false,
+    "endButtonEnabled": false,
+    "loadingStatusVisible": false,
+    "errorAlertVisible": false,
+    "unknownStatusVisible": false,
+    "navigationSelected": true
+  },
+  "actions": {
+    "pauseDelayedAck": {
+      "bodySha256": "afdd9a54ba425d080bf75b9b40b99ea9efbb7cefecd12fd0d3e0c70296c876e4",
+      "keySha256": "471fcbf8f3807f4bc11e103f3fe34943e06597cb3407010c8e74f98809cc9c11",
+      "status": 201,
+      "changed": true
+    },
+    "endFirstResponse": {
+      "bodySha256": "168d8fc033e679060d442deaa1243cc8f07ae3cbc595e2ba4a5073a6c2ff2327",
+      "keySha256": "c4bac2bedeab7c3cd679a1d59ef09ad1898ca17748eb635a04e9430bd8fb85f1",
+      "requestIdSha256": "1b65393b6e917150e157025013254a8f70604c89a86067da533e4c8b1f18985a",
+      "status": 201,
+      "changed": true,
+      "replayed": false
+    },
+    "endUnknownReplay": null,
+    "withdrawal": {
+      "status": 201,
+      "changed": true,
+      "replayed": false,
+      "requestIdSha256": "84e249159a4d9159f059f7b06aa8a253f99adf57d38600615f0f681da965f531"
+    }
+  },
+  "pausePostCount": 1,
+  "endPostCount": 1,
+  "endFirstResponseObserved": {
+    "bodySha256": "168d8fc033e679060d442deaa1243cc8f07ae3cbc595e2ba4a5073a6c2ff2327",
+    "keySha256": "c4bac2bedeab7c3cd679a1d59ef09ad1898ca17748eb635a04e9430bd8fb85f1",
+    "requestIdSha256": "1b65393b6e917150e157025013254a8f70604c89a86067da533e4c8b1f18985a",
+    "status": 201,
+    "changed": true,
+    "replayed": false
+  },
+  "actualDirectionSource": "no approved direction created",
+  "actualExternalAction": false,
+  "readEvidenceSummary": [
+    {
+      "event": "response",
+      "route": "materials-list",
+      "status": 200,
+      "errorCode": null,
+      "count": 10
+    },
+    {
+      "event": "finished",
+      "route": "materials-list",
+      "status": 200,
+      "errorCode": null,
+      "count": 10
+    },
+    {
+      "event": "response",
+      "route": "current-checks",
+      "status": 200,
+      "errorCode": null,
+      "count": 8
+    },
+    {
+      "event": "finished",
+      "route": "current-checks",
+      "status": 200,
+      "errorCode": null,
+      "count": 8
+    },
+    {
+      "event": "response",
+      "route": "lifecycle-intents",
+      "status": 200,
+      "errorCode": null,
+      "count": 8
+    },
+    {
+      "event": "finished",
+      "route": "lifecycle-intents",
+      "status": 200,
+      "errorCode": null,
+      "count": 8
+    }
+  ],
+  "candidateHeadSha": "a0fd8d71cf9f20063d9ec6e56f145089d60e9aaa",
+  "diagnosticLimit": "unknown status locator used obsolete text; disabled action buttons alone do not establish end_requested in displayed lifecycle revision2",
+  "cleanup": {
+    "ownedServicesExited": true,
+    "ownedContainerCountRemoved": 2,
+    "temporaryCredentialsRemoved": true
+  }
+}
