@@ -33,6 +33,8 @@ Plan数据库锁等待回归曾失败，按顺序集成 `6ee0939`、`0305994`、
 
 用户随后要求禁止模拟器、仅使用USBAndroid，主窗已停止管理AVD，真机实际online。关闭前管理端跨登录后的同一请求重试已完成，原key成功回执1条、版本6、控制/grants0；临时SESSION备注尚待恢复，当前真机保留执行端安装身份，不能通过清数据改身份绕过。详见[同一原生记录更新](team-native-label-821f315.md)。后续不再启动模拟器，不并发跑构建、真实模型或测试组。
 
+减负后的当前服务状态：[有限核验](../../../../artifacts/acceptance/team-lead-20261004/native-session-safe/load-reduction.json)确认原生恢复launcher已正常退出，产品3100/4320及本轮短暂恢复的Demo3000服务均已停止；持久PG和SQLite数据保留，Demo状态仍unknown1/completed6/cancelled1。此前探测Demo `/health` 的409为不存在路径NOT_FOUND，不作为业务故障。后续实际浏览器验证只使用一组自有隔离Web/backend/必要存储，按主窗串行窗口执行；不操作外来容器。
+
 原Plan未知恢复补验未能到达UI恢复阶段：测试默认route.fetch30秒先超时，只读补充所见command/revision/task/outbox0，不推断所有故障的最终回滚。首修dcaf仅按describe45秒设置60秒仍漏coordinator30秒，被独立复核要求修改；完整测试路径修订 `ae629796955cf56f83550ae3fe0d028e55805e7d` 已获[批准](team-review-web-delay-dcaf244.md)，root已集成。fetch120秒、观察真实response190秒包括人工延迟60秒，真实UI未知45秒阈值保持原值。方向Playwright原stdout/stderr不再落盘，采用固定摘要。修正后新的真实恢复已按上表通过，旧失败不覆盖；作者PG direction17/17及Plan7/7是补充，清理两个自有容器/服务/临时凭据完成。
 
 本批后续仍需源码集成、固定候选实际Web验证、整合head独立复核以及对应新head的hosted CI。现有[草稿PR23](https://github.com/linghuxj/SocialGrowth/pull/23)和已通过的CI仍固定在 `7e8f33b57e133db53940400f40997f4d71854c7c`，不能套用到后续源码；获批后更新同一个PR，不新增批次分支或PR。
