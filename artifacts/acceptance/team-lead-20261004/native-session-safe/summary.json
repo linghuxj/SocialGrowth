@@ -1,0 +1,53 @@
+{
+  "recordedAt": "2026-10-04T05:09:24.036008+00:00",
+  "nativeSource": "821f3156552fa85363cc7317d46378ba5f76c03f",
+  "apkSha256": "9e3515abd7d2e9ac6bc01f2517f575cbda6e9925d47bd12d2b373c1d3518412e",
+  "testedSurface": "management API35 emulator before latest prohibition; these results are not USB-phone acceptance",
+  "passed": [
+    "Actual offline save enters frozen unknown with original request expectedFactVersion5",
+    "Logout revokes one current auth session and original pending raw value is unchanged",
+    "Real UI protected-development-OTP fresh login; new session exists; no real SMS claim",
+    "Original pending desired value and frozen input restored after fresh login",
+    "Actual current-facts read reports unchanged and preserves request",
+    "Explicit same-key retry succeeds; exactly one succeeded receipt; target match; factVersion6; checker3passed"
+  ],
+  "failed": [
+    "Initial session-input goal exceeded existing model context budget; shorter goal subsequently passed; failure retained"
+  ],
+  "blocked": [
+    "Temporary SESSION device display name not yet restored. Management emulator stopped per latest user prohibition; USB phone retains execution installation identity with no direct provider-management entry. Preserve identity and original exit state; do not clear data to bypass. Existing independent-management resource boundary remains."
+  ],
+  "unverified": [
+    "USB provider-management cross-login and label restoration",
+    "Old-fact-version conflict in native UI",
+    "Second real phone or second provider",
+    "Real SMS delivery",
+    "Actual execution/participation/publication"
+  ],
+  "currentFacts": {
+    "readOnly": true,
+    "originalNameCurrent": false,
+    "temporaryBCurrent": false,
+    "factVersion": "6",
+    "state": "associated_pending_access",
+    "counts": {
+      "control_commands": "0",
+      "holder_grants": "0"
+    }
+  },
+  "sameKeyReceipt": {
+    "readOnly": true,
+    "originalKeyReceiptCount": 1,
+    "receiptStatus": "succeeded",
+    "receiptTargetMatches": true,
+    "receiptVersion": 6
+  },
+  "originalPendingKeySha256": "47dfd76f1abad19f5b42fad1d4068be46f40131062c13a58b61d5a3e6be63a4e",
+  "latestConstraint": {
+    "emulatorStopped": true,
+    "emulatorMustNotRestart": true,
+    "usbSerial": "RFCW40MYYCV",
+    "usbObservedOnline": true,
+    "serialValidation": true
+  }
+}
