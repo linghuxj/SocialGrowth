@@ -44,16 +44,26 @@ async function openMediaAccounts() {
 }
 async function createAccount(name: string, platform: "facebook" | "youtube", login: string, secret: string, optional = false) {
   const form = page.locator(".media-account-form");
+  step = `create-${platform}-select-platform`;
   await form.getByLabel("平台", { exact: true }).selectOption(platform);
+  step = `create-${platform}-fill-display-name`;
   await form.getByLabel("识别名称（可选）", { exact: true }).fill(name);
+  step = `create-${platform}-fill-login`;
   await form.getByLabel("登录账号", { exact: true }).fill(login);
+  step = `create-${platform}-fill-password`;
   await form.getByLabel("密码", { exact: true }).fill(secret);
   if (optional) {
-    await form.getByRole("button", { name: "可选：真实个人资料（帮助识别）" }).click();
+    step = `create-${platform}-open-optional-persona`;
+    await form.locator("details.optional-persona > summary").click();
+    assert.equal(await form.locator("details.optional-persona").evaluate((element: HTMLDetailsElement) => element.open), true);
+    step = `create-${platform}-fill-optional-persona`;
     await form.getByLabel("真实姓名", { exact: true }).fill("自动化测试资料（非真实）");
   }
+  step = `create-${platform}-wait-post`;
   const response = page.waitForResponse(r => new URL(r.url()).pathname === "/api/operator/media-accounts" && r.request().method() === "POST");
+  step = `create-${platform}-submit`;
   await form.getByRole("button", { name: "保存账号", exact: true }).click();
+  step = `create-${platform}-await-response`;
   return response;
 }
 
@@ -128,13 +138,20 @@ try {
     await route.abort("failed");
   });
   const formForUnknown = page.locator(".media-account-form");
+  step = "create-youtube-select-platform";
   await formForUnknown.getByLabel("平台", { exact: true }).selectOption("youtube");
   // Leave optional display name and real-person fields empty; client defaults
   // the display label to the login identifier without inventing a persona.
+  step = "create-youtube-fill-login";
   await formForUnknown.getByLabel("登录账号", { exact: true }).fill(ytLogin);
+  step = "create-youtube-fill-password";
   await formForUnknown.getByLabel("密码", { exact: true }).fill(ytPassword);
-  await formForUnknown.getByRole("button", { name: "可选：真实个人资料（帮助识别）" }).click();
+  step = "create-youtube-open-optional-persona";
+  await formForUnknown.locator("details.optional-persona > summary").click();
+  assert.equal(await formForUnknown.locator("details.optional-persona").evaluate((element: HTMLDetailsElement) => element.open), true);
+  step = "create-youtube-submit";
   await formForUnknown.getByRole("button", { name: "保存账号", exact: true }).click();
+  step = "create-youtube-await-unknown-ack";
   await page.getByRole("group", { name: "未知操作恢复" }).getByRole("button", { name: "查询原操作" }).waitFor();
   const savedPending = await page.evaluate(() => sessionStorage.getItem("sg.media-accounts.pending.v1") ?? "");
   assert.equal(savedPending.includes(ytPassword), false);
