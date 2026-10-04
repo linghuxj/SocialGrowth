@@ -7,11 +7,13 @@ const command = { metadata: { contractVersion, requestId: "request-credential", 
   platform: "facebook", expectedRevision: 0, operation: "put", loginIdentifier: "synthetic", payloadBase64: Buffer.from('{"login":"synthetic","password":" synthetic 密码 "}').toString("base64") };
 test("credential transport bounds canonical original bytes, not plaintext/password policy or an encryption assertion", () => {
   assert.ok(writeMediaCredentialRequestSchema.safeParse(command).success);
+  assert.ok(writeMediaCredentialRequestSchema.safeParse({ ...command, credentialId: null, expectedRevision: 0 }).success);
   for (const n of [1, 2, 3, 8190, 8191, 8192]) assert.ok(writeMediaCredentialRequestSchema.safeParse({ ...command, payloadBase64: Buffer.alloc(n, 255).toString("base64") }).success);
   for (const payloadBase64 of ["", "AA", "AB==", "AAB=", "AA===", "AA==\n", Buffer.alloc(8193).toString("base64"), "秘密"]) assert.equal(writeMediaCredentialRequestSchema.safeParse({ ...command, payloadBase64 }).success, false);
   const { payloadBase64: _secret, loginIdentifier: _loginIdentifier, ...withoutSecret } = command;
   assert.ok(writeMediaCredentialRequestSchema.safeParse({ ...withoutSecret, operation: "invalidate" }).success);
   assert.equal(writeMediaCredentialRequestSchema.safeParse({ ...command, operation: "invalidate" }).success, false);
+  assert.equal(writeMediaCredentialRequestSchema.safeParse({ ...command, credentialId: null, operation: "invalidate" }).success, false);
 });
 test("credential paths and requests reject uppercase IDs, unsafe versions, spoofed current authority and raw extra secrets", () => {
   for (const patch of [{ accountId: id.toUpperCase() }, { credentialId: id + "\n" }, { expectedRevision: -1 }, { expectedRevision: 9007199254740992 },

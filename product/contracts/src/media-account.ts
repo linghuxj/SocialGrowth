@@ -9,6 +9,7 @@ const metadata = requestMetadataSchema.extend({
   idempotencyKey: z.string().regex(/^[A-Za-z0-9_-]{16,128}$(?![\s\S])/),
 });
 const label = z.string().min(1).max(200).refine(value => value.trim() === value && !value.includes("\u0000"));
+const loginIdentifier = z.string().min(1).max(320).refine(value => value.trim() === value && !value.includes("\u0000"));
 const personaSchema = z.strictObject({
   name: z.string().max(200).nullable(),
   birthday: z.iso.date().nullable(),
@@ -35,8 +36,9 @@ export const mediaAccountSchema = z.strictObject({
   accountId: id,
   platform,
   displayName: label,
-  loginIdentifier: label.max(320),
+  loginIdentifier: loginIdentifier.nullable(),
   canonicalAccountRef: reference.nullable(),
+  legacyDeclaredCanonicalAccountRef: reference.nullable(),
   persona: personaSchema.nullable(),
   credential: credentialSchema.nullable(),
   parentLoginVerification: z.enum(["registered_unverified", "verified", "blocked"]),
@@ -44,8 +46,9 @@ export const mediaAccountSchema = z.strictObject({
   reservation: assignmentSchema.nullable(),
 }).superRefine((value, context) => {
   if ((value.parentLoginVerification === "verified" && value.canonicalAccountRef === null)
-    || (value.parentLoginVerification === "registered_unverified" && value.canonicalAccountRef !== null)) {
-    context.addIssue({ code: "custom", path: ["canonicalAccountRef"], message: "Canonical parent identity is present only after verification" });
+    || (value.parentLoginVerification !== "verified" && value.canonicalAccountRef !== null)
+    || (value.canonicalAccountRef !== null && value.legacyDeclaredCanonicalAccountRef !== null)) {
+    context.addIssue({ code: "custom", path: ["canonicalAccountRef"], message: "Canonical parent identity is present only after verification; legacy declarations are separate" });
   }
 });
 
@@ -59,7 +62,7 @@ export const createMediaAccountRequestSchema = z.strictObject({
   expectedResourceVersion: version,
   platform,
   displayName: label,
-  loginIdentifier: label.max(320),
+  loginIdentifier,
   password: z.string().min(1).max(4096),
   persona: personaSchema.optional(),
 });
