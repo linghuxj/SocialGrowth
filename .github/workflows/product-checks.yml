@@ -71,3 +71,86 @@ jobs:
       - name: Require the checked-in Gradle wrapper
         run: test -x product/android/gradlew
       - run: product/android/gradlew -p product/android clean assembleDebug --no-daemon
+      - name: Verify Android release gate fails closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          expect_rejected() {
+            local expected="$1"
+            shift
+            local task="assembleRelease"
+            if [[ "${1:-}" == :app:* ]]; then
+              task="$1"
+              shift
+            fi
+            local output
+            output="$(mktemp)"
+            if env -u SG_PRODUCT_ANDROID_VERSION_CODE \
+              -u SG_PRODUCT_ANDROID_VERSION_NAME \
+              -u SG_PRODUCT_ANDROID_PREVIOUS_VERSION_CODE \
+              -u SG_PRODUCT_ANDROID_API_BASE_URL \
+              -u SG_PRODUCT_ANDROID_SIGNING_KEYSTORE \
+              -u SG_PRODUCT_ANDROID_SIGNING_KEY_ALIAS \
+              -u SG_PRODUCT_ANDROID_SIGNING_STORE_PASSWORD \
+              -u SG_PRODUCT_ANDROID_SIGNING_KEY_PASSWORD \
+              -u SG_PRODUCT_ANDROID_SIGNING_CERT_SHA256 \
+              "$@" product/android/gradlew -p product/android "$task" --no-daemon >"$output" 2>&1; then
+              cat "$output"
+              rm -f "$output"
+              echo "Expected release gate rejection: $expected" >&2
+              exit 1
+            fi
+            if ! grep -Fq "$expected" "$output"; then
+              cat "$output"
+              rm -f "$output"
+              echo "Release gate failed for an unexpected reason; expected: $expected" >&2
+              exit 1
+            fi
+            rm -f "$output"
+          }
+          expect_rejected "Missing required Android release input: versionCode" env
+          expect_rejected "Missing required Android release input: versionCode" :app:aR env
+          expect_rejected "must not use a reserved placeholder or local hostname" \
+            env SG_PRODUCT_ANDROID_VERSION_CODE=2 \
+              SG_PRODUCT_ANDROID_VERSION_NAME=2.0.0 \
+              SG_PRODUCT_ANDROID_PREVIOUS_VERSION_CODE=1 \
+              SG_PRODUCT_ANDROID_API_BASE_URL=https://api.invalid.socialgrowth.example
+          expect_rejected "must be greater than the explicitly supplied previousVersionCode" \
+            env SG_PRODUCT_ANDROID_VERSION_CODE=2 \
+              SG_PRODUCT_ANDROID_VERSION_NAME=2.0.0 \
+              SG_PRODUCT_ANDROID_PREVIOUS_VERSION_CODE=2 \
+              SG_PRODUCT_ANDROID_API_BASE_URL=https://api.socialgrowth.dev
+          expect_rejected "Missing required Android release input: keystore" \
+            env SG_PRODUCT_ANDROID_VERSION_CODE=2 \
+              SG_PRODUCT_ANDROID_VERSION_NAME=2.0.0 \
+              SG_PRODUCT_ANDROID_PREVIOUS_VERSION_CODE=1 \
+              SG_PRODUCT_ANDROID_API_BASE_URL=https://api.socialgrowth.dev
+          fixture_dir="$(mktemp -d)"
+          fingerprint_output=""
+          trap 'rm -rf "$fixture_dir"; if [[ -n "$fingerprint_output" ]]; then rm -f "$fingerprint_output"; fi' EXIT
+          fixture_password="$(openssl rand -hex 24)"
+          keytool -genkeypair -noprompt -storetype PKCS12 \
+            -keystore "$fixture_dir/test-only.p12" \
+            -storepass "$fixture_password" -keypass "$fixture_password" \
+            -alias synthetic-only -keyalg RSA -keysize 2048 -validity 1 \
+            -dname "CN=synthetic release-gate fixture" >/dev/null 2>&1
+          fingerprint_output="$(mktemp)"
+          if env SG_PRODUCT_ANDROID_VERSION_CODE=2 \
+            SG_PRODUCT_ANDROID_VERSION_NAME=2.0.0 \
+            SG_PRODUCT_ANDROID_PREVIOUS_VERSION_CODE=1 \
+            SG_PRODUCT_ANDROID_API_BASE_URL=https://api.socialgrowth.dev \
+            SG_PRODUCT_ANDROID_SIGNING_KEYSTORE="$fixture_dir/test-only.p12" \
+            SG_PRODUCT_ANDROID_SIGNING_KEY_ALIAS=synthetic-only \
+            SG_PRODUCT_ANDROID_SIGNING_STORE_PASSWORD="$fixture_password" \
+            SG_PRODUCT_ANDROID_SIGNING_KEY_PASSWORD="$fixture_password" \
+            SG_PRODUCT_ANDROID_SIGNING_CERT_SHA256=0000000000000000000000000000000000000000000000000000000000000000 \
+            product/android/gradlew -p product/android assembleRelease --no-daemon >"$fingerprint_output" 2>&1; then
+            cat "$fingerprint_output"
+            echo "Expected public certificate fingerprint mismatch to fail closed" >&2
+            exit 1
+          fi
+          grep -Fq "certificate fingerprint does not match" "$fingerprint_output"
+          if grep -Fq "$fixture_password" "$fingerprint_output"; then
+            echo "Release gate output disclosed its synthetic signing password" >&2
+            exit 1
+          fi

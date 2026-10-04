@@ -1,0 +1,54 @@
+{
+  "androidCandidate": "2517b08bdb31228315a4bba5489dcdcc5b5d390c",
+  "backendBuiltCandidate": "7e12f5f",
+  "integratedSourceHeadAtCheck": "4bcc2fd4bc055d3de2e2e2a9f46e3199d2f915b0",
+  "emulator": "emulator-5554",
+  "artemisSession": "fb0ef4b8-4bd2-4299-bf17-94b8662bb71c",
+  "process": {
+    "exitCode": 0,
+    "timeout": false
+  },
+  "artemisChecker": {
+    "passed": 5,
+    "failed": 0,
+    "inconclusive": 0,
+    "unchecked": 0
+  },
+  "actualUiPath": [
+    "existing-provider-phone-login",
+    "native-SMS-request",
+    "protected-loopback-development-code-read",
+    "native-code-entry-and-login",
+    "one-current-associated-SM-S9110",
+    "device-details",
+    "commission",
+    "my-account",
+    "devices"
+  ],
+  "currentUiAssertions": {
+    "checks": {
+      "managementOnly": true,
+      "oneRealDevice": true,
+      "realKnownModel": true,
+      "honestReadiness": true,
+      "threePeerTabs": true
+    },
+    "allChecksPassed": true,
+    "realSmsDelivery": false,
+    "executionReady": false,
+    "physicalStopVerified": false
+  },
+  "scope": "management-only on independent Android emulator; native real UI with current provider and associated physical-device records",
+  "realSmsDelivery": false,
+  "installationCreatedOnEmulator": false,
+  "participationOrControlCommandIssued": false,
+  "physicalSamsungOperated": false,
+  "published": false,
+  "unverified": [
+    "physical stop",
+    "resume_requested revalidation producer",
+    "commission calculation/payment",
+    "Tailnet control/path",
+    "second physical/multiple actual provider devices"
+  ]
+}

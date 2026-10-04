@@ -31,7 +31,7 @@ export const metricSnapshotSchema = z.strictObject({
 }).superRefine((v, ctx) => {
   if ((v.revision === 1) !== (v.replacesSnapshotId === null)
     || (v.availability === "available" && (v.value === null || v.missingReason !== null))
-    || (v.availability === "missing" && v.value !== null)
+    || (v.availability !== "available" && v.value !== null)
     || (v.availability !== "available" && v.missingReason === null)
     || (v.coverage && compareTimestamps(v.coverage.startsAt, v.coverage.endsAt)! >= 0)
     || (v.statisticsCutoffAt && compareTimestamps(v.statisticsCutoffAt, v.collectedAt)! > 0)

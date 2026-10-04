@@ -4,7 +4,7 @@
 // Run only with authorized temporary services and admitted browser access.
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { once } from "node:events";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -21,17 +21,22 @@ const consent = process.env.SG_PRODUCT_CORE_BROWSER_ADMITTED;
 const sqlOnly = process.env.SG_PRODUCT_CORE_SQL_ONLY === "1";
 if (!sqlOnly && consent !== "1") throw new Error("First confirm actual browser policy admission; this runner cannot bypass a browser refusal");
 const scopes = (process.env.SG_PRODUCT_CORE_SCOPES ?? "materials,planning").split(",");
-assert.ok(scopes.length > 0 && scopes.every(scope => ["identity", "materials", "planning", "direction", "real-material-bytes"].includes(scope)) && new Set(scopes).size === scopes.length);
+assert.ok(scopes.length > 0 && scopes.every(scope => ["identity", "materials", "planning", "direction", "real-material-bytes", "operator-todos", "business-plan-postgres"].includes(scope)) && new Set(scopes).size === scopes.length);
 const webMode = process.env.SG_PRODUCT_CORE_WEB_MODE ?? "development";
 assert.ok(["development", "preview"].includes(webMode), "web mode must be development or preview");
-const storageNeeded = !(scopes.length === 1 && scopes[0] === "identity");
+const postgresOnlyScope = scopes.length === 1 && scopes[0] === "business-plan-postgres";
+const storageNeeded = !(scopes.length === 1 && ["identity", "business-plan-postgres"].includes(scopes[0]));
 const webPort = Number(process.env.SG_PRODUCT_CORE_WEB_PORT ?? "3300");
 const backendPort = Number(process.env.SG_PRODUCT_CORE_BACKEND_PORT ?? "4420");
 for (const [name, port] of [["SG_PRODUCT_CORE_WEB_PORT", webPort], ["SG_PRODUCT_CORE_BACKEND_PORT", backendPort]]) {
   assert.ok(Number.isInteger(port) && port >= 1024 && port <= 65535, `${name} must be a loopback port between 1024 and 65535`);
 }
 assert.notEqual(webPort, backendPort, "web and backend require separate ports");
-if (sqlOnly) assert.deepEqual(scopes, ["direction"], "SQL-only supplemental scope must be explicit");
+if (sqlOnly) assert.ok((scopes.length === 1 && scopes[0] === "direction") || postgresOnlyScope, "SQL-only supplemental scope must be explicit");
+if (scopes.includes("business-plan-postgres")) {
+  assert.deepEqual(scopes, ["business-plan-postgres"], "business-plan PostgreSQL scope must run alone");
+  assert.equal(sqlOnly, true, "business-plan PostgreSQL scope requires SQL-only mode");
+}
 const artemisRoot = scopes.includes("direction") && !sqlOnly ? process.env.SG_PRODUCT_CORE_ARTEMIS_ROOT : null;
 if (scopes.includes("direction") && !sqlOnly) assert.ok(artemisRoot && artemisRoot.startsWith("/"), "Direction requires an explicitly selected existing Artemis environment");
 const realMaterialFiles = scopes.includes("real-material-bytes") ? process.env.SG_PRODUCT_CORE_REAL_MATERIAL_FILES : null;
@@ -100,9 +105,18 @@ try {
   }
   const pg = containers.find(c => c.kind === "pg"), storage = containers.find(c => c.kind === "storage");
   const url = `postgres://sg_core_local:${secrets[0]}@127.0.0.1:${pg.port}/sg_core_local`;
+  pool = new Pool({ connectionString: url, max: 2, connectionTimeoutMillis: 2_000 });
+  try { await waitFor(async () => (await pool.query("SELECT 1")).rowCount === 1, 60_000); }
+  catch (error) {
+    await writeFile(join(output, "postgres-startup.log"), redact(docker(["logs", pg.cid])));
+    throw error;
+  }
   await writeFile(join(output, "environment.json"), JSON.stringify({ scope: sqlOnly ? "synthetic non-UI PostgreSQL supplemental only" : "temporary environment starting", containers }, null, 2));
-  pool = new Pool({ connectionString: url, max: 2, connectionTimeoutMillis: 2000 }); await waitFor(async () => (await pool.query("SELECT 1")).rowCount === 1, 60_000);
-  if (scopes.includes("direction")) await run("direction-postgres", "pnpm", ["--filter", "@socialgrowth/product-backend", "exec", "tsx", "--test", "src/project-direction-service.postgres-test.ts"], { SG_PRODUCT_TEST_DATABASE_URL: url, SG_PRODUCT_TEST_ALLOW_RESET: "1" });
+  if (scopes.includes("direction")) {
+    await run("direction-postgres", "pnpm", ["--filter", "@socialgrowth/product-backend", "exec", "tsx", "--test", "src/project-direction-service.postgres-test.ts"], { SG_PRODUCT_TEST_DATABASE_URL: url, SG_PRODUCT_TEST_ALLOW_RESET: "1" });
+    await run("business-plan-postgres", "pnpm", ["--filter", "@socialgrowth/product-backend", "exec", "tsx", "--test", "src/business-plan-service.postgres-test.ts"], { SG_PRODUCT_TEST_DATABASE_URL: url, SG_PRODUCT_TEST_ALLOW_RESET: "1" });
+  }
+  if (postgresOnlyScope) await run("business-plan-postgres", "pnpm", ["--filter", "@socialgrowth/product-backend", "exec", "tsx", "--test", "src/business-plan-service.postgres-test.ts"], { SG_PRODUCT_TEST_DATABASE_URL: url, SG_PRODUCT_TEST_ALLOW_RESET: "1" });
   if (!sqlOnly) {
   const migrations = (await readdir(join(repo, "product/backend/migrations"))).filter(f => /^\d{4}.*\.sql$/.test(f)).sort();
   for (const file of migrations) await pool.query(await readFile(join(repo, "product/backend/migrations", file), "utf8"));
@@ -142,7 +156,11 @@ try {
     SG_PRODUCT_MATERIAL_TEST_FILE: fixture, SG_PRODUCT_MATERIAL_SCREENSHOT_DIR: join(output, "materials"), SG_PRODUCT_MATERIAL_TEST_DECLARATION: JSON.stringify(declaration) });
   if (realMaterialFiles) await run("real-material-bytes-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "real-material-bytes", SG_PRODUCT_REAL_MATERIAL_FILES: realMaterialFiles, SG_PRODUCT_REAL_MATERIAL_AUTHORIZED: "1", SG_PRODUCT_REAL_MATERIAL_FIRST_USE_CONFIRMED: process.env.SG_PRODUCT_CORE_REAL_MATERIAL_FIRST_USE_CONFIRMED ?? "0", SG_PRODUCT_REAL_MATERIAL_OUTPUT: join(output, "real-material-bytes") });
   if (scopes.includes("planning")) await run("planning-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "planning", SG_PRODUCT_PLANNING_SCREENSHOT_DIR: join(output, "planning") });
-  if (scopes.includes("direction")) await run("direction-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "direction", SG_PRODUCT_DIRECTION_SCREENSHOT_DIR: join(output, "direction") });
+  if (scopes.includes("operator-todos")) await run("operator-todos-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "operator-todos", SG_PRODUCT_OPERATOR_TODOS_OUTPUT: join(output, "operator-todos") });
+  if (scopes.includes("direction")) await run("direction-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "direction", SG_PRODUCT_DIRECTION_SCREENSHOT_DIR: join(output, "direction"),
+    SG_PRODUCT_DIRECTION_MATERIAL_CANDIDATE: process.env.SG_PRODUCT_DIRECTION_MATERIAL_CANDIDATE ?? "0", SG_PRODUCT_DIRECTION_PLAN_RESPONSE_DELAY_MS: process.env.SG_PRODUCT_DIRECTION_PLAN_RESPONSE_DELAY_MS ?? "0",
+    SG_PRODUCT_DIRECTION_NARROW_PLAN_FLOW: process.env.SG_PRODUCT_DIRECTION_NARROW_PLAN_FLOW ?? "0",
+    SG_PRODUCT_MATERIAL_TEST_FILE: fixture, SG_PRODUCT_MATERIAL_SCREENSHOT_DIR: join(output, "materials"), SG_PRODUCT_MATERIAL_TEST_DECLARATION: JSON.stringify(declaration) });
   const facts = (await pool.query(`SELECT (SELECT count(*)::int FROM socialgrowth_product.projects) projects,
     (SELECT count(*)::int FROM socialgrowth_product.material_variant_revisions) material_revisions,
     (SELECT count(*)::int FROM socialgrowth_product.project_planning_drafts WHERE status='unapproved_draft') unapproved_drafts,
@@ -156,7 +174,43 @@ try {
   for (const { child } of children.toReversed()) {
     if (child.exitCode === null) { const ended = once(child, "exit"); process.kill(-child.pid, "SIGTERM"); await ended; }
   }
-  for (const item of children) await writeFile(join(output, `${item.name}.log`), item.log);
+  const backendLog = children.find(item => item.name === "backend")?.log ?? "";
+  const stages = new Set(["connection", "idempotency_read", "preflight", "model_fact_read", "persist_insufficient", "persist_plan", "model_describe", "model_coordinator"]);
+  const categories = new Set(["serialization_conflict", "deadlock", "lock_timeout", "statement_timeout", "integrity_constraint", "other", "database_unavailable", "rollback_failed", "application_internal", "describe_timeout", "describe_unavailable", "configuration_missing", "input_invalid", "facts_unavailable", "model_unavailable", "deadline_exceeded", "clock_invalid"]);
+  const directionCategories = new Set(["BUSINESS_MODEL_MODEL_TIMEOUT", "BUSINESS_MODEL_MODEL_RATE_LIMITED", "BUSINESS_MODEL_MODEL_CONFIGURATION_REJECTED", "BUSINESS_MODEL_MODEL_REQUEST_REJECTED", "BUSINESS_MODEL_MODEL_RESPONSE_INVALID", "BUSINESS_MODEL_CONFIGURED_MODEL_UNAVAILABLE", "BUSINESS_MODEL_UNAVAILABLE", "BUSINESS_MODEL_DEADLINE", "BUSINESS_MODEL_SCHEMA_INVALID", "BUSINESS_MODEL_NON_JSON_RESPONSE"]);
+  const diagnostics = [];
+  for (const line of backendLog.split("\n")) {
+    try {
+      const value = JSON.parse(line);
+      if (value?.event === "business_plan_failure" && stages.has(value.stage) && categories.has(value.category)) diagnostics.push({ event: value.event, stage: value.stage, category: value.category });
+      else if (value?.event === "project_direction_model_failed" && directionCategories.has(value.category)) diagnostics.push({ event: value.event, category: value.category });
+      else if (value?.event === "direction_output_invalid" && Number.isSafeInteger(value.bytes) && value.bytes >= 0
+        && Array.isArray(value.fields) && value.fields.every(field => ["direction", "rationale", "limitations", "object"].includes(String(field))))
+        diagnostics.push({ event: value.event, bytes: value.bytes, fields: value.fields });
+    } catch { /* Drop all backend log text outside the finite diagnostics schema. */ }
+  }
+  for (const item of children) await writeFile(join(output, `${item.name}.log`), item.name === "backend" ? `${diagnostics.map(entry => JSON.stringify(entry)).join("\n")}\n` : item.log);
+  if (pool) {
+    try {
+      const counts = (await pool.query(`SELECT
+        (SELECT count(*)::int FROM socialgrowth_product.business_plan_commands) AS command_count,
+        (SELECT count(*)::int FROM socialgrowth_product.business_plan_revisions) AS revision_count,
+        (SELECT count(*)::int FROM socialgrowth_product.business_plan_tasks) AS task_count,
+        (SELECT count(*)::int FROM socialgrowth_product.business_plan_outbox) AS outbox_count`)).rows[0];
+      const commands = await pool.query(`SELECT request_key,payload_digest,response->>'outcome' AS outcome,response->'plan'->>'revision' AS plan_revision
+        FROM socialgrowth_product.business_plan_commands ORDER BY recorded_at`);
+      const allowedOutcomes = new Set(["planned", "unchanged", "insufficient_data", "direction_confirmation_required"]);
+      const rows = commands.rows.map(row => ({ idempotencyKeySha256: createHash("sha256").update(String(row.request_key)).digest("hex"),
+        payloadDigestSha256: Buffer.isBuffer(row.payload_digest) ? row.payload_digest.toString("hex") : null,
+        outcome: allowedOutcomes.has(String(row.outcome)) ? row.outcome : "unknown",
+        planRevision: row.plan_revision !== null && Number.isSafeInteger(Number(row.plan_revision)) ? Number(row.plan_revision) : null }));
+      await writeFile(join(output, "business-plan-readonly-facts.json"), JSON.stringify({ source: "isolated temporary PostgreSQL; read-only supplemental evidence",
+        commandCount: counts.command_count, commandReceipts: rows, revisionCount: counts.revision_count, taskCount: counts.task_count, outboxCount: counts.outbox_count }, null, 2), { mode: 0o600 });
+    } catch {
+      await writeFile(join(output, "business-plan-readonly-facts.json"), JSON.stringify({ source: "isolated temporary PostgreSQL; read-only supplemental evidence", available: false, category: "read_only_query_failed" }, null, 2), { mode: 0o600 });
+    }
+  }
+  await writeFile(join(output, "business-plan-diagnostics.json"), JSON.stringify({ entries: diagnostics }, null, 2), { mode: 0o600 });
   await pool?.end(); s3?.destroy();
   for (const owned of containers.toReversed()) {
     const current = JSON.parse(docker(["inspect", owned.cid]))[0];

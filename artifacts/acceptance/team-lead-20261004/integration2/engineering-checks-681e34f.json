@@ -1,0 +1,35 @@
+{
+  "candidate": "681e34f590711e882d07df2a356f1938856765e6",
+  "scope": "engineering checks only; not whole product acceptance",
+  "checks": [
+    {
+      "command": "pnpm check:product",
+      "result": "passed",
+      "packages": 4
+    },
+    {
+      "command": "pnpm --filter @socialgrowth/product-web build",
+      "result": "passed",
+      "warning": "bundle above 500KB"
+    },
+    {
+      "command": "pnpm --filter @socialgrowth/product-backend test",
+      "result": "failed",
+      "tests": 394,
+      "passed": 393,
+      "failed": 1,
+      "failedTest": "observation-window-core.test.ts:46 ending time alone cannot make missing, delayed, unknown-cutoff or mismatched coverage data ready",
+      "finiteError": "METRIC_INVALID",
+      "durationMs": 7441.022036
+    },
+    {
+      "command": "git diff --check f583f18 HEAD -- explicit scoped product/workflow/record/runner paths",
+      "result": "passed"
+    }
+  ],
+  "limitations": [
+    "The full unit regression failure remains open at this candidate; later fixes must have their own source and result.",
+    "Tool session output was observed; raw TAP was not independently saved.",
+    "This does not certify real metrics, physical execution, publication or production."
+  ]
+}

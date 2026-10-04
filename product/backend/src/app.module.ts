@@ -33,7 +33,9 @@ import { ProjectPlanningController } from "./project-planning.controller.js";
 import { ProjectPlanningService } from "./project-planning-service.js";
 import { ProjectDirectionService } from "./project-direction-service.js";
 import { ProjectDirectionController } from "./project-direction.controller.js";
-import { readInitialDirectionModel } from "./artemis-business-model.js";
+import { ArtemisBusinessModel, readInitialDirectionModel } from "./artemis-business-model.js";
+import { BusinessPlanController } from "./business-plan.controller.js";
+import { BusinessPlanService } from "./business-plan-service.js";
 import { AccountPreparationService } from "./account-preparation-service.js";
 import { AccountPreparationController } from "./account-preparation.controller.js";
 import { DeviceAssistanceFeedService } from "./device-assistance-feed-service.js";
@@ -46,6 +48,8 @@ import { DeviceAssistanceNotesService } from "./device-assistance-notes-service.
 import { DeviceAssistanceNotesController } from "./device-assistance-notes.controller.js";
 import { TrackingLinkService } from "./tracking-link-service.js";
 import { TrackingRedirectController } from "./tracking-redirect.controller.js";
+import { MetricFeedbackController } from "./metric-feedback.controller.js";
+import { MetricSnapshotStore } from "./metric-snapshot-store.js";
 import {
   DevelopmentSmsCapturePort,
   DisabledDevelopmentSmsCodeReader,
@@ -149,12 +153,14 @@ const providerAuthProvider = {
     MediaCredentialsController,
     ProjectPlanningController,
     ProjectDirectionController,
+    BusinessPlanController,
     AccountPreparationController,
     DeviceAssistanceFeedController,
     ProviderAssistanceFeedController,
     ProviderCommissionFeedController,
     DeviceAssistanceNotesController,
     TrackingRedirectController,
+    MetricFeedbackController,
   ],
   providers: [
     { provide: AccountPreparationService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new AccountPreparationService(pool, auth) },
@@ -177,7 +183,9 @@ const providerAuthProvider = {
     // writes authenticate then fail closed. No ambient/historical key fallback.
     { provide: MediaCredentialStore, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new MediaCredentialStore(pool, auth, null) },
     { provide: ProjectPlanningService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ProjectPlanningService(pool, auth) },
-    { provide: ProjectDirectionService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ProjectDirectionService(pool, auth, readInitialDirectionModel()) },
+    { provide: ArtemisBusinessModel, useFactory: () => readInitialDirectionModel() },
+    { provide: ProjectDirectionService, inject: [Pool, OperatorAuthService, ArtemisBusinessModel], useFactory: (pool: Pool, auth: OperatorAuthService, model: ArtemisBusinessModel | null) => new ProjectDirectionService(pool, auth, model) },
+    { provide: BusinessPlanService, inject: [Pool, OperatorAuthService, MaterialRuntime, ArtemisBusinessModel], useFactory: (pool: Pool, auth: OperatorAuthService, materials: MaterialRuntime, model: ArtemisBusinessModel | null) => new BusinessPlanService(pool, auth, materials, model) },
     { provide: DeviceAssistanceFeedService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new DeviceAssistanceFeedService(pool, auth) },
     { provide: ProviderAssistanceFeedService, inject: [Pool, ProviderAuthService], useFactory: (pool: Pool, auth: ProviderAuthService) => new ProviderAssistanceFeedService(pool, auth) },
     { provide: ProviderCommissionFeedService, inject: [Pool, ProviderAuthService], useFactory: (pool: Pool, auth: ProviderAuthService) => new ProviderCommissionFeedService(pool, auth) },
@@ -185,6 +193,9 @@ const providerAuthProvider = {
     // No real business target origin/definition has been supplied. Closed until
     // an explicit server-owned policy adapter is reviewed; no ambient fallback.
     { provide: TrackingLinkService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new TrackingLinkService(pool, auth, null) },
+    // No trusted metric source adapter is configured. The projection reports
+    // not_configured and never exposes caller-supplied or inferred observations.
+    { provide: MetricSnapshotStore, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new MetricSnapshotStore(pool, null, auth) },
     DatabaseLifecycle,
   ],
 })

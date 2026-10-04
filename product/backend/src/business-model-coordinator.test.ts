@@ -8,10 +8,10 @@ const now = "2026-10-01T00:00:00.000001Z";
 const policy = { providerKey: "synthetic_provider", modelKey: "synthetic_model_version", timeoutMs: 1000 };
 function fixture() {
   const projectId = randomUUID(), factId = randomUUID();
-  const context: BusinessSuggestionContext = { projectId, factSetId: randomUUID(), factSetVersion: 1, observedAt: now, projectState: "active",
-    approval: { approvalId: randomUUID(), version: 1, goalId: randomUUID(), directionId: randomUUID() },
-    approvedWindow: { startsAt: now, endsAt: "2026-10-02T00:00:00Z" }, approvedForms: ["facebook_video"], approvedLanguages: ["en"],
-    facts: [{ factId, version: 1, kind: "goal", availability: "available" }], materials: [], tasks: [], quota: { units: [], variants: [], identities: [], slots: [], seriesBindings: [] } };
+  const context: BusinessSuggestionContext = { projectId, factSetId: randomUUID(), factSetVersion: 1, observedAt: now, purpose: "advisory", projectState: "active",
+    approval: { approvalId: randomUUID(), projectVersion: 1, proposalId: randomUUID() },
+    approvedWindow: { startsAt: now, endsAt: "2026-10-02T00:00:00Z" }, maxPublicationsPerDay: 1, businessTimeZone: "Asia/Shanghai", approvedForms: ["facebook_video"], approvedLanguages: ["en"],
+    facts: [{ factId, version: 1, kind: "approval", availability: "available" }], materials: [], tasks: [], quota: { units: [], variants: [], identities: [], slots: [], seriesBindings: [] } };
   const input = { context, descriptions: [{ factId, version: 1, text: "Synthetic authorized business text, NOT real model input evidence" }] };
   const suggestion = { suggestionId: randomUUID(), projectId, factSetId: context.factSetId, factSetVersion: 1, approval: context.approval,
     basis: [{ factId, version: 1 }], explanation: "Synthetic maintain suggestion, NOT actual AI decision", limitations: ["Fixture"], decision: "maintain", taskIds: [] };
@@ -82,25 +82,24 @@ test("invalid JSON/non-string/envelope extras and oversized UTF8 never echo raw 
 test("well-formed model output cannot claim success/permit or replace approval and facts", async () => {
   const f = fixture();
   for (const [patch, reason] of [[{ publicationSucceeded: true }, "INPUT_INVALID"], [{ pause: false }, "INPUT_INVALID"], [{ factSetVersion: 2 }, "FACTS_STALE"],
-    [{ approval: { ...f.context.approval!, goalId: randomUUID() } }, "FACTS_STALE"]] as const) {
+    [{ approval: { ...f.context.approval!, proposalId: randomUUID() } }, "FACTS_STALE"]] as const) {
     const result = await new BusinessModelCoordinator(f.facts, { generate: async () => ({ responseId: "r", outputText: JSON.stringify({ ...f.suggestion, ...patch }) }) }, policy, () => now).run(f.projectId);
     assert.equal(result.status, "rejected"); if (result.status === "rejected") assert.equal(result.reason, reason);
   }
 });
 test("current versions, project pause, task/material or business text changes reject old model response", async () => {
   for (const mutate of [(f: ReturnType<typeof fixture>) => { f.context.factSetVersion++; }, (f: ReturnType<typeof fixture>) => { f.context.projectState = "paused"; },
-    (f: ReturnType<typeof fixture>) => { f.context.approval!.version++; }, (f: ReturnType<typeof fixture>) => { f.input.descriptions[0]!.text = "Corrected fact"; }]) {
+    (f: ReturnType<typeof fixture>) => { f.context.approval!.projectVersion++; }, (f: ReturnType<typeof fixture>) => { f.input.descriptions[0]!.text = "Corrected fact"; }]) {
     const f = fixture(), outputText = JSON.stringify(f.suggestion);
     const result = await new BusinessModelCoordinator(f.facts, { generate: async () => { mutate(f); return { responseId: "r", outputText }; } }, policy, () => now).run(f.projectId);
     assert.equal(result.status, "rejected"); if (result.status === "rejected") assert.equal(result.reason, "facts_changed");
   }
 });
-test("fresh read time alone is allowed, while backward observations are refused", async () => {
-  for (const observedAt of ["2026-10-01T00:00:01Z", "2026-10-01T00:00:00Z"]) {
+test("database-observed facts time governs checks even when the host clock is skewed", async () => {
+  for (const hostClock of ["2030-01-01T00:00:00Z", "2020-01-01T00:00:00Z"]) {
     const f = fixture(), outputText = JSON.stringify(f.suggestion);
-    const model: BusinessModelPort = { generate: async () => { f.context.observedAt = observedAt; return { responseId: "r", outputText }; } };
-    let clocks = 0; const result = await new BusinessModelCoordinator(f.facts, model, policy, () => clocks++ < 2 ? now : "2026-10-01T00:00:02Z").run(f.projectId);
-    assert.equal(result.status, observedAt.endsWith("01Z") ? "checked_advisory" : "rejected");
+    const result = await new BusinessModelCoordinator(f.facts, f.model, policy, () => hostClock).run(f.projectId);
+    assert.equal(result.status, "checked_advisory");
   }
 });
 test("timeout in first facts read aborts request and never invokes model", async () => {
@@ -126,7 +125,7 @@ test("timeout/current-facts failure after model does not retain advisory as fall
     assert.equal("checked" in result, false);
   }
 });
-test("invalid or reversed server clock and input return safe errors", async () => {
+test("invalid provenance clock and input return safe errors", async () => {
   const f = fixture();
   for (const clock of [() => "invalid-synthetic-clock", () => { throw new Error("synthetic-clock-private"); }]) {
     assert.equal((await new BusinessModelCoordinator(f.facts, f.model, policy, clock).run(f.projectId)).status, "unavailable");
@@ -134,8 +133,6 @@ test("invalid or reversed server clock and input return safe errors", async () =
   assert.deepEqual(f.counts(), { reads: 0, calls: 0 });
   const invalidProject = await new BusinessModelCoordinator(f.facts, f.model, policy, () => now).run("synthetic-invalid-id");
   assert.equal(invalidProject.status, "unavailable");
-  let clocks = 0; const reverse = await new BusinessModelCoordinator(f.facts, f.model, policy, () => clocks++ ? "2026-10-01T00:00:00Z" : now).run(f.projectId);
-  assert.equal(reverse.status, "unavailable"); if (reverse.status === "unavailable") assert.equal(reverse.reason, "clock_invalid");
 });
 test("no model result caching: failed second request never copies preceding valid response", async () => {
   const f = fixture(); let attempts = 0;
@@ -153,14 +150,15 @@ test("final task-window check uses server clock AFTER the last awaited fact read
   const { decision: _decision, taskIds: _taskIds, ...common } = f.suggestion;
   const proposal = { ...common, decision: "adjust", changes: [{ kind: "schedule", publication: { taskId: randomUUID(), contentUnitId, variantId, identityId,
     form: "facebook_video", scheduledAt: "2026-10-01T00:00:00.9Z", title: "Synthetic title", caption: "Synthetic caption" } }] };
-  let currentClock = now, reads = 0;
-  const facts: BusinessModelFactsReader = { read: async () => { if (++reads === 2) currentClock = "2026-10-01T00:00:02Z"; return f.input; } };
-  const result = await new BusinessModelCoordinator(facts, { generate: async () => ({ responseId: "r", outputText: JSON.stringify(proposal) }) }, policy, () => currentClock).run(f.projectId);
+  let reads = 0;
+  const facts: BusinessModelFactsReader = { read: async () => { if (++reads === 2) f.context.observedAt = "2026-10-01T00:00:02Z"; return f.input; } };
+  const result = await new BusinessModelCoordinator(facts, { generate: async () => ({ responseId: "r", outputText: JSON.stringify(proposal) }) }, policy, () => now).run(f.projectId);
   assert.equal(result.status, "rejected"); if (result.status === "rejected") assert.equal(result.reason, "OUT_OF_SCOPE");
 });
-test("clock cannot reverse after initial facts while still being later than attempt start", async () => {
-  const f = fixture(), clocks = [now, "2026-10-01T00:00:02Z", "2026-10-01T00:00:01Z"]; let i = 0;
-  const result = await new BusinessModelCoordinator(f.facts, f.model, policy, () => clocks[i++]!).run(f.projectId);
+test("authoritative fact observations cannot reverse", async () => {
+  const f = fixture(); let reads = 0;
+  const facts: BusinessModelFactsReader = { read: async () => { if (++reads === 2) f.context.observedAt = "2026-09-30T23:59:59Z"; return f.input; } };
+  const result = await new BusinessModelCoordinator(facts, f.model, policy, () => now).run(f.projectId);
   assert.equal(result.status, "unavailable"); if (result.status === "unavailable") assert.equal(result.reason, "clock_invalid");
 });
 test("blocked event-loop or immediately resolved late port cannot beat technical deadline", async () => {
