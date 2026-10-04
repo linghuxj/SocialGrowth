@@ -84,7 +84,15 @@ export class PreparationActionBroker {
     if(!(await c.query(`SELECT 1 FROM ${s}.operators WHERE operator_id=$1 AND status='active' FOR SHARE`,[task.requested_by])).rowCount)deny();
     const intent=accountPreparationIntentSchema.parse(task.intent);if(hash(intent)!==task.intent_digest)deny();
     const account=(await c.query<{platform:string}>(`SELECT a.platform FROM ${s}.media_accounts a JOIN ${s}.project_account_reservations p USING(account_id) WHERE a.account_id=$1 AND p.project_id=$2 FOR SHARE OF a`,[task.selected_account_id,locator.project_id])).rows[0];
-    if(!account||account.platform!==intent.target.platform||!(await c.query(`SELECT 1 FROM ${s}.project_device_reservations WHERE project_id=$1 AND device_id=$2`,[locator.project_id,r.deviceId])).rowCount)deny();
+    if(!account||account.platform!==intent.target.platform||task.selected_device_id!==r.deviceId)deny();
+    // R159's account↔device pairing is a separate authoritative reservation.
+    // Project-level account and device reservations alone are insufficient:
+    // a project may own multiple phones and accounts.
+    const pair=(await c.query(`SELECT 1 FROM ${s}.project_media_account_assignments
+      WHERE account_id=$1 AND project_id=$2 AND device_id=$3 AND platform=$4
+        AND state='pending_initialization' AND handover_requested=false FOR SHARE`,
+      [task.selected_account_id,locator.project_id,r.deviceId,intent.target.platform])).rowCount;
+    if(pair!==1||!(await c.query(`SELECT 1 FROM ${s}.project_device_reservations WHERE project_id=$1 AND device_id=$2`,[locator.project_id,r.deviceId])).rowCount)deny();
     let credentialId:string|null=null,credentialRevision:number|null=null;
     if(mode==="begin"&&operationId==="assist_existing_login"){
       const credential=(await c.query<{credential_id:string;revision:string;state:string}>(`SELECT h.credential_id,h.revision::text,r.state

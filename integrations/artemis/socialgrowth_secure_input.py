@@ -13,6 +13,7 @@ from pathlib import Path
 import re
 import socket
 import stat
+import struct
 from typing import Literal
 
 VERSION = "2026-10-05.media-secure-input-v1"
@@ -45,12 +46,42 @@ class SecureInputBridge:
             a = self._access
             path = Path(a.socket_path)
             parent, f = path.parent, path.lstat()
+            # Reject symlinked or group/world-writable ancestors. A private leaf
+            # directory alone does not prevent replacement through a writable
+            # parent between validation and connect().
+            ancestors = [*reversed(parent.parents), parent]
+            for ancestor in ancestors:
+                info = ancestor.lstat()
+                if (stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode)
+                        or info.st_uid not in (0, os.getuid()) or info.st_mode & 0o022):
+                    raise SecureInputUnavailable()
             if (not path.is_absolute() or str(parent.resolve()) != str(parent)
-                    or parent.stat().st_uid != os.getuid() or parent.stat().st_mode & 0o077
+                or parent.stat().st_uid != os.getuid() or parent.stat().st_mode & 0o077
                     or not stat.S_ISSOCK(f.st_mode) or f.st_uid != os.getuid() or f.st_mode & 0o077
                     or (hasattr(self, "_socket_identity") and self._socket_identity != (f.st_dev, f.st_ino))
                     or len(a.token) != 64 or len(a.scope_digest) != 64
                     or any(c not in "0123456789abcdef" for c in a.token + a.scope_digest)):
+                raise SecureInputUnavailable()
+        except Exception:
+            raise SecureInputUnavailable() from None
+
+    @staticmethod
+    def _verify_connected_peer(connection: socket.socket) -> None:
+        """Require same-UID server authentication before disclosing the capability.
+
+        Platforms without a supported peer-credential API fail closed. In
+        particular this does not treat a socket pathname, token, or UID-only
+        socket ownership as proof of the connected server process.
+        """
+        try:
+            if hasattr(connection, "getpeereid"):
+                peer_uid, _peer_gid = connection.getpeereid()  # type: ignore[attr-defined]
+            elif hasattr(socket, "SO_PEERCRED"):
+                credentials = connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12)
+                _pid, peer_uid, _peer_gid = struct.unpack("3i", credentials)
+            else:
+                raise SecureInputUnavailable()
+            if peer_uid != os.getuid():
                 raise SecureInputUnavailable()
         except Exception:
             raise SecureInputUnavailable() from None
@@ -69,6 +100,7 @@ class SecureInputBridge:
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
                 connection.settimeout(35)
                 connection.connect(a.socket_path)
+                self._verify_connected_peer(connection)
                 body = {"version": VERSION, "scopeDigest": a.scope_digest,
                         "token": a.token, "action": "submit_login" if submit_login else "write_input"}
                 if field_ref is not None:
