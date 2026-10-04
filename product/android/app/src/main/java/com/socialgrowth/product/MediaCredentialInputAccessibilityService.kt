@@ -45,7 +45,7 @@ class MediaCredentialInputAccessibilityService : AccessibilityService() {
             eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
                 AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED or AccessibilityEvent.TYPE_VIEW_FOCUSED
         }
-        stopped.set(false)
+        ParticipationService.underActionFenceLock { stopped.set(false) }
         worker.execute(::serveFailClosedControlChannel)
     }
 
@@ -56,15 +56,19 @@ class MediaCredentialInputAccessibilityService : AccessibilityService() {
 
     override fun onInterrupt() {
         // Interrupt invalidates any in-flight control session. No automatic retry.
-        stopped.set(true)
-        runCatching { server?.close() }
-        server = null
+        ParticipationService.underActionFenceLock {
+            stopped.set(true)
+            runCatching { server?.close() }
+            server = null
+        }
     }
 
     override fun onDestroy() {
-        stopped.set(true)
-        runCatching { server?.close() }
-        server = null
+        ParticipationService.underActionFenceLock {
+            stopped.set(true)
+            runCatching { server?.close() }
+            server = null
+        }
         worker.shutdownNow()
         super.onDestroy()
     }

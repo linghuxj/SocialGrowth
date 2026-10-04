@@ -51,6 +51,8 @@ class ParticipationService : Service() {
             if (!matchesActionFence(deviceId, installationId, installationGeneration, controlGeneration)) null
             else effect()
         }
+        /** Accessibility stop/interrupt markers serialize with a credential effect as well. */
+        fun <T> underActionFenceLock(block: () -> T): T = synchronized(actionFenceLock, block)
         @Volatile var running=false
             private set
     }
