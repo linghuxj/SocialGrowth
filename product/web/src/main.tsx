@@ -4,6 +4,7 @@ import { App } from "./app.js";
 import "./business-plan.css";
 import "./operator-todos.css";
 import "./project-feedback-panel.css";
+import "./project-lifecycle-panel.css";
 import "./style.css";
 
 const root = document.getElementById("root");

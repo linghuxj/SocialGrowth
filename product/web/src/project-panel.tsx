@@ -7,6 +7,7 @@ import { ProjectPlanningPanel } from "./project-planning-panel.js";
 import { AccountPreparationPanel } from "./account-preparation-panel.js";
 import { BusinessPlanPanel } from "./business-plan-panel.js";
 import { ProjectFeedbackPanel } from "./project-feedback-panel.js";
+import { ProjectLifecyclePanel } from "./project-lifecycle-panel.js";
 
 interface Draft { basics: ProjectBasics; base?: ProjectView; key: string | null; uncertain?: boolean }
 const empty = (): ProjectBasics => ({ name: "", kind: "company_owned", customerName: null, ownerOperatorId: null, notificationEmail: null });
@@ -23,11 +24,12 @@ export function ProjectPanel({ active, refreshVersion, operators, readOnly, onEx
 }) {
   const [projects, setProjects] = useState<ProjectView[] | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  const [tab, setTab] = useState<"overview" | "materials" | "settings" | "business-plan" | "feedback">("overview");
+  const [tab, setTab] = useState<"overview" | "materials" | "settings" | "business-plan" | "feedback" | "lifecycle">("overview");
   const [materialProjects, setMaterialProjects] = useState<string[]>([]);
   const [planningProjects, setPlanningProjects] = useState<string[]>([]);
   const [businessPlanProjects, setBusinessPlanProjects] = useState<string[]>([]);
   const [feedbackProjects, setFeedbackProjects] = useState<string[]>([]);
+  const [lifecycleProjects, setLifecycleProjects] = useState<string[]>([]);
   const [planningRefresh, setPlanningRefresh] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [loading, setLoading] = useState(false), [busy, setBusy] = useState(false), [message, setMessage] = useState("");
@@ -68,6 +70,10 @@ export function ProjectPanel({ active, refreshVersion, operators, readOnly, onEx
   function showFeedback() {
     if (!current) return;
     setFeedbackProjects(ids => ids.includes(current.projectId) ? ids : [...ids, current.projectId]); setTab("feedback");
+  }
+  function showLifecycle() {
+    if (!current) return;
+    setLifecycleProjects(ids => ids.includes(current.projectId) ? ids : [...ids, current.projectId]); setTab("lifecycle");
   }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -110,7 +116,7 @@ export function ProjectPanel({ active, refreshVersion, operators, readOnly, onEx
     </section> : <>
       <div className="project-heading"><h1>{current?.name ?? "新建筹备项目"}</h1><span className="status">筹备中</span><button className="text-button" disabled={busy} onClick={() => openList()}><ArrowLeft size={18} />返回项目列表</button></div>
       {current && <>
-        <div className="project-tabs" aria-label="项目内导航"><button className="text-button" aria-current={tab === "overview" ? "page" : undefined} onClick={() => setTab("overview")}>概览</button><button className="text-button" aria-current={tab === "materials" ? "page" : undefined} onClick={showMaterials}>素材</button><button className="text-button" aria-current={tab === "business-plan" ? "page" : undefined} onClick={showBusinessPlan}>排期与任务</button><button className="text-button" aria-current={tab === "feedback" ? "page" : undefined} onClick={showFeedback}>效果与复盘</button><button className="text-button" aria-current={tab === "settings" ? "page" : undefined} onClick={showPlanning}>设置 · 目标与周期</button></div>
+        <div className="project-tabs" aria-label="项目内导航"><button className="text-button" aria-current={tab === "overview" ? "page" : undefined} onClick={() => setTab("overview")}>概览</button><button className="text-button" aria-current={tab === "materials" ? "page" : undefined} onClick={showMaterials}>素材</button><button className="text-button" aria-current={tab === "business-plan" ? "page" : undefined} onClick={showBusinessPlan}>排期与任务</button><button className="text-button" aria-current={tab === "feedback" ? "page" : undefined} onClick={showFeedback}>效果与复盘</button><button className="text-button" aria-current={tab === "lifecycle" ? "page" : undefined} onClick={showLifecycle}>项目生命周期</button><button className="text-button" aria-current={tab === "settings" ? "page" : undefined} onClick={showPlanning}>设置 · 目标与周期</button></div>
         <div hidden={tab !== "overview"}>
         <section className="project-direction-note"><Info size={24} /><div><h3>发布前确认方向，准备可并行推进</h3><p>进入设置读取已确认方向与范围。保存资料不确认方向，也不启动发布；其他准备项按自身条件继续。</p></div></section>
         <section className="panel project-readiness"><h3>准备清单</h3><p className="muted">资料已保存、检查通过、方向确认与设备就绪分别判断，不手工勾选为通过。</p>
@@ -148,6 +154,7 @@ export function ProjectPanel({ active, refreshVersion, operators, readOnly, onEx
     {planningProjects.map(id => <AccountPreparationPanel key={id} projectId={id} active={active && selected === id && tab === "settings"} readOnly={readOnly} onExpired={onExpired} />)}
     {businessPlanProjects.map(id => <BusinessPlanPanel key={id} projectId={id} active={active && selected === id && tab === "business-plan"} readOnly={readOnly} onExpired={onExpired} />)}
     {feedbackProjects.map(id => <ProjectFeedbackPanel key={id} projectId={id} active={active && selected === id && tab === "feedback"} readOnly={readOnly} onExpired={onExpired} />)}
+    {lifecycleProjects.map(id => <ProjectLifecyclePanel key={id} projectId={id} active={active && selected === id && tab === "lifecycle"} readOnly={readOnly} onExpired={onExpired} onFactsChanged={() => setPlanningRefresh(v => v + 1)} />)}
   </div>;
   function openList() { setSelected(null); setMessage(""); }
 }
