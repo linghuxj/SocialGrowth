@@ -21,21 +21,26 @@ const consent = process.env.SG_PRODUCT_CORE_BROWSER_ADMITTED;
 const sqlOnly = process.env.SG_PRODUCT_CORE_SQL_ONLY === "1";
 if (!sqlOnly && consent !== "1") throw new Error("First confirm actual browser policy admission; this runner cannot bypass a browser refusal");
 const scopes = (process.env.SG_PRODUCT_CORE_SCOPES ?? "materials,planning").split(",");
-assert.ok(scopes.length > 0 && scopes.every(scope => ["identity", "materials", "planning", "direction", "real-material-bytes", "operator-todos", "project-feedback", "project-lifecycle", "business-plan-postgres"].includes(scope)) && new Set(scopes).size === scopes.length);
+assert.ok(scopes.length > 0 && scopes.every(scope => ["identity", "media-accounts", "media-accounts-postgres", "materials", "planning", "direction", "real-material-bytes", "operator-todos", "project-feedback", "project-lifecycle", "business-plan-postgres"].includes(scope)) && new Set(scopes).size === scopes.length);
 const webMode = process.env.SG_PRODUCT_CORE_WEB_MODE ?? "development";
 assert.ok(["development", "preview"].includes(webMode), "web mode must be development or preview");
 const postgresOnlyScope = scopes.length === 1 && scopes[0] === "business-plan-postgres";
-const storageNeeded = !(scopes.length === 1 && ["identity", "project-feedback", "business-plan-postgres"].includes(scopes[0]));
+const mediaPostgresOnlyScope = scopes.length === 1 && scopes[0] === "media-accounts-postgres";
+const storageNeeded = !(scopes.length === 1 && ["identity", "media-accounts", "media-accounts-postgres", "project-feedback", "business-plan-postgres"].includes(scopes[0]));
 const webPort = Number(process.env.SG_PRODUCT_CORE_WEB_PORT ?? "3300");
 const backendPort = Number(process.env.SG_PRODUCT_CORE_BACKEND_PORT ?? "4420");
 for (const [name, port] of [["SG_PRODUCT_CORE_WEB_PORT", webPort], ["SG_PRODUCT_CORE_BACKEND_PORT", backendPort]]) {
   assert.ok(Number.isInteger(port) && port >= 1024 && port <= 65535, `${name} must be a loopback port between 1024 and 65535`);
 }
 assert.notEqual(webPort, backendPort, "web and backend require separate ports");
-if (sqlOnly) assert.ok((scopes.length === 1 && scopes[0] === "direction") || postgresOnlyScope, "SQL-only supplemental scope must be explicit");
+if (sqlOnly) assert.ok((scopes.length === 1 && scopes[0] === "direction") || postgresOnlyScope || mediaPostgresOnlyScope, "SQL-only supplemental scope must be explicit");
 if (scopes.includes("business-plan-postgres")) {
   assert.deepEqual(scopes, ["business-plan-postgres"], "business-plan PostgreSQL scope must run alone");
   assert.equal(sqlOnly, true, "business-plan PostgreSQL scope requires SQL-only mode");
+}
+if (scopes.includes("media-accounts-postgres")) {
+  assert.deepEqual(scopes, ["media-accounts-postgres"], "media PostgreSQL scope must run alone");
+  assert.equal(sqlOnly, true, "media PostgreSQL scope requires SQL-only mode");
 }
 const planningUsesConfiguredModel = scopes.includes("planning") && process.env.SG_PRODUCT_CORE_ARTEMIS_ROOT !== undefined;
 const artemisRoot = (scopes.includes("direction") || planningUsesConfiguredModel) && !sqlOnly ? process.env.SG_PRODUCT_CORE_ARTEMIS_ROOT : null;
@@ -127,6 +132,7 @@ try {
     await run("business-plan-postgres", "pnpm", ["--filter", "@socialgrowth/product-backend", "exec", "tsx", "--test", "src/business-plan-service.postgres-test.ts"], { SG_PRODUCT_TEST_DATABASE_URL: url, SG_PRODUCT_TEST_ALLOW_RESET: "1" });
   }
   if (postgresOnlyScope) await run("business-plan-postgres", "pnpm", ["--filter", "@socialgrowth/product-backend", "exec", "tsx", "--test", "src/business-plan-service.postgres-test.ts"], { SG_PRODUCT_TEST_DATABASE_URL: url, SG_PRODUCT_TEST_ALLOW_RESET: "1" });
+  if (mediaPostgresOnlyScope) await run("media-accounts-postgres", "pnpm", ["--filter", "@socialgrowth/product-backend", "exec", "tsx", "--test", "src/media-accounts-r159.pg-test.ts"], { SG_PRODUCT_TEST_DATABASE_URL: url, SG_PRODUCT_TEST_ALLOW_RESET: "1" });
   if (!sqlOnly) {
   const migrations = (await readdir(join(repo, "product/backend/migrations"))).filter(f => /^\d{4}.*\.sql$/.test(f)).sort();
   for (const file of migrations) await pool.query(await readFile(join(repo, "product/backend/migrations", file), "utf8"));
@@ -135,6 +141,18 @@ try {
     await waitFor(async () => (await fetch(`${endpoint}/minio/health/live`)).ok);
     s3 = new S3Client({ endpoint, region: "us-east-1", forcePathStyle: true, credentials: { accessKeyId: "sg-core-local", secretAccessKey: secrets[1] } });
     await s3.send(new CreateBucketCommand({ Bucket: bucket }));
+  }
+  // Only the owned media fixture receives temporary keys. The production
+  // service requires its own persistent custodian file; no default key exists.
+  let mediaKeyFile;
+  if (scopes.includes("media-accounts")) {
+    mediaKeyFile = join(work, "media-credential-keys.json");
+    const encryptionKey = randomBytes(32), digestKey = randomBytes(32);
+    try {
+      const encryptionBase64 = encryptionKey.toString("base64"), digestBase64 = digestKey.toString("base64");
+      secrets.push(encryptionBase64, digestBase64);
+      await writeFile(mediaKeyFile, JSON.stringify({ encryption: { keyId: "owned-fixture-encryption-v1", keyBase64: encryptionBase64 }, currentDigestKeyId: "owned-fixture-digest-v1", digestKeys: [{ keyId: "owned-fixture-digest-v1", keyBase64: digestBase64 }] }), { mode: 0o600 });
+    } finally { encryptionKey.fill(0); digestKey.fill(0); }
   }
   const environment = {
     SG_PRODUCT_DATABASE_URL: url, SG_PRODUCT_AUTH_PEPPER: secrets[2], SG_PRODUCT_TRUST_PROXY_HOPS: "1", SG_PRODUCT_SMS_MODE: "unavailable",
@@ -145,6 +163,7 @@ try {
     SG_PRODUCT_MATERIAL_SECRET_KEY: secrets[1], SG_PRODUCT_MATERIAL_MAX_OBJECT_BYTES: realMaterialFiles ? "67108864" : "16777216", SG_PRODUCT_MATERIAL_REQUEST_TIMEOUT_MS: "5000",
     } : {}),
     SG_PRODUCT_TEST_LOGIN_NAME: "core-local-operator", SG_PRODUCT_TEST_PASSWORD: secrets[3], SG_PRODUCT_WEB_URL: `http://127.0.0.1:${webPort}`,
+    ...(mediaKeyFile ? { SG_PRODUCT_MEDIA_CREDENTIAL_KEY_FILE: mediaKeyFile } : {}),
     ...(scopes.includes("identity") ? { SG_PRODUCT_TEST_SECOND_LOGIN_NAME: "core-local-secondary", SG_PRODUCT_TEST_SECOND_PASSWORD: secrets[4] } : {}),
     ...(artemisRoot ? { SG_PRODUCT_BUSINESS_MODEL_MODE: "artemis_configured", SG_PRODUCT_ARTEMIS_ROOT: artemisRoot } : {}),
   };
@@ -162,6 +181,7 @@ try {
   await writeFile(join(output, "environment.json"), JSON.stringify({ scope: realMaterialFiles ? "authorized actual original bytes; synthetic operator/project only; no first-use/source assertion" : "synthetic local UI only", containers, migrations, web: environment.SG_PRODUCT_WEB_URL,
     sourceReferences: "synthetic UUIDs, not verified rights", webMode, storageConfigured: Boolean(storage), browserAdmission: "explicit opt-in; browser flow result recorded separately" }, null, 2));
   if (scopes.includes("identity")) await run("identity-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "identity" });
+  if (scopes.includes("media-accounts")) await run("media-accounts-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "media-accounts", SG_PRODUCT_MEDIA_ACCOUNTS_OWNED_ENV: "1", SG_PRODUCT_MEDIA_ACCOUNTS_OUTPUT: join(output, "media-accounts") });
   if (scopes.includes("materials")) await run("materials-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "materials",
     SG_PRODUCT_MATERIAL_TEST_FILE: fixture, SG_PRODUCT_MATERIAL_SCREENSHOT_DIR: join(output, "materials"), SG_PRODUCT_MATERIAL_TEST_DECLARATION: JSON.stringify(declaration) });
   if (realMaterialFiles) await run("real-material-bytes-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "real-material-bytes", SG_PRODUCT_REAL_MATERIAL_FILES: realMaterialFiles, SG_PRODUCT_REAL_MATERIAL_AUTHORIZED: "1", SG_PRODUCT_REAL_MATERIAL_FIRST_USE_CONFIRMED: process.env.SG_PRODUCT_CORE_REAL_MATERIAL_FIRST_USE_CONFIRMED ?? "0", SG_PRODUCT_REAL_MATERIAL_OUTPUT: join(output, "real-material-bytes") });
