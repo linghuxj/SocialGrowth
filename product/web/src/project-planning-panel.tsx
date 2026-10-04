@@ -65,7 +65,7 @@ export function ProjectPlanningPanel({ projectId, active, readOnly, onExpired, o
     <nav className="project-tabs" aria-label="草案分区"><button className="text-button" aria-current={section === "goals" ? "page" : undefined} onClick={() => setSection("goals")}><Target size={18} />目标与范围</button><button className="text-button" aria-current={section === "cycle" ? "page" : undefined} onClick={() => setSection("cycle")}><CalendarBlank size={18} />周期与观察</button><span>{pending ? "原保存待确认" : dirty ? "有未保存输入" : base?.draftVersion ? `已保存草案 v${base.draftVersion}` : "草案事实尚未确认"}</span></nav>
     {message && <p role="status" className="feedback">{message}</p>}{loading && <p role="status">正在读取规划事实…</p>}
     {!base ? <p>目标与周期事实尚未读取，不能推定为空或不受限制。</p> : <>
-      <section className="project-direction-note"><div><h3>当前为筹备草案，不是批准范围</h3><p>项目版本 {base.projectFactVersion}，草案版本 {base.draftVersion}。{base.savedAt ? `保存时间 ${base.savedAt}；保存人 ${base.savedByOperatorId}` : "尚无保存记录"}。没有实际运行周期，不显示示例进度或生效时间。</p></div></section>
+      <section className="project-direction-note"><div><h3>当前为筹备草案，不是批准范围</h3><p>项目版本 {base.projectFactVersion}，草案版本 {base.draftVersion}。{base.savedAt ? `保存时间 ${base.savedAt}；保存人 ${base.savedByOperatorId}` : "尚无保存记录"}。此处只展示筹备草案，不能据此判断实际运行周期或批准范围。</p></div></section>
       <fieldset disabled={readOnly || busy || !!pending}>
         <section className="panel planning-form-grid" hidden={section !== "goals"}>
           <label>正式开通前阶段目标<textarea aria-label="正式开通前阶段目标" maxLength={150} value={form.preOpeningGoal} onChange={e => edit("preOpeningGoal", e.target.value)} /></label>
