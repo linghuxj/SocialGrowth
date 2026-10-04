@@ -7,6 +7,7 @@ import socket
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 
 from socialgrowth_secure_input import SecureInputAccess, SecureInputBridge, SecureInputUnavailable, VERSION
 
@@ -21,6 +22,12 @@ class SecureInputBridgeTests(unittest.TestCase):
         os.chmod(self.path, 0o600)
         self.server.listen(4)
         self.access = SecureInputAccess(self.path, "a" * 64, "b" * 64)
+        # The local test server is deliberately not an authenticated Artemis
+        # host composition. Unit tests below exercise the production peer gate;
+        # these protocol-shape tests isolate the post-auth IPC payload.
+        self.peer_gate = patch.object(SecureInputBridge, "_verify_connected_peer", return_value=None)
+        self.peer_gate.start()
+        self.addCleanup(self.peer_gate.stop)
         self.requests = []
         self.respond = {"version": VERSION, "status": "completed"}
         self.closed = False
@@ -84,6 +91,21 @@ class SecureInputBridgeTests(unittest.TestCase):
         from socialgrowth_secure_input import get_secure_input_tool, get_submit_login_tool
         self.assertIsNone(get_secure_input_tool(None))
         self.assertIsNone(get_submit_login_tool(None))
+
+    def test_peer_gate_rejects_platforms_without_peer_credentials(self):
+        self.peer_gate.stop()
+        class UnsupportedPeer:
+            pass
+        with self.assertRaises(SecureInputUnavailable):
+            SecureInputBridge._verify_connected_peer(UnsupportedPeer())
+
+    def test_peer_gate_rejects_different_uid(self):
+        self.peer_gate.stop()
+        class Peer:
+            def getpeereid(self):
+                return os.getuid() + 1, os.getgid()
+        with self.assertRaises(SecureInputUnavailable):
+            SecureInputBridge._verify_connected_peer(Peer())
 
 
 if __name__ == "__main__":
