@@ -26,6 +26,7 @@ test("one original attempt performs one scoped autonomous launch after two guard
   const f = fixture(), first = await f.session.start(f.a); assert.equal(first.state, "running"); assert.equal(f.guards(), 2);
   assert.equal(f.calls[0]!.args.device_serial, f.a.serial); assert.equal(f.calls[0]!.args.locked_app_package, "com.facebook.katana");
   assert.match(String(f.calls[0]!.args.task_desc), /Stop after this one operation/);
+  assert.doesNotMatch(String(f.calls[0]!.args.task_desc), /parentLoginRef|accountId|loginIdentifier|credentialId|synthetic-parent/);
   await f.session.start(f.a); assert.equal(f.calls.filter(c => c.name === "mobile_run_task").length, 1);
 });
 test("lost launch acknowledgement is unknown and another start cannot relaunch", async () => {
