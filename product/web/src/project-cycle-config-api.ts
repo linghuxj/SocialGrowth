@@ -48,10 +48,9 @@ function validateRead(view: ProjectCycleConfigurationReadResponse, projectId: st
   if (!sameId(view.projectId, projectId) || view.executionAllowed || view.publicationAllowed || view.nextCycle !== null) {
     throw new ProjectCycleConfigurationApiError("CYCLE_CONFIG_RESPONSE_INVALID");
   }
-  if (view.nextConfiguration && (!view.currentCycle
-    || !sameId(view.nextConfiguration.basedOnCycleId, view.currentCycle.cycleId)
-    || view.nextConfiguration.configurationRevision !== view.configurationRevision
-    || Date.parse(view.nextConfiguration.effectiveStartsAt) !== Date.parse(view.currentCycle.endsAt))) {
+  if (view.nextConfiguration && (view.nextConfiguration.configurationRevision !== view.configurationRevision
+    || (view.currentCycle && (!sameId(view.nextConfiguration.basedOnCycleId, view.currentCycle.cycleId)
+      || Date.parse(view.nextConfiguration.effectiveStartsAt) !== Date.parse(view.currentCycle.endsAt))))) {
     throw new ProjectCycleConfigurationApiError("CYCLE_CONFIG_RESPONSE_INVALID");
   }
 }

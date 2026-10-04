@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { isAbsolute } from "node:path";
-import { chromium, type BrowserContext, type Locator, type Page } from "playwright";
+import { chromium, type BrowserContext, type Locator, type Page, type Response } from "playwright";
 // Reproducible REAL UI draft scope. Never run to bypass a policy refusal;
 // admin admission must first be restored. Synthetic text here proves only
 // unapproved draft UI persistence, never actual approved business direction.
@@ -20,6 +20,8 @@ let cyclePostObserved = false;
 let cycleRouteFetchStarted = false;
 let cycleRouteResponseReceived = false;
 let cycleRouteFetchErrorType: string | null = null;
+let cycleRouteBodyMismatch = false;
+let cycleRouteBodyInvalid = false;
 let firstPostStatus = 0;
 let cycle: Locator | null = null;
 const pageErrors: string[] = [];
@@ -186,18 +188,29 @@ try {
     if (route.request().method() !== "POST") return route.continue();
     const body = route.request().postData() ?? "";
     cyclePostObserved = true;
-    if (firstBody) assert.equal(body, firstBody, "explicit same-key continuation must preserve the exact original request body");
+    if (firstBody && body !== firstBody) {
+      cycleRouteBodyMismatch = true;
+      await route.abort("failed");
+      return;
+    }
     else firstBody = body;
-    const request = JSON.parse(body) as { metadata?: { idempotencyKey?: unknown } };
+    let request: { metadata?: { idempotencyKey?: unknown } };
+    try { request = JSON.parse(body) as { metadata?: { idempotencyKey?: unknown } }; }
+    catch {
+      cycleRouteBodyInvalid = true;
+      await route.abort("failed");
+      return;
+    }
     const key = typeof request.metadata?.idempotencyKey === "string" ? request.metadata.idempotencyKey : "";
     cycleRouteFetchStarted = true;
-    let response;
+    let response: Response;
     try {
       response = await route.fetch({ timeout: 60_000 });
       cycleRouteResponseReceived = true;
     } catch (error) {
       cycleRouteFetchErrorType = error instanceof Error ? error.name : "unknown";
-      throw error;
+      await route.abort("failed");
+      return;
     }
     const responseBody = await response.text();
     let outcome: string | null = null, replayed: boolean | null = null;
@@ -291,6 +304,8 @@ try {
   assert.equal(safeCycleFacts[0]?.idempotencyKeySha256, safeCycleFacts[1]?.idempotencyKeySha256);
   assert.equal(safeCycleFacts[0]?.outcome, "confirmed"); assert.equal(safeCycleFacts[0]?.replayed, false);
   assert.equal(safeCycleFacts[1]?.outcome, "confirmed"); assert.equal(safeCycleFacts[1]?.replayed, true);
+  assert.equal(cycleRouteBodyMismatch, false, "explicit replay must preserve the original request body");
+  assert.equal(cycleRouteBodyInvalid, false, "the UI mutation must send a valid request body");
   await cycle.getByText(/Asia\/Tokyo · 14 天/).waitFor();
   const confirmedCycle = await readCycleFromVisiblePage(page, cycle);
   assert.deepEqual(confirmedCycle.currentCycle, baselineCycle.currentCycle, "configuration did not rewrite the current cycle or its history");
@@ -363,6 +378,7 @@ try {
   await writeFile(`${output}/cycle-config-failure.json`, JSON.stringify({ phase: cyclePhase, errorType: error instanceof Error ? error.name : "unknown",
     cycleCheckpoint, actualModelAttempts, cycleConfigAcceptanceExecuted: cycleFlowPassed,
     cyclePostObserved, cycleRouteFetchStarted, cycleRouteResponseReceived, cycleRouteFetchErrorType, firstPostStatus,
+    cycleRouteBodyMismatch, cycleRouteBodyInvalid,
     safeCycleFacts, credentialsRecorded: false, requestBodyRecorded: false, executionAllowed: false, publicationAllowed: false }, null, 2), { mode: 0o600 });
   throw error;
 } finally { if (secondContext) await secondContext.close(); await browser.close(); }

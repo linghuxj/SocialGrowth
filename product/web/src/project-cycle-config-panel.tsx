@@ -128,10 +128,10 @@ export function ProjectCycleConfigPanel({ projectId, active, readOnly, onExpired
     return matches;
   }
 
-  async function refresh() {
+  async function refresh(options: { preserveError?: boolean } = {}) {
     const current = ++generation.current;
     setLoading(true);
-    setError("");
+    if (!options.preserveError) setError("");
     try {
       const next = await readProjectCycleConfiguration(projectId);
       if (!alive.current || current !== generation.current) return;
@@ -210,9 +210,10 @@ export function ProjectCycleConfigPanel({ projectId, active, readOnly, onExpired
   }
 
   async function save() {
+    const existingCommand = pendingRef.current;
     if (readOnly || busyRef.current || keyConflict || storageBlocked
-      || (!dirty && !pendingRef.current) || !view?.currentCycle) return;
-    let command = pendingRef.current;
+      || (!dirty && !existingCommand) || (!existingCommand && !view?.currentCycle)) return;
+    let command = existingCommand;
     let identity = currentOperatorSessionContext();
     if (command) {
       if (!pendingBelongsToCurrentOperator(command) || !identity) {
@@ -228,6 +229,8 @@ export function ProjectCycleConfigPanel({ projectId, active, readOnly, onExpired
       setPendingCommand(command);
     }
     if (!command) {
+      const currentCycle = view?.currentCycle;
+      if (!view || !currentCycle) return;
       if (!identity) { setError("当前登录缺少可验证的运营身份上下文；未发送请求。请重新登录后再确认。 "); return; }
       const integer = (value: string) => /^(0|[1-9][0-9]*)$/.test(value) && Number.isSafeInteger(Number(value)) ? Number(value) : null;
       const interval = integer(form.reviewIntervalDays), minimum = integer(form.trafficMinimumPerCycle);
@@ -246,7 +249,7 @@ export function ProjectCycleConfigPanel({ projectId, active, readOnly, onExpired
         setError("请提供受支持的业务时区、1–366 天间隔及非负整数最低数；输入保留。 ");
         return;
       }
-      const confirmed = window.confirm(`确认保存下周期配置？当前周期及历史不变；新配置仅待生效，起点沿用当前周期结束时刻 ${formatInstant(view.currentCycle.endsAt)}。这不会创建周期、任务或打开执行/发布权限。`);
+      const confirmed = window.confirm(`确认保存下周期配置？当前周期及历史不变；新配置仅待生效，起点沿用当前周期结束时刻 ${formatInstant(currentCycle.endsAt)}。这不会创建周期、任务或打开执行/发布权限。`);
       if (!confirmed) return;
       if (!persistProjectCycleConfigurationPending(command, identity)) {
         setError("浏览器无法安全保存本次冻结请求；尚未发送，输入保留。请启用会话存储后重试。 ");
@@ -270,8 +273,10 @@ export function ProjectCycleConfigPanel({ projectId, active, readOnly, onExpired
     } catch (cause) {
       if (cause instanceof ProductApiError && cause.response.error.code === "FACT_VERSION_STALE") {
         if (pendingRef.current === command && !consumePending(command)) return;
-        setError("配置版本已过期；服务拒绝了本次写入。请刷新并核对当前事实后重新明确确认。 ");
-        await refresh();
+        await refresh({ preserveError: true });
+        const stale = "配置版本已过期；服务拒绝了本次写入。请核对刷新后的当前事实后再明确确认。 ";
+        setError(current => current.includes("周期配置事实读取失败")
+          ? `${stale}刷新未能读取当前周期事实，当前状态保持未知。 ` : stale);
       } else if (isDefinitiveProjectRejection(cause)) {
         if (pendingRef.current === command && !consumePending(command)) return;
         dirtyRef.current = true;
