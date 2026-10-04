@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
-import { chromium, type Locator } from "playwright";
+import { chromium, type Locator, type Page } from "playwright";
 
 const required = (key: string) => { const value = process.env[key]; if (!value) throw new Error(`${key} required`); return value; };
 const output = required("SG_PRODUCT_MEDIA_ACCOUNTS_OUTPUT");
@@ -48,6 +48,37 @@ async function ensureOptionalPersonaOpen(form: Locator) {
     await form.locator("details.optional-persona > summary").click();
   }
   assert.equal(await details.evaluate((element: HTMLDetailsElement) => element.open), true);
+}
+function waitForProjectAssignmentResponse(surface: Page, selectedProjectId: string) {
+  const expectedProjectId = selectedProjectId.toLowerCase();
+  return surface.waitForResponse(response => {
+    const url = new URL(response.url());
+    return url.pathname === "/api/operator/resources/account-assignments"
+      && response.request().method() === "GET"
+      && url.searchParams.get("projectId")?.toLowerCase() === expectedProjectId;
+  });
+}
+async function parseProjectAssignmentResponse(responsePromise: Promise<import("playwright").Response>, selectedProjectId: string) {
+  const expectedProjectId = selectedProjectId.toLowerCase();
+  const response = await responsePromise;
+  assert.equal(response.status(), 200);
+  const facts = await response.json() as {
+    projectId: string | null;
+    assignments: unknown[];
+    eligibleDevices: Array<{ deviceId: string }>;
+  };
+  assert.equal(facts.projectId?.toLowerCase(), expectedProjectId);
+  assert.ok(Array.isArray(facts.assignments));
+  assert.ok(Array.isArray(facts.eligibleDevices));
+  return facts;
+}
+async function readProjectAssignments(surface: Page, selectedProjectId: string) {
+  return parseProjectAssignmentResponse(waitForProjectAssignmentResponse(surface, selectedProjectId), selectedProjectId);
+}
+async function chooseProjectAndReadAssignments(surface: Page, selector: Locator, selectedProjectId: string) {
+  const responsePromise = waitForProjectAssignmentResponse(surface, selectedProjectId);
+  await selector.selectOption(selectedProjectId);
+  return parseProjectAssignmentResponse(responsePromise, selectedProjectId);
 }
 async function createAccount(name: string, platform: "facebook" | "youtube", login: string, secret: string, optional = false) {
   const form = page.locator(".media-account-form");
@@ -211,14 +242,20 @@ try {
   await page.getByRole("button", { name: "媒体平台账号", exact: true }).click();
   const projectSelect = page.getByLabel("筹备项目", { exact: true });
   const projectOption = projectSelect.locator("option").filter({ hasText: projectName });
-  await projectSelect.selectOption(await projectOption.getAttribute("value") ?? "");
+  const projectId = await projectOption.getAttribute("value");
+  assert.ok(projectId);
+  const projectFacts = await chooseProjectAndReadAssignments(page, projectSelect, projectId);
+  assert.equal(projectFacts.assignments.length, 0);
   await page.getByText("本项目尚无账号与手机分配。", { exact: true }).waitFor();
-  const noEligibleDevices = await page.getByText("当前没有可分配手机。需要先通过产品支持的真实设备接入流程建立资源；此处不会创建或伪造手机记录。", { exact: true }).count();
-  if (noEligibleDevices) {
+  if (projectFacts.eligibleDevices.length === 0) {
+    await page.getByText("当前没有可分配手机。需要先通过产品支持的真实设备接入流程建立资源；此处不会创建或伪造手机记录。", { exact: true }).waitFor();
     blocked.push("本环境没有真实可分配手机；项目账号持久分配与竞争拒绝无法通过Web验收。未创建或播种手机事实。");
   } else {
     const accountCheck = page.getByRole("checkbox", { name: new RegExp(ytLogin.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) });
     const deviceSelect = page.locator('.media-accounts-workspace select[name="deviceId"]');
+    await deviceSelect.waitFor();
+    await deviceSelect.locator("option").nth(projectFacts.eligibleDevices.length).waitFor();
+    assert.equal(await deviceSelect.locator("option").count(), projectFacts.eligibleDevices.length + 1);
     const deviceId = await deviceSelect.locator("option").nth(1).getAttribute("value");
     assert.ok(deviceId);
     const context = page.context();
@@ -238,12 +275,31 @@ try {
     await competitor.getByRole("button", { name: "媒体平台账号", exact: true }).click();
     const competitorProjectSelect = competitor.getByLabel("筹备项目", { exact: true });
     const competitorOption = competitorProjectSelect.locator("option").filter({ hasText: competitionProjectName });
-    await competitorProjectSelect.selectOption(await competitorOption.getAttribute("value") ?? "");
+    const competitorProjectId = await competitorOption.getAttribute("value");
+    assert.ok(competitorProjectId);
+    const competitorProjectFacts = await chooseProjectAndReadAssignments(competitor, competitorProjectSelect, competitorProjectId);
+    assert.equal(competitorProjectFacts.assignments.length, 0);
     await competitor.getByText("本项目尚无账号与手机分配。", { exact: true }).waitFor();
-    await competitor.locator('.media-accounts-workspace select[name="deviceId"]').selectOption(deviceId);
+    assert.ok(competitorProjectFacts.eligibleDevices.some(device => device.deviceId.toLowerCase() === deviceId.toLowerCase()));
+    const competitorDeviceSelect = competitor.locator('.media-accounts-workspace select[name="deviceId"]');
+    await competitorDeviceSelect.waitFor();
+    await competitorDeviceSelect.locator("option").nth(competitorProjectFacts.eligibleDevices.length).waitFor();
+    assert.equal(await competitorDeviceSelect.locator("option").count(), competitorProjectFacts.eligibleDevices.length + 1);
+    await competitorDeviceSelect.selectOption(deviceId);
     await competitor.getByRole("checkbox", { name: new RegExp(ytLogin.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) }).check();
-    await page.locator(".media-accounts-workspace").getByRole("button", { name: "刷新", exact: true }).click();
+    const firstRefreshFactsPromise = readProjectAssignments(page, projectId);
+    const competitorRefreshFactsPromise = readProjectAssignments(competitor, competitorProjectId);
+    await Promise.all([
+      page.locator(".media-accounts-workspace").getByRole("button", { name: "刷新", exact: true }).click(),
+      competitor.locator(".media-accounts-workspace").getByRole("button", { name: "刷新", exact: true }).click(),
+    ]);
+    const [firstRefreshFacts, competitorRefreshFacts] = await Promise.all([firstRefreshFactsPromise, competitorRefreshFactsPromise]);
+    assert.equal(firstRefreshFacts.assignments.length, 0);
+    assert.equal(competitorRefreshFacts.assignments.length, 0);
+    assert.ok(firstRefreshFacts.eligibleDevices.some(device => device.deviceId.toLowerCase() === deviceId.toLowerCase()));
+    assert.ok(competitorRefreshFacts.eligibleDevices.some(device => device.deviceId.toLowerCase() === deviceId.toLowerCase()));
     await page.getByText("本项目尚无账号与手机分配。", { exact: true }).waitFor();
+    await competitor.getByText("本项目尚无账号与手机分配。", { exact: true }).waitFor();
     const firstPost = page.waitForResponse(r => new URL(r.url()).pathname === "/api/operator/resources/account-assignments" && r.request().method() === "POST");
     const secondPost = competitor.waitForResponse(r => new URL(r.url()).pathname === "/api/operator/resources/account-assignments" && r.request().method() === "POST");
     await deviceSelect.selectOption(deviceId);
