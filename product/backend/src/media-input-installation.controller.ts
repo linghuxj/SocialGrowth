@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Header, Headers, Inject, Post } from "@nestjs/common";
+import { Body, Controller, Get, Header, Headers, HttpCode, Inject, Post } from "@nestjs/common";
 import { z } from "zod";
 import { InstallationAuthService } from "./installation-auth-service.js";
 import { MediaInputAuthority } from "./media-input-authority.js";
@@ -33,6 +33,7 @@ export class MediaInputInstallationController {
   }
 
   @Post("enrollment/challenge")
+  @HttpCode(200)
   @Header("Cache-Control", "no-store")
   async enrollmentChallenge(@Body() body: unknown, @Headers("authorization") authorization?: string) {
     try {
@@ -44,6 +45,7 @@ export class MediaInputInstallationController {
   }
 
   @Post("enrollment/complete")
+  @HttpCode(200)
   @Header("Cache-Control", "no-store")
   async completeEnrollment(@Body() body: unknown, @Headers("authorization") authorization?: string) {
     try {
@@ -55,6 +57,7 @@ export class MediaInputInstallationController {
   }
 
   @Post("actions/consume")
+  @HttpCode(200)
   @Header("Cache-Control", "no-store")
   async consumeOnce(@Body() body: unknown, @Headers("authorization") authorization?: string) {
     try {
@@ -66,6 +69,7 @@ export class MediaInputInstallationController {
   }
 
   @Post("actions/status")
+  @HttpCode(200)
   @Header("Cache-Control", "no-store")
   async recordStatus(@Body() body: unknown, @Headers("authorization") authorization?: string) {
     try {

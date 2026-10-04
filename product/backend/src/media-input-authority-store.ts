@@ -237,8 +237,9 @@ export class MediaInputAuthorityStore {
     const scope = this.parseScope(scopeInput);
     await tx(this.pool, async c => {
       const current = await this.loadCurrent(scope, c);
-      if (current.snapshot !== expectedSnapshot || current.sessionExpiresAt.getTime() <= Number(grant.expiresAtMillis)
-        || current.participationValidUntil.getTime() <= Number(grant.expiresAtMillis)) stale();
+      if (current.snapshot !== expectedSnapshot || BigInt(current.databaseNow.getTime()) >= grant.expiresAtMillis
+        || BigInt(current.sessionExpiresAt.getTime()) < grant.expiresAtMillis
+        || BigInt(current.participationValidUntil.getTime()) < grant.expiresAtMillis) stale();
       const target = scope.fieldRef === "submit_login" ? scope.targetViewIdResourceName : null;
       const storedScope = { ...scope, expectedRevision: scope.expectedRevision.toString(), controlGeneration: scope.controlGeneration.toString() };
       await c.query(`INSERT INTO ${s}.media_input_pending_grants
@@ -364,11 +365,18 @@ export class MediaInputAuthorityStore {
       const assignment = (await c.query<{ project_id: string; device_id: string; state: string; handover_requested: boolean; platform: string }>(
         `SELECT project_id,device_id,state,handover_requested,platform FROM ${s}.project_media_account_assignments
          WHERE account_id=$1 FOR SHARE`, [scope.accountId])).rows[0];
-      const account = (await c.query<{ platform: string; canonical_account_ref: string }>(
-        `SELECT platform,canonical_account_ref FROM ${s}.media_accounts WHERE account_id=$1 FOR SHARE`, [scope.accountId])).rows[0];
+      const account = (await c.query<{ platform: string }>(
+        `SELECT platform FROM ${s}.media_accounts WHERE account_id=$1 FOR SHARE`, [scope.accountId])).rows[0];
       if (!assignment || !account || assignment.project_id !== scope.projectId || assignment.device_id !== scope.deviceId
         || assignment.platform !== scope.platform || account.platform !== scope.platform || assignment.state !== "pending_initialization"
-        || assignment.handover_requested || intent.target.platform !== scope.platform || intent.parentLoginRef !== account.canonical_account_ref) denied();
+        || assignment.handover_requested || intent.target.platform !== scope.platform) denied();
+      const credential = (await c.query<{ credential_id: string; revision: string; state: string }>(
+        `SELECT h.credential_id,h.revision::text,r.state FROM ${s}.media_credentials h
+         JOIN ${s}.media_credential_revisions r
+           ON (h.credential_id,h.account_id,h.platform,h.revision)=(r.credential_id,r.account_id,r.platform,r.revision)
+         WHERE h.account_id=$1 AND h.platform=$2 FOR SHARE OF h,r`, [scope.accountId, scope.platform])).rows[0];
+      if (!credential || credential.credential_id !== scope.credentialId || BigInt(credential.revision) !== scope.expectedRevision
+        || credential.state !== "stored_unverified") denied();
       const launch = (await c.query<{ assignment: unknown; fingerprint: string; task_version: string; operation_id: string }>(
         `SELECT assignment,fingerprint,task_version::text,operation_id FROM ${s}.artemis_preparation_intents
          WHERE task_attempt_id=$1 AND task_id=$2 FOR SHARE`, [scope.taskAttemptId, scope.taskId])).rows[0];
@@ -437,7 +445,7 @@ export class MediaInputAuthorityStore {
       const leaseUntilMillis = BigInt(Date.parse(holder.leaseUntil));
       const holderGrantValidUntilMillis = BigInt(Date.parse(holder.validUntil));
       if (leaseUntilMillis <= BigInt(now.getTime()) || holderGrantValidUntilMillis <= BigInt(now.getTime())) denied();
-      const snapshot = hash(Buffer.from(canonical({ scope, projectVersion: project.fact_version, taskVersion: task.task_version,
+      const snapshot = hash(Buffer.from(canonical({ scope, credential, projectVersion: project.fact_version, taskVersion: task.task_version,
         accountAssignment: assignment, launch: launch.fingerprint, association, installationGeneration: installation.generation,
         deviceState: device.state, enrollmentGeneration: enrollment.generation, enrollmentVersion: admitted.version,
         enrollmentExpiry: admitted.expiresAt, node: admitted.node, formalEvidenceId: admitted.formalEvidenceId,
