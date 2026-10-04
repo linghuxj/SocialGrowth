@@ -22,3 +22,13 @@ Read only the explicitly designated run7 result files in ux-web/artifacts/accept
 The shared business_plan_commands journal also holds lifecycle commands. Their column default outcome=unknown does not override their actual lifecycle response receipts and is not evidence of four Plan failures, model attempts or rollback. No database correction is warranted by that generic column.
 
 Independent full-range diff-check and provenance comparisons passed. Author reports Web typecheck/verifier TS checks and run7 contracts/backend builds and direction/Plan PostgreSQL checks. The successful run7 does not exercise the failure hang above; the candidate remains unapproved until fixed. This review does not establish real nonempty Tasks, physical execution/stop, repeated cycle advancement, live metrics, platform publication, production recovery or root's later full-head acceptance. Historical failures and original pending security gates remain preserved.
+
+## Fixed full-head re-review
+
+Base: `1bde61548310d741bddffca15161e2b2cf2e7175`.
+Head: `1c84441d764424e6530ef5d8859dada12845a7dc`.
+Verdict: **approved** for the complete 134-file candidate diff. Findings: none remaining.
+
+WEB-LIFECYCLE-WAIT-01 is closed by the sole subsequent script change: the main pause-capture and held-read signals, plus delivery synchronization, now reject after30seconds or on a captured route-handler failure. The route exception is not converted into a receipt, and finally still releases held pause/read gates and closes browser resources so the child can terminate and the owned runner can clean up. No production/schema/navigation or success-response behavior changed after the full-source review above. Independent full-range diff-check passed; the author reports verifier TypeScript compile passing.
+
+The designated successful run7 evidence belongs to73fcd5f and remains applicable only to its exercised normal/recovery paths. No new browser/container/model run or failure-injection test was performed for this final timeout fix, under the user's reduced-load constraint. The new exact full-head source approval is independent of the older slice approvals and does not approve root's later integrated head, untested physical execution, real nonempty Task scheduling, production deployment or whole-product acceptance.
