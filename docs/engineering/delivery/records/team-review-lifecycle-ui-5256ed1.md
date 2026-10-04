@@ -24,3 +24,15 @@ The exact delta now contains six files: three lifecycle UI files plus shared lif
 **LIFECYCLE-RACE-02 follow-up — P2:** `send()` still checks only component liveness after awaiting a mutation. If project A's POST is inflight when the component changes to B, B starts its own read. A's late successful result displays A's success in B and invokes its captured `refresh(A)`. Because the current loading project is B, this old refresh is allowed, increments the shared sequence, invalidates B's read, and later discards its own response for a project mismatch. B is left without facts and without an automatic replacement read. The definitive stale-error branch has the same stale refresh. Bind post-command UI messages and refresh to the originating project/active epoch; a verified receipt may settle its matching pending command, but must not invalidate or overwrite the newly selected project's UI/read.
 
 Intermediate 884e544 had no final verdict because the agreed contract changed; its temporary revision must not be treated as approved. No lifecycle browser, real Task cancellation, physical stop, or platform action acceptance is established.
+
+## Final fixed source review
+
+Base: `259c817bf989d45edf8f8c694a742d709955a77b`.
+Head: `3fb0c37bdebd3f4fe65da713ce8a6fda2fb92627`.
+Verdict: **approved** for this exact six-file delta, with no remaining material finding.
+
+The final panel-only change captures the command project and active epoch. A late verified receipt may clear only its exact pending object, while messages, invalidations and post-command reads occur only in the originating active view. The stale-rejection branch has the same guard. A forced read after a command replaces any invalidated same-view read, preventing an inflight read from suppressing reconciliation. Earlier material retry/readback and pending identity protections remain intact. Independent full-range diff-check passed.
+
+The canonical ledger was independently checked: project-material-lifecycle-intents rev2, material-candidate-read rev9 and business-plan-current-checks-read rev4 each have all four required acceptances. Request IDs are bounded metadata strings, never authorities; UI output uses React text rendering. Commands retain immutable prepared body/key, target checks and session-generation checks. No credentials are persisted by these new files. Pending commands are preserved only in the mounted component, not across reload/process loss.
+
+Author reports latest panel typecheck/lint passing and the preceding same-contract build/generation/Web build passing. There is still no independently run UI test or author Playwright result for this panel, no navigation or full backend route-source approval implied, and no real Task cancellation/physical stop/platform removal acceptance. Inherited parent code outside these six changed files is not approved by this delta.
