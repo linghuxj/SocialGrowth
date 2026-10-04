@@ -118,18 +118,20 @@ export class MaterialRegistryStore {
     }
     const currentObjects = parsedObjects.at(-1)!;
     const reason = await this.eligibilityReason(c, u, v.language_tag, revisions.at(-1)!.declaration, currentObjects.map(o => o.sha256));
-    const currentStatus = reason === null ? "candidate" as const : "pending_validation" as const;
     const withdrawalTable = (await c.query<{ table_name: string | null }>(`SELECT to_regclass($1)::text table_name`, [`${s}.material_withdrawal_intents`])).rows[0]?.table_name;
-    const withdrawalRow = withdrawalTable ? (await c.query<{ project_id: string; material_revision: string; request_id: string; recorded_at: string }>(`SELECT project_id,material_revision::text,request_id,
+    if (!withdrawalTable) throw new ProductTransactionError("INTERNAL_ERROR", "Material withdrawal source is unavailable", true);
+    const withdrawalRow = (await c.query<{ project_id: string; material_revision: string; request_id: string; recorded_at: string }>(`SELECT project_id,material_revision::text,request_id,
       to_char(recorded_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') recorded_at
-      FROM ${s}.material_withdrawal_intents WHERE variant_id=$1`, [v.variant_id])).rows[0] : null;
+      FROM ${s}.material_withdrawal_intents WHERE variant_id=$1`, [v.variant_id])).rows[0] ?? null;
     if (withdrawalRow && withdrawalRow.project_id !== u.project_id) return invalid();
     const withdrawal = withdrawalRow ? { state: "withdrawn" as const, materialRevision: Number(withdrawalRow.material_revision),
       requestId: withdrawalRow.request_id, recordedAt: withdrawalRow.recorded_at }
       : { state: "not_withdrawn" as const, materialRevision: null, requestId: null, recordedAt: null };
+    const effectiveReason = withdrawalRow ? "material_withdrawn" as const : reason;
+    const effectiveStatus = effectiveReason === null ? "candidate" as const : "pending_validation" as const;
     return { contentUnitId: u.content_unit_id, projectId: u.project_id, sourceId: u.source_id, sourceRecordId: u.source_record_id, identity,
-      variantId: v.variant_id, languageTag: v.language_tag, currentRevision: rows.length, revisions, status: currentStatus,
-      candidateAllowed: reason === null, eligibilityReason: reason, publicationAllowed: false as const, withdrawal };
+      variantId: v.variant_id, languageTag: v.language_tag, currentRevision: rows.length, revisions, status: effectiveStatus,
+      candidateAllowed: effectiveReason === null, eligibilityReason: effectiveReason, publicationAllowed: false as const, withdrawal };
   }
   async read(token: string, projectId: string, variantId: string) {
     if (!uuidSchema.safeParse(projectId).success || !uuidSchema.safeParse(variantId).success) throw new ProductTransactionError("INPUT_INVALID", "Invalid material locator");

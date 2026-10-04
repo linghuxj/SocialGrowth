@@ -14,7 +14,7 @@ const pool = new Pool({ connectionString: url, max: 10, application_name: "sg-li
 const auth = new OperatorAuthService(pool, "isolated-lifecycle-auth-pepper-only-00000001");
 const service = new ProjectLifecycleService(pool, auth);
 const s = "socialgrowth_product";
-const metadata = () => ({ contractVersion, requestId: randomUUID(), idempotencyKey: `lifecycle-${randomUUID()}` });
+const metadata = () => ({ contractVersion, requestId: `request-${randomUUID()}`, idempotencyKey: `lifecycle-${randomUUID()}` });
 const expectedError = (code: string) => (e: unknown) => e instanceof ProductTransactionError && e.code === code;
 
 before(async () => {
@@ -104,6 +104,7 @@ test("pause is intent-only; terminal end records only confirmed unstarted cancel
   const replay = await service.setIntent(a.sessionToken, a.csrfToken, projectId, request);
   assert.deepEqual(replay, { ...end, changed: false, replayed: true });
   assert.deepEqual(await service.read(a.sessionToken, projectId), { projectId, lifecycleRevision: 2, intent: "end_requested", requestId: endMetadata.requestId, recordedAt: end.recordedAt });
+  assert.equal((await pool.query(`SELECT source_request_id FROM ${s}.business_plan_task_cancellations WHERE task_id=$1`, [seeded.rows[1]!.taskId])).rows[0]!.source_request_id, endMetadata.requestId);
   assert.equal((await pool.query(`SELECT count(*)::int count FROM ${s}.business_plan_task_cancellations WHERE task_id=$1`, [seeded.rows[0]!.taskId])).rows[0]!.count, 0);
   assert.equal((await pool.query(`SELECT count(*)::int count FROM ${s}.business_plan_task_cancellations WHERE task_id=$1`, [seeded.rows[1]!.taskId])).rows[0]!.count, 1);
   assert.equal((await pool.query(`SELECT count(*)::int count FROM ${s}.business_plan_outbox_impacts WHERE task_id=$1`, [seeded.rows[1]!.taskId])).rows[0]!.count, 2);
