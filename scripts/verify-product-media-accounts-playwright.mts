@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
-import { chromium } from "playwright";
+import { chromium, type Locator } from "playwright";
 
 const required = (key: string) => { const value = process.env[key]; if (!value) throw new Error(`${key} required`); return value; };
 const output = required("SG_PRODUCT_MEDIA_ACCOUNTS_OUTPUT");
@@ -42,6 +42,13 @@ async function openMediaAccounts() {
   await page.getByRole("heading", { name: "账号与凭据状态", level: 2, exact: true }).waitFor();
   await listRead;
 }
+async function ensureOptionalPersonaOpen(form: Locator) {
+  const details = form.locator("details.optional-persona");
+  if (!(await details.evaluate((element: HTMLDetailsElement) => element.open))) {
+    await form.locator("details.optional-persona > summary").click();
+  }
+  assert.equal(await details.evaluate((element: HTMLDetailsElement) => element.open), true);
+}
 async function createAccount(name: string, platform: "facebook" | "youtube", login: string, secret: string, optional = false) {
   const form = page.locator(".media-account-form");
   step = `create-${platform}-select-platform`;
@@ -54,8 +61,7 @@ async function createAccount(name: string, platform: "facebook" | "youtube", log
   await form.getByLabel("密码", { exact: true }).fill(secret);
   if (optional) {
     step = `create-${platform}-open-optional-persona`;
-    await form.locator("details.optional-persona > summary").click();
-    assert.equal(await form.locator("details.optional-persona").evaluate((element: HTMLDetailsElement) => element.open), true);
+    await ensureOptionalPersonaOpen(form);
     step = `create-${platform}-fill-optional-persona`;
     await form.getByLabel("真实姓名", { exact: true }).fill("自动化测试资料（非真实）");
   }
@@ -147,8 +153,7 @@ try {
   step = "create-youtube-fill-password";
   await formForUnknown.getByLabel("密码", { exact: true }).fill(ytPassword);
   step = "create-youtube-open-optional-persona";
-  await formForUnknown.locator("details.optional-persona > summary").click();
-  assert.equal(await formForUnknown.locator("details.optional-persona").evaluate((element: HTMLDetailsElement) => element.open), true);
+  await ensureOptionalPersonaOpen(formForUnknown);
   step = "create-youtube-submit";
   await formForUnknown.getByRole("button", { name: "保存账号", exact: true }).click();
   step = "create-youtube-await-unknown-ack";
