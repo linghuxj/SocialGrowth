@@ -41,3 +41,17 @@ CYCLE-CONFIG-RUNTIME-01 的生产修复闭合：缺 tz 或 ICU 时在调用 prev
 本 head 尚需校准新增回归后再固定批准。**CYCLE-CONFIG-RUNTIME-TEST-02 — P2（验证缺口）**：新增 metadata 缺失回归选 America/New_York/21 天，依赖真实当前日期计算边界；本轮十月的边界可能跨十一月 DST，使 preview 本来返回 null，原漏洞代码也会通过该断言。请对这个用例使用固定无 DST 的可解时区，确保 preview 成功才会走到原漏洞路径；不需要扩展测试体系。该问题仅在测试，当前生产修复有效，已直接告知作者。
 
 作者报告修订 head contracts2/2、PG4/4、build/lint/diff-check 通过，独立自有容器已移除；本 reviewer 未重复运行，UX 页面仍未验。待最小修订的新 SHA 精确复核，不以生产 finding 关闭推定此 head 已获最终批准。
+
+## 最终后端候选 603ace4 — approved
+
+- Reviewer: `/root/adversary`
+- Base: `5c8960f6e74a3e55105693722b3443f95aa312bc`
+- Head: `603ace4a9fd03007f23424366c839885f144ae80`
+- Verdict: **approved**，仅完整十文件后端候选；不覆盖尚未提交的 UX 源码或真实 UI 验收。
+- Open findings: 无。CYCLE-CONFIG-RUNTIME-01 与 CYCLE-CONFIG-RUNTIME-TEST-02 均关闭；802/2049 历史结论保留。
+
+独立确认完整 base→head 仍为原十文件，九文件与上一轮完整复核精确一致，唯一变化为 PG 测试：采用 Asia/Shanghai、21 天，并在遮蔽 tz 之前显式断言同 current.endsAt 和参数的 preview 可解。于是旧代码会走可成功的 preview 分支，本次断言能够识别缺失前置 runtime guard；finally 恢复原属性描述符，未改变生产逻辑或放宽契约。
+
+完整差异检查通过；原有授权/CSRF、actor-project-key 绑定、不可变事实/原命令回执、配置 CAS、数据库时钟、nextCycle=null 和两项 false 许可边界保持。rev3 双签消费语义仍有效。作者在主会话批准的独占窗口报告此精确源码 backend build、改文件 oxlint、实际隔离迁移0037 PG4/4 通过，自有 `sg-cycle-config-regression-6bec9a22d511-pg` 已移除。Reviewer 只读源及作者有限结果，没有重复环境运行；未取得原始测试输出，也未将作者报告写成独立运行。
+
+本后端批准可记录在 BE-CYCLE-CONFIG 门禁；SEC-CYCLE-CONFIG 整体任务继续等待 UX 冻结源码独立复核，不能以本批准把界面、下一周期真正生效、调度、模型、USB 或平台执行标成通过。任何后续源码变化须重新确认精确 head。
