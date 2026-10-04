@@ -95,7 +95,12 @@ before(async () => {
   // independently prove the new task unique index also fails closed.
   await insertTask(task2, ref2);
   await assert.rejects(migration("0039_media_accounts_r159.sql"), error => typeof error === "object" && error !== null && "code" in error && (error as { code: string }).code === "23505");
-  await pool.query(`DELETE FROM ${schema}.account_preparation_tasks WHERE task_id=$1`, [task2]);
+  // The immutable-history guard is production behavior; disable it only while
+  // removing this synthetic contradictory fixture row, then restore it before
+  // applying the migration under test.
+  await ddl(`ALTER TABLE ${schema}.account_preparation_tasks DISABLE TRIGGER account_preparation_intent_history`);
+  try { await pool.query(`DELETE FROM ${schema}.account_preparation_tasks WHERE task_id=$1`, [task2]); }
+  finally { await ddl(`ALTER TABLE ${schema}.account_preparation_tasks ENABLE TRIGGER account_preparation_intent_history`); }
   await migration("0039_media_accounts_r159.sql");
 });
 after(async () => { try { await guard(); await ddl(`DROP SCHEMA IF EXISTS ${schema} CASCADE`); }
