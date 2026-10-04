@@ -29,7 +29,9 @@ Plan数据库锁等待回归曾失败，按顺序集成 `6ee0939`、`0305994`、
 
 恢复工作时，本地Docker、Web/backend及管理模拟器进程均已停止，adb没有USB设备。主窗启动原OrbStack、原自有持久PG实例、原管理AVD和服务，健康/Web200；没有替换数据库或重置数据。为先完成原生未决请求恢复，私有启动副本暂仅核验已应用0001–0033迁移，新增完整组合尚未应用到该实例；队列消费者保持关闭。管理端原未决备注的原key和expectedFactVersion5仍在，实际退出登录后原持久请求逐值未变，服务端只读核对撤销一条会话。随后实际开发验证码页面重登录完成，跨登录接续仍在验证。USB本轮不可见不覆盖此前真机证据。
 
-完整后端候选 `07225e7ddb8dbdd7f95bd477330a1bffae945f94` 尚未集成：独立复核要求修复 `LIFECYCLE-ZERO-VERSION-01`，即合法新项目版本0的素材撤回被错误拒绝。旧current-checks批准不覆盖此候选；修正、相应回归及精确新head复核正在进行。局部失败在本记录保留，沿用已有阻断索引。
+完整后端候选 `07225e7ddb8dbdd7f95bd477330a1bffae945f94` 曾被独立复核要求修复 `LIFECYCLE-ZERO-VERSION-01`，即合法新项目版本0的素材撤回被错误拒绝。修正候选 `e18d52fe6dddf441ed65912ea3bbfbf83e24dbfc` 已获[完整25文件精确批准](team-review-exec-lifecycle-07225e7.md)并整体集成；新增material PG18/18与先前未变范围的组合31/31分别保留，尚非当前root组合的真实Web验收。迁移现在0001–0036连续，当前运行实例仍为33迁移；最终组合和恢复验证按最新减负要求串行开展。
+
+用户随后要求禁止模拟器、仅使用USBAndroid，主窗已停止管理AVD，真机实际online。关闭前管理端跨登录后的同一请求重试已完成，原key成功回执1条、版本6、控制/grants0；临时SESSION备注尚待恢复，当前真机保留执行端安装身份，不能通过清数据改身份绕过。详见[同一原生记录更新](team-native-label-821f315.md)。后续不再启动模拟器，不并发跑构建、真实模型或测试组。
 
 原Plan未知恢复补验未能到达UI恢复阶段：测试默认route.fetch30秒先超时，只读补充所见command/revision/task/outbox0，不推断所有故障的最终回滚。首修dcaf仅按describe45秒设置60秒仍漏coordinator30秒，被独立复核要求修改；完整测试路径修订 `ae629796955cf56f83550ae3fe0d028e55805e7d` 已获[批准](team-review-web-delay-dcaf244.md)，root已集成。fetch120秒、观察真实response190秒包括人工延迟60秒，真实UI未知45秒阈值保持原值。方向Playwright原stdout/stderr不再落盘，采用固定摘要。修正后新的真实恢复已按上表通过，旧失败不覆盖；作者PG direction17/17及Plan7/7是补充，清理两个自有容器/服务/临时凭据完成。
 
