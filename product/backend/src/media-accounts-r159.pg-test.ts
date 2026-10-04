@@ -85,12 +85,15 @@ before(async () => {
   const intent = (ref: string) => ({ accountId, deviceId: device1, parentLoginRef: ref, mode: "check_only", target: { platform: "facebook", name: "Synthetic Page", expectedId: null, category: null, description: "" }, scopeRef: "synthetic_scope", allowTrustedInstall: false, allowIdentityCreation: false });
   const insertTask = (taskId: string, ref: string) => pool.query(`INSERT INTO ${schema}.account_preparation_tasks(task_id,project_id,parent_login_ref,platform,intent,intent_digest,selected_account_id,selected_device_id,state,blockers,requested_by)
     VALUES($1,$2,$3,'facebook',$4,$5,$6,$7,'waiting_resources','[]'::jsonb,$8)`, [taskId, projectId, ref, intent(ref), "a".repeat(64), accountId, device1, sourceOperator]);
-  await insertTask(task1, ref1); await insertTask(task2, ref2);
+  await insertTask(task1, ref1);
 
   // Existing account->two-phone history must fail the migration without choosing
-  // a row. Remove only the deliberately contradictory fixture binding, retry.
+  // a row. The task index is clean here, so this isolates the pair conflict.
   await assert.rejects(migration("0039_media_accounts_r159.sql"), error => typeof error === "object" && error !== null && "code" in error && (error as { code: string }).code === "23505");
   await pool.query(`DELETE FROM ${schema}.project_identity_reservations WHERE identity_id=$1`, [identity2]);
+  // With the binding conflict removed, two tasks for the same project/account
+  // independently prove the new task unique index also fails closed.
+  await insertTask(task2, ref2);
   await assert.rejects(migration("0039_media_accounts_r159.sql"), error => typeof error === "object" && error !== null && "code" in error && (error as { code: string }).code === "23505");
   await pool.query(`DELETE FROM ${schema}.account_preparation_tasks WHERE task_id=$1`, [task2]);
   await migration("0039_media_accounts_r159.sql");
