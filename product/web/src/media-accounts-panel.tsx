@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { MediaAccount, ProjectView } from "@socialgrowth/product-contracts";
-import { listProjects, ProductApiError, currentOperatorSessionContext } from "./operator-api.js";
+import { isDefinitiveProjectRejection, listProjects, ProductApiError, currentOperatorSessionContext } from "./operator-api.js";
 import {
   prepareAccountAssignment, prepareCredentialInvalidate, prepareCredentialPut,
-  prepareMediaAccountCreate, readAccountAssignments, readMediaAccountCommand,
+  prepareMediaAccountCreate, prepareMediaAccountProfile, readAccountAssignments, readMediaAccountCommand,
   readMediaAccounts, readResourceCommand,
 } from "./media-accounts-api.js";
 
@@ -21,10 +21,7 @@ function message(error: unknown): string {
   return "请求失败；请先查询原操作状态";
 }
 function isDefinitiveNoWrite(error: unknown): boolean {
-  if (!(error instanceof ProductApiError)) return false;
-  const code = error.response.error.code;
-  return (error.status === 400 && code === "INPUT_INVALID")
-    || (error.status === 409 && code === "FACT_VERSION_STALE");
+  return isDefinitiveProjectRejection(error);
 }
 
 export function MediaAccountsPanel({ active, refreshVersion, readOnly, onExpired }: Props) {
@@ -36,6 +33,7 @@ export function MediaAccountsPanel({ active, refreshVersion, readOnly, onExpired
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [secretAccount, setSecretAccount] = useState("");
+  const [profileAccount, setProfileAccount] = useState("");
   const [pendingKey, setPendingKey] = useState("");
   const [resourceVersion, setResourceVersion] = useState(0);
   const pending = useRef<Pending | null>(null);
@@ -78,6 +76,7 @@ export function MediaAccountsPanel({ active, refreshVersion, readOnly, onExpired
     sessionStorage.setItem(pendingStorageKey, JSON.stringify({ key, kind, operatorId }));
     createForm.current?.reset();
     setSecretAccount("");
+    setProfileAccount("");
   }
   function handleWriteFailure(error: unknown) {
     if (isDefinitiveNoWrite(error)) clearPending();
@@ -148,7 +147,7 @@ export function MediaAccountsPanel({ active, refreshVersion, readOnly, onExpired
     setBusy(true);
     try {
       const result = await op.lookup();
-      if (result.state === "applied") { clearPending(); createForm.current?.reset(); setSecretAccount(""); setNotice("原操作已提交；已按服务器状态刷新。不会重复创建。"); await refresh(); }
+      if (result.state === "applied") { clearPending(); createForm.current?.reset(); setSecretAccount(""); setProfileAccount(""); setNotice("原操作已提交；已按服务器状态刷新。不会重复创建。"); await refresh(); }
       else setNotice(op.send ? "原键当前未查到结果。可以用同一页面保留的原请求内容和原键继续；不会换键。" : "原键当前未查到结果，且原请求内容未保留。为避免重复建号，不能安全重试；请先等待服务端回读或人工核对。 ");
     } catch (e) {
       if (e instanceof ProductApiError && e.status === 401) { discardSensitivePendingBody(); onExpired(e); }
@@ -158,7 +157,7 @@ export function MediaAccountsPanel({ active, refreshVersion, readOnly, onExpired
   async function retryPending() {
     const op = pending.current; if (!op?.send) { setNotice("原请求内容未保留，不能安全重试；请先等待服务端回读或人工核对。"); return; }
     setBusy(true);
-    try { await op.send(); clearPending(); createForm.current?.reset(); setSecretAccount(""); setNotice("原请求已完成；列表状态已刷新。"); await refresh(); }
+    try { await op.send(); clearPending(); createForm.current?.reset(); setSecretAccount(""); setProfileAccount(""); setNotice("原请求已完成；列表状态已刷新。"); await refresh(); }
     catch (e) { handleWriteFailure(e); } finally { setBusy(false); }
   }
   async function credentialAction(account: MediaAccount, operation: "put" | "invalidate", loginIdentifier = "", password = "") {
@@ -170,6 +169,24 @@ export function MediaAccountsPanel({ active, refreshVersion, readOnly, onExpired
       rememberPending({ key: prepared.idempotencyKey, kind: "account", operatorId: owner, send: () => prepared.send(), lookup: () => readMediaAccountCommand(prepared.idempotencyKey) });
       await prepared.send(); setSecretAccount(""); setNotice(operation === "put" ? "凭据已替换并保存；平台登录仍未核验。" : "本系统保存的凭据已失效；这不代表平台密码已修改或已退出登录。");
       clearPending();
+      await refresh();
+    } catch (e) { handleWriteFailure(e); } finally { setBusy(false); }
+  }
+  async function submitProfile(event: FormEvent<HTMLFormElement>, account: MediaAccount) {
+    event.preventDefault(); const values = new FormData(event.currentTarget);
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const name = String(values.get("personName") ?? "").trim();
+      const birthday = String(values.get("birthday") ?? "");
+      const gender = String(values.get("gender") ?? "");
+      const persona = name || birthday || gender ? { name: name || null, birthday: birthday || null, gender: gender || null } : null;
+      const prepared = prepareMediaAccountProfile({ accountId: account.accountId,
+        expectedResourceVersion: resourceVersion, displayName: String(values.get("displayName") ?? "").trim(), persona });
+      const owner = currentOperatorSessionContext()?.operatorId;
+      if (!owner) throw new Error("需要重新登录后再保存资料");
+      rememberPending({ key: prepared.idempotencyKey, kind: "account", operatorId: owner,
+        send: () => prepared.send(), lookup: () => readMediaAccountCommand(prepared.idempotencyKey) });
+      await prepared.send(); clearPending(); setProfileAccount(""); setNotice("账号识别资料已更新；平台账号与登录核验状态未改变。");
       await refresh();
     } catch (e) { handleWriteFailure(e); } finally { setBusy(false); }
   }
@@ -218,6 +235,15 @@ export function MediaAccountsPanel({ active, refreshVersion, readOnly, onExpired
       {accounts.length ? <div className="media-account-list">{accounts.map(account => <article className="media-account-card" key={account.accountId}>
         <div><h3>{account.displayName}</h3><p>{account.platform} · <code>{account.loginIdentifier ?? "历史档案待补登录标识"}</code></p><small>平台账号ID：{account.canonicalAccountRef ?? "未核验"}</small>{account.legacyDeclaredCanonicalAccountRef && <small>历史声明ID：{account.legacyDeclaredCanonicalAccountRef}（未核验，不用于身份判断）</small>}</div>
         <div><span>分配：{account.reservation ? `已占用（${account.reservation.projectId.slice(0, 8)}）` : "未分配"}</span><span>凭据：{account.credential?.state === "stored_unverified" ? "已保存，未核验" : account.credential?.state === "invalidated" ? "已失效" : "无凭据"}</span><span>父账号登录核验：{account.parentLoginVerification === "verified" ? "已核验" : account.parentLoginVerification === "blocked" ? "阻断" : "未核验"}</span>{account.publishingIdentities.map(identity => <span key={identity.identityId}>发布身份：{identity.verificationState === "verified" ? "已核验" : identity.verificationState === "blocked" ? "阻断" : "未核验"} · 管理状态 {identity.managementState === "managed" ? "已确认" : identity.managementState === "not_managed" ? "未管理" : "未知"}</span>)}</div>
+        {!readOnly && <div className="profile-actions">{profileAccount === account.accountId ? <form onSubmit={e => void submitProfile(e, account)}>
+          <label>识别名称<input aria-label={`更正 ${account.loginIdentifier ?? account.accountId} 的识别名称`} name="displayName" maxLength={200} defaultValue={account.displayName} required disabled={busy || Boolean(pendingKey)} /></label>
+          <details className="optional-persona" open><summary>可选：真实个人资料（清空即移除）</summary><div>
+            <label>真实姓名<input aria-label={`更正 ${account.loginIdentifier ?? account.accountId} 的真实姓名`} name="personName" autoComplete="name" defaultValue={account.persona?.name ?? ""} disabled={busy || Boolean(pendingKey)} /></label>
+            <label>生日<input aria-label={`更正 ${account.loginIdentifier ?? account.accountId} 的生日`} name="birthday" type="date" defaultValue={account.persona?.birthday ?? ""} disabled={busy || Boolean(pendingKey)} /></label>
+            <label>性别<select aria-label={`更正 ${account.loginIdentifier ?? account.accountId} 的性别`} name="gender" defaultValue={account.persona?.gender ?? ""} disabled={busy || Boolean(pendingKey)}><option value="">不填写</option><option value="female">女</option><option value="male">男</option><option value="unspecified">其他／不透露</option></select></label>
+          </div></details>
+          <button type="submit" disabled={busy || Boolean(pendingKey)}>保存资料修改</button><button type="button" disabled={busy} onClick={() => setProfileAccount("")}>取消</button>
+        </form> : <button type="button" disabled={busy || Boolean(pendingKey)} onClick={() => setProfileAccount(account.accountId)}>编辑识别资料</button>}</div>}
         {!readOnly && <div className="credential-actions">{secretAccount === account.accountId ? <><label>登录标识<input aria-label={`登录标识 ${account.displayName}`} autoComplete="username" defaultValue={account.loginIdentifier ?? ""} required disabled={busy || Boolean(pendingKey)} /></label><label>密码<input aria-label={`替换 ${account.displayName} 的密码`} type="password" autoComplete="new-password" required disabled={busy || Boolean(pendingKey)} /></label><button type="button" disabled={busy || Boolean(pendingKey)} onClick={e => { const inputs=e.currentTarget.parentElement?.querySelectorAll("input") ?? []; const login=inputs[0]?.value.trim() ?? "", password=inputs[1]?.value ?? ""; if (login && password) void credentialAction(account,"put",login,password); }}>保存凭据</button><button type="button" disabled={busy || Boolean(pendingKey)} onClick={() => setSecretAccount("")}>取消</button></> : <button type="button" disabled={busy || Boolean(pendingKey)} onClick={() => setSecretAccount(account.accountId)}>{account.credential ? "替换凭据" : account.loginIdentifier ? "保存凭据" : "补录登录标识与凭据"}</button>}{account.credential && <button type="button" disabled={busy || Boolean(pendingKey)} onClick={() => void credentialAction(account,"invalidate")}>使凭据失效</button>}</div>}
       </article>)}</div> : <div className="empty-state"><h3>尚无媒体平台账号</h3><p>先录入实际已有的平台账号；不要填写虚构的平台账号 ID。</p></div>}
     </section>
