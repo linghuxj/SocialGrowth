@@ -27,6 +27,8 @@
 
 | 未知回执文案修复后的真实浏览器 | run6冻结 `a0fd8d71cf9f20063d9ec6e56f145089d60e9aaa`，仍未通过完整场景 | [固定失败摘要](../../../../artifacts/acceptance/team-lead-20261004/integration3/lifecycle-run6-failure.json)首次End真实201/changed=true/replayed=false已经留有限证据，随后故意丢弃客户端响应。verifier仍匹配旧unknown文案，未到达原键接续，模型未启动；显示v2及按钮禁用不能推断UI已显示结束意图。执行前Webcheck/单脚本tsc通过，实际runner所需build/PG阶段通过；修脚本残留前不再启动批次。自有资源已清理 |
 
+| 生命周期与首周期完整真实浏览器 | run7冻结 `73fcd5ffb1836eb3773f39ea6a82d5a19185f607`，同一隔离fixture整批退出0 | [有限成功记录](../../../../artifacts/acceptance/team-lead-20261004/integration3/lifecycle-cycle-run7-73fcd5f.json)：Lifecycle两UI项目/素材v0撤回/延迟暂停跨项目隔离/resume；End首201真实提交后丢回执，页面unknown保留原命令，hold真实GET投递并页面点击同body/key接续201/replayed=true，两组哈希一致。随后模型一次16015ms提案、真实页面批准及方向未知请求复核通过；首cycle1行、当前approval绑定1、输入/TZ/ICU/tzdata一致。补充Task/outbox/revision均0，不证明非空安排；共享journal4行default unknown不等于四次Plan请求未知。自有服务/两容器/凭据已清理；完整Web候选尚待精确复核/集成 |
+
 有限安全结果：[反馈](../../../../artifacts/acceptance/team-lead-20261004/integration3/feedback-2c7910e.json)、[服务恢复](../../../../artifacts/acceptance/team-lead-20261004/integration3/runtime-restart-f7dce19.json)、[模型排期](../../../../artifacts/acceptance/team-lead-20261004/integration3/model-plan-80e871a.json)。测试输入为隔离工程输入；真实浏览器操作和真实模型响应不等于真实平台业务验收。清理前只读SQL是补充证据，未用于预置业务成功。
 
 ## 修复与独立复核

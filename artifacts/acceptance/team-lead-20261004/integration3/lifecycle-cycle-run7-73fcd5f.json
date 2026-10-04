@@ -1,0 +1,173 @@
+{
+  "candidateHeadSha": "73fcd5ffb1836eb3773f39ea6a82d5a19185f607",
+  "verification": "author actual single isolated Playwright run7; root inspected finite artifacts, did not rerun browser",
+  "lifecycle": {
+    "passed": true,
+    "scope": "real UI login, two UI-created projects, UI material save/withdrawal on unapproved v0 project, pause/resume/end intents, delayed old-project response isolation, committed-but-lost response recovery with exact original body/key replay",
+    "projects": 2,
+    "projectIdsRecordedAsHashesOnly": true,
+    "pauseResponseDelayedUntilProjectB": true,
+    "lateResponseDidNotContaminateProjectB": true,
+    "unknownEndRecoveredBySameKey": true,
+    "materialWithdrawalStayedInternal": true,
+    "actions": {
+      "pauseDelayedAck": {
+        "bodySha256": "e40a50d4e71fbf1e1175ed18d80400a7aebf744456cab88e4646e17d1231b226",
+        "keySha256": "f7199a9f5bfe013a3146aa7103c79722eca64edce7c0fcdcbe8a3e5a72e0febc",
+        "status": 201,
+        "changed": true
+      },
+      "endFirstResponse": {
+        "bodySha256": "1dc65a4da3fb306b6a986213d17d1b22933126a5401209096a7d69581a37158d",
+        "keySha256": "ddbca838923ae5ba041faf930fc9327252b859fe67510e2a8202a4077b394087",
+        "requestIdSha256": "6ea81516d16d5556bee1c95f8c725d239f96d8ebaa46b76ad91881aa450e2b7b",
+        "status": 201,
+        "changed": true,
+        "replayed": false
+      },
+      "endUnknownReplay": {
+        "bodySha256": "1dc65a4da3fb306b6a986213d17d1b22933126a5401209096a7d69581a37158d",
+        "replayBodySha256": "1dc65a4da3fb306b6a986213d17d1b22933126a5401209096a7d69581a37158d",
+        "keySha256": "ddbca838923ae5ba041faf930fc9327252b859fe67510e2a8202a4077b394087",
+        "replayKeySha256": "ddbca838923ae5ba041faf930fc9327252b859fe67510e2a8202a4077b394087",
+        "firstStatus": 201,
+        "replayStatus": 201,
+        "replayed": true
+      },
+      "withdrawal": {
+        "status": 201,
+        "changed": true,
+        "replayed": false,
+        "requestIdSha256": "991b719398f56942727a51a40f5eb685a9dff4fde215367ae246044c5c96a5fc"
+      }
+    },
+    "executionAllowed": false,
+    "publicationAllowed": false,
+    "actualDeviceAction": false,
+    "actualPublication": false,
+    "readEvidenceSummary": [
+      {
+        "event": "response",
+        "route": "materials-list",
+        "status": 200,
+        "errorCode": null,
+        "count": 13
+      },
+      {
+        "event": "finished",
+        "route": "materials-list",
+        "status": 200,
+        "errorCode": null,
+        "count": 13
+      },
+      {
+        "event": "response",
+        "route": "current-checks",
+        "status": 200,
+        "errorCode": null,
+        "count": 11
+      },
+      {
+        "event": "finished",
+        "route": "current-checks",
+        "status": 200,
+        "errorCode": null,
+        "count": 11
+      },
+      {
+        "event": "response",
+        "route": "lifecycle-intents",
+        "status": 200,
+        "errorCode": null,
+        "count": 11
+      },
+      {
+        "event": "finished",
+        "route": "lifecycle-intents",
+        "status": 200,
+        "errorCode": null,
+        "count": 11
+      }
+    ]
+  },
+  "direction": {
+    "passed": true,
+    "actualModel": true,
+    "scope": "synthetic UI inputs with one configured real model proposal; immediate human confirmation, exact lost-response replay, current cycle verified separately from readonly DB facts",
+    "cycleConfirmationOnly": true,
+    "execution": "blocked",
+    "publication": "not performed"
+  },
+  "modelAttempts": [
+    {
+      "outcome": "proposed",
+      "elapsedMs": 16015
+    }
+  ],
+  "cycleReadonlySupplement": {
+    "cycle_rows": 1,
+    "current_approval_bindings": 1,
+    "approved_input_matches": 1,
+    "business_time_zone": "Asia/Shanghai",
+    "starts_at": "2026-10-05T06:52:07.652Z",
+    "ends_at": "2026-10-12T06:52:07.652Z",
+    "traffic_minimum": 0,
+    "icu_version": "78.3",
+    "tzdata_version": "2026b"
+  },
+  "readonlySupplement": {
+    "projects": 3,
+    "material_revisions": 1,
+    "unapproved_drafts": 1,
+    "direction_proposals": 1,
+    "direction_approvals": 1,
+    "verified_byte_tickets": 1
+  },
+  "sharedCommandJournalReadonlySupplement": {
+    "source": "isolated temporary PostgreSQL; read-only supplemental evidence",
+    "commandCount": 4,
+    "commandReceipts": [
+      {
+        "idempotencyKeySha256": "8f0727f009efcf10c30b093c8fffebf33d5bb69e0dea491b43412514042b6250",
+        "payloadDigestSha256": "03c3d917d8881ef8a4aa770df53531e63521e6995763b5b3e2c3035cc4ad7a67",
+        "outcome": "unknown",
+        "planRevision": null
+      },
+      {
+        "idempotencyKeySha256": "f7199a9f5bfe013a3146aa7103c79722eca64edce7c0fcdcbe8a3e5a72e0febc",
+        "payloadDigestSha256": "de5a8863498e4f09365f2bb1923b7e902c029568ef7f223c416adb2c193ce294",
+        "outcome": "unknown",
+        "planRevision": null
+      },
+      {
+        "idempotencyKeySha256": "3700c28bb2f4268f9c9586066c6e195e09b004452a29c7cd1fddeeb7a848ab74",
+        "payloadDigestSha256": "5d6262ca947093310d36345a2ef93bf1cfed908a472854bea91ded937ad24a0f",
+        "outcome": "unknown",
+        "planRevision": null
+      },
+      {
+        "idempotencyKeySha256": "ddbca838923ae5ba041faf930fc9327252b859fe67510e2a8202a4077b394087",
+        "payloadDigestSha256": "2447ed6ea94fb9994eb03bd81ede299b897eecd46601d7e85b3d5efb1376a6a5",
+        "outcome": "unknown",
+        "planRevision": null
+      }
+    ],
+    "revisionCount": 0,
+    "taskCount": 0,
+    "outboxCount": 0
+  },
+  "journalInterpretation": "Source inspection: ProjectLifecycleService writes lifecycle/withdrawal response into shared business_plan_commands; outcome is omitted and defaults unknown. Four rows are not proof of four Plan executions or rollbacks; no records cleared.",
+  "cleanup": {
+    "ownedServicesExited": true,
+    "ownedContainerCountRemoved": 2,
+    "temporaryCredentialsRemoved": true
+  },
+  "unverified": [
+    "nonempty Task/outbox plan through UI",
+    "real Artemis publication-task consumer and physical stop",
+    "continuous future cycle/review-loop",
+    "real platform/source/metrics/income",
+    "production release/DR and scale",
+    "native second physical management device"
+  ]
+}
