@@ -258,7 +258,7 @@ export function MediaAccountsPanel({ active, refreshVersion, readOnly, onExpired
           <button disabled={busy || Boolean(pendingKey)} type="submit">确认分配</button>
         </form>}
       </>}
-      <p className="form-note">注册、凭据保存或分配均不代表真实登录、身份核验、运行时就绪或允许发布。</p>
+      <p className="form-note">账号登记、凭据保存或分配均不代表真实登录、身份核验、运行时就绪或允许发布。</p>
     </section>
   </div>;
 }
