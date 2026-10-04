@@ -3,7 +3,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { isAbsolute } from "node:path";
 import { chromium, type APIResponse, type BrowserContext, type Locator, type Page } from "playwright";
-import type { ProjectCycleConfigurationReadResponse } from "@socialgrowth/product-contracts";
+import { projectCycleConfigurationCommandReadResponseSchema, saveProjectCycleConfigurationReceiptSchema } from "@socialgrowth/product-contracts";
+import type { ProjectCycleConfigurationReadResponse, SaveProjectCycleConfigurationReceipt } from "@socialgrowth/product-contracts";
 // Reproducible REAL UI draft scope. Never run to bypass a policy refusal;
 // admin admission must first be restored. Synthetic text here proves only
 // unapproved draft UI persistence, never actual approved business direction.
@@ -20,6 +21,7 @@ let cycleFlowPassed = false;
 let actualModelAttempts = 0;
 let appliedConfigurationReadVerified = false;
 let carryForwardReadVerified = false;
+let originalReceiptRecheckedAfterProgression = false;
 let carryProjectName = "";
 let carryBaselineCycle: CycleReadEvidence | null = null;
 let latestCycleRead: CycleReadEvidence | null = null;
@@ -32,11 +34,19 @@ let cycleRouteFetchErrorType: string | null = null;
 let cycleRouteBodyMismatch = false;
 let cycleRouteBodyInvalid = false;
 let firstPostStatus = 0;
+let originalCommandKey: string | null = null;
+let originalCommandRequestId: string | null = null;
+let originalPostReceiptFingerprint: string | null = null;
+let replayPostReceiptFingerprint: string | null = null;
 let cycle: Locator | null = null;
 const pageErrors: string[] = [];
 const safeCycleFacts: { sequence: number; bodySha256: string; idempotencyKeySha256: string | null; status: number;
   outcome: string | null; replayed: boolean | null; responseLost: boolean }[] = [];
 type CycleReadEvidence = ProjectCycleConfigurationReadResponse;
+function receiptFingerprint(receipt: SaveProjectCycleConfigurationReceipt): string {
+  const { replayed: _replayed, ...immutableReceipt } = receipt;
+  return JSON.stringify(immutableReceipt);
+}
 async function readCycleFromVisiblePage(target: Page, region: Locator): Promise<CycleReadEvidence> {
   const responsePromise = target.waitForResponse(response => new URL(response.url()).pathname.endsWith("/review-cycle-config")
     && response.request().method() === "GET", { timeout: 20_000 });
@@ -300,14 +310,17 @@ try {
       return;
     }
     else firstBody = body;
-    let request: { metadata?: { idempotencyKey?: unknown } };
-    try { request = JSON.parse(body) as { metadata?: { idempotencyKey?: unknown } }; }
+    let request: { metadata?: { requestId?: unknown; idempotencyKey?: unknown } };
+    try { request = JSON.parse(body) as { metadata?: { requestId?: unknown; idempotencyKey?: unknown } }; }
     catch {
       cycleRouteBodyInvalid = true;
       await route.abort("failed");
       return;
     }
     const key = typeof request.metadata?.idempotencyKey === "string" ? request.metadata.idempotencyKey : "";
+    const requestId = typeof request.metadata?.requestId === "string" ? request.metadata.requestId : "";
+    if (!originalCommandKey) originalCommandKey = key;
+    if (!originalCommandRequestId) originalCommandRequestId = requestId;
     cycleRouteFetchStarted = true;
     let response: APIResponse;
     try {
@@ -321,9 +334,14 @@ try {
     const responseBody = await response.text();
     let outcome: string | null = null, replayed: boolean | null = null;
     try {
-      const receipt = JSON.parse(responseBody) as { outcome?: unknown; replayed?: unknown };
-      if (typeof receipt.outcome === "string") outcome = receipt.outcome;
-      if (typeof receipt.replayed === "boolean") replayed = receipt.replayed;
+      const parsedReceipt = saveProjectCycleConfigurationReceiptSchema.safeParse(JSON.parse(responseBody));
+      if (parsedReceipt.success) {
+        outcome = parsedReceipt.data.outcome;
+        replayed = parsedReceipt.data.replayed;
+        const fingerprint = receiptFingerprint(parsedReceipt.data);
+        if (!lostResponse) originalPostReceiptFingerprint = fingerprint;
+        else replayPostReceiptFingerprint = fingerprint;
+      }
     } catch { /* The page will report and retain any malformed response as unknown. */ }
     if (!lostResponse) {
       firstPostStatus = response.status();
@@ -410,6 +428,9 @@ try {
   assert.equal(safeCycleFacts[0]?.idempotencyKeySha256, safeCycleFacts[1]?.idempotencyKeySha256);
   assert.equal(safeCycleFacts[0]?.outcome, "confirmed"); assert.equal(safeCycleFacts[0]?.replayed, false);
   assert.equal(safeCycleFacts[1]?.outcome, "confirmed"); assert.equal(safeCycleFacts[1]?.replayed, true);
+  assert.ok(originalPostReceiptFingerprint && replayPostReceiptFingerprint);
+  assert.equal(replayPostReceiptFingerprint, originalPostReceiptFingerprint,
+    "same-key replay returns the original immutable receipt facts");
   assert.equal(cycleRouteBodyMismatch, false, "explicit replay must preserve the original request body");
   assert.equal(cycleRouteBodyInvalid, false, "the UI mutation must send a valid request body");
   await cycle.getByText(/Asia\/Tokyo · 14 天/).waitFor();
@@ -517,12 +538,33 @@ try {
   await carryCycleVisible.getByText(/后续窗口沿用当前周期配置/).waitFor();
   carryForwardReadVerified = true;
 
+  // A read-only, actor-scoped command lookup supplements the two visible
+  // successor assertions. It confirms the old receipt remains immutable and
+  // distinct from the newer GET projection; it performs no write or replay.
+  assert.ok(originalCommandKey && originalCommandRequestId && originalPostReceiptFingerprint);
+  const commandLookupUrl = new URL(`/api/operator/projects/${baselineCycle.projectId}/review-cycle-config/commands/${encodeURIComponent(originalCommandKey)}`, page.url());
+  const commandLookupResponse = await page.context().request.get(commandLookupUrl.toString(), { headers: { "cache-control": "no-store" } });
+  assert.equal(commandLookupResponse.status(), 200, "read-only command lookup must return the original actor-scoped receipt");
+  const commandLookup = projectCycleConfigurationCommandReadResponseSchema.safeParse(await commandLookupResponse.json());
+  assert.equal(commandLookup.success, true, "command lookup response must match the strict receipt contract");
+  if (!commandLookup.success) throw new Error("Command lookup response did not match the strict contract");
+  assert.equal(commandLookup.data.status, "found");
+  assert.equal(commandLookup.data.projectId, baselineCycle.projectId);
+  assert.equal(commandLookup.data.requestId, originalCommandRequestId);
+  assert.ok(commandLookup.data.receipt);
+  assert.equal(commandLookup.data.receipt.replayed, false, "command lookup returns the stored original receipt");
+  assert.equal(receiptFingerprint(commandLookup.data.receipt), originalPostReceiptFingerprint,
+    "post-progression command lookup must match the original POST receipt facts");
+  assert.equal(receiptFingerprint(commandLookup.data.receipt), replayPostReceiptFingerprint,
+    "materialized GET projection must not replace or rewrite the original command receipt");
+  originalReceiptRecheckedAfterProgression = true;
+
   await writeFile(`${output}/cycle-config-safe-facts.json`, JSON.stringify({ firstPostStatus, lostResponse, commandReadsByDifferentOperator: commandReads,
     sameOriginalBodyAndKeyReplay: safeCycleFacts.length === 2 && safeCycleFacts[0]?.bodySha256 === safeCycleFacts[1]?.bodySha256
       && safeCycleFacts[0]?.idempotencyKeySha256 === safeCycleFacts[1]?.idempotencyKeySha256,
     postFacts: safeCycleFacts, staleVersionRejectedInUi: true,
     originalReplayObservedBeforeProgression: safeCycleFacts[1]?.outcome === "confirmed" && safeCycleFacts[1]?.replayed === true,
-    originalReceiptRecheckedAfterProgression: false,
+    originalReceiptRecheckedAfterProgression,
     A: { projectName: name, previousCycle: { cycleId: baselineCycle.currentCycle.cycleId,
       startsAt: baselineCycle.currentCycle.startsAt, endsAt: baselineCycle.currentCycle.endsAt },
       configuredNext: { businessTimeZone: appliedCycle.nextConfiguration.businessTimeZone,
@@ -570,6 +612,7 @@ try {
       actualModelAttempts, cycleConfigAcceptanceExecuted: true, differentOperatorCommandReads: commandReadsByDifferentOperator,
       exactOriginalBodyAndKeyReplay: safeCycleFacts.length === 2 && safeCycleFacts[0]?.bodySha256 === safeCycleFacts[1]?.bodySha256
         && safeCycleFacts[0]?.idempotencyKeySha256 === safeCycleFacts[1]?.idempotencyKeySha256,
+      originalReceiptRecheckedAfterProgression,
       backendPageErrors: pageErrors, appliedConfigurationReadVerified, carryForwardReadVerified,
       successorWindowsObserved: true, nextCycleAfterCurrent: null,
       execution: "not performed", publication: "not performed" }));
