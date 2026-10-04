@@ -254,7 +254,7 @@ try {
     const accountCheck = page.getByRole("checkbox", { name: new RegExp(ytLogin.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) });
     const deviceSelect = page.locator('.media-accounts-workspace select[name="deviceId"]');
     await deviceSelect.waitFor();
-    await deviceSelect.locator("option").nth(projectFacts.eligibleDevices.length).waitFor();
+    await deviceSelect.locator("option").nth(projectFacts.eligibleDevices.length).waitFor({ state: "attached" });
     assert.equal(await deviceSelect.locator("option").count(), projectFacts.eligibleDevices.length + 1);
     const deviceId = await deviceSelect.locator("option").nth(1).getAttribute("value");
     assert.ok(deviceId);
@@ -283,7 +283,7 @@ try {
     assert.ok(competitorProjectFacts.eligibleDevices.some(device => device.deviceId.toLowerCase() === deviceId.toLowerCase()));
     const competitorDeviceSelect = competitor.locator('.media-accounts-workspace select[name="deviceId"]');
     await competitorDeviceSelect.waitFor();
-    await competitorDeviceSelect.locator("option").nth(competitorProjectFacts.eligibleDevices.length).waitFor();
+    await competitorDeviceSelect.locator("option").nth(competitorProjectFacts.eligibleDevices.length).waitFor({ state: "attached" });
     assert.equal(await competitorDeviceSelect.locator("option").count(), competitorProjectFacts.eligibleDevices.length + 1);
     await competitorDeviceSelect.selectOption(deviceId);
     await competitor.getByRole("checkbox", { name: new RegExp(ytLogin.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) }).check();
