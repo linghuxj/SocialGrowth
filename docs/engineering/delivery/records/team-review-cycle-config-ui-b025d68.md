@@ -38,3 +38,19 @@ runner 仅在明确提供绝对 Artemis root 且 planning/direction scope 时开
 CYCLE-UI-EXPIRED-01 仍有未修部分：持久 pending 的记录与 lookup/retry 按钮仍被包在 view 成功渲染分支中。重载时当前周期 GET 失败，哪怕 command lookup 可用且原 actor 有权限，页面仍没有恢复入口。请将 pending 恢复区移到当前事实成功分支之外，保留新写要求有效活动周期的限制。
 
 另新增脚本局部类型错误：`route.fetch()` 返回 Playwright `APIResponse`，此次标注成了 `Response`。Web check 不包含该 .mts 脚本，不能覆盖此错误。请使用准确类型/推断并检查该脚本；本 reviewer 未运行编译或浏览器，也不需要用真实模型暴露静态错误。作者应修正后给新的精确 head，此候选尚未批准。
+
+## 最终完整 Web 候选 40b3dfb — approved
+
+- Reviewer: `/root/adversary`
+- Base: `603ace4a9fd03007f23424366c839885f144ae80`
+- Head: `40b3dfb6591688dfbd58b19c694440ee767c38ea`
+- Verdict: **approved**，完整七文件 Web/验证器/runner 增量。
+- Findings: 无未关闭问题。CYCLE-UI-EXPIRED-01、CYCLE-UI-STALE-02、CYCLE-UI-LOG-03、CYCLE-UI-VERIFIER-TYPE-04 均关闭；旧 head 的 changes_requested 记录保留。
+
+独立确认完整七文件中五个与上轮复核完全一致，两处最终修改已逐行检查：pending 冻结记录及 lookup/显式 retry 控件移到 view 成功分支之外；原命令 send 不要求当前活动周期，但仍要求同 operator、有效持久原 body/key、当前会话、没有冲突/存储故障以及非只读写入口。新配置仍要求 view/currentCycle 和明确确认。周期已结束时合法旧配置可显示，cycle GET 失败不再遮住原命令恢复入口。另一处改为准确的 Playwright APIResponse 类型，没有改变真实 route.fetch/有限失败逻辑。
+
+本完整候选继续包含前述 operator 非秘密上下文、reload 原请求恢复/不同 actor 禁止接续、会话变化检查、固定项目作用域和两项 false 许可。确定 stale 结果不会被刷新清掉；原请求比较仅产生布尔/固定错误，不把原正文或键拼入断言。模型环境仅由显式绝对 root 开启；无 root 时明确 draft-only，不把它写成 cycle acceptance。
+
+Reviewer 完整 diff-check 通过，未运行测试/编译/浏览器/模型/设备。作者报告本 head Web typecheck、独立 verifier strict TypeScript check、diff-check 通过；先前 API11/11/build/lint 是其原版本补充，不能当作新完整候选 UI 验收。实际首轮 dirty82d50 来源仍为模型/方向完成后配置步骤超时；b025 后续尝试在模型前按审查中止，没有第二次模型成功结果。本精确 head 的真实页面与一次模型流程仍未执行，获本源码批准后由主会话授权窗口继续。
+
+SEC-CYCLE-CONFIG 的 backend 与 UX 精确源码审查均已有记录，审查任务可完成；功能开发/实际验收任务不随之完成。后续根组合必须重新按完整 base→head 独立复核，此 Web 增量批准不覆盖未来整合结果、下一周期真正生效或真实设备执行。
