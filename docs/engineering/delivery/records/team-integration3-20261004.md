@@ -13,6 +13,7 @@
 | 停止自有进程 | 固定修复候选 `dba7b344de5d55d304b50ed650abb5c9aefd34e4` 两个真实进程回归通过，并获独立批准 | 原停止循环遇已消失进程组ESRCH，未继续停止配套Web；核对自有PID/pgrp/cwd后临时精确清理。新helper继续处理所有已知自有子进程，不处理外来服务；当前运行launcher早于最后细化，下一次受控重启使用新helper |
 | 产品单元与类型 | 主窗固定 `3e03cef493126db5eef698119262744caeb6f482` 完整回归通过：contracts TS80/Python39、backend395、executor61、Web86；四包类型检查通过 | 工程检查，不证明实际平台来源、原生/浏览器业务或整体验收；[有限结果](../../../../artifacts/acceptance/team-lead-20261004/integration3/engineering-checks-3e03cef.json) |
 | 完整迁移恢复补验 | `5d98831962d53f78a280d343b2911934e74673ed` 已获[精确源码批准](team-review-ops-full-schema-5d98831.md)，已集成 | 作者实际隔离PG/MinIO 1/1覆盖当时全部33迁移，新增9表schema/空行对照；[固定报告](team-ops-full-schema-20261004.md)。未来0034–36需最终组合再跑，不外推业务数据、真实fence或生产灾备 |
+| 批准配置首周期窗口 | `6cdebccea36adca8e04f975a61f3ea3ef01ec05a` 已获[精确源码批准](team-review-cycle-f74b614.md)，完整合入 `7ea5ea5` | 作者隔离PG方向套件21/21、backend单元400/400、周期单元5/5；主窗 `e3f485f` 四包类型检查通过。只覆盖首窗口持久接线，真实Web批准触发与持续下周期仍待验 |
 
 有限安全结果：[反馈](../../../../artifacts/acceptance/team-lead-20261004/integration3/feedback-2c7910e.json)、[服务恢复](../../../../artifacts/acceptance/team-lead-20261004/integration3/runtime-restart-f7dce19.json)、[模型排期](../../../../artifacts/acceptance/team-lead-20261004/integration3/model-plan-80e871a.json)。测试输入为隔离工程输入；真实浏览器操作和真实模型响应不等于真实平台业务验收。清理前只读SQL是补充证据，未用于预置业务成功。
 
@@ -25,6 +26,10 @@ Plan数据库锁等待回归曾失败，按顺序集成 `6ee0939`、`0305994`、
 ## 仍在推进与未验证
 
 团队正在各自独立工作树实现项目暂停/恢复/结束、素材内部撤回、任务单一逻辑尝试和批准配置的周期窗口持久化。契约已经按相同revision由参与方签收；尚未完成的源码不能算作已集成或已验收。逻辑尝试只记录pending，不会打开物理执行许可；内部撤回不执行公开平台撤下。
+
+恢复工作时，本地Docker、Web/backend及管理模拟器进程均已停止，adb没有USB设备。主窗启动原OrbStack、原自有持久PG实例、原管理AVD和服务，健康/Web200；没有替换数据库或重置数据。为先完成原生未决请求恢复，私有启动副本暂仅核验已应用0001–0033迁移，新增完整组合尚未应用到该实例；队列消费者保持关闭。管理端原未决备注的原key和expectedFactVersion5仍在，实际退出登录后原持久请求逐值未变，服务端只读核对撤销一条会话。随后实际开发验证码页面重登录完成，跨登录接续仍在验证。USB本轮不可见不覆盖此前真机证据。
+
+完整后端候选 `07225e7ddb8dbdd7f95bd477330a1bffae945f94` 尚未集成：独立复核要求修复 `LIFECYCLE-ZERO-VERSION-01`，即合法新项目版本0的素材撤回被错误拒绝。旧current-checks批准不覆盖此候选；修正、相应回归及精确新head复核正在进行。局部失败在本记录保留，沿用已有阻断索引。
 
 原Plan未知恢复补验未能到达UI恢复阶段：测试默认route.fetch30秒先超时，只读补充所见command/revision/task/outbox0，不推断所有故障的最终回滚。首修dcaf仅按describe45秒设置60秒仍漏coordinator30秒，被独立复核要求修改；完整测试路径修订 `ae629796955cf56f83550ae3fe0d028e55805e7d` 已获[批准](team-review-web-delay-dcaf244.md)，root已集成。fetch120秒、观察真实response190秒包括人工延迟60秒，真实UI未知45秒阈值保持原值。方向Playwright原stdout/stderr不再落盘，采用固定摘要。修正后新的真实恢复已按上表通过，旧失败不覆盖；作者PG direction17/17及Plan7/7是补充，清理两个自有容器/服务/临时凭据完成。
 
