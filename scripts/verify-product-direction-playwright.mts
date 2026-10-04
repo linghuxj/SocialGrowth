@@ -32,7 +32,11 @@ if (planResponseDelayMs > 0) await page.route("**/api/operator/projects/*/busine
     if (typeof metadata?.idempotencyKey === "string") idempotencyKeySha256 = sha256(metadata.idempotencyKey);
   } catch { /* Only digests and fixed result codes are persisted. */ }
   const started = performance.now();
-  const actualResponse = await route.fetch();
+  // The bounded backend path includes both describe (45s) and coordination
+  // (30s), plus its final transaction. Let that actual request settle before
+  // delaying its genuine response below; the UI's 45s unknown deadline stays
+  // unchanged and is the behavior under test.
+  const actualResponse = await route.fetch({ timeout: 120_000 });
   planPostResponses++;
   let errorCode: string | null = null, retryable: boolean | null = null;
   if (!actualResponse.ok()) {
@@ -164,7 +168,7 @@ try {
     await planTasks.getByRole("heading", { name: "排期与任务", exact: true, level: 2 }).waitFor();
     await planTasks.getByText("执行许可：关闭", { exact: true }).waitFor(); await planTasks.getByText("发布许可：关闭", { exact: true }).waitFor();
     const actualPlanResponse = planResponseDelayMs > 0 ? page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/business-plan")
-      && response.request().method() === "POST", { timeout: 120_000 }) : null;
+      && response.request().method() === "POST", { timeout: 190_000 }) : null;
     await planTasks.getByRole("button", { name: "根据当前范围安排", exact: true }).click();
     if (planResponseDelayMs > 0) {
       await planTasks.getByRole("alert").filter({ hasText: "安排请求超过等待时限，结果未知" }).waitFor({ timeout: 75_000 });
