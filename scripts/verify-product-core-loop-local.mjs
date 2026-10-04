@@ -21,7 +21,7 @@ const consent = process.env.SG_PRODUCT_CORE_BROWSER_ADMITTED;
 const sqlOnly = process.env.SG_PRODUCT_CORE_SQL_ONLY === "1";
 if (!sqlOnly && consent !== "1") throw new Error("First confirm actual browser policy admission; this runner cannot bypass a browser refusal");
 const scopes = (process.env.SG_PRODUCT_CORE_SCOPES ?? "materials,planning").split(",");
-assert.ok(scopes.length > 0 && scopes.every(scope => ["identity", "materials", "planning", "direction", "real-material-bytes", "operator-todos", "project-feedback", "business-plan-postgres"].includes(scope)) && new Set(scopes).size === scopes.length);
+assert.ok(scopes.length > 0 && scopes.every(scope => ["identity", "materials", "planning", "direction", "real-material-bytes", "operator-todos", "project-feedback", "project-lifecycle", "business-plan-postgres"].includes(scope)) && new Set(scopes).size === scopes.length);
 const webMode = process.env.SG_PRODUCT_CORE_WEB_MODE ?? "development";
 assert.ok(["development", "preview"].includes(webMode), "web mode must be development or preview");
 const postgresOnlyScope = scopes.length === 1 && scopes[0] === "business-plan-postgres";
@@ -62,11 +62,11 @@ async function run(name, command, args, environment, stdin) {
   let log = ""; child.stdout.on("data", value => { log += redact(value); }); child.stderr.on("data", value => { log += redact(value); });
   child.stdin.end(stdin); const [code] = await once(child, "exit");
   // Playwright's raw transport errors may include cookies, CSRF headers or
-  // request bodies. The direction script writes a separately scoped safe
-  // failure summary and finite result facts, so never persist its raw output.
-  const safeLog = name === "direction-playwright"
-    ? code === 0 ? "Direction Playwright process completed; inspect scoped safe result facts.\n"
-      : "Direction Playwright process failed; raw browser transport output discarded. Inspect scoped safe failure facts.\n"
+  // request bodies. Browser verifiers write scoped safe result facts, so never
+  // persist raw child output from any Playwright scope.
+  const safeLog = /playwright$/.test(name)
+    ? code === 0 ? `${name} completed; inspect scoped safe result facts.\n`
+      : `${name} failed; raw browser transport output discarded. Inspect scoped safe failure facts.\n`
     : log;
   await writeFile(join(output, `${name}.log`), safeLog);
   console.log(JSON.stringify({ step: name, exitCode: code }));
@@ -165,9 +165,10 @@ try {
   if (scopes.includes("planning")) await run("planning-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "planning", SG_PRODUCT_PLANNING_SCREENSHOT_DIR: join(output, "planning") });
   if (scopes.includes("operator-todos")) await run("operator-todos-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "operator-todos", SG_PRODUCT_OPERATOR_TODOS_OUTPUT: join(output, "operator-todos") });
   if (scopes.includes("project-feedback")) await run("project-feedback-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "project-feedback", SG_PRODUCT_PROJECT_FEEDBACK_OUTPUT: join(output, "project-feedback") });
+  if (scopes.includes("project-lifecycle")) await run("project-lifecycle-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "project-lifecycle", SG_PRODUCT_PROJECT_LIFECYCLE_OUTPUT: join(output, "project-lifecycle"), SG_PRODUCT_MATERIAL_TEST_FILE: fixture, SG_PRODUCT_MATERIAL_TEST_DECLARATION: JSON.stringify(declaration) });
   if (scopes.includes("direction")) await run("direction-playwright", "pnpm", ["test:playwright"], { ...environment, SG_WEB_TARGET: "product", SG_PRODUCT_WEB_SCOPE: "direction", SG_PRODUCT_DIRECTION_SCREENSHOT_DIR: join(output, "direction"),
     SG_PRODUCT_DIRECTION_MATERIAL_CANDIDATE: process.env.SG_PRODUCT_DIRECTION_MATERIAL_CANDIDATE ?? "0", SG_PRODUCT_DIRECTION_PLAN_RESPONSE_DELAY_MS: process.env.SG_PRODUCT_DIRECTION_PLAN_RESPONSE_DELAY_MS ?? "0",
-    SG_PRODUCT_DIRECTION_NARROW_PLAN_FLOW: process.env.SG_PRODUCT_DIRECTION_NARROW_PLAN_FLOW ?? "0",
+    SG_PRODUCT_DIRECTION_NARROW_PLAN_FLOW: process.env.SG_PRODUCT_DIRECTION_NARROW_PLAN_FLOW ?? "0", SG_PRODUCT_DIRECTION_CYCLE_CONFIRMATION_ONLY: process.env.SG_PRODUCT_DIRECTION_CYCLE_CONFIRMATION_ONLY ?? "0",
     SG_PRODUCT_MATERIAL_TEST_FILE: fixture, SG_PRODUCT_MATERIAL_SCREENSHOT_DIR: join(output, "materials"), SG_PRODUCT_MATERIAL_TEST_DECLARATION: JSON.stringify(declaration) });
   const facts = (await pool.query(`SELECT (SELECT count(*)::int FROM socialgrowth_product.projects) projects,
     (SELECT count(*)::int FROM socialgrowth_product.material_variant_revisions) material_revisions,
@@ -176,6 +177,25 @@ try {
     (SELECT count(*)::int FROM socialgrowth_product.project_direction_approvals) direction_approvals,
     (SELECT count(*)::int FROM socialgrowth_product.material_upload_tickets WHERE status='verified_bytes') verified_byte_tickets`)).rows[0];
   await writeFile(join(output, "readonly-facts.json"), JSON.stringify(facts, null, 2));
+  if (scopes.includes("direction")) {
+    const cycle = (await pool.query(`SELECT count(*)::int AS cycle_rows,
+      count(*) FILTER (WHERE c.config_version=p.fact_version AND c.project_version=p.fact_version AND a.approval_id=c.approval_id)::int AS current_approval_bindings,
+      count(*) FILTER (WHERE c.business_time_zone=c.approved_inputs->>'businessTimeZone'
+        AND c.starts_at=c.approved_inputs->>'firstCycleStartsAt'
+        AND c.traffic_minimum=(c.approved_inputs->>'trafficMinimumPerCycle')::int
+        AND c.icu_version<>'' AND c.tzdata_version<>'' AND c.starts_at<c.ends_at)::int AS approved_input_matches,
+      max(c.business_time_zone) AS business_time_zone, max(c.starts_at) AS starts_at, max(c.ends_at) AS ends_at,
+      max(c.traffic_minimum)::int AS traffic_minimum, max(c.icu_version) AS icu_version, max(c.tzdata_version) AS tzdata_version
+      FROM socialgrowth_product.project_review_cycles c
+      JOIN socialgrowth_product.projects p ON p.project_id=c.project_id
+      JOIN socialgrowth_product.project_direction_approvals a ON a.project_id=c.project_id AND a.approval_id=c.approval_id`)).rows[0];
+    await writeFile(join(output, "cycle-readonly-facts.json"), JSON.stringify(cycle, null, 2), { mode: 0o600 });
+    if (process.env.SG_PRODUCT_DIRECTION_CYCLE_CONFIRMATION_ONLY === "1") {
+      assert.equal(cycle.cycle_rows, 1, "the actual UI-confirmed approval should append exactly one cycle");
+      assert.equal(cycle.current_approval_bindings, 1, "cycle must bind the current approved direction and project version");
+      assert.equal(cycle.approved_input_matches, 1, "cycle calendar and minimum must match approved planning inputs with runtime versions");
+    }
+  }
   console.log(JSON.stringify({ passed: true, scope: realMaterialFiles ? "actual authorized original bytes; no declaration/eligibility" : "author real UI checks; synthetic business inputs", scopes, facts, output }));
   } else console.log(JSON.stringify({ passed: true, scope: "isolated PostgreSQL supplemental only; no browser, real model or phone" }));
 } finally {

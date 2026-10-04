@@ -15,7 +15,10 @@ const safeScopeFacts: Array<Record<string, unknown>> = [];
 const scopeFactReads: Promise<void>[] = [];
 const planResponseDelayMs = Number(process.env.SG_PRODUCT_DIRECTION_PLAN_RESPONSE_DELAY_MS ?? "0");
 const narrowPlanFlow = process.env.SG_PRODUCT_DIRECTION_NARROW_PLAN_FLOW === "1";
-if (narrowPlanFlow) assert.equal(process.env.SG_PRODUCT_DIRECTION_MATERIAL_CANDIDATE, "1", "narrow plan flow requires the real material UI slice");
+const cycleConfirmationOnly = process.env.SG_PRODUCT_DIRECTION_CYCLE_CONFIRMATION_ONLY === "1";
+if (narrowPlanFlow) assert.equal(process.env.SG_PRODUCT_DIRECTION_MATERIAL_CANDIDATE, cycleConfirmationOnly ? "0" : "1",
+  cycleConfirmationOnly ? "cycle confirmation scope must omit unrelated material/plan model work" : "narrow plan flow requires the real material UI slice");
+if (cycleConfirmationOnly) assert.equal(narrowPlanFlow, true, "cycle-only confirmation must use the single-proposal narrow UI flow");
 assert.ok(Number.isInteger(planResponseDelayMs) && planResponseDelayMs >= 0 && planResponseDelayMs <= 60_000, "plan response delay must be 0..60000ms");
 let originalPlanRequestBody: string | null = null, planPostResponses = 0;
 const planPostFacts: Array<{ sequence: number; bodySha256: string; idempotencyKeySha256: string | null; status: number; errorCode: string | null; retryable: boolean | null; backendElapsedMs: number }> = [];
@@ -240,7 +243,11 @@ try {
   await direction(page).screenshot({ path: `${output}/direction-approved-mobile.png` }); assert.deepEqual(errors, []);
   await Promise.all(scopeFactReads);
   await writeFile(`${output}/safe-scope-facts.json`, JSON.stringify(safeScopeFacts, null, 2), { mode: 0o600 });
-  await writeFile(`${output}/result.json`, JSON.stringify({ passed: true, actualModel: true, scope: narrowPlanFlow ? "synthetic UI inputs with one configured real model proposal; immediate human confirmation, lost response original replay, reload, mobile readonly" : "synthetic UI inputs with configured real model; stale direction rejection, immutable confirmation, lost response original replay, reload, mobile readonly", execution: "blocked", publication: "not performed" }, null, 2));
+  await writeFile(`${output}/result.json`, JSON.stringify({ passed: true, actualModel: true, scope: cycleConfirmationOnly
+    ? "synthetic UI inputs with one configured real model proposal; immediate human confirmation, exact lost-response replay, current cycle verified separately from readonly DB facts"
+    : narrowPlanFlow ? "synthetic UI inputs with one configured real model proposal; immediate human confirmation, lost response original replay, reload, mobile readonly"
+      : "synthetic UI inputs with configured real model; stale direction rejection, immutable confirmation, lost response original replay, reload, mobile readonly",
+    cycleConfirmationOnly, execution: "blocked", publication: "not performed" }, null, 2));
   console.log(JSON.stringify({ passed: true, actualModel: true, actualPhone: false, actualPublication: false }));
 } catch (error) {
   await Promise.allSettled(scopeFactReads);
