@@ -27,7 +27,7 @@
 
 | 未知回执文案修复后的真实浏览器 | run6冻结 `a0fd8d71cf9f20063d9ec6e56f145089d60e9aaa`，仍未通过完整场景 | [固定失败摘要](../../../../artifacts/acceptance/team-lead-20261004/integration3/lifecycle-run6-failure.json)首次End真实201/changed=true/replayed=false已经留有限证据，随后故意丢弃客户端响应。verifier仍匹配旧unknown文案，未到达原键接续，模型未启动；显示v2及按钮禁用不能推断UI已显示结束意图。执行前Webcheck/单脚本tsc通过，实际runner所需build/PG阶段通过；修脚本残留前不再启动批次。自有资源已清理 |
 
-| 生命周期与首周期完整真实浏览器 | run7冻结 `73fcd5ffb1836eb3773f39ea6a82d5a19185f607`，同一隔离fixture整批退出0 | [有限成功记录](../../../../artifacts/acceptance/team-lead-20261004/integration3/lifecycle-cycle-run7-73fcd5f.json)：Lifecycle两UI项目/素材v0撤回/延迟暂停跨项目隔离/resume；End首201真实提交后丢回执，页面unknown保留原命令，hold真实GET投递并页面点击同body/key接续201/replayed=true，两组哈希一致。随后模型一次16015ms提案、真实页面批准及方向未知请求复核通过；首cycle1行、当前approval绑定1、输入/TZ/ICU/tzdata一致。补充Task/outbox/revision均0，不证明非空安排；共享journal4行default unknown不等于四次Plan请求未知。自有服务/两容器/凭据已清理；完整Web候选尚待精确复核/集成 |
+| 生命周期与首周期完整真实浏览器 | run7冻结 `73fcd5ffb1836eb3773f39ea6a82d5a19185f607`，同一隔离fixture整批退出0 | [有限成功记录](../../../../artifacts/acceptance/team-lead-20261004/integration3/lifecycle-cycle-run7-73fcd5f.json)：Lifecycle两UI项目/素材v0撤回/延迟暂停跨项目隔离/resume；End首201真实提交后丢回执，页面unknown保留原命令，hold真实GET投递并页面点击同body/key接续201/replayed=true，两组哈希一致。随后模型一次16015ms提案、真实页面批准及方向未知请求复核通过；首cycle1行、当前approval绑定1、输入/TZ/ICU/tzdata一致。补充Task/outbox/revision均0，不证明非空安排；共享journal4行default unknown不等于四次Plan请求未知。自有服务/两容器/凭据已清理；完整Web候选后续以 `1c84441d764424e6530ef5d8859dada12845a7dc` 获[134文件组合批准](team-review-web-lifecycle-73fcd5f.md)并整体集成；末次仅补测试无界等待，不重跑业务，异常注入路径未实测 |
 
 有限安全结果：[反馈](../../../../artifacts/acceptance/team-lead-20261004/integration3/feedback-2c7910e.json)、[服务恢复](../../../../artifacts/acceptance/team-lead-20261004/integration3/runtime-restart-f7dce19.json)、[模型排期](../../../../artifacts/acceptance/team-lead-20261004/integration3/model-plan-80e871a.json)。测试输入为隔离工程输入；真实浏览器操作和真实模型响应不等于真实平台业务验收。清理前只读SQL是补充证据，未用于预置业务成功。
 
@@ -41,7 +41,7 @@ Plan数据库锁等待回归曾失败，按顺序集成 `6ee0939`、`0305994`、
 
 ## 仍在推进与未验证
 
-团队正在各自独立工作树实现项目暂停/恢复/结束、素材内部撤回、任务单一逻辑尝试和批准配置的周期窗口持久化。契约已经按相同revision由参与方签收；尚未完成的源码不能算作已集成或已验收。逻辑尝试只记录pending，不会打开物理执行许可；内部撤回不执行公开平台撤下。
+本批已经整体集成获审的项目暂停/恢复/结束意图、素材内部撤回、任务单一逻辑尝试和批准配置首周期窗口。契约已经按相同revision由参与方签收；实际生命周期和首窗口页面结果见上表。逻辑尝试只记录pending，不会打开物理执行许可；内部撤回不执行公开平台撤下。持续下周期配置生效与真实review loop仍未完成开发，不能以首周期writer关闭这些工作。
 
 恢复工作时，本地Docker、Web/backend及管理模拟器进程均已停止，adb没有USB设备。主窗启动原OrbStack、原自有持久PG实例、原管理AVD和服务，健康/Web200；没有替换数据库或重置数据。为先完成原生未决请求恢复，私有启动副本暂仅核验已应用0001–0033迁移，新增完整组合尚未应用到该实例；队列消费者保持关闭。管理端原未决备注的原key和expectedFactVersion5仍在，实际退出登录后原持久请求逐值未变，服务端只读核对撤销一条会话。随后实际开发验证码页面重登录完成，跨登录接续仍在验证。USB本轮不可见不覆盖此前真机证据。
 
@@ -53,6 +53,16 @@ Plan数据库锁等待回归曾失败，按顺序集成 `6ee0939`、`0305994`、
 
 原Plan未知恢复补验未能到达UI恢复阶段：测试默认route.fetch30秒先超时，只读补充所见command/revision/task/outbox0，不推断所有故障的最终回滚。首修dcaf仅按describe45秒设置60秒仍漏coordinator30秒，被独立复核要求修改；完整测试路径修订 `ae629796955cf56f83550ae3fe0d028e55805e7d` 已获[批准](team-review-web-delay-dcaf244.md)，root已集成。fetch120秒、观察真实response190秒包括人工延迟60秒，真实UI未知45秒阈值保持原值。方向Playwright原stdout/stderr不再落盘，采用固定摘要。修正后新的真实恢复已按上表通过，旧失败不覆盖；作者PG direction17/17及Plan7/7是补充，清理两个自有容器/服务/临时凭据完成。
 
-本批后续仍需源码集成、固定候选实际Web验证、整合head独立复核以及对应新head的hosted CI。现有[草稿PR23](https://github.com/linghuxj/SocialGrowth/pull/23)和已通过的CI仍固定在 `7e8f33b57e133db53940400f40997f4d71854c7c`，不能套用到后续源码；获批后更新同一个PR，不新增批次分支或PR。
+本批源码已整体集成，生命周期/首周期实际Web已按73fcd通过；末次有界等待修订的异常注入未实测。合并后的Webcheck和生产build均通过（Vite大于500kB chunk警告保留，不作功能失败）。本批后续仍需整合head独立复核以及对应新head的hosted CI。现有[草稿PR23](https://github.com/linghuxj/SocialGrowth/pull/23)和已通过的CI仍固定在 `7e8f33b57e133db53940400f40997f4d71854c7c`，不能套用到后续源码；获批后更新同一个PR，不新增批次分支或PR。
 
 真实网络受限准入、短信、第二真机/规模、平台素材/效果/到账，以及旧固定安全门禁仍沿用[第二批去重阻断](team-integration2-20261004.md)。正式签名、生产灾备和旧客户端输入沿用WP27原资源项。已退出Samsung不恢复参与，原unknown不清零，设备队列消费者保持关闭；不公开发布或撤下。
+
+## 接手时的剩余范围（本批固定快照）
+
+通过项仅限上表列出的固定源码与实际场景。完整WP/AC映射继续沿用重新扫描，共享tasks.json仍是唯一认领台账。
+
+- 已完成本批工程：生命周期/素材撤回权威意图与页面、单逻辑attempt记录及默认关闭、首批准周期持久记录、完整36迁移隔离恢复对照；原API fixture失配、StrictMode首次读取、写unknown提示和验证器定位问题已分别修正，旧失败保留。
+- 仍未完成开发或实际接线：可信非空安排到Task/Artemis消费者、逐动作当前权限与文件/平台结果生产、物理停止与资源交接、可信实际效果/收入来源、基础分佣到账、持续周期配置/下一轮review loop。现有类型和空投影不关闭这些工作。
+- 仍需真实验收：新完整候选在USB执行真机的各原生页面/恢复范围、独立管理真机、受限网络当前修订/共存路径、真实平台对象与来源/指标/收入、20–50台规模和明确性能阈值、正式签名与生产灾备/试运行。缺口沿用既有阻断ID；不新增同义条目。
+- 当前残留与环境：Samsung保持退出参与与执行端安装身份；SESSION临时备注v6尚未恢复。USB-only，不启动模拟器；原持久DB33迁移及Demo unknown1保留，自有服务已停。隔离36迁移结果不能套用为原实例已迁移或部署完成。
+- 需补的工程验证：最新测试deadline/route失败传播分支尚未实际注入；新的整体head独立复核及hosted CI待下一门禁，不沿用PR23旧7e CI。
