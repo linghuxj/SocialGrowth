@@ -108,6 +108,37 @@ test("late confirmation and DST-crossing preview persist only unresolved command
   assert.equal((await pool.query("SELECT count(*)::int count FROM socialgrowth_product.project_review_cycle_configs WHERE project_id=$1", [active.projectId])).rows[0]!.count, 0);
 });
 
+test("missing calendar runtime metadata fails closed and unresolved receipt retains the prior config", async () => {
+  const f = await fixture("- interval '1 day'");
+  const first = await configuration.save(f.token, f.csrf, f.projectId, { metadata: metadata(), expectedConfigurationRevision: 0,
+    businessTimeZone: "Asia/Shanghai", reviewIntervalDays: 14, trafficMinimumPerCycle: 2 });
+  assert.equal(first.outcome, "confirmed");
+  assert.ok(first.nextConfiguration);
+
+  const tzDescriptor = Object.getOwnPropertyDescriptor(process.versions, "tz");
+  assert.ok(tzDescriptor?.configurable, "test runtime metadata must be safely restorable");
+  Object.defineProperty(process.versions, "tz", { configurable: true, value: undefined });
+  const secondMetadata = metadata();
+  let unresolved;
+  try {
+    unresolved = await configuration.save(f.token, f.csrf, f.projectId, { metadata: secondMetadata, expectedConfigurationRevision: 1,
+      businessTimeZone: "America/New_York", reviewIntervalDays: 21, trafficMinimumPerCycle: 4 });
+  } finally {
+    Object.defineProperty(process.versions, "tz", tzDescriptor);
+  }
+  assert.equal(unresolved!.outcome, "unresolved");
+  assert.equal(unresolved!.reason, "calendar_runtime_unavailable");
+  assert.equal(unresolved!.configurationRevision, 1);
+  assert.deepEqual(unresolved!.nextConfiguration, first.nextConfiguration);
+  const recovered = await configuration.readCommand(f.token, f.projectId, secondMetadata.idempotencyKey);
+  assert.equal(recovered.receipt?.reason, "calendar_runtime_unavailable");
+  assert.deepEqual(recovered.receipt?.nextConfiguration, first.nextConfiguration);
+  const counts = (await pool.query(`SELECT count(*)::int configs,
+    (SELECT count(*)::int FROM socialgrowth_product.project_review_cycle_config_commands WHERE project_id=$1) commands
+    FROM socialgrowth_product.project_review_cycle_configs WHERE project_id=$1`, [f.projectId])).rows[0];
+  assert.deepEqual(counts, { configs: 1, commands: 2 });
+});
+
 test("session expiry after config insert rolls config, command receipt and audit back atomically", async () => {
   const f = await fixture("- interval '1 day'");
   await pool.query("UPDATE socialgrowth_product.operator_sessions SET expires_at=clock_timestamp()+interval '1 second' WHERE session_id=$1", [f.sessionId]);

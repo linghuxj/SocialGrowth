@@ -158,13 +158,12 @@ export class ProjectCycleConfigService {
       if (!snapshot.latest) reason = "current_cycle_missing";
       else if (!snapshot.current) reason = nextCycleBoundary(snapshot.latest.ends_at, snapshot.observedAt) ? "current_cycle_stale" : "previous_window_elapsed";
       else if (snapshot.latest.cycle_id !== snapshot.current.cycle_id) reason = "current_cycle_stale";
+      else if (!process.versions.tz || !process.versions.icu) reason = "calendar_runtime_unavailable";
       else {
         const preview = resolveProjectCycleWindow(snapshot.current.ends_at, request.reviewIntervalDays, request.businessTimeZone);
         if (!preview) {
-          const tzdata = process.versions.tz, icu = process.versions.icu;
           const startYear = new Date(snapshot.current.ends_at).getUTCFullYear();
-          reason = !tzdata || !icu ? "calendar_runtime_unavailable"
-            : startYear < 2000 || startYear > 2099 ? "outside_verified_calendar_range" : "civil_boundary_ambiguous";
+          reason = startYear < 2000 || startYear > 2099 ? "outside_verified_calendar_range" : "civil_boundary_ambiguous";
         } else {
           const dbTime = (await c.query<{ confirmed_at: string }>(`SELECT ${at("clock_timestamp()")} confirmed_at`)).rows[0]?.confirmed_at;
           if (!dbTime) throw unavailable();
@@ -184,7 +183,7 @@ export class ProjectCycleConfigService {
       }
       const now = (await c.query<{ recorded_at: string }>(`SELECT ${at("clock_timestamp()")} recorded_at`)).rows[0]?.recorded_at;
       if (!now) throw unavailable();
-      if (outcome === "unchanged") config = previous ? projectCycleNextConfigurationSchema.parse({ configurationRevision: Number(previous.configuration_revision),
+      if (outcome === "unchanged" || outcome === "unresolved") config = previous ? projectCycleNextConfigurationSchema.parse({ configurationRevision: Number(previous.configuration_revision),
         basedOnCycleId: previous.based_on_cycle_id, businessTimeZone: previous.business_time_zone,
         reviewIntervalDays: previous.review_interval_days, trafficMinimumPerCycle: previous.traffic_minimum_per_cycle,
         effectiveStartsAt: previous.effective_starts_at, projectedEndsAt: previous.projected_ends_at,
