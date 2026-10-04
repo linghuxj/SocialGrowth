@@ -49,8 +49,8 @@ async function tasks(projectId: string, operatorId: string, count: number) {
   try {
     await c.query("BEGIN"); await c.query("SET CONSTRAINTS ALL DEFERRED");
     await c.query(`INSERT INTO ${s}.project_direction_proposals(proposal_id,project_id,record) VALUES($1,$2,$3)`, [proposalId, projectId, { proposalId, projectId }]);
-    await c.query(`INSERT INTO ${s}.project_direction_approvals(approval_id,project_id,proposal_id,actor_id,request_key,payload_digest,snapshot_digest,record)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, [approvalId, projectId, proposalId, operatorId, `proposal-${randomUUID()}`, randomBytes(32), "a".repeat(64),
+    await c.query(`INSERT INTO ${s}.project_direction_approvals(approval_id,project_id,proposal_id,actor_id,request_key,payload_digest,record)
+      VALUES($1,$2,$3,$4,$5,$6,$7)`, [approvalId, projectId, proposalId, operatorId, `proposal-${randomUUID()}`, randomBytes(32),
       { approvalId, projectId, proposalId, confirmedByOperatorId: operatorId, status: "approved_waiting_readiness", proposal: { proposalId, projectId } }]);
     await c.query(`INSERT INTO ${s}.business_plan_records(project_id,current_revision,plan_id) VALUES($1,1,$2)`, [projectId, planId]);
     await c.query(`INSERT INTO ${s}.business_plan_revisions(project_id,revision,plan_id,project_version,approval_id,window_start,window_end,outcome,suggestion,quota_snapshot,recorded_by_operator_id)
@@ -64,7 +64,7 @@ async function tasks(projectId: string, operatorId: string, count: number) {
       await c.query(`INSERT INTO ${s}.material_variants(variant_id,content_unit_id,project_id,language_tag,current_revision) VALUES($1,$2,$3,'en',1)`, [row.variantId, row.contentUnitId, projectId]);
       await c.query(`INSERT INTO ${s}.material_variant_revisions(variant_id,revision,declaration,object_references,recorded_by_operator_id,recorded_at)
         VALUES($1,1,$2,$3,$4,'2090-01-01T00:00:00Z')`, [row.variantId, { name: "Fixture", description: "Fixture", businessFacts: "Fixture", sourceStatement: "Fixture",
-        sourceEvidenceIds: [randomUUID()], firstUseDeclaration: "declared_not_previously_published" }, [{ objectId: row.materialObjectId, sha256: "b".repeat(64), bytes: 10, contentType: "video/mp4" }], operatorId]);
+        sourceEvidenceIds: [randomUUID()], firstUseDeclaration: "declared_not_previously_published" }, JSON.stringify([{ objectId: row.materialObjectId, sha256: "b".repeat(64), bytes: 10, contentType: "video/mp4" }]), operatorId]);
       await c.query(`INSERT INTO ${s}.business_plan_tasks(task_id,project_id,plan_id,plan_revision,content_unit_id,variant_id,material_revision,identity_id,platform,form,language_tag,scheduled_at,title,caption,recorded_by_operator_id)
         VALUES($1,$2,$3,1,$4,$5,1,$6,'facebook','facebook_video','en','2090-01-01T01:00:00Z','Fixture title','Fixture caption',$7)`,
         [row.taskId, projectId, planId, row.contentUnitId, row.variantId, row.identityId, operatorId]);
@@ -72,28 +72,46 @@ async function tasks(projectId: string, operatorId: string, count: number) {
     }
     await c.query("COMMIT");
   } catch (error) { await c.query("ROLLBACK"); throw error; } finally { c.release(); }
-  return taskRows;
+  return { rows: taskRows };
+}
+
+async function addAttempt(projectId: string, operatorId: string, task: Awaited<ReturnType<typeof tasks>>["rows"][number]) {
+  const deviceId = randomUUID();
+  await pool.query(`INSERT INTO ${s}.devices(device_id,display_name,state) VALUES($1,'Lifecycle reserved test phone','unassociated')`, [deviceId]);
+  await pool.query(`INSERT INTO ${s}.project_device_reservations(device_id,project_id) VALUES($1,$2)`, [deviceId, projectId]);
+  await pool.query(`INSERT INTO ${s}.project_account_reservations(account_id,project_id) VALUES($1,$2)`, [task.accountId, projectId]);
+  await pool.query(`INSERT INTO ${s}.project_identity_reservations(identity_id,account_id,platform,device_id,project_id,reserved_by_operator_id)
+    VALUES($1,$2,'facebook',$3,$4,$5)`, [task.identityId, task.accountId, deviceId, projectId, operatorId]);
+  const result = await pool.query(`INSERT INTO ${s}.business_plan_task_attempts(task_attempt_id,task_id,project_id,plan_id,plan_revision,project_version,approval_id,window_start,window_end,
+    task_revision,content_unit_id,variant_id,material_revision,verifier_manifest,identity_id,account_id,platform,reserved_device_id,reservation_operator_id,reservation_recorded_at,recorded_by_operator_id)
+    SELECT $1,t.task_id,t.project_id,t.plan_id,t.plan_revision,1,r.approval_id,r.window_start,r.window_end,t.task_revision,t.content_unit_id,t.variant_id,t.material_revision,
+      jsonb_build_array(jsonb_build_object('objectId',$2::uuid,'sha256',repeat('b',64),'bytes',10,'contentType','video/mp4')),t.identity_id,$3,'facebook',$4,$5,clock_timestamp(),$5
+    FROM ${s}.business_plan_tasks t JOIN ${s}.business_plan_revisions r ON r.project_id=t.project_id AND r.revision=t.plan_revision
+    WHERE t.task_id=$6`, [randomUUID(), task.materialObjectId, task.accountId, deviceId, operatorId, task.taskId]);
+  assert.equal(result.rowCount, 1);
 }
 
 test("pause is intent-only; terminal end records only confirmed unstarted cancellation and replays once", async () => {
-  const a = await actor(), projectId = await project(a.operatorId), seeded = await tasks(projectId, a.operatorId, 1);
+  const a = await actor(), projectId = await project(a.operatorId), seeded = await tasks(projectId, a.operatorId, 2);
   const pauseMetadata = metadata();
   const pause = await service.setIntent(a.sessionToken, a.csrfToken, projectId, { metadata: pauseMetadata, expectedLifecycleRevision: 0, intent: "pause" });
-  assert.equal(pause.intent, "pause_requested"); assert.equal(pause.cancelledTaskCount, 0); assert.equal(pause.impactedTaskCount, 1);
-  assert.equal((await pool.query(`SELECT state,execution_allowed,publication_allowed FROM ${s}.business_plan_outbox WHERE task_id=$1`, [seeded[0]!.taskId])).rows[0]!.state, "pending_current_checks");
+  assert.equal(pause.intent, "pause_requested"); assert.equal(pause.cancelledTaskCount, 0); assert.equal(pause.impactedTaskCount, 2);
+  await addAttempt(projectId, a.operatorId, seeded.rows[0]!);
+  assert.equal((await pool.query(`SELECT state,execution_allowed,publication_allowed FROM ${s}.business_plan_outbox WHERE task_id=$1`, [seeded.rows[0]!.taskId])).rows[0]!.state, "pending_current_checks");
   const endMetadata = metadata(), request = { metadata: endMetadata, expectedLifecycleRevision: 1, intent: "end" };
   const end = await service.setIntent(a.sessionToken, a.csrfToken, projectId, request);
-  assert.equal(end.intent, "end_requested"); assert.equal(end.cancelledTaskCount, 1); assert.equal(end.impactedTaskCount, 1);
+  assert.equal(end.intent, "end_requested"); assert.equal(end.cancelledTaskCount, 1); assert.equal(end.impactedTaskCount, 2);
   const replay = await service.setIntent(a.sessionToken, a.csrfToken, projectId, request);
   assert.deepEqual(replay, { ...end, changed: false, replayed: true });
   assert.deepEqual(await service.read(a.sessionToken, projectId), { projectId, lifecycleRevision: 2, intent: "end_requested", requestId: endMetadata.requestId, recordedAt: end.recordedAt });
-  assert.equal((await pool.query(`SELECT count(*)::int count FROM ${s}.business_plan_task_cancellations WHERE task_id=$1`, [seeded[0]!.taskId])).rows[0]!.count, 1);
-  assert.equal((await pool.query(`SELECT count(*)::int count FROM ${s}.business_plan_outbox_impacts WHERE task_id=$1`, [seeded[0]!.taskId])).rows[0]!.count, 2);
+  assert.equal((await pool.query(`SELECT count(*)::int count FROM ${s}.business_plan_task_cancellations WHERE task_id=$1`, [seeded.rows[0]!.taskId])).rows[0]!.count, 0);
+  assert.equal((await pool.query(`SELECT count(*)::int count FROM ${s}.business_plan_task_cancellations WHERE task_id=$1`, [seeded.rows[1]!.taskId])).rows[0]!.count, 1);
+  assert.equal((await pool.query(`SELECT count(*)::int count FROM ${s}.business_plan_outbox_impacts WHERE task_id=$1`, [seeded.rows[1]!.taskId])).rows[0]!.count, 2);
   await assert.rejects(service.setIntent(a.sessionToken, a.csrfToken, projectId, { metadata: metadata(), expectedLifecycleRevision: 2, intent: "resume" }), expectedError("FACT_VERSION_STALE"));
 });
 
 test("material withdrawal binds the exact current revision and does not touch another variant", async () => {
-  const a = await actor(), projectId = await project(a.operatorId), [withdrawn, kept] = await tasks(projectId, a.operatorId, 2);
+  const a = await actor(), projectId = await project(a.operatorId), seeded = await tasks(projectId, a.operatorId, 2), [withdrawn, kept] = seeded.rows;
   const request = { metadata: metadata(), expectedMaterialRevision: 1 };
   const result = await service.withdrawMaterial(a.sessionToken, a.csrfToken, projectId, withdrawn!.variantId, request);
   assert.equal(result.materialRevision, 1); assert.equal(result.impactedTaskCount, 1); assert.equal(result.cancelledTaskCount, 1);
@@ -106,7 +124,7 @@ test("material withdrawal binds the exact current revision and does not touch an
 });
 
 test("session expiry during terminal cancellation append rolls back source, impact, cancellation, receipt and audit", async () => {
-  const a = await actor(), projectId = await project(a.operatorId), [task] = await tasks(projectId, a.operatorId, 1);
+  const a = await actor(), projectId = await project(a.operatorId), seeded = await tasks(projectId, a.operatorId, 1), task = seeded.rows[0]!;
   await pool.query(`CREATE FUNCTION ${s}.test_delay_lifecycle_cancellation() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(2.5); RETURN NEW; END $$`);
   await pool.query(`CREATE TRIGGER test_delay_lifecycle_cancellation BEFORE INSERT ON ${s}.business_plan_task_cancellations FOR EACH ROW EXECUTE FUNCTION ${s}.test_delay_lifecycle_cancellation()`);
   try {
@@ -118,8 +136,8 @@ test("session expiry during terminal cancellation append rolls back source, impa
     await pool.query(`DROP FUNCTION ${s}.test_delay_lifecycle_cancellation()`);
   }
   assert.equal((await pool.query(`SELECT count(*)::int count FROM ${s}.project_lifecycle_intents WHERE project_id=$1`, [projectId])).rows[0]!.count, 0);
-  assert.equal((await pool.query(`SELECT current_impact_revision FROM ${s}.business_plan_outbox WHERE task_id=$1`, [task!.taskId])).rows[0]!.current_impact_revision, "0");
-  assert.equal((await pool.query(`SELECT count(*)::int count FROM ${s}.business_plan_task_cancellations WHERE task_id=$1`, [task!.taskId])).rows[0]!.count, 0);
+  assert.equal((await pool.query(`SELECT current_impact_revision FROM ${s}.business_plan_outbox WHERE task_id=$1`, [task.taskId])).rows[0]!.current_impact_revision, "0");
+  assert.equal((await pool.query(`SELECT count(*)::int count FROM ${s}.business_plan_task_cancellations WHERE task_id=$1`, [task.taskId])).rows[0]!.count, 0);
   assert.equal((await pool.query(`SELECT count(*)::int count FROM ${s}.business_plan_commands WHERE project_id=$1`, [projectId])).rows[0]!.count, 0);
   assert.equal((await pool.query(`SELECT count(*)::int count FROM ${s}.audit_records WHERE request_id IS NOT NULL AND actor_id=$1`, [a.operatorId])).rows[0]!.count, 0);
 });
