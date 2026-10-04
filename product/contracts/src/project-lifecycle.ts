@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { requestMetadataSchema, timestampSchema, uuidSchema } from "./common.js";
+import { requestIdSchema, requestMetadataSchema, timestampSchema, uuidSchema } from "./common.js";
 
 export const projectLifecycleIntentSchema = z.enum(["pause_requested", "resume_requested", "end_requested"]);
 export const projectLifecycleCommandSchema = z.enum(["pause", "resume", "end"]);
@@ -7,7 +7,7 @@ export const projectLifecycleIntentViewSchema = z.strictObject({
   projectId: uuidSchema,
   lifecycleRevision: z.int().min(0),
   intent: projectLifecycleIntentSchema.nullable(),
-  requestId: uuidSchema.nullable(),
+  requestId: requestIdSchema.nullable(),
   recordedAt: timestampSchema.nullable(),
 });
 export const updateProjectLifecycleIntentRequestSchema = z.strictObject({
@@ -19,7 +19,7 @@ export const updateProjectLifecycleIntentResponseSchema = z.strictObject({
   projectId: uuidSchema,
   lifecycleRevision: z.int().min(1),
   intent: projectLifecycleIntentSchema,
-  requestId: uuidSchema,
+  requestId: requestIdSchema,
   recordedAt: timestampSchema,
   changed: z.boolean(),
   replayed: z.boolean(),
@@ -30,7 +30,7 @@ export const updateProjectLifecycleIntentResponseSchema = z.strictObject({
 export const materialWithdrawalViewSchema = z.strictObject({
   state: z.enum(["not_withdrawn", "withdrawn"]),
   materialRevision: z.int().min(1).nullable(),
-  requestId: uuidSchema.nullable(),
+  requestId: requestIdSchema.nullable(),
   recordedAt: timestampSchema.nullable(),
 }).refine(v => v.state === "withdrawn"
   ? v.materialRevision !== null && v.requestId !== null && v.recordedAt !== null
@@ -44,7 +44,7 @@ export const withdrawMaterialResponseSchema = z.strictObject({
   projectId: uuidSchema,
   variantId: uuidSchema,
   materialRevision: z.int().min(1).max(1000),
-  requestId: uuidSchema,
+  requestId: requestIdSchema,
   changed: z.boolean(),
   replayed: z.boolean(),
   impactedTaskCount: z.int().min(0),

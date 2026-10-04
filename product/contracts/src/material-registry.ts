@@ -21,7 +21,7 @@ export const saveMaterialDeclarationRequestSchema = z.strictObject({ metadata: r
   declaration: materialHumanDeclarationSchema, objectIds: z.array(uuidSchema).min(1).max(20) }).refine(v => uniqueIds(v.objectIds) && (v.identity.mediaKind !== "video" || v.objectIds.length === 1), "Invalid explicit object list");
 const objectView = z.strictObject({ objectId: uuidSchema, sha256: z.string().regex(/^[a-f0-9]{64}$/), bytes: z.int().min(1).max(128 * 1024 * 1024), contentType: materialUploadContentTypeSchema });
 export const materialEligibilityReasonSchema = z.enum(["direction_not_approved", "approved_direction_stale", "language_not_targeted", "no_approved_content_form",
-  "scope_confirmation_missing", "scope_confirmation_stale", "content_rules_need_human_check", "source_record_conflict", "exact_sha_collision"]);
+  "scope_confirmation_missing", "scope_confirmation_stale", "content_rules_need_human_check", "source_record_conflict", "exact_sha_collision", "material_withdrawn"]);
 const fields = { projectId: uuidSchema, contentUnitId: uuidSchema, sourceId: uuidSchema, sourceRecordId: uuidSchema, identity: materialHumanIdentitySchema,
   variantId: uuidSchema, languageTag: z.string().regex(/^[a-z]{2,8}(?:-[a-z0-9]{1,8})*$/).max(100), currentRevision: z.int().min(1).max(1000),
   declaration: materialHumanDeclarationViewSchema, objects: z.array(objectView).min(1).max(20),
