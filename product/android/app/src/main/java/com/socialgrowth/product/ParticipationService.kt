@@ -23,6 +23,7 @@ class ParticipationService : Service() {
         const val START="com.socialgrowth.product.PARTICIPATE"
         const val STOP="com.socialgrowth.product.WITHDRAW"
         private const val CHANNEL="device-participation"
+        private val actionFenceLock=Any()
         @Volatile private var confirmedUntil=0L
         @Volatile private var currentParticipationScope: ParticipationScope? = null
         @Volatile private var phase="尚未确认参与"
@@ -31,11 +32,24 @@ class ParticipationService : Service() {
         /** A current pulse is a local precondition, never action authorization. */
         fun hasCurrentConfirmation(): Boolean = running && SystemClock.elapsedRealtime() < confirmedUntil
         fun matchesActionFence(deviceId: UUID, installationId: UUID, installationGeneration: Long, controlGeneration: Long): Boolean {
-            val scope = currentParticipationScope ?: return false
-            return hasCurrentConfirmation() && scope.deviceId == deviceId.toString() &&
-                scope.installationId == installationId.toString() &&
-                scope.installationGeneration.toLongOrNull() == installationGeneration &&
-                scope.controlGeneration?.toLongOrNull() == controlGeneration
+            return synchronized(actionFenceLock) {
+                val scope = currentParticipationScope ?: return@synchronized false
+                hasCurrentConfirmation() && scope.deviceId == deviceId.toString() &&
+                    scope.installationId == installationId.toString() &&
+                    scope.installationGeneration.toLongOrNull() == installationGeneration &&
+                    scope.controlGeneration?.toLongOrNull() == controlGeneration
+            }
+        }
+        /** Stop/expiry mutations and the final device-side effect share one local serial gate. */
+        fun <T> withCurrentActionFence(
+            deviceId: UUID,
+            installationId: UUID,
+            installationGeneration: Long,
+            controlGeneration: Long,
+            effect: () -> T,
+        ): T? = synchronized(actionFenceLock) {
+            if (!matchesActionFence(deviceId, installationId, installationGeneration, controlGeneration)) null
+            else effect()
         }
         @Volatile var running=false
             private set
@@ -55,15 +69,19 @@ class ParticipationService : Service() {
         lastStartId=startId
         if(intent?.action==STOP) {
             diagnostic("withdraw_requested", "visible_client")
-            live.set(false); running=false;confirmedUntil=0L;currentParticipationScope=null;phase="已停止后续参与确认；中心撤权和手机停止仍待核实。"
+            synchronized(actionFenceLock) {
+                live.set(false); running=false;confirmedUntil=0L;currentParticipationScope=null;phase="已停止后续参与确认；中心撤权和手机停止仍待核实。"
+            }
             if(!workerActive) stopSelf()
             return START_NOT_STICKY
         }
         if(intent?.action!=START) { stopSelf(); return START_NOT_STICKY }
         if(workerActive) return START_NOT_STICKY
         workerActive=true
-        live.set(true)
-        confirmedUntil=0L;currentParticipationScope=null;phase="正在连接中心确认本机参与。"
+        synchronized(actionFenceLock) {
+            live.set(true)
+            confirmedUntil=0L;currentParticipationScope=null;phase="正在连接中心确认本机参与。"
+        }
         val manager=getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel(CHANNEL,"本机参与状态",NotificationManager.IMPORTANCE_LOW))
         val open=PendingIntent.getActivity(this,0,Intent(this,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
@@ -73,8 +91,11 @@ class ParticipationService : Service() {
         try {
             if(Build.VERSION.SDK_INT>=29) startForeground(2401,notification,ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
             else startForeground(2401,notification)
-        } catch (_: Exception) { live.set(false);running=false;confirmedUntil=0L;phase="本机参与服务未能启动，请检查客户端系统设置。";workerActive=false;stopSelfResult(lastStartId);return START_NOT_STICKY }
-        running=true
+        } catch (_: Exception) {
+            synchronized(actionFenceLock) { live.set(false);running=false;confirmedUntil=0L;currentParticipationScope=null;phase="本机参与服务未能启动，请检查客户端系统设置。" }
+            workerActive=false;stopSelfResult(lastStartId);return START_NOT_STICKY
+        }
+        synchronized(actionFenceLock) { running=true }
         worker.execute { loop() }
         return START_NOT_STICKY
     }
@@ -92,7 +113,10 @@ class ParticipationService : Service() {
             if(token==null || !live.get()) return
             val run=api.start(token,runId)
             require(run.runId==runId && run.scope.installationId==requireNotNull(identity).installationId && run.scope.installationGeneration==identity.generation.toString())
-            currentParticipationScope=run.scope
+            synchronized(actionFenceLock) {
+                if (!live.get()) return
+                currentParticipationScope=run.scope
+            }
             ending="withdraw_requested"
             while(live.get()) {
                 if(!freshness.canContinue(SystemClock.elapsedRealtime())) { ending="participation_expired";break }
@@ -113,9 +137,15 @@ class ParticipationService : Service() {
                 if(!live.get()) break
                 if(!freshness.canContinue(SystemClock.elapsedRealtime())) { ending="participation_expired";break }
                 if(SystemClock.elapsedRealtime()-before>=10_000L) { ending="confirm_deadline";break }
-                freshness.confirmed(before)
-                confirmedUntil=before+10_000L
-                phase="当前确认已过期；等待下一次中心确认。"
+                val confirmedLive = synchronized(actionFenceLock) {
+                    if (!live.get()) false else {
+                        freshness.confirmed(before)
+                        confirmedUntil=before+10_000L
+                        phase="当前确认已过期；等待下一次中心确认。"
+                        true
+                    }
+                }
+                if (!confirmedLive) { ending="withdraw_requested"; break }
                 diagnostic("pulse_confirmed", stage, SystemClock.elapsedRealtime()-before)
                 stage="wait"
                 // Network latency is part of the four-second cadence, not an
@@ -129,7 +159,9 @@ class ParticipationService : Service() {
         }
         finally {
             diagnostic("loop_ended", ending)
-            live.set(false); running=false;confirmedUntil=0L;currentParticipationScope=null;phase="本机参与确认已结束；中心撤权和手机停止仍待核实。"
+            synchronized(actionFenceLock) {
+                live.set(false); running=false;confirmedUntil=0L;currentParticipationScope=null;phase="本机参与确认已结束；中心撤权和手机停止仍待核实。"
+            }
             if(token!=null) { try { api.withdraw(token,runId) } catch (_: Exception) { /* Pulse expires; stop is still unconfirmed. */ } }
             main.post {
                 workerActive=false
@@ -137,5 +169,5 @@ class ParticipationService : Service() {
             }
         }
     }
-    override fun onDestroy() { live.set(false);running=false;confirmedUntil=0L;currentParticipationScope=null;worker.shutdown();super.onDestroy() }
+    override fun onDestroy() { synchronized(actionFenceLock) { live.set(false);running=false;confirmedUntil=0L;currentParticipationScope=null };worker.shutdown();super.onDestroy() }
 }

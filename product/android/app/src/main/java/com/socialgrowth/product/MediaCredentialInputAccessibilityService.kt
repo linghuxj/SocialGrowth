@@ -23,6 +23,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Explicitly enabled Android system service for sealed, one-use actions.
@@ -119,7 +120,13 @@ class MediaCredentialInputAccessibilityService : AccessibilityService() {
             val envelopeBytes = readLengthDelimited(input, MAX_ENVELOPE_BYTES) ?: return
             val phase = runCatching {
                 processOneUseEnvelope(scope, helloBytes, nonce, deviceKeyPair, helloProof, envelopeBytes, identity)
-            }.getOrDefault(MediaCredentialInputPhase.INPUT_REJECTED)
+            }.fold(
+                onSuccess = { it },
+                onFailure = { error ->
+                    if (error is ActionOutcomeUnknownException) MediaCredentialInputPhase.BLOCKED_REQUIRES_HUMAN_CLEAR
+                    else MediaCredentialInputPhase.INPUT_REJECTED
+                },
+            )
             val statusFrame = sendSignedStatus(
                 output = output,
                 scope = scope,
@@ -196,7 +203,14 @@ class MediaCredentialInputAccessibilityService : AccessibilityService() {
         // First check is side-effect-free. The authoritative online consume
         // reloads task/assignment/credential/holder/control/lease immediately
         // before the second, same-main-looper check and effect.
-        require(runOnMain { currentTargetMatches(expectedScope) })
+        val targetFingerprint = runOnMain {
+            if (expectedScope.field == MediaCredentialField.SUBMIT_LOGIN) {
+                require(currentTargetMatches(expectedScope, null))
+                null
+            } else {
+                requireNotNull(captureCredentialTarget(expectedScope))
+            }
+        }
         val digest = Base64.encodeToString(
             envelope.envelopeDigest(),
             Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING,
@@ -206,30 +220,58 @@ class MediaCredentialInputAccessibilityService : AccessibilityService() {
         require(consumed && SystemClock.elapsedRealtime() < grantDeadlineElapsed)
 
         val journal = getSharedPreferences(ACTION_JOURNAL, MODE_PRIVATE)
-        return runOnMain {
-            require(!stopped.get() && ParticipationService.hasCurrentConfirmation())
-            require(currentIdentityMatches(identityStore, initialIdentity, token, claims))
-            require(claims.expiresAtMillis > System.currentTimeMillis() && SystemClock.elapsedRealtime() < grantDeadlineElapsed)
-            require(currentTargetMatches(expectedScope))
-            reserveAction(journal, expectedScope.actionId)
-            when (expectedScope.field) {
-                MediaCredentialField.LOGIN, MediaCredentialField.PASSWORD -> {
-                    val secret = decryptCredentialField(envelope, deviceKeyPair.private)
-                    try {
-                        require(applyCredentialText(expectedScope, secret))
-                        if (expectedScope.field == MediaCredentialField.PASSWORD) {
-                            savePasswordReceipt(scope = expectedScope, helloBytes = helloBytes)
-                        }
-                        MediaCredentialInputPhase.INPUT_APPLIED_QUARANTINED
-                    } finally {
-                        secret.fill('\u0000')
+        var effectAttempted = false
+        try {
+            val result = runOnMain {
+                ParticipationService.withCurrentActionFence(
+                    deviceId = claims.scope.deviceId,
+                    installationId = claims.scope.installationId,
+                    installationGeneration = claims.scope.installationGeneration,
+                    controlGeneration = claims.scope.controlGeneration,
+                ) {
+                    require(!stopped.get())
+                    require(currentIdentityMatches(identityStore, initialIdentity, token, claims))
+                    requireGrantStillLive(claims, grantDeadlineElapsed)
+                    if (expectedScope.field == MediaCredentialField.SUBMIT_LOGIN) {
+                        require(currentTargetMatches(expectedScope, null))
+                    } else {
+                        require(currentCredentialTarget(expectedScope) == targetFingerprint)
                     }
-                }
-                MediaCredentialField.SUBMIT_LOGIN -> {
-                    require(clickExactLoginButton(expectedScope))
-                    MediaCredentialInputPhase.SUBMIT_APPLIED_QUARANTINED
-                }
+                    reserveAction(journal, expectedScope.actionId)
+                    when (expectedScope.field) {
+                        MediaCredentialField.LOGIN, MediaCredentialField.PASSWORD -> {
+                            val secret = decryptCredentialField(envelope, deviceKeyPair.private)
+                            try {
+                                require(applyCredentialText(expectedScope, secret, targetFingerprint) {
+                                    require(!stopped.get())
+                                    requireGrantStillLive(claims, grantDeadlineElapsed)
+                                    require(currentIdentityMatches(identityStore, initialIdentity, token, claims))
+                                    effectAttempted = true
+                                })
+                                if (expectedScope.field == MediaCredentialField.PASSWORD) {
+                                    savePasswordReceipt(scope = expectedScope, helloBytes = helloBytes)
+                                }
+                                MediaCredentialInputPhase.INPUT_APPLIED_QUARANTINED
+                            } finally {
+                                secret.fill('\u0000')
+                            }
+                        }
+                        MediaCredentialField.SUBMIT_LOGIN -> {
+                            require(clickExactLoginButton(expectedScope) {
+                                require(!stopped.get())
+                                requireGrantStillLive(claims, grantDeadlineElapsed)
+                                require(currentIdentityMatches(identityStore, initialIdentity, token, claims))
+                                effectAttempted = true
+                            })
+                            MediaCredentialInputPhase.SUBMIT_APPLIED_QUARANTINED
+                        }
+                    }
+                } ?: throw IllegalStateException("participation fence expired")
             }
+            return result
+        } catch (error: Exception) {
+            if (effectAttempted) throw ActionOutcomeUnknownException(error)
+            throw error
         }
     }
 
@@ -255,41 +297,104 @@ class MediaCredentialInputAccessibilityService : AccessibilityService() {
             claims.scope.holderGrantValidUntilMillis > System.currentTimeMillis()
     }.getOrDefault(false)
 
-    private fun currentTargetMatches(scope: MediaCredentialInputScope): Boolean {
+    private fun requireGrantStillLive(claims: MediaCredentialGrantClaims, elapsedDeadline: Long) {
+        require(claims.expiresAtMillis > System.currentTimeMillis())
+        require(claims.scope.leaseUntilMillis > System.currentTimeMillis())
+        require(claims.scope.holderGrantValidUntilMillis > System.currentTimeMillis())
+        require(SystemClock.elapsedRealtime() < elapsedDeadline)
+    }
+
+    private data class CredentialTargetFingerprint(
+        val windowId: Int,
+        val viewIdResourceName: String,
+        val className: String,
+        val inputType: Int,
+        val field: MediaCredentialField,
+    )
+
+    private fun currentTargetMatches(
+        scope: MediaCredentialInputScope,
+        expectedCredentialTarget: CredentialTargetFingerprint?,
+    ): Boolean {
         val root = rootInActiveWindow ?: return false
         try {
             if (root.packageName?.toString() != scope.targetPackage || !root.isVisibleToUser) return false
             return when (scope.field) {
-                MediaCredentialField.LOGIN, MediaCredentialField.PASSWORD -> {
-                    val field = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return false
-                    try {
-                        if (field.packageName?.toString() != scope.targetPackage || !field.isVisibleToUser ||
-                            !field.isEnabled || !field.isEditable || !field.isFocused
-                        ) return false
-                        if (scope.field == MediaCredentialField.PASSWORD) {
-                            field.isPassword && isPasswordInputType(field.inputType)
-                        } else {
-                            !field.isPassword && !isPasswordInputType(field.inputType)
-                        }
-                    } finally {
-                        field.recycle()
-                    }
-                }
-                MediaCredentialField.SUBMIT_LOGIN -> exactLoginButton(root, scope) != null
+                MediaCredentialField.LOGIN, MediaCredentialField.PASSWORD ->
+                    expectedCredentialTarget != null && captureCredentialTarget(root, scope) == expectedCredentialTarget
+                MediaCredentialField.SUBMIT_LOGIN -> exactLoginButton(root, scope)?.let { button ->
+                    try { true } finally { button.recycle() }
+                } ?: false
             }
         } finally {
             root.recycle()
         }
     }
 
-    private fun applyCredentialText(scope: MediaCredentialInputScope, secret: CharArray): Boolean {
+    private fun captureCredentialTarget(scope: MediaCredentialInputScope): CredentialTargetFingerprint? {
+        val root = rootInActiveWindow ?: return null
+        return try { captureCredentialTarget(root, scope) } finally { root.recycle() }
+    }
+
+    private fun captureCredentialTarget(
+        root: AccessibilityNodeInfo,
+        scope: MediaCredentialInputScope,
+    ): CredentialTargetFingerprint? {
+        if (root.packageName?.toString() != scope.targetPackage || !root.isVisibleToUser) return null
+        val field = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return null
+        try {
+            if (field.packageName?.toString() != scope.targetPackage || !field.isVisibleToUser ||
+                !field.isEnabled || !field.isEditable || !field.isFocused
+            ) return null
+            val viewId = field.viewIdResourceName?.takeIf(String::isNotBlank) ?: return null
+            if (scope.field == MediaCredentialField.PASSWORD) {
+                if (!field.isPassword || !isPasswordInputType(field.inputType)) return null
+            } else {
+                if (field.isPassword || isPasswordInputType(field.inputType) || !hasLoginSemanticViewId(viewId)) return null
+            }
+            val matches = runCatching { root.findAccessibilityNodeInfosByViewId(viewId) }.getOrNull().orEmpty()
+            try {
+                if (matches.size != 1) return null
+                val only = matches.single()
+                if (only.windowId != field.windowId || only.packageName?.toString() != scope.targetPackage ||
+                    only.viewIdResourceName != viewId || !only.isVisibleToUser || !only.isEnabled ||
+                    !only.isEditable || !only.isFocused || only.inputType != field.inputType
+                ) return null
+            } finally {
+                matches.forEach(AccessibilityNodeInfo::recycle)
+            }
+            return CredentialTargetFingerprint(
+                field.windowId,
+                viewId,
+                field.className?.toString() ?: return null,
+                field.inputType,
+                scope.field,
+            )
+        } finally {
+            field.recycle()
+        }
+    }
+
+    private fun hasLoginSemanticViewId(viewId: String): Boolean {
+        val suffix = viewId.substringAfterLast(":id/").lowercase()
+        return LOGIN_VIEW_ID_SEMANTICS.any { semantic ->
+            Regex("(?:^|[^a-z0-9])${Regex.escape(semantic)}(?:$|[^a-z0-9])").containsMatchIn(suffix)
+        }
+    }
+
+    private fun applyCredentialText(
+        scope: MediaCredentialInputScope,
+        secret: CharArray,
+        expectedTarget: CredentialTargetFingerprint?,
+        beforeEffect: () -> Unit,
+    ): Boolean {
         val root = rootInActiveWindow ?: return false
         try {
             if (root.packageName?.toString() != scope.targetPackage) return false
             val field = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return false
             try {
                 if (field.packageName?.toString() != scope.targetPackage || !field.isVisibleToUser ||
-                    !field.isEnabled || !field.isEditable || !field.isFocused
+                    !field.isEnabled || !field.isEditable || !field.isFocused || expectedTarget == null
                 ) return false
                 val validKind = if (scope.field == MediaCredentialField.PASSWORD) {
                     field.isPassword && isPasswordInputType(field.inputType)
@@ -297,6 +402,11 @@ class MediaCredentialInputAccessibilityService : AccessibilityService() {
                     scope.field == MediaCredentialField.LOGIN && !field.isPassword && !isPasswordInputType(field.inputType)
                 }
                 if (!validKind) return false
+                val current = captureCredentialTarget(root, scope) ?: return false
+                if (current != expectedTarget || field.windowId != expectedTarget.windowId ||
+                    field.viewIdResourceName != expectedTarget.viewIdResourceName ||
+                    field.className?.toString() != expectedTarget.className || field.inputType != expectedTarget.inputType
+                ) return false
                 // Android's accessibility API accepts CharSequence only. This
                 // creates an immutable String that cannot be wiped; the char[]
                 // and Bundle are cleared best-effort after the platform call.
@@ -305,6 +415,7 @@ class MediaCredentialInputAccessibilityService : AccessibilityService() {
                     putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, chars)
                 }
                 return try {
+                    beforeEffect()
                     field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)
                 } finally {
                     arguments.clear()
@@ -317,12 +428,13 @@ class MediaCredentialInputAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun clickExactLoginButton(scope: MediaCredentialInputScope): Boolean {
+    private fun clickExactLoginButton(scope: MediaCredentialInputScope, beforeEffect: () -> Unit): Boolean {
         val root = rootInActiveWindow ?: return false
         try {
             if (root.packageName?.toString() != scope.targetPackage) return false
             val button = exactLoginButton(root, scope) ?: return false
             try {
+                beforeEffect()
                 return button.performAction(AccessibilityNodeInfo.ACTION_CLICK)
             } finally {
                 button.recycle()
@@ -408,12 +520,41 @@ class MediaCredentialInputAccessibilityService : AccessibilityService() {
     private fun <T> runOnMain(block: () -> T): T {
         if (Looper.myLooper() == Looper.getMainLooper()) return block()
         val latch = CountDownLatch(1)
+        val state = AtomicInteger(MAIN_QUEUED)
         var result: Result<T>? = null
-        main.post {
-            result = runCatching(block)
-            latch.countDown()
+        check(main.post {
+            if (!state.compareAndSet(MAIN_QUEUED, MAIN_RUNNING)) {
+                latch.countDown()
+                return@post
+            }
+            try {
+                result = runCatching(block)
+            } finally {
+                state.set(MAIN_DONE)
+                latch.countDown()
+            }
+        }) { "main-thread gate unavailable" }
+        try {
+            if (!latch.await(MAIN_GATE_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+                if (state.compareAndSet(MAIN_QUEUED, MAIN_CANCELLED)) {
+                    throw IllegalStateException("main-thread action cancelled before execution")
+                }
+                // Once started, do not return a rejection while a side effect
+                // can still run. Wait for its final outcome; socket loss keeps
+                // the host quarantined and never authorizes a retry.
+                latch.await()
+            }
+        } catch (interrupted: InterruptedException) {
+            if (state.compareAndSet(MAIN_QUEUED, MAIN_CANCELLED)) {
+                Thread.currentThread().interrupt()
+                throw interrupted
+            }
+            while (latch.count > 0) {
+                try { latch.await() } catch (_: InterruptedException) { /* preserve unknown until running action ends */ }
+            }
+            Thread.currentThread().interrupt()
+            throw interrupted
         }
-        check(latch.await(MAIN_GATE_TIMEOUT_MS, TimeUnit.MILLISECONDS))
         return requireNotNull(result).getOrThrow()
     }
 
@@ -518,12 +659,19 @@ class MediaCredentialInputAccessibilityService : AccessibilityService() {
         private const val MAX_SIGNATURE_BYTES = 72
         private const val MAX_LOCAL_JOURNAL_ENTRIES = 8192
         private const val MAIN_GATE_TIMEOUT_MS = 5_000L
+        private const val MAIN_QUEUED = 0
+        private const val MAIN_RUNNING = 1
+        private const val MAIN_CANCELLED = 2
+        private const val MAIN_DONE = 3
         private const val NONCE_BYTES = 32
         private const val PROTOCOL_VERSION = 1
         private const val ACTION_JOURNAL = "media_credential_input_action_journal"
         private const val RECEIPT_STORE = "media_credential_input_receipts"
         private const val FACEBOOK_PACKAGE = "com.facebook.katana"
         private const val YOUTUBE_PACKAGE = "com.google.android.youtube"
+        private val LOGIN_VIEW_ID_SEMANTICS = setOf("username", "user_name", "userid", "user_id", "email", "account", "identifier", "phone", "login")
         private val HELLO_PROOF_MAGIC = byteArrayOf('S'.code.toByte(), 'G'.code.toByte(), 'H'.code.toByte(), 'P'.code.toByte())
     }
+
+    private class ActionOutcomeUnknownException(cause: Throwable) : IllegalStateException("input effect outcome unknown", cause)
 }
