@@ -1,5 +1,5 @@
 import { ArrowClockwise, WarningCircle } from "@phosphor-icons/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { MaterialCurrentView } from "./material-api.js";
 import { listProjectMaterials, readProjectMaterial } from "./material-api.js";
 import { ProductApiError } from "./operator-api.js";
@@ -76,9 +76,18 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
   const pendingRef = useRef<PendingCommand | null>(null);
   const busyRef = useRef(false);
   const loadingRef = useRef(false);
+  const loadingProjectRef = useRef<string | null>(null);
+  const loadingActiveEpochRef = useRef(0);
   const activeRef = useRef(active);
+  const previousActiveRef = useRef(active);
+  const activeEpochRef = useRef(0);
   const projectKey = projectId.toLowerCase();
   const projectKeyRef = useRef(projectKey);
+  const displayedProjectRef = useRef(projectKey);
+  if (previousActiveRef.current !== active) {
+    previousActiveRef.current = active;
+    activeEpochRef.current++;
+  }
   activeRef.current = active;
   projectKeyRef.current = projectKey;
 
@@ -101,12 +110,16 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
   }, [onExpired]);
 
   const refresh = useCallback(async (append = false) => {
-    if (loadingRef.current) return;
+    if (loadingRef.current && loadingProjectRef.current === projectKey
+      && loadingActiveEpochRef.current === activeEpochRef.current) return;
     const currentSequence = ++sequence.current;
     const currentRefreshGeneration = ++refreshGeneration.current;
+    const requestActiveEpoch = activeEpochRef.current;
     const requestProject = projectKey;
     const requestPending = pendingRef.current;
     loadingRef.current = true;
+    loadingProjectRef.current = requestProject;
+    loadingActiveEpochRef.current = requestActiveEpoch;
     setLoading(true);
     setErrorMessage("");
     try {
@@ -115,7 +128,8 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
         readProjectCurrentChecks(projectKey),
         listProjectMaterials(projectKey, append ? nextMaterialCursor : null, 50),
       ]);
-      if (!alive.current || currentSequence !== sequence.current || !activeRef.current || projectKeyRef.current !== requestProject) return;
+      if (!alive.current || currentSequence !== sequence.current || !activeRef.current || activeEpochRef.current !== requestActiveEpoch
+        || projectKeyRef.current !== requestProject) return;
       setLifecycle(nextLifecycle);
       setCurrentChecks(nextChecks);
       setMaterials(current => append ? [...current, ...page.materials] : page.materials);
@@ -127,14 +141,31 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
         setMessage("已通过当前权威生命周期事实核对原请求回执；任务停止或手机现场状态仍须单独核实。");
       }
     } catch (error) {
-      if (!alive.current || currentSequence !== sequence.current || !activeRef.current || projectKeyRef.current !== requestProject) return;
+      if (!alive.current || currentSequence !== sequence.current || !activeRef.current || activeEpochRef.current !== requestActiveEpoch
+        || projectKeyRef.current !== requestProject) return;
       reportExpired(error);
       setErrorMessage(errorText(error));
     } finally {
-      if (currentRefreshGeneration === refreshGeneration.current) loadingRef.current = false;
+      if (currentRefreshGeneration === refreshGeneration.current) {
+        loadingRef.current = false;
+        loadingProjectRef.current = null;
+      }
       if (alive.current && currentRefreshGeneration === refreshGeneration.current) setLoading(false);
     }
   }, [nextMaterialCursor, projectKey, reportExpired]);
+
+  useLayoutEffect(() => {
+    if (displayedProjectRef.current !== projectKey) {
+      displayedProjectRef.current = projectKey;
+      setLifecycle(null);
+      setCurrentChecks(null);
+      setMaterials([]);
+      setNextMaterialCursor(null);
+      setEndConfirmed(false);
+      setMessage("");
+      setErrorMessage("");
+    }
+  }, [projectKey]);
 
   useEffect(() => { if (active) void refresh(false); }, [active, projectKey]);
 
@@ -211,11 +242,12 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
     const command = pendingRef.current;
     if (!command || busyRef.current || !activeRef.current || projectKeyRef.current !== pendingProject(command)) return;
     const requestSequence = ++sequence.current;
+    const requestActiveEpoch = activeEpochRef.current;
     const requestProject = pendingProject(command);
     if (command.kind === "project") {
       try {
         const current = await readProjectLifecycleIntent(requestProject);
-        if (!alive.current || requestSequence !== sequence.current || !activeRef.current
+        if (!alive.current || requestSequence !== sequence.current || !activeRef.current || activeEpochRef.current !== requestActiveEpoch
           || projectKeyRef.current !== requestProject || pendingRef.current !== command) return;
         if (current.intent === `${command.command.intent}_requested` && current.requestId === command.command.requestId) {
           updatePending(null);
@@ -224,7 +256,7 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
           setMessage("项目当前意图没有证明冻结命令已记录；原 body 与请求键仍保留。");
         }
       } catch (error) {
-        if (requestSequence !== sequence.current || pendingRef.current !== command) return;
+        if (requestSequence !== sequence.current || activeEpochRef.current !== requestActiveEpoch || pendingRef.current !== command) return;
         reportExpired(error);
         setErrorMessage(errorText(error));
       }
@@ -233,7 +265,7 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
     if (command.kind === "material") {
       try {
         const current = await readProjectMaterial(requestProject, command.command.variantId);
-        if (!alive.current || requestSequence !== sequence.current || !activeRef.current
+        if (!alive.current || requestSequence !== sequence.current || !activeRef.current || activeEpochRef.current !== requestActiveEpoch
           || projectKeyRef.current !== requestProject || pendingRef.current !== command) return;
         if (current.withdrawal?.state === "withdrawn" && current.withdrawal.requestId === command.command.requestId) {
           updatePending(null);
@@ -244,7 +276,7 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
           setMessage("当前素材事实没有证明原命令已记录；冻结原 body 与请求键仍可接续。");
         }
       } catch (error) {
-        if (requestSequence !== sequence.current || pendingRef.current !== command) return;
+        if (requestSequence !== sequence.current || activeEpochRef.current !== requestActiveEpoch || pendingRef.current !== command) return;
         reportExpired(error);
         setErrorMessage(errorText(error));
       }
