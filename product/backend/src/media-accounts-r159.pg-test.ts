@@ -66,8 +66,9 @@ before(async () => {
   await guard();
   await ddl(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
   const migrationFiles = (await readdir(new URL("../migrations/", import.meta.url))).filter(file => /^\d{4}.*\.sql$/.test(file)).sort();
-  assert.equal(migrationFiles.length, 39);
-  for (const file of migrationFiles.filter(file => !file.startsWith("0039_"))) await migration(file);
+  const legacyMigrations = migrationFiles.filter(file => Number(file.slice(0, 4)) <= 38);
+  assert.ok(legacyMigrations.some(file => file.startsWith("0038_")));
+  for (const file of legacyMigrations) await migration(file);
   const owner = await actor(); sourceOperator = owner.operatorId;
   projectId = randomUUID(); device1 = randomUUID(); device2 = randomUUID(); accountId = randomUUID(); identity1 = randomUUID(); identity2 = randomUUID();
   oldCanonical = `legacy_${randomUUID().replaceAll("-", "")}`;
@@ -138,11 +139,16 @@ test("account credential creation, pre-Page assignment, one-phone ownership and 
     error => error instanceof ResourceReservationError && error.code === "HANDOVER_REQUIRED");
 
   const canonical = `verified_${randomUUID().replaceAll("-", "")}`;
-  await pool.query(`UPDATE ${schema}.media_accounts SET canonical_account_ref=$2,parent_login_verification='verified' WHERE account_id=$1`, [accountId, canonical]);
-  const rotated = await credentialStore.write(work.token, work.csrf, { metadata: requestMeta("rotate_legacy"), credentialId: legacyCredential.credential.credentialId,
-    accountId, platform: "facebook", expectedRevision: legacyCredential.credential.revision, operation: "put", loginIdentifier: "new-legacy-fb-login" },
-    Buffer.from('{"login":"new-legacy-fb-login","password":"synthetic-rotated-secret"}'));
+  await pool.query(`UPDATE ${schema}.media_accounts SET canonical_account_ref=$2,parent_login_verification='verified' WHERE account_id=$1`, [created.account.accountId, canonical]);
+  const rotated = await credentialStore.write(work.token, work.csrf, { metadata: requestMeta("rotate_verified"), credentialId: created.account.credential!.credentialId,
+    accountId: created.account.accountId, platform: "youtube", expectedRevision: created.account.credential!.revision, operation: "put", loginIdentifier: "rotated-yt-login" },
+    Buffer.from('{"login":"rotated-yt-login","password":"synthetic-rotated-secret"}'));
   assert.equal(rotated.credential.revision, 2);
-  const afterRotation = (await pool.query(`SELECT canonical_account_ref,parent_login_verification FROM ${schema}.media_accounts WHERE account_id=$1`, [accountId])).rows[0];
+  const afterRotation = (await pool.query(`SELECT canonical_account_ref,parent_login_verification FROM ${schema}.media_accounts WHERE account_id=$1`, [created.account.accountId])).rows[0];
   assert.equal(afterRotation.canonical_account_ref, canonical); assert.equal(afterRotation.parent_login_verification, "registered_unverified");
+  const listedAfterRotation = await accountStore.read(work.token);
+  const rotatedAccount = listedAfterRotation.accounts.find(account => account.accountId === created.account.accountId);
+  assert.equal(rotatedAccount?.canonicalAccountRef, canonical);
+  assert.equal(rotatedAccount?.parentLoginVerification, "registered_unverified");
+  assert.equal(rotatedAccount?.credential?.revision, 2);
 });
