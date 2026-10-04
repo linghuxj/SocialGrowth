@@ -51,3 +51,22 @@ Reviewer: `/root/adversary`。本轮为独立源码审查，不执行 build/test
 - 剩余具体问题：connectBounded 的 Promise.race 只解除 caller 等待，并不取消 pool.connect。AppModule 创建共享 Pool 未设置 connectionTimeoutMillis。TCP 已连接而 PostgreSQL 握手不回包时，connecting client 持续占据 pool；晚到 release 的回调不会触发。周期调用可积累被放弃的 connecting clients，现有 DatabaseLifecycle 的 pool.end 又等待 _clients 清空，因此应用 shutdown 可无限等待。应以驱动真实 acquisition/connect timeout 或可取消的自有获取机制关闭此边界，不能只依赖 Promise.race。
 
 作者报告 focused lifecycle 2/2、隔离 progression PG8/8、Plan PG11/11、生成契约/backend check/lint 通过，首轮 selector7/8失败已保留，容器清理。独立 range diff-check 通过，reviewer未运行测试/服务/网络故障注入。客户端逻辑测试替身不证明真实握手挂起清理；本 head 不批准 PR。
+
+## Backend final full review: approved
+
+- Reviewer: `/root/adversary`
+- Base: `e27564d6a2aca4f00e9177f784935b5063fcfee5`
+- Head: `e1baeaa8b30cc89f7ded8b06719fbd5dbc21fe2c`
+- Verdict: **approved** for the complete ten-file backend progression, migration, GET contracts/generated registry, lifecycle and test scope. This does not approve the pending UX or root integration candidate.
+
+**SWEEP-01 closed:** each project failure is isolated; the attempted project advances the keyset in finally. A wrap retries failed projects without starving later projects. The pass retains a twenty-project limit and a shared 25-second wait budget.
+
+**SWEEP-02 closed:** the actual AppModule Pool now has `connectionTimeoutMillis: 5_000`. Inspection of installed pg 8.23.0 / pg-pool 3.14.0 confirms that this limits queued acquisition and new connection/handshake waits and removes failed connecting clients. Late acquisition is released. Acquired queries have remaining-budget client query_timeout and server LOCAL timeouts; client timeout immediately releases with error, and open/expired transactions are discarded in finally. Shutdown stops new scheduling and awaits the bounded pass.
+
+The shared five-second cap changes connection-acquisition failure timing, not all running-query deadlines. Congestion or abnormal network conditions may report unavailable sooner. It adds no automatic write retry or authority and is an acceptable bounded scope change. The pass budget assumes a responsive event loop; it is not an OS-level hard-real-time guarantee or proof that every unrelated application shutdown path is bounded.
+
+The added loopback TCP fixture accepts a socket without replying to the PostgreSQL handshake. Author reports lifecycle 3/3: acquisition rejects, totalCount becomes zero, and pool.end returns. Precisely, acquisition has a one-second racing guard; shutdown has an elapsed-time assertion after the await, not a separate racing guard. Do not describe this as complete production outage recovery.
+
+Full source conclusions remain: the old POST/command receipt schema and stored JSON are unchanged; migration constraints enforce one-time configuration consumption, adjacent windows, preserved initial approval/input history, and explicit application/carry origins. Database recordedAt remains separate from boundaries. End intent and missing calendar facts fail closed. GET stays a projection with session checks and false execution/publication permissions; there is no Task, metric or strategy execution.
+
+Independent full-range diff-check passed. Author final-delta backend check, changed-file lint and lifecycle 3/3 passed. The unchanged database implementation/test files retain ff526's PG 8/8 and Plan 11/11 evidence; these suites were not rerun on e1bae. Earlier 6/7 receipt-confusion and 7/8 expired-current fixture failures remain historical, and the author reports isolated-container cleanup. Reviewer performed source-only checks. Natural-boundary real UI, two real model calls and final integration are unverified. SEC-CYCLE-PROGRESSION remains in_progress pending the revised complete UX candidate.
