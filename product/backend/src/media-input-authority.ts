@@ -189,12 +189,13 @@ export class MediaInputAuthority {
         installationGeneration: current.installationGeneration, leaseUntilMillis: current.leaseUntilMillis,
         holderGrantValidUntilMillis: current.holderGrantValidUntilMillis }, helloProofFrame: hello,
         enrolledInstallationPublicKey: current.enrolledKey.publicKey };
-      envelope = signMediaInputSubmit({ context: { ...context, scope: scope as MediaInputActionScope & { fieldRef: "submit_login"; targetViewIdResourceName: string } },
+      const signedEnvelope = signMediaInputSubmit({ context: { ...context, scope: scope as MediaInputActionScope & { fieldRef: "submit_login"; targetViewIdResourceName: string } },
         priorPasswordReceipt: prior as MediaInputPasswordReceipt, nowMillis, issuedAtMillis: nowMillis, expiresAtMillis, signingKey });
+      envelope = signedEnvelope;
       const final = await this.store.loadCurrent(scope);
       if (final.snapshot !== current.snapshot) throw unavailable();
-      await this.store.persistPendingGrant(scope, current.snapshot, { ...claims, envelopeSha256: sha256(envelope), expiresAtMillis, helloProofFrame: hello });
-      await sink(envelope);
+      await this.store.persistPendingGrant(scope, current.snapshot, { ...claims, envelopeSha256: sha256(signedEnvelope), expiresAtMillis, helloProofFrame: hello });
+      await sink(signedEnvelope);
     } catch { throw unavailable(); }
     finally { hello.fill(0); envelope?.fill(0); claims.requestSha256.fill(0); claims.sessionNonce.fill(0); claims.helloProofSha256.fill(0); claims.devicePublicKeySha256.fill(0); }
   }
