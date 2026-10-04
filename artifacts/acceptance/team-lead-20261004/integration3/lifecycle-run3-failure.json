@@ -1,0 +1,48 @@
+{
+  "failureType": "TimeoutError",
+  "stage": "open project B lifecycle facts",
+  "pageErrors": [],
+  "readEvidence": [
+    {
+      "route": "materials-list",
+      "status": 200,
+      "errorCode": null
+    },
+    {
+      "route": "materials-list",
+      "status": 200,
+      "errorCode": null
+    },
+    {
+      "route": "current-checks",
+      "status": 200,
+      "errorCode": null
+    },
+    {
+      "route": "materials-list",
+      "status": 200,
+      "errorCode": null
+    },
+    {
+      "route": "lifecycle-intents",
+      "status": 200,
+      "errorCode": null
+    }
+  ],
+  "alertCategory": "none",
+  "actions": {
+    "pauseDelayedAck": null,
+    "endUnknownReplay": null,
+    "withdrawal": null
+  },
+  "pausePostCount": 0,
+  "endPostCount": 0,
+  "actualDirectionSource": "no approved direction created",
+  "actualExternalAction": false,
+  "candidateHeadSha": "81b2a59bcfc4d231941572204a733642fb94c2f9",
+  "cleanup": {
+    "ownedServicesExited": true,
+    "ownedContainerCountRemoved": 2,
+    "temporaryCredentialsRemoved": true
+  }
+}

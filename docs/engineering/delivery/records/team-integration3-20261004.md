@@ -19,6 +19,8 @@
 | Web素材测试修正 | `1bdfb351d62f81880ce056eb95059b3870632daa` 四fixture补齐rev9 withdrawal=not_withdrawn，获[精确窄审批](team-review-material-fixture-1bdfb35.md)，root已集成 | 原生产schema/权限和测试断言均未变。UX focused33/33；Web队友在冻结 `e3dd70f7b8c4e9884e3e004c79a794eb0cceb730` 跑完整Web86/86通过，[有限结果](../../../../artifacts/acceptance/team-lead-20261004/integration3/web-unit-e3dd70f.json)。原root14ce全命令退出1保留，没有虚构其重跑通过 |
 | 生命周期第二轮组合浏览器 | 冻结 `e3dd70f7b8c4e9884e3e004c79a794eb0cceb730` 在 `open project B lifecycle facts` 超时 | 新[阶段失败记录](../../../../artifacts/acceptance/team-lead-20261004/integration3/lifecycle-run2-failure.json)：pageErrors0、actions空、pause/end POST0，方向/模型未执行；自有资源清理完成。正采集有限GET状态定位首次事实读取/页面加载，尚不能确认根因或宣称生命周期/cycle通过 |
 
+| 生命周期第三、四轮定位 | run3冻结 `81b2a59bcfc4d231941572204a733642fb94c2f9`；run4冻结 `a474a6179ae0e647523191fb64fb7a3f665bca6a`，仍未通过 | [run3](../../../../artifacts/acceptance/team-lead-20261004/integration3/lifecycle-run3-failure.json)三路GET200；[run4](../../../../artifacts/acceptance/team-lead-20261004/integration3/lifecycle-run4-failure.json)进一步确认response与requestfinished均200，导航及panel可见、项目版本0，但heading/事实区/loading/alert均不存在，业务POST0、模型阶段未开始。UX正在核对首次读取effect重播竞态，修复前不确认根因或验收通过；每轮自有服务、两容器及临时凭据均清理 |
+
 有限安全结果：[反馈](../../../../artifacts/acceptance/team-lead-20261004/integration3/feedback-2c7910e.json)、[服务恢复](../../../../artifacts/acceptance/team-lead-20261004/integration3/runtime-restart-f7dce19.json)、[模型排期](../../../../artifacts/acceptance/team-lead-20261004/integration3/model-plan-80e871a.json)。测试输入为隔离工程输入；真实浏览器操作和真实模型响应不等于真实平台业务验收。清理前只读SQL是补充证据，未用于预置业务成功。
 
 ## 修复与独立复核
