@@ -72,7 +72,24 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
   const [loadingMore, setLoadingMore] = useState(false);
   const alive = useRef(true);
   const sequence = useRef(0);
+  const refreshGeneration = useRef(0);
+  const pendingRef = useRef<PendingCommand | null>(null);
+  const busyRef = useRef(false);
+  const loadingRef = useRef(false);
+  const activeRef = useRef(active);
   const projectKey = projectId.toLowerCase();
+  const projectKeyRef = useRef(projectKey);
+  activeRef.current = active;
+  projectKeyRef.current = projectKey;
+
+  function updatePending(next: PendingCommand | null) {
+    pendingRef.current = next;
+    setPending(next);
+  }
+
+  function pendingProject(command: PendingCommand): string {
+    return command.command.projectId;
+  }
 
   useEffect(() => {
     alive.current = true;
@@ -84,8 +101,12 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
   }, [onExpired]);
 
   const refresh = useCallback(async (append = false) => {
-    if (loading) return;
+    if (loadingRef.current) return;
     const currentSequence = ++sequence.current;
+    const currentRefreshGeneration = ++refreshGeneration.current;
+    const requestProject = projectKey;
+    const requestPending = pendingRef.current;
+    loadingRef.current = true;
     setLoading(true);
     setErrorMessage("");
     try {
@@ -94,40 +115,37 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
         readProjectCurrentChecks(projectKey),
         listProjectMaterials(projectKey, append ? nextMaterialCursor : null, 50),
       ]);
-      if (!alive.current || currentSequence !== sequence.current) return;
+      if (!alive.current || currentSequence !== sequence.current || !activeRef.current || projectKeyRef.current !== requestProject) return;
       setLifecycle(nextLifecycle);
       setCurrentChecks(nextChecks);
       setMaterials(current => append ? [...current, ...page.materials] : page.materials);
       setNextMaterialCursor(page.nextAfterVariantId);
-      if (pending?.kind === "project" && nextLifecycle.requestId === pending.command.requestId
-        && nextLifecycle.intent === `${pending.command.intent}_requested`) {
-        setPending(null);
+      if (requestPending?.kind === "project" && pendingRef.current === requestPending
+        && pendingProject(requestPending) === requestProject && nextLifecycle.requestId === requestPending.command.requestId
+        && nextLifecycle.intent === `${requestPending.command.intent}_requested`) {
+        updatePending(null);
         setMessage("已通过当前权威生命周期事实核对原请求回执；任务停止或手机现场状态仍须单独核实。");
-      } else if (pending?.kind === "material") {
-        const current = page.materials.find(material => material.variantId.toLowerCase() === pending.command.variantId);
-        if (current?.withdrawal?.state === "withdrawn" && current.withdrawal.requestId === pending.command.requestId) {
-          setPending(null);
-          setMessage("已通过当前素材事实核对原内部撤回回执；这不表示外部平台内容已删除。");
-        } else if (current?.withdrawal?.state === "withdrawn") {
-          setMessage("当前素材已是内部撤回状态，但来源请求标识不同；原请求仍未核对，请接续原请求键。");
-        }
       }
     } catch (error) {
-      if (!alive.current || currentSequence !== sequence.current) return;
+      if (!alive.current || currentSequence !== sequence.current || !activeRef.current || projectKeyRef.current !== requestProject) return;
       reportExpired(error);
       setErrorMessage(errorText(error));
     } finally {
-      if (alive.current && currentSequence === sequence.current) setLoading(false);
+      if (currentRefreshGeneration === refreshGeneration.current) loadingRef.current = false;
+      if (alive.current && currentRefreshGeneration === refreshGeneration.current) setLoading(false);
     }
-  }, [loading, nextMaterialCursor, pending, projectKey, reportExpired]);
+  }, [nextMaterialCursor, projectKey, reportExpired]);
 
   useEffect(() => { if (active) void refresh(false); }, [active, projectKey]);
 
   async function send(command: PendingCommand) {
-    if (busy || readOnly || (pending && pending !== command)) return;
+    if (busyRef.current || readOnly || !activeRef.current || projectKeyRef.current !== pendingProject(command)
+      || (pendingRef.current && pendingRef.current !== command)) return;
+    busyRef.current = true;
+    sequence.current++;
     setBusy(true);
     setErrorMessage("");
-    setPending(command);
+    updatePending(command);
     try {
       if (command.kind === "project") {
         const response = await command.command.send();
@@ -138,7 +156,7 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
         if (!alive.current) return;
         setMessage(`已记录该素材版本的内部撤回；关联任务影响 ${response.impactedTaskCount} 项，确认未开始且无执行记录的取消 ${response.cancelledTaskCount} 项。未操作外部平台内容。请求 ${response.requestId}。`);
       }
-      setPending(null);
+      if (pendingRef.current === command) updatePending(null);
       onFactsChanged();
       await refresh(false);
     } catch (error) {
@@ -147,19 +165,20 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
       const definitiveStale = error instanceof ProductApiError && error.status === 409
         && error.response.error.code === "FACT_VERSION_STALE";
       if (definitiveStale) {
-        setPending(null);
+        if (pendingRef.current === command) updatePending(null);
         setErrorMessage(errorText(error));
         await refresh(false);
       } else {
         setErrorMessage(errorText(error));
       }
     } finally {
+      busyRef.current = false;
       if (alive.current) setBusy(false);
     }
   }
 
   function startLifecycle(intent: "pause" | "resume" | "end") {
-    if (!lifecycle || pending || readOnly || busy) return;
+    if (!lifecycle || pendingRef.current || readOnly || busyRef.current || loadingRef.current) return;
     if (intent === "end" && !endConfirmed) {
       setErrorMessage("正式结束会成为终态；请先确认结束范围。未开始且无执行记录的任务可能被取消，未知任务不会被当作已取消。");
       return;
@@ -173,7 +192,7 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
   }
 
   function startWithdrawal(material: MaterialCurrentView) {
-    if (pending || readOnly || busy || material.withdrawal?.state !== "not_withdrawn") return;
+    if (pendingRef.current || readOnly || busyRef.current || loadingRef.current || material.withdrawal?.state !== "not_withdrawn") return;
     const confirmed = window.confirm(`内部撤回素材“${material.declaration.name}”的当前版本 v${material.currentRevision}？这将禁止后续重用；不会删除任何外部平台内容。`);
     if (!confirmed) return;
     try {
@@ -189,16 +208,35 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
   }
 
   async function verifyPending() {
-    if (pending?.kind === "project") {
-      await refresh(false);
+    const command = pendingRef.current;
+    if (!command || busyRef.current || !activeRef.current || projectKeyRef.current !== pendingProject(command)) return;
+    const requestSequence = ++sequence.current;
+    const requestProject = pendingProject(command);
+    if (command.kind === "project") {
+      try {
+        const current = await readProjectLifecycleIntent(requestProject);
+        if (!alive.current || requestSequence !== sequence.current || !activeRef.current
+          || projectKeyRef.current !== requestProject || pendingRef.current !== command) return;
+        if (current.intent === `${command.command.intent}_requested` && current.requestId === command.command.requestId) {
+          updatePending(null);
+          setMessage("已通过项目当前权威意图及相同请求编号核对原命令；不代表手机现场停止。");
+        } else {
+          setMessage("项目当前意图没有证明冻结命令已记录；原 body 与请求键仍保留。");
+        }
+      } catch (error) {
+        if (requestSequence !== sequence.current || pendingRef.current !== command) return;
+        reportExpired(error);
+        setErrorMessage(errorText(error));
+      }
       return;
     }
-    if (pending?.kind === "material") {
+    if (command.kind === "material") {
       try {
-        const current = await readProjectMaterial(projectKey, pending.command.variantId);
-        if (!alive.current) return;
-        if (current.withdrawal?.state === "withdrawn" && current.withdrawal.requestId === pending.command.requestId) {
-          setPending(null);
+        const current = await readProjectMaterial(requestProject, command.command.variantId);
+        if (!alive.current || requestSequence !== sequence.current || !activeRef.current
+          || projectKeyRef.current !== requestProject || pendingRef.current !== command) return;
+        if (current.withdrawal?.state === "withdrawn" && current.withdrawal.requestId === command.command.requestId) {
+          updatePending(null);
           setMessage("已由素材当前事实核对到原请求编号；仅确认内部撤回，不代表平台删除。");
         } else if (current.withdrawal?.state === "withdrawn") {
           setMessage("当前素材已撤回，但当前请求编号与冻结命令不同；原请求结果仍未知。");
@@ -206,6 +244,7 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
           setMessage("当前素材事实没有证明原命令已记录；冻结原 body 与请求键仍可接续。");
         }
       } catch (error) {
+        if (requestSequence !== sequence.current || pendingRef.current !== command) return;
         reportExpired(error);
         setErrorMessage(errorText(error));
       }
@@ -237,7 +276,8 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
         <button type="button" className="danger-button" disabled={busy || !!pending || ended} onClick={() => startLifecycle("end")}>正式结束项目</button>
       </div>}
       {!readOnly && !ended && <label className="project-lifecycle__confirm"><input type="checkbox" checked={endConfirmed} disabled={busy || !!pending} onChange={event => setEndConfirmed(event.currentTarget.checked)} />我确认项目正式结束不可普通恢复；未知提交仍需独立核实。</label>}
-      {pending?.kind === "project" && <div className="project-lifecycle__pending"><p>请求结果未知或仍待核对。新生命周期操作已冻结；原 body 与请求键保留在当前页面。</p><button type="button" className="outline-button" disabled={busy || readOnly} onClick={() => void send(pending)}>接续原请求</button><button type="button" className="text-button" disabled={busy} onClick={() => void verifyPending()}>只读核对原回执</button></div>}
+      {pending && pendingProject(pending) !== projectKey && <div className="project-lifecycle__pending" role="status"><p>另一个项目仍有未核对的原命令（项目 {pendingProject(pending)}）。返回该项目继续原请求或只读核对；不会为当前项目发送新命令。</p></div>}
+      {pending?.kind === "project" && pendingProject(pending) === projectKey && <div className="project-lifecycle__pending"><p>请求结果未知或仍待核对。新生命周期操作已冻结；原 body 与请求键保留在当前页面。</p><span>请求 {pending.command.requestId}</span><button type="button" className="outline-button" disabled={busy || readOnly} onClick={() => void send(pending)}>接续原请求</button><button type="button" className="text-button" disabled={busy} onClick={() => void verifyPending()}>只读核对原回执</button></div>}
     </section>}
     <section className="project-lifecycle__card" aria-label="计划任务当前核对">
       <div className="project-lifecycle__section-heading"><div><h3>受影响任务当前事实</h3><p>只读当前检查与不可变取消记录；不表示手机已停止或任务已执行。</p></div><span>{currentChecks?.tasks.length ?? 0} 项</span></div>
@@ -267,6 +307,7 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
           {!readOnly && material.withdrawal?.state === "not_withdrawn" && <button type="button" className="outline-button" disabled={busy || !!pending || ended} onClick={() => startWithdrawal(material)}>撤回此素材版本</button>}
         </article>)}
       </div>
+      {pending?.kind === "material" && pendingProject(pending) === projectKey && <div className="project-lifecycle__pending" aria-label="待核对的素材撤回命令"><p>素材撤回结果未知或仍待核对。目标素材 {pending.command.variantId} · 事实版本 v{pending.command.expectedMaterialRevision}；原请求编号 {pending.command.requestId}。新命令已冻结，不能改用新请求键。</p><button type="button" className="outline-button" disabled={busy || readOnly} onClick={() => void send(pending)}>接续原素材撤回请求</button><button type="button" className="text-button" disabled={busy} onClick={() => void verifyPending()}>只读核对原素材回执</button></div>}
       {nextMaterialCursor && <button type="button" className="text-button" disabled={loadingMore || loading || !!pending} onClick={() => {
         setLoadingMore(true);
         void refresh(true).finally(() => setLoadingMore(false));
