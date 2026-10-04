@@ -16,8 +16,17 @@ const page = await browser.newPage({ locale: "zh-CN", viewport: { width: 1440, h
 const passed: string[] = [];
 const blocked: string[] = [];
 const failed: string[] = [];
+const productHttp: Array<{ endpoint: "media-accounts" | "account-assignments"; method: string; status: number }> = [];
 let step = "environment";
-page.on("pageerror", () => failed.push("browser-page-error"));
+let pageErrorCount = 0;
+let failureDiagnostics: Record<string, unknown> | undefined;
+page.on("pageerror", () => { pageErrorCount++; failed.push("browser-page-error"); });
+page.on("response", response => {
+  const path = new URL(response.url()).pathname;
+  const endpoint = path === "/api/operator/media-accounts" ? "media-accounts"
+    : path === "/api/operator/resources/account-assignments" ? "account-assignments" : null;
+  if (endpoint) productHttp.push({ endpoint, method: response.request().method(), status: response.status() });
+});
 
 async function enterProduct() {
   await page.goto(base);
@@ -29,8 +38,8 @@ async function enterProduct() {
 async function openMediaAccounts() {
   const listRead = page.waitForResponse(r => new URL(r.url()).pathname === "/api/operator/media-accounts" && r.request().method() === "GET");
   await page.getByRole("button", { name: "媒体平台账号", exact: true }).click();
-  await page.getByRole("heading", { name: "媒体平台账号", exact: true }).waitFor();
-  await page.getByRole("heading", { name: "账号与凭据状态", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "媒体平台账号", level: 1, exact: true }).waitFor();
+  await page.getByRole("heading", { name: "账号与凭据状态", level: 2, exact: true }).waitFor();
   await listRead;
 }
 async function createAccount(name: string, platform: "facebook" | "youtube", login: string, secret: string, optional = false) {
@@ -195,7 +204,7 @@ try {
     await competitor.goto(base); await competitor.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
     const competitorAccountsRead = competitor.waitForResponse(r => new URL(r.url()).pathname === "/api/operator/media-accounts" && r.request().method() === "GET");
     await competitor.getByRole("button", { name: "媒体平台账号", exact: true }).click();
-    await competitor.getByRole("heading", { name: "媒体平台账号", exact: true }).waitFor();
+    await competitor.getByRole("heading", { name: "媒体平台账号", level: 1, exact: true }).waitFor();
     await competitorAccountsRead;
     const competitionProjectName = `媒体账号竞争验收-${suffix}`;
     await competitor.getByRole("button", { name: "项目", exact: true }).click();
@@ -292,9 +301,22 @@ try {
   assert.deepEqual(failed, []);
 } catch (error) {
   failed.push(`${step}:${error instanceof Error ? error.name : "unknown-error"}`);
+  const safeCount = async (locator: ReturnType<typeof page.locator>) => { try { return await locator.count(); } catch { return -1; } };
+  const diagnostics = {
+    urlPath: (() => { try { return new URL(page.url()).pathname; } catch { return "unavailable"; } })(),
+    mediaNavButtonCount: await safeCount(page.getByRole("button", { name: "媒体平台账号", exact: true })),
+    exactMediaHeadingCount: await safeCount(page.getByRole("heading", { name: "媒体平台账号", exact: true })),
+    levelOneMediaHeadingCount: await safeCount(page.getByRole("heading", { name: "媒体平台账号", level: 1, exact: true })),
+    mediaCreateFormCount: await safeCount(page.locator(".media-account-form")),
+    loginFieldCount: await safeCount(page.getByLabel("登录账号", { exact: true })),
+    passwordFieldCount: await safeCount(page.getByLabel("密码", { exact: true })),
+    pageErrorCount,
+    recentProductHttp: productHttp.slice(-8),
+  };
+  failureDiagnostics = diagnostics;
   process.exitCode = 1;
 } finally {
-  await writeFile(`${output}/result.json`, JSON.stringify({ passed, blocked, failed, secretValuesRecorded: false, platformLoginVerified: false, deviceActions: 0, publicationActions: 0 }, null, 2));
+  await writeFile(`${output}/result.json`, JSON.stringify({ passed, blocked, failed, diagnostics: failureDiagnostics, secretValuesRecorded: false, platformLoginVerified: false, deviceActions: 0, publicationActions: 0 }, null, 2));
   console.log(JSON.stringify({ passed, blocked, failed }));
   await browser.close();
 }
