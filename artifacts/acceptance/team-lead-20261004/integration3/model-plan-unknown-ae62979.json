@@ -1,0 +1,61 @@
+{
+  "source": "ae629796955cf56f83550ae3fe0d028e55805e7d",
+  "actor": "/root/web",
+  "checkedByRootAt": "2026-10-04T00:22:39.148526+00:00",
+  "scope": "actual Playwright forms/buttons and real model in isolated synthetic engineering project",
+  "browserPlanResult": {
+    "outcome": "当前排期未变化。",
+    "currentPlanVisible": true,
+    "taskRows": 0,
+    "executionAllowed": false,
+    "publicationAllowed": false,
+    "actionByBrowser": "no external platform execution or publication",
+    "delayedActualResponseUnknownRecovery": true,
+    "sameOriginalBodyAndKeyReplay": true,
+    "bodySha256": "3270f1c36a8bab89a9599d2bfb4d13d155188d1272802f1a537ccb992c7a97b0",
+    "idempotencyKeySha256": "df542ce84b0d8f65d5ab7ccae1ab85be4dbd2ae4086f2c4bf649c52c06f103e3"
+  },
+  "readonlyBeforeCleanup": {
+    "source": "isolated temporary PostgreSQL; read-only supplemental evidence",
+    "commandCount": 1,
+    "commandReceipts": [
+      {
+        "idempotencyKeySha256": "df542ce84b0d8f65d5ab7ccae1ab85be4dbd2ae4086f2c4bf649c52c06f103e3",
+        "payloadDigestSha256": "190005869bba21e67c8aa086d01265c586e9597771365f131c69fea853aceae8",
+        "outcome": "unchanged",
+        "planRevision": 1
+      }
+    ],
+    "revisionCount": 1,
+    "taskCount": 0,
+    "outboxCount": 0
+  },
+  "directionModelAttempts": [
+    {
+      "outcome": "proposed",
+      "elapsedMs": 11935
+    }
+  ],
+  "cleanup": {
+    "ownedServicesExited": true,
+    "ownedContainersRemovedCount": 2,
+    "temporaryCredentialsRemoved": true
+  },
+  "authorSupplementalPostgres": {
+    "direction": {
+      "passed": 17,
+      "failed": 0
+    },
+    "plan": {
+      "passed": 7,
+      "failed": 0
+    }
+  },
+  "limits": [
+    "Root read designated finite evidence; this actual model/browser run was executed by Web teammate, not independently repeated",
+    "Real unchanged response and original same-body/key recovery; no nonempty Task success",
+    "Task/outbox zero, permissions false; no phone execution or publication",
+    "Previous 30s fetch and rejected 60s/120s wait failures preserved",
+    "No raw request body, key, model output, credential, header or screenshot copied"
+  ]
+}

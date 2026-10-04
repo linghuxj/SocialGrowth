@@ -8,6 +8,7 @@
 | --- | --- | --- |
 | 反馈页面 | 主窗在 `2c7910eee3d6e597c8310b692b7631e067734e60` 实际隔离 Playwright 通过 | 实际表单创建一个工程测试项目，GET显示未配置/零行；真实传输失败后页面重试恢复，980/700/390宽度无横向溢出。没有合成指标，未验证跨项目切换和真实来源 |
 | 实际模型与排期页面 | Web队友在 `80e871a5f1055aba747944869e88619cf8bfdab8` 完成真实模型方向建议、页面确认、素材候选201及 Plan unchanged | 方向建议12968ms；排期revision1、command1、Task/outbox0，执行/发布许可关闭。未验证非空排期、原未知请求恢复或同原body/key重试 |
+| 原未知排期请求接续 | Web队友在获审 `ae629796955cf56f83550ae3fe0d028e55805e7d` 实际恢复通过 | 真模型方向提案11935ms，实际Plan响应201仅延迟60秒；UI45秒进入unknown，真实GET200后显式同body/key续接201。原请求与重试SHA一致，所见command仅1/revision1/unchanged，Task/outbox0、两许可false。主窗读取[有限固定结果](../../../../artifacts/acceptance/team-lead-20261004/integration3/model-plan-unknown-ae62979.json)，未独立重复此模型运行；不代表非空安排或物理执行 |
 | 本地服务恢复 | 主窗自有服务启动源 `f7dce190c716e78cd8381a0ae4c3a15a5d81e983`，backend业务源码与2c等同 | health/Web200及实际device-live只读页面通过，accessReady=false。Task/outbox/control/holder均0；Demo原unknown1/completed6/cancelled1及无holder保留，数据库未重置 |
 | 停止自有进程 | 固定修复候选 `dba7b344de5d55d304b50ed650abb5c9aefd34e4` 两个真实进程回归通过，并获独立批准 | 原停止循环遇已消失进程组ESRCH，未继续停止配套Web；核对自有PID/pgrp/cwd后临时精确清理。新helper继续处理所有已知自有子进程，不处理外来服务；当前运行launcher早于最后细化，下一次受控重启使用新helper |
 | 产品单元与类型 | 主窗固定 `3e03cef493126db5eef698119262744caeb6f482` 完整回归通过：contracts TS80/Python39、backend395、executor61、Web86；四包类型检查通过 | 工程检查，不证明实际平台来源、原生/浏览器业务或整体验收；[有限结果](../../../../artifacts/acceptance/team-lead-20261004/integration3/engineering-checks-3e03cef.json) |
@@ -25,7 +26,7 @@ Plan数据库锁等待回归曾失败，按顺序集成 `6ee0939`、`0305994`、
 
 团队正在各自独立工作树实现项目暂停/恢复/结束、素材内部撤回、任务单一逻辑尝试和批准配置的周期窗口持久化。契约已经按相同revision由参与方签收；尚未完成的源码不能算作已集成或已验收。逻辑尝试只记录pending，不会打开物理执行许可；内部撤回不执行公开平台撤下。
 
-原Plan未知恢复补验未能到达UI恢复阶段：测试默认route.fetch30秒先超时，只读补充所见command/revision/task/outbox0，不推断所有故障的最终回滚。首修dcaf仅按describe45秒设置60秒仍漏coordinator30秒，被独立复核要求修改；完整测试路径修订 `ae629796955cf56f83550ae3fe0d028e55805e7d` 已获[批准](team-review-web-delay-dcaf244.md)，root已集成。fetch120秒、观察真实response190秒包括人工延迟60秒，真实UI未知45秒阈值保持原值。方向Playwright原stdout/stderr不再落盘，采用固定摘要；这属于源码修复，新的真实恢复运行结果尚待记录。
+原Plan未知恢复补验未能到达UI恢复阶段：测试默认route.fetch30秒先超时，只读补充所见command/revision/task/outbox0，不推断所有故障的最终回滚。首修dcaf仅按describe45秒设置60秒仍漏coordinator30秒，被独立复核要求修改；完整测试路径修订 `ae629796955cf56f83550ae3fe0d028e55805e7d` 已获[批准](team-review-web-delay-dcaf244.md)，root已集成。fetch120秒、观察真实response190秒包括人工延迟60秒，真实UI未知45秒阈值保持原值。方向Playwright原stdout/stderr不再落盘，采用固定摘要。修正后新的真实恢复已按上表通过，旧失败不覆盖；作者PG direction17/17及Plan7/7是补充，清理两个自有容器/服务/临时凭据完成。
 
 本批后续仍需源码集成、固定候选实际Web验证、整合head独立复核以及对应新head的hosted CI。现有[草稿PR23](https://github.com/linghuxj/SocialGrowth/pull/23)和已通过的CI仍固定在 `7e8f33b57e133db53940400f40997f4d71854c7c`，不能套用到后续源码；获批后更新同一个PR，不新增批次分支或PR。
 
