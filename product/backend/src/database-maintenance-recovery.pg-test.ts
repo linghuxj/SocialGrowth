@@ -195,6 +195,9 @@ test("full-current-migration maintenance rehearsal detects post-backup revocatio
   assert.equal((await target.query<{ revoked: boolean }>("SELECT revoked_at IS NOT NULL revoked FROM socialgrowth_product.local_participation_runs WHERE run_id=$1", [participationRunId])).rows[0]?.revoked, false);
   assert.equal((await target.query<{ calls: { status: string }[] }>("SELECT record->'calls' calls FROM socialgrowth_product.phone_control_journals WHERE device_id=$1", [deviceId])).rows[0]?.calls[0]?.status, "unknown");
   assert.equal(result.databaseMatchesBackup, true);
+  // Schema-only coverage: this fixture deliberately seeds no cycle/config or
+  // config-command receipt, so it cannot prove their current/history/replay
+  // relationship and must not synthesize a successful business config.
   const expectedNewTables = ["business_plan_guard", "business_plan_records", "business_plan_revisions", "business_plan_tasks", "business_plan_outbox", "business_plan_commands", "business_plan_outbox_impacts", "metric_snapshot_report_heads", "metric_snapshot_history", "business_plan_task_attempts", "project_lifecycle_intents", "material_withdrawal_intents", "business_plan_task_cancellations", "project_review_cycles", "project_review_cycle_configs", "project_review_cycle_config_commands"];
   const inventoryTableNames = opened.manifest.inventory.tables.map(table => table.table);
   assert.ok(expectedNewTables.every(name => inventoryTableNames.includes(name)), "all tables introduced by migrations 0031–0037 are included in the captured inventory");
