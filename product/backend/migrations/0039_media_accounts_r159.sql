@@ -135,8 +135,6 @@ CREATE TABLE socialgrowth_product.resource_account_assignment_commands (
 );
 CREATE TRIGGER resource_account_assignment_command_immutable BEFORE UPDATE OR DELETE ON socialgrowth_product.resource_account_assignment_commands
   FOR EACH ROW EXECUTE FUNCTION socialgrowth_product.reject_direction_history_change();
-CREATE TRIGGER resource_account_assignment_command_immutable BEFORE UPDATE OR DELETE ON socialgrowth_product.resource_account_assignment_commands
-  FOR EACH ROW EXECUTE FUNCTION socialgrowth_product.reject_direction_history_change();
 CREATE TABLE socialgrowth_product.media_account_commands (
   actor_id uuid NOT NULL REFERENCES socialgrowth_product.operators(operator_id),
   request_key text NOT NULL CHECK(request_key ~ '^[A-Za-z0-9_-]{16,128}$'),
