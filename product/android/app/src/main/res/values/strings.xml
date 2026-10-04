@@ -1,0 +1,3 @@
+<resources>
+    <string name="media_credential_input_accessibility_description">A narrowly scoped service for approved one-time media-account input. It remains unavailable until trusted authorization is configured.</string>
+</resources>

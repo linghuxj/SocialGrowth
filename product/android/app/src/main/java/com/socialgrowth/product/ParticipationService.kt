@@ -24,9 +24,19 @@ class ParticipationService : Service() {
         const val STOP="com.socialgrowth.product.WITHDRAW"
         private const val CHANNEL="device-participation"
         @Volatile private var confirmedUntil=0L
+        @Volatile private var currentParticipationScope: ParticipationScope? = null
         @Volatile private var phase="尚未确认参与"
         fun statusText(): String = if(running && SystemClock.elapsedRealtime()<confirmedUntil)
             "本机参与已确认；执行条件仍需系统核验。" else phase
+        /** A current pulse is a local precondition, never action authorization. */
+        fun hasCurrentConfirmation(): Boolean = running && SystemClock.elapsedRealtime() < confirmedUntil
+        fun matchesActionFence(deviceId: UUID, installationId: UUID, installationGeneration: Long, controlGeneration: Long): Boolean {
+            val scope = currentParticipationScope ?: return false
+            return hasCurrentConfirmation() && scope.deviceId == deviceId.toString() &&
+                scope.installationId == installationId.toString() &&
+                scope.installationGeneration.toLongOrNull() == installationGeneration &&
+                scope.controlGeneration?.toLongOrNull() == controlGeneration
+        }
         @Volatile var running=false
             private set
     }
@@ -45,7 +55,7 @@ class ParticipationService : Service() {
         lastStartId=startId
         if(intent?.action==STOP) {
             diagnostic("withdraw_requested", "visible_client")
-            live.set(false); running=false;confirmedUntil=0L;phase="已停止后续参与确认；中心撤权和手机停止仍待核实。"
+            live.set(false); running=false;confirmedUntil=0L;currentParticipationScope=null;phase="已停止后续参与确认；中心撤权和手机停止仍待核实。"
             if(!workerActive) stopSelf()
             return START_NOT_STICKY
         }
@@ -53,7 +63,7 @@ class ParticipationService : Service() {
         if(workerActive) return START_NOT_STICKY
         workerActive=true
         live.set(true)
-        confirmedUntil=0L;phase="正在连接中心确认本机参与。"
+        confirmedUntil=0L;currentParticipationScope=null;phase="正在连接中心确认本机参与。"
         val manager=getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel(CHANNEL,"本机参与状态",NotificationManager.IMPORTANCE_LOW))
         val open=PendingIntent.getActivity(this,0,Intent(this,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
@@ -82,6 +92,7 @@ class ParticipationService : Service() {
             if(token==null || !live.get()) return
             val run=api.start(token,runId)
             require(run.runId==runId && run.scope.installationId==requireNotNull(identity).installationId && run.scope.installationGeneration==identity.generation.toString())
+            currentParticipationScope=run.scope
             ending="withdraw_requested"
             while(live.get()) {
                 if(!freshness.canContinue(SystemClock.elapsedRealtime())) { ending="participation_expired";break }
@@ -118,7 +129,7 @@ class ParticipationService : Service() {
         }
         finally {
             diagnostic("loop_ended", ending)
-            live.set(false); running=false;confirmedUntil=0L;phase="本机参与确认已结束；中心撤权和手机停止仍待核实。"
+            live.set(false); running=false;confirmedUntil=0L;currentParticipationScope=null;phase="本机参与确认已结束；中心撤权和手机停止仍待核实。"
             if(token!=null) { try { api.withdraw(token,runId) } catch (_: Exception) { /* Pulse expires; stop is still unconfirmed. */ } }
             main.post {
                 workerActive=false
@@ -126,5 +137,5 @@ class ParticipationService : Service() {
             }
         }
     }
-    override fun onDestroy() { live.set(false);running=false;worker.shutdown();super.onDestroy() }
+    override fun onDestroy() { live.set(false);running=false;confirmedUntil=0L;currentParticipationScope=null;worker.shutdown();super.onDestroy() }
 }
