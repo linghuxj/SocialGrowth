@@ -24,7 +24,7 @@ const pageErrors: string[] = [];
 page.on("pageerror", () => pageErrors.push("pageerror"));
 page.on("dialog", dialog => dialog.type() === "confirm" ? dialog.accept() : dialog.dismiss());
 type ReadRoute = "lifecycle-intents" | "current-checks" | "materials-list";
-const readEvidence: Array<{ route: ReadRoute; status: number | null; errorCode: string | null }> = [];
+const readEvidence: Array<{ event: "response" | "finished" | "failed"; route: ReadRoute; status: number | null; errorCode: string | null }> = [];
 const readEvidenceTasks: Promise<void>[] = [];
 const safeErrorCodes = new Set(["AUTHENTICATION_REQUIRED", "AUTHORIZATION_DENIED", "CONTRACT_VERSION_UNSUPPORTED", "FACT_VERSION_STALE",
   "INPUT_INVALID", "INTERNAL_ERROR", "MATERIAL_NOT_FOUND", "PROJECT_NOT_FOUND", "RESOURCE_NOT_FOUND"]);
@@ -38,7 +38,7 @@ function readRoute(url: string): ReadRoute | null {
 page.on("requestfailed", request => {
   if (request.method() !== "GET") return;
   const route = readRoute(request.url());
-  if (route) readEvidence.push({ route, status: null, errorCode: "transport_failed" });
+  if (route) readEvidence.push({ event: "failed", route, status: null, errorCode: "transport_failed" });
 });
 page.on("response", response => {
   if (response.request().method() !== "GET") return;
@@ -53,7 +53,16 @@ page.on("response", response => {
         errorCode = typeof body.error?.code === "string" && safeErrorCodes.has(body.error.code) ? body.error.code : "unrecognized";
       } catch { errorCode = "unreadable_error_envelope"; }
     }
-    readEvidence.push({ route, status, errorCode });
+    readEvidence.push({ event: "response", route, status, errorCode });
+  })());
+});
+page.on("requestfinished", request => {
+  if (request.method() !== "GET") return;
+  const route = readRoute(request.url());
+  if (!route) return;
+  readEvidenceTasks.push((async () => {
+    const response = await request.response();
+    readEvidence.push({ event: "finished", route, status: response?.status() ?? null, errorCode: null });
   })());
 });
 
@@ -322,7 +331,19 @@ try {
   const alert = await page.locator(".project-lifecycle__alert").innerText().catch(() => "");
   const alertCategory = alert.includes("运营会话已失效") ? "session_expired" : alert.includes("生命周期事实暂时无法读取") ? "lifecycle_read_unavailable"
     : alert.includes("请求结果未知") ? "request_outcome_unknown" : alert ? "other_safe_alert" : "none";
-  await writeFile(`${output}/failure.json`, JSON.stringify({ failureType: error instanceof Error ? error.name : "unknown", stage, pageErrors, readEvidence, alertCategory, actions: outputFacts,
+  const panel = page.locator(".project-lifecycle");
+  const visible = await panel.isVisible().catch(() => false);
+  const uiState = {
+    panelPresent: await panel.count().catch(() => 0) > 0,
+    panelVisible: visible,
+    lifecycleHeadingVisible: await panel.getByRole("heading", { name: "项目暂停、恢复与结束", exact: true }).isVisible().catch(() => false),
+    lifecycleFactRegionVisible: await panel.getByRole("region", { name: "项目意图事实", exact: true }).isVisible().catch(() => false),
+    knownIntentVisible: await panel.getByText(/尚无项目生命周期意图|已记录暂停意图|已记录恢复前复核意图|已记录正式结束意图/).isVisible().catch(() => false),
+    loadingStatusVisible: await panel.getByText("正在读取项目意图与当前素材事实…", { exact: true }).isVisible().catch(() => false),
+    errorAlertVisible: await panel.locator(".project-lifecycle__alert").isVisible().catch(() => false),
+    navigationSelected: await workspace.getByRole("button", { name: "项目生命周期", exact: true }).getAttribute("aria-current").catch(() => null) === "page",
+  };
+  await writeFile(`${output}/failure.json`, JSON.stringify({ failureType: error instanceof Error ? error.name : "unknown", stage, pageErrors, readEvidence, alertCategory, uiState, actions: outputFacts,
     pausePostCount, endPostCount, actualDirectionSource: "no approved direction created", actualExternalAction: false }, null, 2), { mode: 0o600 });
   throw new Error("Project lifecycle Playwright failed; see finite safe result artifacts");
 } finally {
