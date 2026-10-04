@@ -23,6 +23,8 @@
 
 | 首次读取修复后的真实浏览器 | run5冻结 `91aafc79255435869afc638cdd55c063ddf79bb0`，已过首次读取/内部撤回/延迟暂停跨项目隔离/恢复意图，完整场景仍失败 | [固定失败摘要](../../../../artifacts/acceptance/team-lead-20261004/integration3/lifecycle-run5-failure.json)：End真实2xx提交后按设计丢弃客户端回执，写unknown被共用错误文案标作读取不可用；verifier又在内层事实区等待外层alert。原pending保留，同键重放尚未到达、模型未启动。诊断panelVisible使用多实例locator，false不能作为页面隐藏结论；正在由各自owner作最小修复，自有资源已清理 |
 
+| 当前36迁移恢复组合 | 测试冻结 `586fc51f9927ce9534425cd130715cacdc5e6682`，候选 `eaef30124880aeaba2714c83d6e494380783de0e` 已获[窄范围批准](team-review-ops-inventory-eaef301.md)并完整合入 | 独立PG17.11/MinIO实际联合恢复1/1，36迁移bytes及metadata哈希一致，0034–36新增5表schema和行数恢复对照一致且均为空；contracts build/generate:check与backend check通过。所有自有资源清理，未改liveDB；不证明真实业务数据、生产灾备或物理fence，详见[同一运维记录增量](team-ops-full-schema-20261004.md) |
+
 有限安全结果：[反馈](../../../../artifacts/acceptance/team-lead-20261004/integration3/feedback-2c7910e.json)、[服务恢复](../../../../artifacts/acceptance/team-lead-20261004/integration3/runtime-restart-f7dce19.json)、[模型排期](../../../../artifacts/acceptance/team-lead-20261004/integration3/model-plan-80e871a.json)。测试输入为隔离工程输入；真实浏览器操作和真实模型响应不等于真实平台业务验收。清理前只读SQL是补充证据，未用于预置业务成功。
 
 ## 修复与独立复核
@@ -37,7 +39,7 @@ Plan数据库锁等待回归曾失败，按顺序集成 `6ee0939`、`0305994`、
 
 恢复工作时，本地Docker、Web/backend及管理模拟器进程均已停止，adb没有USB设备。主窗启动原OrbStack、原自有持久PG实例、原管理AVD和服务，健康/Web200；没有替换数据库或重置数据。为先完成原生未决请求恢复，私有启动副本暂仅核验已应用0001–0033迁移，新增完整组合尚未应用到该实例；队列消费者保持关闭。管理端原未决备注的原key和expectedFactVersion5仍在，实际退出登录后原持久请求逐值未变，服务端只读核对撤销一条会话。随后实际开发验证码页面重登录完成，跨登录接续仍在验证。USB本轮不可见不覆盖此前真机证据。
 
-完整后端候选 `07225e7ddb8dbdd7f95bd477330a1bffae945f94` 曾被独立复核要求修复 `LIFECYCLE-ZERO-VERSION-01`，即合法新项目版本0的素材撤回被错误拒绝。修正候选 `e18d52fe6dddf441ed65912ea3bbfbf83e24dbfc` 已获[完整25文件精确批准](team-review-exec-lifecycle-07225e7.md)并整体集成；新增material PG18/18与先前未变范围的组合31/31分别保留，尚非当前root组合的真实Web验收。迁移现在0001–0036连续，当前运行实例仍为33迁移；最终组合和恢复验证按最新减负要求串行开展。
+完整后端候选 `07225e7ddb8dbdd7f95bd477330a1bffae945f94` 曾被独立复核要求修复 `LIFECYCLE-ZERO-VERSION-01`，即合法新项目版本0的素材撤回被错误拒绝。修正候选 `e18d52fe6dddf441ed65912ea3bbfbf83e24dbfc` 已获[完整25文件精确批准](team-review-exec-lifecycle-07225e7.md)并整体集成；新增material PG18/18与先前未变范围的组合31/31分别保留，尚非当前root组合的真实Web验收。迁移现在0001–0036连续，当前运行实例仍为33迁移；最终浏览器组合按最新减负要求串行开展；36迁移恢复补验已按上表完成，原持久实例仍保留33迁移。
 
 用户随后要求禁止模拟器、仅使用USBAndroid，主窗已停止管理AVD，真机实际online。关闭前管理端跨登录后的同一请求重试已完成，原key成功回执1条、版本6、控制/grants0；临时SESSION备注尚待恢复，当前真机保留执行端安装身份，不能通过清数据改身份绕过。详见[同一原生记录更新](team-native-label-821f315.md)。后续不再启动模拟器，不并发跑构建、真实模型或测试组。
 
