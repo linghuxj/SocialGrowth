@@ -81,3 +81,14 @@ SEC-CYCLE-CONFIG 的 backend 与 UX 精确源码审查均已有记录，审查�
 精确完整 base603ace4→head `22b788b253533d5e411d5d3bb8cbc7f0e6e57e39`，verdict **changes_requested**。唯一新增脚本差异已在两次 accounts→项目切换后检测并点击真实“返回项目列表”，再选项目行，CYCLE-UI-NAV-05 闭合，原四条 finding 保持关闭；完整 diff-check 通过。
 
 **CYCLE-UI-DIALOG-06 — P2，验证器临时账号清理的确认处理注册过晚。** 核对 app.tsx 的 onDisable 先同步 window.confirm；脚本 cleanup-temporary-operator 却先 await 停用按钮 click，之后才 page.once(dialog.accept)。前面的单次 handler 已被配置确认消费，当前没有处理者；确认会被默认拒绝，无法得到“账号已停用，会话已撤销”。请在 click 之前注册该次 dialog handler。仅需调整验证器两行顺序，不涉及产品行为。已直接要求作者在新模型运行前修复，避免到流程末尾再失败；本次未实际运行浏览器。
+
+## 5cdaaf0 最终修订 — approved
+
+- Base: `603ace4a9fd03007f23424366c839885f144ae80`
+- Head: `5cdaaf091c76dd34d6429ed404a96881ccd17b17`
+- Reviewer: `/root/adversary`
+- Verdict: **approved**，完整七文件 Web 增量，无未关闭 findings。
+
+独立确认相对22b仅将停用的 dialog handler 移到 click 之前；同时检查脚本其他两个配置确认 handler 均在对应按钮动作之前。CYCLE-UI-DIALOG-06 闭合。NAV-05 的两处返回列表、原请求恢复与 actor/session 隔离、stale 消息、APIResponse、有限日志等已审修复全保留，生产及契约源未变，完整范围 diff-check 通过。旧291批准撤回、22b changes_requested及40b实际失败原值保留。
+
+作者报告新 head verifier strict TS/diff-check 通过；新候选未跑浏览器/模型，reviewer 本轮只读。批准允许继续主会话授权的必要真实验证，不承诺整流程一定通过；真实配置回执、同键恢复和不同 actor 场景仍待实际结果。后续根组合独立审查仍必需。
