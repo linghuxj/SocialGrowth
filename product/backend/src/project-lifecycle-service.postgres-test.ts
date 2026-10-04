@@ -49,8 +49,8 @@ async function tasks(projectId: string, operatorId: string, count: number) {
   try {
     await c.query("BEGIN"); await c.query("SET CONSTRAINTS ALL DEFERRED");
     await c.query(`INSERT INTO ${s}.project_direction_proposals(proposal_id,project_id,record) VALUES($1,$2,$3)`, [proposalId, projectId, { proposalId, projectId }]);
-    await c.query(`INSERT INTO ${s}.project_direction_approvals(approval_id,project_id,proposal_id,actor_id,request_key,payload_digest,snapshot_digest,record)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, [approvalId, projectId, proposalId, operatorId, `proposal-${randomUUID()}`, randomBytes(32), "a".repeat(64),
+    await c.query(`INSERT INTO ${s}.project_direction_approvals(approval_id,project_id,proposal_id,actor_id,request_key,payload_digest,record)
+      VALUES($1,$2,$3,$4,$5,$6,$7)`, [approvalId, projectId, proposalId, operatorId, `proposal-${randomUUID()}`, randomBytes(32),
       { approvalId, projectId, proposalId, confirmedByOperatorId: operatorId, status: "approved_waiting_readiness", proposal: { proposalId, projectId } }]);
     await c.query(`INSERT INTO ${s}.business_plan_records(project_id,current_revision,plan_id) VALUES($1,1,$2)`, [projectId, planId]);
     await c.query(`INSERT INTO ${s}.business_plan_revisions(project_id,revision,plan_id,project_version,approval_id,window_start,window_end,outcome,suggestion,quota_snapshot,recorded_by_operator_id)
@@ -64,7 +64,7 @@ async function tasks(projectId: string, operatorId: string, count: number) {
       await c.query(`INSERT INTO ${s}.material_variants(variant_id,content_unit_id,project_id,language_tag,current_revision) VALUES($1,$2,$3,'en',1)`, [row.variantId, row.contentUnitId, projectId]);
       await c.query(`INSERT INTO ${s}.material_variant_revisions(variant_id,revision,declaration,object_references,recorded_by_operator_id,recorded_at)
         VALUES($1,1,$2,$3,$4,'2090-01-01T00:00:00Z')`, [row.variantId, { name: "Fixture", description: "Fixture", businessFacts: "Fixture", sourceStatement: "Fixture",
-        sourceEvidenceIds: [randomUUID()], firstUseDeclaration: "declared_not_previously_published" }, [{ objectId: row.materialObjectId, sha256: "b".repeat(64), bytes: 10, contentType: "video/mp4" }], operatorId]);
+        sourceEvidenceIds: [randomUUID()], firstUseDeclaration: "declared_not_previously_published" }, JSON.stringify([{ objectId: row.materialObjectId, sha256: "b".repeat(64), bytes: 10, contentType: "video/mp4" }]), operatorId]);
       await c.query(`INSERT INTO ${s}.business_plan_tasks(task_id,project_id,plan_id,plan_revision,content_unit_id,variant_id,material_revision,identity_id,platform,form,language_tag,scheduled_at,title,caption,recorded_by_operator_id)
         VALUES($1,$2,$3,1,$4,$5,1,$6,'facebook','facebook_video','en','2090-01-01T01:00:00Z','Fixture title','Fixture caption',$7)`,
         [row.taskId, projectId, planId, row.contentUnitId, row.variantId, row.identityId, operatorId]);
@@ -73,6 +73,22 @@ async function tasks(projectId: string, operatorId: string, count: number) {
     await c.query("COMMIT");
   } catch (error) { await c.query("ROLLBACK"); throw error; } finally { c.release(); }
   return taskRows;
+}
+
+async function addAttempt(projectId: string, operatorId: string, task: Awaited<ReturnType<typeof tasks>>[number]) {
+  const deviceId = randomUUID();
+  await pool.query(`INSERT INTO ${s}.devices(device_id,display_name,state) VALUES($1,'Lifecycle reserved test phone','unassociated')`, [deviceId]);
+  await pool.query(`INSERT INTO ${s}.project_device_reservations(device_id,project_id) VALUES($1,$2)`, [deviceId, projectId]);
+  await pool.query(`INSERT INTO ${s}.project_account_reservations(account_id,project_id) VALUES($1,$2)`, [task.accountId, projectId]);
+  await pool.query(`INSERT INTO ${s}.project_identity_reservations(identity_id,account_id,platform,device_id,project_id,reserved_by_operator_id)
+    VALUES($1,$2,'facebook',$3,$4,$5)`, [task.identityId, task.accountId, deviceId, projectId, operatorId]);
+  const result = await pool.query(`INSERT INTO ${s}.business_plan_task_attempts(task_attempt_id,task_id,project_id,plan_id,plan_revision,project_version,approval_id,window_start,window_end,
+    task_revision,content_unit_id,variant_id,material_revision,verifier_manifest,identity_id,account_id,platform,reserved_device_id,reservation_operator_id,reservation_recorded_at,recorded_by_operator_id)
+    SELECT $1,t.task_id,t.project_id,t.plan_id,t.plan_revision,1,r.approval_id,r.window_start,r.window_end,t.task_revision,t.content_unit_id,t.variant_id,t.material_revision,
+      jsonb_build_array(jsonb_build_object('objectId',$2::uuid,'sha256',repeat('b',64),'bytes',10,'contentType','video/mp4')),t.identity_id,$3,'facebook',$4,$5,clock_timestamp(),$5
+    FROM ${s}.business_plan_tasks t JOIN ${s}.business_plan_revisions r ON r.project_id=t.project_id AND r.revision=t.plan_revision
+    WHERE t.task_id=$6`, [randomUUID(), task.materialObjectId, task.accountId, deviceId, operatorId, task.taskId]);
+  assert.equal(result.rowCount, 1);
 }
 
 test("pause is intent-only; terminal end records only confirmed unstarted cancellation and replays once", async () => {
