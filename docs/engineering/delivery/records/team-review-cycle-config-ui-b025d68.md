@@ -30,3 +30,11 @@ runner 仅在明确提供绝对 Artemis root 且 planning/direction scope 时开
 作者报告 Web 类型检查通过，此前对应 API11/11、构建/lint 通过。首轮实际浏览器在提交前源码完成一次模型与方向确认、A/B 周期读取，配置按钮阶段超时，没有配置成功回执；自有资源已清理。当前 b025 仅补有限 checkpoint 后尚未重复真实验证，首失败保留。Reviewer 未读取原始日志/截图/配置，未启动编译、测试、服务、模型、USB 或容器。
 
 后端 603ace4 的独立批准继续有效；本次没有把后端 PG 工程检查推定为 Web 通过。SEC-CYCLE-CONFIG 保持进行中，修复后再按精确 SHA 复核，整体根候选另审。
+
+## cb66bef 修复复核 — changes_requested
+
+完整 Web base 仍为 `603ace4a9fd03007f23424366c839885f144ae80`，新 head `cb66bef68bc2cc104239051d679f45659c7b7e0d`。与 b025 相比只有 API、panel、verifier 三文件修改；完整范围 diff-check 通过。源码修复已允许 currentCycle=null 与旧配置共存，原命令 send 不再强制要求当前周期；确定 stale 结果在刷新后保留；原 body 比较改为有限布尔和 abort，不再构造含正文的断言。CYCLE-UI-STALE-02 和 CYCLE-UI-LOG-03 的原发现闭合。
+
+CYCLE-UI-EXPIRED-01 仍有未修部分：持久 pending 的记录与 lookup/retry 按钮仍被包在 view 成功渲染分支中。重载时当前周期 GET 失败，哪怕 command lookup 可用且原 actor 有权限，页面仍没有恢复入口。请将 pending 恢复区移到当前事实成功分支之外，保留新写要求有效活动周期的限制。
+
+另新增脚本局部类型错误：`route.fetch()` 返回 Playwright `APIResponse`，此次标注成了 `Response`。Web check 不包含该 .mts 脚本，不能覆盖此错误。请使用准确类型/推断并检查该脚本；本 reviewer 未运行编译或浏览器，也不需要用真实模型暴露静态错误。作者应修正后给新的精确 head，此候选尚未批准。
