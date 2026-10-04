@@ -22,3 +22,13 @@ Reviewed the complete 25-file delta, including migrations 0034/0035, BusinessPla
 - Material withdrawal remains visible in history and marks current candidate false; save performs both pre-IO and final transaction checks. All new SQL values are parameterized; interpolated table/column/guard identifiers are fixed internal strings.
 - Author reports disposable PostgreSQL17.11 three-suite bundle 31/31, including actual Nest logical-attempt HTTP create/replay, contracts TS84/Python39, typecheck and lint with three existing warnings; container/credentials removed. Reviewer has not rerun PostgreSQL, read raw logs or independently checked that cleanup. These reported passes do not cover the discovered zero-version withdrawal case.
 - No actual Web, nonempty real-model Task, phone execution, physical stop, platform removal, resource release or full product acceptance is established. This full-delta review does not approve the root integration candidate or replace any old pending gate.
+
+## Fixed complete candidate review
+
+Base: `2c7910eee3d6e597c8310b692b7631e067734e60`.
+Head: `e18d52fe6dddf441ed65912ea3bbfbf83e24dbfc`.
+Verdict: **approved** for the complete 25-file delta; no remaining material finding.
+
+LIFECYCLE-ZERO-VERSION-01 is fixed by accepting safe nonnegative current project versions; missing/NaN, noninteger and negative facts still reject. The new PostgreSQL regression saves an actual pending declaration through MaterialRegistryStore at project version 0, withdraws its exact revision through ProjectLifecycleService, replays the same command, and reads back unchanged material history and project version with candidate false/material_withdrawn. It does not pre-mark withdrawal success. Compared with the fully reviewed 07225e7 only that predicate and this focused test changed; all other source and contract bytes are unchanged. Full-range independent diff-check passed.
+
+Author reports the fixed candidate material PostgreSQL suite 18/18 and backend typecheck passing, with its disposable container/credentials cleaned. The earlier combined three-suite 31/31 and Nest HTTP evidence remain earlier-candidate evidence, not a new full combined run. Independent exact contract tests 10/10 remain applicable because contracts are unchanged. In accordance with the user's reduced-load constraint, the reviewer did not start containers, run broad suites, use an emulator/device, or restart services. Root's latest complete integration and real Web acceptance still require their own fixed-head review and serial verification; no physical or publication authority is granted by this approval.
