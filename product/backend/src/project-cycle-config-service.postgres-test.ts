@@ -9,6 +9,7 @@ import { ProjectService } from "./project-service.js";
 import { ProjectPlanningService } from "./project-planning-service.js";
 import { ProjectDirectionService } from "./project-direction-service.js";
 import { ProjectCycleConfigService } from "./project-cycle-config-service.js";
+import { resolveProjectCycleWindow } from "./project-cycle-store.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
 import type { InitialDirectionModel } from "./artemis-business-model.js";
 
@@ -114,6 +115,9 @@ test("missing calendar runtime metadata fails closed and unresolved receipt reta
     businessTimeZone: "Asia/Shanghai", reviewIntervalDays: 14, trafficMinimumPerCycle: 2 });
   assert.equal(first.outcome, "confirmed");
   assert.ok(first.nextConfiguration);
+  const current = (await configuration.read(f.token, f.projectId)).currentCycle;
+  assert.ok(current);
+  assert.ok(resolveProjectCycleWindow(current.endsAt, 21, "Asia/Shanghai"), "control proves the old successful-preview path is otherwise available");
 
   const tzDescriptor = Object.getOwnPropertyDescriptor(process.versions, "tz");
   assert.ok(tzDescriptor?.configurable, "test runtime metadata must be safely restorable");
@@ -122,7 +126,7 @@ test("missing calendar runtime metadata fails closed and unresolved receipt reta
   let unresolved;
   try {
     unresolved = await configuration.save(f.token, f.csrf, f.projectId, { metadata: secondMetadata, expectedConfigurationRevision: 1,
-      businessTimeZone: "America/New_York", reviewIntervalDays: 21, trafficMinimumPerCycle: 4 });
+      businessTimeZone: "Asia/Shanghai", reviewIntervalDays: 21, trafficMinimumPerCycle: 4 });
   } finally {
     Object.defineProperty(process.versions, "tz", tzDescriptor);
   }
