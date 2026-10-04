@@ -61,7 +61,14 @@ async function run(name, command, args, environment, stdin) {
   const child = spawn(command, args, { cwd: repo, env: { ...ambient, ...environment }, stdio: ["pipe", "pipe", "pipe"] });
   let log = ""; child.stdout.on("data", value => { log += redact(value); }); child.stderr.on("data", value => { log += redact(value); });
   child.stdin.end(stdin); const [code] = await once(child, "exit");
-  await writeFile(join(output, `${name}.log`), log);
+  // Playwright's raw transport errors may include cookies, CSRF headers or
+  // request bodies. The direction script writes a separately scoped safe
+  // failure summary and finite result facts, so never persist its raw output.
+  const safeLog = name === "direction-playwright"
+    ? code === 0 ? "Direction Playwright process completed; inspect scoped safe result facts.\n"
+      : "Direction Playwright process failed; raw browser transport output discarded. Inspect scoped safe failure facts.\n"
+    : log;
+  await writeFile(join(output, `${name}.log`), safeLog);
   console.log(JSON.stringify({ step: name, exitCode: code }));
   assert.equal(code, 0, `${name} failed; see sanitized log`);
 }

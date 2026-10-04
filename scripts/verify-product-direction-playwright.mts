@@ -32,7 +32,10 @@ if (planResponseDelayMs > 0) await page.route("**/api/operator/projects/*/busine
     if (typeof metadata?.idempotencyKey === "string") idempotencyKeySha256 = sha256(metadata.idempotencyKey);
   } catch { /* Only digests and fixed result codes are persisted. */ }
   const started = performance.now();
-  const actualResponse = await route.fetch();
+  // Backend describe is bounded at 45s. Keep enough headroom for the actual
+  // response to arrive before the browser's own 45s unknown deadline; the
+  // route only delays that real response below and never fabricates one.
+  const actualResponse = await route.fetch({ timeout: 60_000 });
   planPostResponses++;
   let errorCode: string | null = null, retryable: boolean | null = null;
   if (!actualResponse.ok()) {
