@@ -75,3 +75,9 @@ SEC-CYCLE-CONFIG 的 backend 与 UX 精确源码审查均已有记录，审查�
 **CYCLE-UI-NAV-05 — P2，验证器对保留的项目详情误按列表导航。** 主会话提示后，独立读取 app.tsx 与 project-panel.tsx 确认：ProjectPanel 始终挂载，active 仅决定隐藏，selected 和 tab 保留；只有 selected=null 才渲染项目列表 row。verifier 在 A 已选项目设置后切到 accounts 创建 B，再点“项目”仍是 A 详情，却直接等待该项目 row/准备清单，必定没有列表目标。后面 cleanup account→项目→mobile 检查也有同样前提。应通过已有真实“返回项目列表”入口回到列表，再按预期项目重开，或明确处理仍在同一详情的真实 UI；不改业务状态或用后台调用替代。
 
 此前40b3有限证据的 phase=cycle-config-lost-response 是 B 的三个输入编辑后才赋值，因此它已越过 B 编辑，超时发生在返回 A 的路径；旧 checkpoint 较粗不能推断卡在 B 编辑前。291只有新检查点，并未解决这条可由源码定位的导航缺口，不能用又一次模型运行来重复发现。已直接要求 UX 最小修正并新精确 head，暂停当前候选的运行/PR建议，其他已关闭 findings 不重开。
+
+## 22b788b — 导航修复闭合，确认框顺序待修
+
+精确完整 base603ace4→head `22b788b253533d5e411d5d3bb8cbc7f0e6e57e39`，verdict **changes_requested**。唯一新增脚本差异已在两次 accounts→项目切换后检测并点击真实“返回项目列表”，再选项目行，CYCLE-UI-NAV-05 闭合，原四条 finding 保持关闭；完整 diff-check 通过。
+
+**CYCLE-UI-DIALOG-06 — P2，验证器临时账号清理的确认处理注册过晚。** 核对 app.tsx 的 onDisable 先同步 window.confirm；脚本 cleanup-temporary-operator 却先 await 停用按钮 click，之后才 page.once(dialog.accept)。前面的单次 handler 已被配置确认消费，当前没有处理者；确认会被默认拒绝，无法得到“账号已停用，会话已撤销”。请在 click 之前注册该次 dialog handler。仅需调整验证器两行顺序，不涉及产品行为。已直接要求作者在新模型运行前修复，避免到流程末尾再失败；本次未实际运行浏览器。
