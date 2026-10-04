@@ -8,6 +8,7 @@ import { OperatorAuthService } from "./operator-auth-service.js";
 import { ProjectService } from "./project-service.js";
 import { ProjectPlanningService } from "./project-planning-service.js";
 import { ProjectDirectionService } from "./project-direction-service.js";
+import { nextCycleBoundary } from "./project-cycle-store.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
 import type { InitialDirectionModel } from "./artemis-business-model.js";
 import { PostgresArtemisPreflightJournal } from "./artemis-preflight-journal.js";
@@ -25,13 +26,13 @@ before(async () => {
 after(async () => { try { await pool.query("DROP SCHEMA IF EXISTS socialgrowth_product CASCADE"); } finally { await pool.end(); } });
 // Synthetic NON-UI fixtures with a controlled model port. They test transaction
 // and recovery rules; real model + browser evidence is a separate Playwright run.
-async function fixture(complete = true) {
+async function fixture(complete = true, inputOverrides: Partial<ProjectPlanningInputs> = {}) {
   const operatorId = randomUUID(), sessionId = randomUUID(), token = randomBytes(32).toString("base64url"), csrf = randomBytes(32).toString("base64url");
   const digest = (s: string) => createHash("sha256").update(s).digest();
   await pool.query("INSERT INTO socialgrowth_product.operators(operator_id,login_name,display_name,password_hash,status) VALUES($1,$2,'Direction fixture','not-a-password','active')", [operatorId, `fixture-${operatorId}`]);
   await pool.query("INSERT INTO socialgrowth_product.operator_sessions(session_id,operator_id,token_digest,csrf_digest,credential_version,expires_at) VALUES($1,$2,$3,$4,1,clock_timestamp()+interval '1 day')", [sessionId, operatorId, digest(token), digest(csrf)]);
   const p = (await projects.save(token, csrf, { metadata: metadata(), basics: { name: `Fixture-${randomUUID()}`, kind: "company_owned", customerName: null, ownerOperatorId: operatorId, notificationEmail: null } }, "create")).project;
-  const inputs: ProjectPlanningInputs = { ...emptyProjectPlanningInputs(), preOpeningGoal: "Synthetic preparation", postOpeningGoal: "Synthetic retention", postOpeningPriority: "balanced", targetCountries: ["CN"], targetLanguages: ["zh"], contentForms: ["facebook_image_text"], contentRules: "Synthetic only; no publication", businessTimeZone: "Asia/Shanghai", firstCycleStartsAt: "2090-01-01T00:00:00Z", reviewIntervalDays: 7, trafficMinimumPerCycle: 0, observationWindowHours: 24, tailObservationDays: 0, maxPublicationsPerDay: 1, publishingWindow: { startsAt: "2090-01-01T00:00:00Z", endsAt: "2090-02-01T00:00:00Z" } };
+  const inputs: ProjectPlanningInputs = { ...emptyProjectPlanningInputs(), preOpeningGoal: "Synthetic preparation", postOpeningGoal: "Synthetic retention", postOpeningPriority: "balanced", targetCountries: ["CN"], targetLanguages: ["zh"], contentForms: ["facebook_image_text"], contentRules: "Synthetic only; no publication", businessTimeZone: "Asia/Shanghai", firstCycleStartsAt: "2090-01-01T00:00:00Z", reviewIntervalDays: 7, trafficMinimumPerCycle: 0, observationWindowHours: 24, tailObservationDays: 0, maxPublicationsPerDay: 1, publishingWindow: { startsAt: "2090-01-01T00:00:00Z", endsAt: "2090-02-01T00:00:00Z" }, ...inputOverrides };
   const draft = (await planning.save(token, csrf, { metadata: metadata(), projectId: p.projectId, expectedProjectVersion: 0, expectedDraftVersion: 0, inputs: complete ? inputs : emptyProjectPlanningInputs() })).draft;
   const request = { metadata: metadata(), projectId: p.projectId, expectedProjectVersion: draft.projectFactVersion, expectedDraftVersion: draft.draftVersion, identities: [{ platform: "facebook", canonicalRef: "synthetic_page", declaredStage: "before_monetization" }] };
   return { operatorId, sessionId, token, csrf, p, draft, request };
@@ -80,9 +81,65 @@ test("confirmation is atomic, immutable, replayable after rebuild and leaves all
   assert.ok(approved.approval); assert.equal(approved.projectVersion, f.draft.projectFactVersion + 1);
   assert.equal(approved.executionAllowed, false); assert.equal(approved.publicationAllowed, false);
   assert.equal((await service().confirm(f.token, f.csrf, request)).approval?.approvalId, approved.approval.approvalId);
+  const cycles = (await pool.query<{ config_version: string; approval_id: string; starts_at: string; ends_at: string; traffic_minimum: number; approved_inputs: ProjectPlanningInputs }>(
+    `SELECT config_version::text,approval_id,starts_at,ends_at,traffic_minimum,approved_inputs FROM socialgrowth_product.project_review_cycles WHERE project_id=$1`, [f.p.projectId])).rows;
+  assert.equal(cycles.length, 1); assert.equal(Number(cycles[0]!.config_version), approved.projectVersion);
+  assert.equal(cycles[0]!.approval_id, approved.approval.approvalId);
+  assert.equal(cycles[0]!.starts_at, "2090-01-01T00:00:00Z"); assert.equal(cycles[0]!.ends_at, "2090-01-08T00:00:00Z");
+  assert.equal(cycles[0]!.traffic_minimum, 0); assert.equal(cycles[0]!.approved_inputs.reviewIntervalDays, 7);
   await assert.rejects(pool.query("UPDATE socialgrowth_product.project_direction_approvals SET record=record||'{\"status\":\"approved\"}'::jsonb WHERE project_id=$1", [f.p.projectId]));
   await assert.rejects(pool.query("DELETE FROM socialgrowth_product.project_direction_proposals WHERE project_id=$1", [f.p.projectId]));
+  await assert.rejects(pool.query("UPDATE socialgrowth_product.project_review_cycles SET traffic_minimum=9 WHERE project_id=$1", [f.p.projectId]));
+  await assert.rejects(pool.query("DELETE FROM socialgrowth_product.project_review_cycles WHERE project_id=$1", [f.p.projectId]));
   assert.deepEqual(await count(f.p.projectId), { attempts: 1, proposals: 1, approvals: 1 });
+});
+
+test("ambiguous approved local cycle boundary preserves approval but writes no guessed window", async () => {
+  const f = await fixture(true, { businessTimeZone: "America/New_York", firstCycleStartsAt: "2026-10-25T05:30:00Z", reviewIntervalDays: 7 });
+  const s = service(), generated = await s.generate(f.token, f.csrf, f.request); assert.ok(generated.proposal);
+  const approved = await s.confirm(f.token, f.csrf, confirm(f, generated.proposal)); assert.ok(approved.approval);
+  const rows = (await pool.query(`SELECT count(*)::int AS count FROM socialgrowth_product.project_review_cycles WHERE project_id=$1`, [f.p.projectId])).rows[0];
+  assert.equal(rows!.count, 0);
+  const audit = (await pool.query<{ facts: { reviewCycle: { state: string; reason?: string } } }>(
+    `SELECT facts FROM socialgrowth_product.audit_records WHERE action='project.direction_confirmed' AND object_id=$1`, [f.p.projectId])).rows[0];
+  assert.deepEqual(audit?.facts.reviewCycle, { state: "unresolved", reason: "civil_boundary_ambiguous" });
+});
+
+test("PostgreSQL clock refuses a retroactive next-cycle boundary", async () => {
+  const { now, elapsed, future } = (await pool.query<{ now: string; elapsed: string; future: string }>(`WITH t AS (SELECT clock_timestamp() AS now)
+    SELECT to_char(now AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS now,
+      to_char((now - interval '1 microsecond') AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS elapsed,
+      to_char((now + interval '1 second') AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS future FROM t`)).rows[0]!;
+  assert.ok(nextCycleBoundary(elapsed, now) === null);
+  assert.equal(nextCycleBoundary(future, now), future);
+});
+
+test("cycle write failure rolls back the approval and retries atomically", async () => {
+  const f = await fixture(), s = service(), generated = await s.generate(f.token, f.csrf, f.request); assert.ok(generated.proposal);
+  const request = confirm(f, generated.proposal);
+  await pool.query(`CREATE FUNCTION socialgrowth_product.cycle_insert_fault() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture-only cycle failure'; END $$`);
+  await pool.query("CREATE TRIGGER cycle_insert_fault BEFORE INSERT ON socialgrowth_product.project_review_cycles FOR EACH ROW EXECUTE FUNCTION socialgrowth_product.cycle_insert_fault()");
+  try { await assert.rejects(s.confirm(f.token, f.csrf, request), error("INTERNAL_ERROR")); }
+  finally { await pool.query("DROP TRIGGER cycle_insert_fault ON socialgrowth_product.project_review_cycles"); await pool.query("DROP FUNCTION socialgrowth_product.cycle_insert_fault()"); }
+  assert.equal((await pool.query("SELECT count(*)::int AS count FROM socialgrowth_product.project_direction_approvals WHERE project_id=$1", [f.p.projectId])).rows[0]!.count, 0);
+  assert.equal((await pool.query("SELECT count(*)::int AS count FROM socialgrowth_product.project_review_cycles WHERE project_id=$1", [f.p.projectId])).rows[0]!.count, 0);
+  const approved = await s.confirm(f.token, f.csrf, request); assert.ok(approved.approval);
+  assert.equal((await pool.query("SELECT count(*)::int AS count FROM socialgrowth_product.project_review_cycles WHERE project_id=$1", [f.p.projectId])).rows[0]!.count, 1);
+});
+
+test("operator session expiry during cycle persistence rolls back approval and cycle together", async () => {
+  const f = await fixture(), s = service(), generated = await s.generate(f.token, f.csrf, f.request); assert.ok(generated.proposal);
+  const request = confirm(f, generated.proposal);
+  const beforeVersion = (await pool.query<{ fact_version: string }>("SELECT fact_version::text FROM socialgrowth_product.projects WHERE project_id=$1", [f.p.projectId])).rows[0]!.fact_version;
+  await pool.query("UPDATE socialgrowth_product.operator_sessions SET expires_at=clock_timestamp()+interval '2 seconds' WHERE session_id=$1", [f.sessionId]);
+  await pool.query(`CREATE FUNCTION socialgrowth_product.cycle_insert_delay() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(2.5); RETURN NEW; END $$`);
+  await pool.query("CREATE TRIGGER cycle_insert_delay BEFORE INSERT ON socialgrowth_product.project_review_cycles FOR EACH ROW EXECUTE FUNCTION socialgrowth_product.cycle_insert_delay()");
+  try { await assert.rejects(s.confirm(f.token, f.csrf, request), error("AUTHENTICATION_REQUIRED")); }
+  finally { await pool.query("DROP TRIGGER cycle_insert_delay ON socialgrowth_product.project_review_cycles"); await pool.query("DROP FUNCTION socialgrowth_product.cycle_insert_delay()"); }
+  assert.equal((await pool.query("SELECT count(*)::int AS count FROM socialgrowth_product.project_direction_approvals WHERE project_id=$1", [f.p.projectId])).rows[0]!.count, 0);
+  assert.equal((await pool.query("SELECT count(*)::int AS count FROM socialgrowth_product.project_review_cycles WHERE project_id=$1", [f.p.projectId])).rows[0]!.count, 0);
+  assert.equal((await pool.query("SELECT fact_version::text FROM socialgrowth_product.projects WHERE project_id=$1", [f.p.projectId])).rows[0]!.fact_version, beforeVersion);
+  assert.equal((await pool.query("SELECT count(*)::int AS count FROM socialgrowth_product.audit_records WHERE action='project.direction_confirmed' AND object_id=$1", [f.p.projectId])).rows[0]!.count, 0);
 });
 test("stale confirmation and concurrent confirmations cannot replace the approved scope", async () => {
   const f = await fixture(), s = service(), old = await s.generate(f.token, f.csrf, f.request); assert.ok(old.proposal);
