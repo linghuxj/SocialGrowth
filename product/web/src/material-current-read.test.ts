@@ -17,7 +17,8 @@ function current(version: number, variant = id(3)): MaterialCurrentView {
       sourceStatement: "Synthetic source", sourceEvidenceIds: [id(7)], firstUseDeclaration: "declared_not_previously_published",
       expectedApprovedDirectionId: null, expectedApprovedProjectVersion: null, contentRulesReviewed: false },
     objects: [{ objectId: id(8), sha256: "a".repeat(64), bytes: 3, contentType: "image/png" }],
-    recordedAt: "2026-10-02T00:00:00Z", status: "pending_validation", candidateAllowed: false, eligibilityReason: "direction_not_approved", publicationAllowed: false });
+    recordedAt: "2026-10-02T00:00:00Z", status: "pending_validation", candidateAllowed: false, eligibilityReason: "direction_not_approved", publicationAllowed: false,
+    withdrawal: { state: "not_withdrawn", materialRevision: null, requestId: null, recordedAt: null } });
 }
 interface SourceRow { id: string; observed?: MaterialCurrentView; saved: MaterialCurrentView;
   input: { expectedCurrentRevision: number; metadata: { contractVersion: typeof contractVersion; requestId: string; idempotencyKey: string } }; }
