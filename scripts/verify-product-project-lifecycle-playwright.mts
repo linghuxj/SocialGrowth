@@ -23,6 +23,39 @@ page.setDefaultTimeout(20_000);
 const pageErrors: string[] = [];
 page.on("pageerror", () => pageErrors.push("pageerror"));
 page.on("dialog", dialog => dialog.type() === "confirm" ? dialog.accept() : dialog.dismiss());
+type ReadRoute = "lifecycle-intents" | "current-checks" | "materials-list";
+const readEvidence: Array<{ route: ReadRoute; status: number | null; errorCode: string | null }> = [];
+const readEvidenceTasks: Promise<void>[] = [];
+const safeErrorCodes = new Set(["AUTHENTICATION_REQUIRED", "AUTHORIZATION_DENIED", "CONTRACT_VERSION_UNSUPPORTED", "FACT_VERSION_STALE",
+  "INPUT_INVALID", "INTERNAL_ERROR", "MATERIAL_NOT_FOUND", "PROJECT_NOT_FOUND", "RESOURCE_NOT_FOUND"]);
+function readRoute(url: string): ReadRoute | null {
+  const path = new URL(url).pathname;
+  if (/^\/api\/operator\/projects\/[0-9a-f-]{36}\/lifecycle-intents$/i.test(path)) return "lifecycle-intents";
+  if (/^\/api\/operator\/projects\/[0-9a-f-]{36}\/business-plan\/current-checks$/i.test(path)) return "current-checks";
+  if (/^\/api\/operator\/projects\/[0-9a-f-]{36}\/materials$/i.test(path)) return "materials-list";
+  return null;
+}
+page.on("requestfailed", request => {
+  if (request.method() !== "GET") return;
+  const route = readRoute(request.url());
+  if (route) readEvidence.push({ route, status: null, errorCode: "transport_failed" });
+});
+page.on("response", response => {
+  if (response.request().method() !== "GET") return;
+  const route = readRoute(response.url());
+  if (!route) return;
+  const status = response.status();
+  readEvidenceTasks.push((async () => {
+    let errorCode: string | null = null;
+    if (!response.ok()) {
+      try {
+        const body = await response.json() as { error?: { code?: unknown } };
+        errorCode = typeof body.error?.code === "string" && safeErrorCodes.has(body.error.code) ? body.error.code : "unrecognized";
+      } catch { errorCode = "unreadable_error_envelope"; }
+    }
+    readEvidence.push({ route, status, errorCode });
+  })());
+});
 
 const workspace = page.locator(".project-workspace");
 const outputFacts: {
@@ -280,11 +313,16 @@ try {
 
   await writeFile(`${output}/result.json`, JSON.stringify({ passed: true, scope: "real UI login, two UI-created projects, UI material save/withdrawal on unapproved v0 project, pause/resume/end intents, delayed old-project response isolation, committed-but-lost response recovery with exact original body/key replay", projects: 2,
     projectIdsRecordedAsHashesOnly: true, pauseResponseDelayedUntilProjectB: true, lateResponseDidNotContaminateProjectB: true,
-    unknownEndRecoveredBySameKey: true, materialWithdrawalStayedInternal: true,
+    unknownEndRecoveredBySameKey: true, materialWithdrawalStayedInternal: true, readEvidence,
     actions: outputFacts, executionAllowed: false, publicationAllowed: false, actualDeviceAction: false, actualPublication: false }, null, 2), { mode: 0o600 });
+  await writeFile(`${output}/read-http-facts.json`, JSON.stringify(readEvidence, null, 2), { mode: 0o600 });
   console.log(JSON.stringify({ passed: true, scope: "project-lifecycle UI", projects: 2, executionAllowed: false, publicationAllowed: false }));
 } catch (error) {
-  await writeFile(`${output}/failure.json`, JSON.stringify({ failureType: error instanceof Error ? error.name : "unknown", stage, pageErrors, actions: outputFacts,
+  await Promise.allSettled(readEvidenceTasks);
+  const alert = await page.locator(".project-lifecycle__alert").innerText().catch(() => "");
+  const alertCategory = alert.includes("运营会话已失效") ? "session_expired" : alert.includes("生命周期事实暂时无法读取") ? "lifecycle_read_unavailable"
+    : alert.includes("请求结果未知") ? "request_outcome_unknown" : alert ? "other_safe_alert" : "none";
+  await writeFile(`${output}/failure.json`, JSON.stringify({ failureType: error instanceof Error ? error.name : "unknown", stage, pageErrors, readEvidence, alertCategory, actions: outputFacts,
     pausePostCount, endPostCount, actualDirectionSource: "no approved direction created", actualExternalAction: false }, null, 2), { mode: 0o600 });
   throw new Error("Project lifecycle Playwright failed; see finite safe result artifacts");
 } finally {
