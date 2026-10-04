@@ -18,3 +18,13 @@ Scope is the exact six-file delta: cycle store and unit tests, migration 0036, d
 - Reviewed immutable insert-only migration, parameterized queries, approval hook, database project-version check, fixed lock ordering, and final database-clock session revalidation. The hook uses the approved proposal; it does not accept new caller scheduling values or mint action permissions. DST ambiguity/offset transitions return unresolved. No further material source issue found in this delta.
 - PostgreSQL migration/atomic rollback/session expiry/concurrency are unverified in this review. Author reported backend typecheck, 400 unit tests and lint passing; these do not prove migration or browser acceptance.
 - The reported prior actual Web outcome remains maintain/unchanged with zero Task/outbox rows. This implementation does not prove repeated cycle advancement, a real metric source, nonempty Task scheduling, execution, publication, or production recovery.
+
+## Exact re-review
+
+Base: `259bdb62243b936d938c1229bdcbffc47d805dff`.
+Head: `6cdebccea36adca8e04f975a61f3ea3ef01ec05a`.
+Verdict: **approved** for this complete six-file source delta; no remaining material finding.
+
+CYCLE-CLOCK-TEST-01 is fixed: a single volatile-clock CTE supplies one captured instant, and elapsed/future derive from that instant. The rest of the production implementation is byte-identical to the reviewed candidate. Independent full-delta whitespace check passed; previously run exact cycle unit tests remain applicable (5/5). The delivery report now records author-run isolated PostgreSQL 17.11 direction suite 21/21 and removal of its owned loopback-only, no-volume container. Reviewer did not rerun PostgreSQL or inspect private raw logs. Author additionally reports full backend units 400/400, typecheck and lint passing with three pre-existing warnings.
+
+The initial unrun-test defect remains in the record above. Approval covers source integrity and the stated engineering boundary, not a second configuration approval flow, repeated review cycles, actual metrics, nonempty Task scheduling, browser acceptance of this new source, execution or publication.
