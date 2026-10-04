@@ -198,19 +198,21 @@ test("full-current-migration maintenance rehearsal detects post-backup revocatio
   // Schema-only coverage: this fixture deliberately seeds no cycle/config or
   // config-command receipt, so it cannot prove their current/history/replay
   // relationship and must not synthesize a successful business config.
-  const expectedNewTables = ["business_plan_guard", "business_plan_records", "business_plan_revisions", "business_plan_tasks", "business_plan_outbox", "business_plan_commands", "business_plan_outbox_impacts", "metric_snapshot_report_heads", "metric_snapshot_history", "business_plan_task_attempts", "project_lifecycle_intents", "material_withdrawal_intents", "business_plan_task_cancellations", "project_review_cycles", "project_review_cycle_configs", "project_review_cycle_config_commands"];
+  const expectedNewTables = ["business_plan_guard", "business_plan_records", "business_plan_revisions", "business_plan_tasks", "business_plan_outbox", "business_plan_commands", "business_plan_outbox_impacts", "metric_snapshot_report_heads", "metric_snapshot_history", "business_plan_task_attempts", "project_lifecycle_intents", "material_withdrawal_intents", "business_plan_task_cancellations", "project_review_cycles", "project_review_cycle_configs", "project_review_cycle_config_commands",
+    "project_media_account_assignments", "resource_handover_requests", "resource_account_assignment_commands", "media_account_commands",
+    "media_input_installation_keys", "media_input_enrollment_challenges", "media_input_pending_grants", "media_input_status_receipts"];
   const inventoryTableNames = opened.manifest.inventory.tables.map(table => table.table);
-  assert.ok(expectedNewTables.every(name => inventoryTableNames.includes(name)), "all tables introduced by migrations 0031–0037 are included in the captured inventory");
+  assert.ok(expectedNewTables.every(name => inventoryTableNames.includes(name)), "all explicitly tracked new tables are included in the captured inventory");
   const tableSchema = async (pool: Pool) => (await pool.query<{ table_name: string; column_name: string; ordinal_position: number; data_type: string; is_nullable: string; column_default: string | null; is_identity: string; identity_generation: string | null }>(
     `SELECT table_name,column_name,ordinal_position,data_type,is_nullable,column_default,is_identity,identity_generation FROM information_schema.columns WHERE table_schema='socialgrowth_product' AND table_name=ANY($1::text[]) ORDER BY table_name COLLATE "C",ordinal_position`, [expectedNewTables])).rows;
   const sourceNewTableSchema = await tableSchema(source), restoredNewTableSchema = await tableSchema(target);
-  assert.ok(expectedNewTables.every(name => sourceNewTableSchema.some(column => column.table_name === name)), "all tables introduced by migrations 0031–0037 exist in the source schema");
-  assert.deepEqual(restoredNewTableSchema, sourceNewTableSchema, "migration 0031–0037 table definitions match after empty-target restore");
+  assert.ok(expectedNewTables.every(name => sourceNewTableSchema.some(column => column.table_name === name)), "all explicitly tracked new tables exist in the source schema");
+  assert.deepEqual(restoredNewTableSchema, sourceNewTableSchema, "tracked new table definitions match after empty-target restore");
   const newTableRows = async (pool: Pool) => Promise.all(expectedNewTables.map(async table => ({ table,
     rows: Number((await pool.query(`SELECT count(*)::text AS count FROM socialgrowth_product.${table}`)).rows[0]?.count) })));
   const sourceNewTableRows = await newTableRows(source), restoredNewTableRows = await newTableRows(target);
-  assert.deepEqual(sourceNewTableRows, expectedNewTables.map(table => ({ table, rows: table === "business_plan_guard" ? 1 : 0 })), "tables added by migrations 0031–0037 contain only migration-owned singleton data in this schema-only fixture");
-  assert.deepEqual(restoredNewTableRows, sourceNewTableRows, "migration 0031–0037 table row inventory matches; empty tables do not prove business data recovery");
+  assert.deepEqual(sourceNewTableRows, expectedNewTables.map(table => ({ table, rows: table === "business_plan_guard" ? 1 : 0 })), "tracked tables contain only migration-owned singleton data in this schema-only fixture");
+  assert.deepEqual(restoredNewTableRows, sourceNewTableRows, "tracked new-table row inventory matches; empty tables do not prove business data recovery");
   assert.equal(result.currentAuthorityMatchesRestore, false, "source session revocation after backup must differ from restored authority");
   assert.equal(result.currentControlMatchesRestore, true, "unchanged unresolved holder journal must remain exactly in the restored state");
   assert.equal(result.currentHasActiveOrUnknownControl, true, "persisted unknown call/holder must remain classified unresolved");

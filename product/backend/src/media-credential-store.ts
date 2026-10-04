@@ -129,7 +129,9 @@ export class MediaCredentialStore {
       await withDecryptedMediaCredential(row.envelope, { credentialId: credential.data, accountId: account.data,
         platform: scope.platform, revision: Number(scope.expectedRevision) }, async payload => {
         const sealed = seal(payload);
-        if (!Buffer.isBuffer(sealed) || sealed.length < 1 || sealed.length > 131072 || sealed.buffer === payload.buffer) {
+        const overlapsPlaintext = Buffer.isBuffer(sealed) && sealed.buffer === payload.buffer
+          && sealed.byteOffset < payload.byteOffset + payload.byteLength && payload.byteOffset < sealed.byteOffset + sealed.byteLength;
+        if (!Buffer.isBuffer(sealed) || sealed.length < 1 || sealed.length > 131072 || overlapsPlaintext) {
           if (Buffer.isBuffer(sealed)) sealed.fill(0);
           throw unavailable();
         }
