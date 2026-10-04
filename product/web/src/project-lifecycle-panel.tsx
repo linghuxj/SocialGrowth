@@ -102,7 +102,13 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
 
   useEffect(() => {
     alive.current = true;
-    return () => { alive.current = false; sequence.current++; };
+    return () => {
+      alive.current = false;
+      sequence.current++;
+      refreshGeneration.current++;
+      loadingRef.current = false;
+      loadingProjectRef.current = null;
+    };
   }, []);
 
   const reportExpired = useCallback((error: unknown) => {
