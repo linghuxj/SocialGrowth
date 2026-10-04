@@ -151,7 +151,7 @@ export class ProjectLifecycleService {
         VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, [variantId, projectId, expectedMaterialRevision, actorId, metadata.requestId, metadata.idempotencyKey, digest, now]);
       if (inserted.rowCount !== 1) throw unavailable();
       const projectVersion = Number((await c.query<{ fact_version: string }>(`SELECT fact_version::text FROM ${s}.projects WHERE project_id=$1`, [projectId])).rows[0]?.fact_version);
-      if (!Number.isSafeInteger(projectVersion) || projectVersion < 1) throw stale();
+      if (!Number.isSafeInteger(projectVersion) || projectVersion < 0) throw stale();
       const impactedTaskCount = await appendMaterialWithdrawn(c, { projectId, variantId, projectVersion, materialRevision: expectedMaterialRevision });
       const cancelledTaskCount = await this.cancelConfirmedNeverStarted(c, { projectId, variantId, reason: "material_withdrawal",
         requestId: metadata.requestId, sourceRevision: expectedMaterialRevision, actorId });
