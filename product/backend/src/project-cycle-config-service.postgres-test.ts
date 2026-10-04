@@ -10,6 +10,7 @@ import { ProjectPlanningService } from "./project-planning-service.js";
 import { ProjectDirectionService } from "./project-direction-service.js";
 import { ProjectCycleConfigService } from "./project-cycle-config-service.js";
 import { ProjectCycleStore, resolveProjectCycleWindow } from "./project-cycle-store.js";
+import { ProjectCycleProgressionLifecycle } from "./project-cycle-progression-lifecycle.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
 import type { InitialDirectionModel } from "./artemis-business-model.js";
 
@@ -80,6 +81,34 @@ async function appendDueFixture(projectId: string, observedAt: string) {
     throw error;
   } finally { c.release(); }
 }
+
+test("due selector pages at twenty projects and ignores a superseded due cycle", async () => {
+  const fixtures: Awaited<ReturnType<typeof fixture>>[] = [];
+  for (let i = 0; i < 21; i += 1) fixtures.push(await fixture("- interval '8 days'"));
+  const ordered = fixtures.map(item => item.projectId).sort();
+  const lifecycle = new ProjectCycleProgressionLifecycle(pool);
+  const selector = lifecycle as unknown as {
+    afterProjectId: string | null;
+    dueProjects(deadline: number): Promise<string[]>;
+  };
+  const deadline = Date.now() + 15_000;
+  selector.afterProjectId = null;
+  const firstPage = await selector.dueProjects(deadline);
+  assert.deepEqual(firstPage, ordered.slice(0, 20));
+  selector.afterProjectId = firstPage.at(-1) ?? null;
+  const secondPage = await selector.dueProjects(deadline);
+  assert.deepEqual(secondPage, ordered.slice(20));
+
+  const supersededProjectId = ordered[0]!;
+  const latest = (await pool.query<{ ends_at: string }>(`SELECT ends_at FROM socialgrowth_product.project_review_cycles
+    WHERE project_id=$1 ORDER BY cycle_number DESC LIMIT 1`, [supersededProjectId])).rows[0];
+  assert.ok(latest);
+  assert.equal((await appendDueFixture(supersededProjectId, latest.ends_at)).state, "created");
+  selector.afterProjectId = null;
+  const afterSuccessor = await selector.dueProjects(deadline);
+  assert.equal(afterSuccessor.length, 20);
+  assert.equal(afterSuccessor.includes(supersededProjectId), false);
+});
 
 test("operator confirmation appends only a next-cycle config, preserves current history, and replays the exact receipt", async () => {
   const f = await fixture("- interval '1 day'"), initial = await configuration.read(f.token, f.projectId);
