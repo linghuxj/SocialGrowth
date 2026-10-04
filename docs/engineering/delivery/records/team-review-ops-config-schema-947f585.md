@@ -14,3 +14,14 @@
 文档明确新增两表预期都是空表：配置命令是 actor/request_key 作用域的独立 immutable receipt，不是 lifecycle journal。列与空行一致不能证明当前/历史配置版本、unknown 原回执或 actor-scoped replay 的行级恢复关系；这些边界仍未验证，不能推断生产灾备、物理 fence 或配置生效。
 
 作者只完成 source-only diff-check，新的37迁移 PG/MinIO 联演、build/check 仍待主会话释放唯一窗口。Reviewer 同样未运行编译、测试、容器、服务或设备。本批准是源码门禁，不是恢复测试通过；原36迁移成功记录不得改写为本候选37迁移已经通过。后续代码变化需新精确 SHA 复核，测试结果应按实际候选另记。
+
+## 实际证据补充 head e9f975b
+
+- Base: `603ace4a9fd03007f23424366c839885f144ae80`
+- Head: `e9f975ba0bb91695dd719e2e760d670c1d205b8f`
+- Reviewer: `/root/adversary`
+- Verdict: **approved**，完整两文件增量；无新 findings。
+
+独立差异确认相对947f585仅同一运维文档变化，测试源码及0037 migration 未变；完整范围 diff-check 通过。新增记录将本轮实际执行固定到947f585源码，作者报告37迁移 PG/MinIO 1/1、测试24506.970721ms/runner35633.514887ms，并保留首次 workspace contracts dist 陈旧导致八个导出缺失的 check 失败，以及随后按依赖构建再 check 成功。准确区分源码批准、补充运行与业务恢复，未宣称全量业务或生产通过。
+
+新增 cleanup 说明沿用已审 fixture 的精确所有权/临时目录校验、停止自有容器后确认 ID 消失；不将只读名称筛查当作任意外来资源清理授权。0037 两表仍为0行，不证明配置/history/actor-replay 的行级恢复；physical fence、生产RPO/RTO仍未验。Reviewer 本轮仅核对文档和不变源，没有读取原始运行日志、重复测试或操作设备/服务；运行结果属于作者记录。该证据增量不改变安全结论。
