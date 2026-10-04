@@ -34,6 +34,11 @@ export class ResourcePreparationController {
     try { return await this.store.lookupResourceCommand(operatorSessionTokenFrom(request.headers.cookie), key); }
     catch (error) { preparationError(error, `request-${randomUUID()}`); }
   }
+  @Get("commands/:idempotencyKey") @Header("Cache-Control", "no-store")
+  async lookupResourceCommand(@Param("idempotencyKey") key: string, @Req() request: Request) {
+    try { return await this.store.lookupResourceCommand(operatorSessionTokenFrom(request.headers.cookie), key); }
+    catch (error) { preparationError(error, `request-${randomUUID()}`); }
+  }
   @Post("account-assignments") @Header("Cache-Control", "no-store")
   async assignAccounts(@Body() body: unknown, @Req() request: Request, @Headers("x-csrf-token") csrf: string | undefined) {
     try { requireSupportedContract(body); return await this.store.assignAccounts(operatorSessionTokenFrom(request.headers.cookie), csrf ?? "", body); }
