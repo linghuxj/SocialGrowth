@@ -239,7 +239,7 @@ class MediaCredentialInputAccessibilityService : AccessibilityService() {
                     if (expectedScope.field == MediaCredentialField.SUBMIT_LOGIN) {
                         require(currentTargetMatches(expectedScope, null))
                     } else {
-                        require(currentCredentialTarget(expectedScope) == targetFingerprint)
+                        require(captureCredentialTarget(expectedScope) == targetFingerprint)
                     }
                     reserveAction(journal, expectedScope.actionId)
                     when (expectedScope.field) {
