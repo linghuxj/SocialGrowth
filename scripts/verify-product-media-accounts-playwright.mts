@@ -45,7 +45,7 @@ async function openMediaAccounts() {
 async function createAccount(name: string, platform: "facebook" | "youtube", login: string, secret: string, optional = false) {
   const form = page.locator(".media-account-form");
   step = `create-${platform}-select-platform`;
-  await form.getByLabel("平台", { exact: true }).selectOption(platform);
+  await form.locator('select[name="platform"]').selectOption(platform);
   step = `create-${platform}-fill-display-name`;
   await form.getByLabel("识别名称（可选）", { exact: true }).fill(name);
   step = `create-${platform}-fill-login`;
@@ -76,7 +76,7 @@ try {
   let createPostCount = 0;
   page.on("request", request => { if (new URL(request.url()).pathname === "/api/operator/media-accounts" && request.method() === "POST") createPostCount++; });
   assert.equal(await form.getByRole("button", { name: "保存账号" }).isDisabled(), false);
-  await form.getByLabel("平台").selectOption("facebook");
+  await form.locator('select[name="platform"]').selectOption("facebook");
   await form.getByLabel("密码").fill(`Temporary-${crypto.randomUUID()}`);
   await form.getByRole("button", { name: "保存账号", exact: true }).click();
   assert.equal(await form.getByLabel("登录账号").evaluate((el: HTMLInputElement) => el.validity.valueMissing), true);
@@ -139,7 +139,7 @@ try {
   });
   const formForUnknown = page.locator(".media-account-form");
   step = "create-youtube-select-platform";
-  await formForUnknown.getByLabel("平台", { exact: true }).selectOption("youtube");
+  await formForUnknown.locator('select[name="platform"]').selectOption("youtube");
   // Leave optional display name and real-person fields empty; client defaults
   // the display label to the login identifier without inventing a persona.
   step = "create-youtube-fill-login";
@@ -213,7 +213,7 @@ try {
     blocked.push("本环境没有真实可分配手机；项目账号持久分配与竞争拒绝无法通过Web验收。未创建或播种手机事实。");
   } else {
     const accountCheck = page.getByRole("checkbox", { name: new RegExp(ytLogin.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) });
-    const deviceSelect = page.getByLabel("可用手机", { exact: true });
+    const deviceSelect = page.locator('.media-accounts-workspace select[name="deviceId"]');
     const deviceId = await deviceSelect.locator("option").nth(1).getAttribute("value");
     assert.ok(deviceId);
     const context = page.context();
@@ -235,7 +235,7 @@ try {
     const competitorOption = competitorProjectSelect.locator("option").filter({ hasText: competitionProjectName });
     await competitorProjectSelect.selectOption(await competitorOption.getAttribute("value") ?? "");
     await competitor.getByText("本项目尚无账号与手机分配。", { exact: true }).waitFor();
-    await competitor.getByLabel("可用手机", { exact: true }).selectOption(deviceId);
+    await competitor.locator('.media-accounts-workspace select[name="deviceId"]').selectOption(deviceId);
     await competitor.getByRole("checkbox", { name: new RegExp(ytLogin.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) }).check();
     await page.locator(".media-accounts-workspace").getByRole("button", { name: "刷新", exact: true }).click();
     await page.getByText("本项目尚无账号与手机分配。", { exact: true }).waitFor();
@@ -277,7 +277,7 @@ try {
   });
   const unrecoverableLogin = `media-unresolved-${suffix}@example.invalid`;
   const unresolvedForm = page.locator(".media-account-form");
-  await unresolvedForm.getByLabel("平台", { exact: true }).selectOption("facebook");
+  await unresolvedForm.locator('select[name="platform"]').selectOption("facebook");
   await unresolvedForm.getByLabel("登录账号", { exact: true }).fill(unrecoverableLogin);
   await unresolvedForm.getByLabel("密码", { exact: true }).fill(`NeverPersist-${crypto.randomUUID()}`);
   await unresolvedForm.getByRole("button", { name: "保存账号", exact: true }).click();
