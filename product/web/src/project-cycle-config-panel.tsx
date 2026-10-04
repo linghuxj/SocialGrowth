@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { projectPlanningInputsSchema, type ProjectCycleConfigurationReadResponse, type SaveProjectCycleConfigurationReceipt } from "@socialgrowth/product-contracts";
+import { projectPlanningInputsSchema, type ProjectCycleConfigurationReadResponse, type ProjectCycleOrigin, type SaveProjectCycleConfigurationReceipt } from "@socialgrowth/product-contracts";
 import { ArrowClockwise } from "@phosphor-icons/react";
 import { currentOperatorSessionContext, isDefinitiveProjectRejection, ProductApiError } from "./operator-api.js";
 import {
@@ -22,6 +22,12 @@ const reasonText: Record<string, string> = {
   calendar_runtime_unavailable: "周期日历运行时不可用，服务未保存新配置。",
   outside_verified_calendar_range: "目标结束时间超出已验证日历范围，服务未保存新配置。",
   civil_boundary_ambiguous: "时区边界存在歧义，服务未保存新配置。",
+  predecessor_missing: "缺少可核实的前序周期，服务未猜测应用配置。",
+  source_missing: "缺少可核实的配置来源，服务未猜测应用配置。",
+  configuration_already_consumed: "该配置已被周期消费，服务未重复应用。",
+  window_preview_mismatch: "周期窗口与确认时预览不一致，服务未猜测应用配置。",
+  project_ended: "项目已结束，不再猜测新的周期窗口。",
+  tail_window_unconfigured: "结束后的观察窗口尚无权威配置，服务未猜测新周期。",
 };
 
 function formatInstant(value: string | null | undefined): string {
@@ -47,6 +53,14 @@ function formFromReceipt(receipt: SaveProjectCycleConfigurationReceipt, view: Cy
     reviewIntervalDays: String(values.reviewIntervalDays),
     trafficMinimumPerCycle: String(values.trafficMinimumPerCycle),
   } : { businessTimeZone: "", reviewIntervalDays: "", trafficMinimumPerCycle: "" };
+}
+
+function originDescription(origin: ProjectCycleOrigin): string {
+  switch (origin.kind) {
+    case "initial_direction_approval": return `首次方向批准 · ${origin.approvalId}`;
+    case "confirmed_next_configuration": return `运营确认配置版本 ${origin.configurationRevision}`;
+    case "carry_forward": return `沿用前序周期 · ${origin.predecessorCycleId}`;
+  }
 }
 
 export function ProjectCycleConfigPanel({ projectId, active, readOnly, onExpired, onFactsChanged }: {
@@ -200,7 +214,7 @@ export function ProjectCycleConfigPanel({ projectId, active, readOnly, onExpired
         await refresh();
         if (receipt.outcome === "unresolved") setMessage(reasonText[receipt.reason ?? ""] ?? "服务记录了未解决结果，原配置未改变。 ");
         else setMessage(receipt.outcome === "confirmed"
-          ? `已核对原请求回执：下周期配置已由运营确认，版本 ${receipt.configurationRevision}。它尚未物化或生效。`
+          ? `已核对原请求回执：运营已确认配置版本 ${receipt.configurationRevision}。该回执只证明配置确认，不表示周期窗口已经物化或复盘已运行。`
           : `已核对原请求回执：配置未变化，当前配置版本 ${receipt.configurationRevision}。`);
       } else {
         setMessage("当前运营身份下未找到原请求回执；这不证明原请求未执行。原请求内容和键保持冻结，可明确接续同一请求。 ");
@@ -268,7 +282,7 @@ export function ProjectCycleConfigPanel({ projectId, active, readOnly, onExpired
       onFactsChanged();
       await refresh();
       if (receipt.outcome === "unresolved") setMessage(reasonText[receipt.reason ?? ""] ?? "服务记录了未解决结果，原配置未改变。 ");
-      else if (receipt.outcome === "confirmed") setMessage(`运营已确认下周期配置，版本 ${receipt.configurationRevision}。该配置尚未物化或生效；当前周期、历史、执行和发布权限未改变。`);
+      else if (receipt.outcome === "confirmed") setMessage(`运营已确认配置版本 ${receipt.configurationRevision}。此回执只证明配置确认，不表示周期窗口已经物化或复盘已运行；当前历史、执行和发布权限未改变。`);
       else setMessage(`配置未变化，当前配置版本 ${receipt.configurationRevision}。没有创建后继周期。`);
     } catch (cause) {
       if (cause instanceof ProductApiError && cause.response.error.code === "FACT_VERSION_STALE") {
@@ -289,7 +303,7 @@ export function ProjectCycleConfigPanel({ projectId, active, readOnly, onExpired
   const next = view?.nextConfiguration ?? null;
   const locked = readOnly || busy || !!pending || storageBlocked;
   return <section className="panel planning-cycle-config" aria-label="下周期配置确认">
-    <div className="section-heading"><div><h3>运行周期：下周期配置</h3><p className="muted">确认后仅记录待生效配置；本页面不会物化后继周期或开启任务、执行、发布。</p></div>
+    <div className="section-heading"><div><h3>运行周期：下周期配置</h3><p className="muted">保存回执只证明配置已确认；下方读取服务提供的窗口来源与应用事实，不代表复盘、任务、执行或发布已经运行。</p></div>
       <button className="outline-button" disabled={loading || busy} onClick={() => void refresh()}><ArrowClockwise size={18} />刷新周期事实</button>
     </div>
     {error && <p role="alert" className="feedback">{error}</p>}{message && <p role="status" className="feedback">{message}</p>}
@@ -303,19 +317,24 @@ export function ProjectCycleConfigPanel({ projectId, active, readOnly, onExpired
           <dt>业务时区 / 间隔</dt><dd>{current.businessTimeZone} · {current.reviewIntervalDays} 天</dd>
           <dt>每周期引流最低数</dt><dd>{current.trafficMinimumPerCycle}</dd>
           <dt>实际起止时刻</dt><dd>{formatInstant(current.startsAt)} – {formatInstant(current.endsAt)}</dd>
+          <dt>周期来源</dt><dd>{originDescription(current.origin)}</dd>
+          <dt>窗口记录时间</dt><dd>{formatInstant(current.recordedAt)}（数据库记录时间，不是周期边界）</dd>
         </dl> : <p>服务已确认当前无活动周期；下周期配置不能在此状态下提交。</p>}
       </div>
       <div className="project-direction-note">
-        <h4>已确认的待生效配置</h4>
+        <h4>已确认的周期配置</h4>
         {next ? <dl>
-          <dt>配置版本 / 来源周期</dt><dd>{next.configurationRevision} / {next.basedOnCycleId}</dd>
+          <dt>配置版本 / 确认时来源周期</dt><dd>{next.configurationRevision} / {next.basedOnCycleId}</dd>
           <dt>时区 / 间隔</dt><dd>{next.businessTimeZone} · {next.reviewIntervalDays} 天</dd>
           <dt>每周期引流最低数</dt><dd>{next.trafficMinimumPerCycle}</dd>
-          <dt>生效起点（沿用当前周期结束时刻）</dt><dd>{formatInstant(next.effectiveStartsAt)}</dd>
-          <dt>按日历预览的结束时刻</dt><dd>{formatInstant(next.projectedEndsAt)}</dd>
+          <dt>原确认边界起点</dt><dd>{formatInstant(next.effectiveStartsAt)}</dd>
+          <dt>确认时预览的结束时刻</dt><dd>{formatInstant(next.projectedEndsAt)}</dd>
           <dt>确认事实</dt><dd>{next.confirmedAt} · 运营 {next.confirmedByOperatorId} · 请求 {next.requestId}</dd>
-        </dl> : <p>尚无运营确认的下周期配置。</p>}
-        <p>后继周期物化状态：本切片未物化；服务返回 nextCycle=null。当前周期与历史事实保持原样。</p>
+          <dt>配置应用状态</dt><dd>{next.application.state === "pending" ? "待后继周期消费" : next.application.state === "applied"
+            ? `已由周期 ${next.application.materializedCycleId} 唯一消费（只证明窗口事实，不表示复盘已运行）`
+            : `未解决：${reasonText[next.application.reason ?? ""] ?? "周期来源或窗口无法确认，服务未猜测应用。"}`}</dd>
+        </dl> : <p>{current ? "尚无独立运营确认的下周期配置；后续窗口沿用当前周期配置。" : "尚无独立运营确认的下周期配置，且当前没有活动周期；不能推定存在可沿用的后继窗口。"}</p>}
+        <p>{current ? "当前周期之后尚无已物化的下一个周期（nextCycle=null）。" : "当前没有活动周期，服务未返回后继周期窗口（nextCycle=null）。"}已物化窗口只代表周期边界和来源事实，不代表复盘、指标采集、策略、任务或发布已经运行。</p>
       </div>
       <fieldset disabled={locked || !current} className="planning-form-grid">
         <label>下周期业务时区<select aria-label="下周期业务时区" value={form.businessTimeZone} onChange={e => edit("businessTimeZone", e.target.value)}><option value="">请选择</option>{zones.map(zone => <option key={zone} value={zone}>{zone}</option>)}</select></label>

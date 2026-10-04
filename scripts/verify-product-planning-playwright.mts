@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { isAbsolute } from "node:path";
 import { chromium, type APIResponse, type BrowserContext, type Locator, type Page } from "playwright";
+import type { ProjectCycleConfigurationReadResponse } from "@socialgrowth/product-contracts";
 // Reproducible REAL UI draft scope. Never run to bypass a policy refusal;
 // admin admission must first be restored. Synthetic text here proves only
 // unapproved draft UI persistence, never actual approved business direction.
@@ -27,17 +28,7 @@ let cycle: Locator | null = null;
 const pageErrors: string[] = [];
 const safeCycleFacts: { sequence: number; bodySha256: string; idempotencyKeySha256: string | null; status: number;
   outcome: string | null; replayed: boolean | null; responseLost: boolean }[] = [];
-type CycleReadEvidence = {
-  observedAt: string;
-  configurationRevision: number;
-  currentCycle: { cycleId: string; cycleNumber: number; configVersion: number; businessTimeZone: string; reviewIntervalDays: number;
-    trafficMinimumPerCycle: number; startsAt: string; endsAt: string } | null;
-  nextConfiguration: { configurationRevision: number; basedOnCycleId: string; businessTimeZone: string; reviewIntervalDays: number;
-    trafficMinimumPerCycle: number; effectiveStartsAt: string; projectedEndsAt: string; requestId: string } | null;
-  nextCycle: null;
-  executionAllowed: false;
-  publicationAllowed: false;
-};
+type CycleReadEvidence = ProjectCycleConfigurationReadResponse;
 async function readCycleFromVisiblePage(target: Page, region: Locator): Promise<CycleReadEvidence> {
   const responsePromise = target.waitForResponse(response => new URL(response.url()).pathname.endsWith("/review-cycle-config")
     && response.request().method() === "GET", { timeout: 20_000 });
@@ -153,6 +144,14 @@ try {
   assert.ok(Date.parse(baselineCycle.currentCycle.startsAt) <= Date.parse(baselineCycle.observedAt)
     && Date.parse(baselineCycle.observedAt) < Date.parse(baselineCycle.currentCycle.endsAt),
   "current cycle must be active at the backend's read timestamp");
+  assert.equal(baselineCycle.currentCycle.cycleNumber, 1);
+  assert.equal(baselineCycle.currentCycle.origin.kind, "initial_direction_approval",
+    "the first persisted cycle must retain its original direction-approval source");
+  assert.ok(Number.isFinite(Date.parse(baselineCycle.currentCycle.recordedAt))
+    && Date.parse(baselineCycle.currentCycle.recordedAt) <= Date.parse(baselineCycle.observedAt),
+  "database recordedAt is a persistence timestamp distinct from cycle boundaries");
+  await cycleB.getByText(/首次方向批准 · [0-9a-f-]{36}/i).waitFor();
+  await cycleB.getByText(/数据库记录时间，不是周期边界/).waitFor();
   assert.equal(baselineCycle.nextCycle, null);
   assert.equal(baselineCycle.executionAllowed, false); assert.equal(baselineCycle.publicationAllowed, false);
   const timezoneB = cycleB.getByLabel("下周期业务时区", { exact: true });
@@ -317,7 +316,7 @@ try {
   await planner.getByRole("button", { name: "周期与观察", exact: true }).click();
   await cycle.getByRole("button", { name: "明确接续同一请求", exact: true }).waitFor();
   await cycle.getByRole("button", { name: "明确接续同一请求", exact: true }).click();
-  await cycle.getByText(/运营已确认下周期配置，版本 \d+。该配置尚未物化或生效/).waitFor();
+  await cycle.getByText(/已核对原请求回执：运营已确认配置版本 \d+。该回执只证明配置确认/).waitFor();
   assert.equal(safeCycleFacts.length, 2); assert.equal(safeCycleFacts[0]?.bodySha256, safeCycleFacts[1]?.bodySha256);
   assert.equal(safeCycleFacts[0]?.idempotencyKeySha256, safeCycleFacts[1]?.idempotencyKeySha256);
   assert.equal(safeCycleFacts[0]?.outcome, "confirmed"); assert.equal(safeCycleFacts[0]?.replayed, false);
@@ -335,6 +334,11 @@ try {
   assert.equal(confirmedCycle.nextConfiguration.businessTimeZone, "Asia/Tokyo");
   assert.equal(confirmedCycle.nextConfiguration.reviewIntervalDays, 14);
   assert.equal(confirmedCycle.nextConfiguration.trafficMinimumPerCycle, 2);
+  assert.equal(confirmedCycle.nextConfiguration.application.state, "pending",
+    "the confirmed configuration is not consumed before its natural successor boundary");
+  assert.equal(confirmedCycle.nextConfiguration.application.materializedCycleId, null);
+  assert.equal(confirmedCycle.nextConfiguration.application.reason, null);
+  await cycle.getByText("待后继周期消费", { exact: true }).waitFor();
   assert.equal(Date.parse(confirmedCycle.nextConfiguration.effectiveStartsAt), Date.parse(baselineCycle.currentCycle.endsAt),
     "effective start must be the exact current-cycle end instant");
   assert.ok(confirmedCycle.nextConfiguration.projectedEndsAt, "confirmed configuration has a calendar preview");
@@ -345,7 +349,11 @@ try {
     configuredNext: { businessTimeZone: confirmedCycle.nextConfiguration.businessTimeZone,
       reviewIntervalDays: confirmedCycle.nextConfiguration.reviewIntervalDays,
       trafficMinimumPerCycle: confirmedCycle.nextConfiguration.trafficMinimumPerCycle,
-      effectiveStartsAtMatchesCurrentEnd: true, latestConfigRevision: confirmedCycle.configurationRevision },
+      effectiveStartsAtMatchesCurrentEnd: true, latestConfigRevision: confirmedCycle.configurationRevision,
+      applicationState: confirmedCycle.nextConfiguration.application.state },
+    currentCycleOrigin: confirmedCycle.currentCycle?.origin.kind ?? null,
+    cycleRecordedAtIsIndependentOfBoundary: true,
+    appliedConfigurationReadVerified: false, carryForwardReadVerified: false,
     nextCycleMaterialized: false, executionAllowed: false, publicationAllowed: false }, null, 2), { mode: 0o600 });
 
   // Remove the temporary account through the actual operator UI after all
@@ -383,11 +391,12 @@ try {
   assert.deepEqual(errors, []);
   if (cycleFlowPassed) {
   console.log(JSON.stringify({ passed: true,
-      scope: "real planning UI plus one actual model-confirmed synthetic direction, active current cycle, next configuration, stale-version rejection and explicit same-actor original-request replay",
+      scope: "real planning UI plus one actual model-confirmed synthetic direction, first-cycle approval source and recordedAt, pending next-configuration projection, stale-version rejection and explicit same-actor original-request replay",
       actualModelAttempts, cycleConfigAcceptanceExecuted: true, differentOperatorCommandReads: commandReadsByDifferentOperator,
       exactOriginalBodyAndKeyReplay: safeCycleFacts.length === 2 && safeCycleFacts[0]?.bodySha256 === safeCycleFacts[1]?.bodySha256
         && safeCycleFacts[0]?.idempotencyKeySha256 === safeCycleFacts[1]?.idempotencyKeySha256,
-      backendPageErrors: pageErrors, nextCycleMaterialized: false, execution: "not performed", publication: "not performed" }));
+      backendPageErrors: pageErrors, appliedConfigurationReadVerified: false, carryForwardReadVerified: false,
+      nextCycleMaterialized: false, execution: "not performed", publication: "not performed" }));
   } else {
     console.log(JSON.stringify({ passed: true, scope: "real planning UI draft-only persistence and mobile readonly", actualModelAttempts: 0, cycleConfigAcceptanceExecuted: false,
       nextCycleConfiguration: "not requested", execution: "not performed", publication: "not performed" }));
