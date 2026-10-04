@@ -3,7 +3,7 @@ import type {
   CreateInvitationResponse, InvitationView, ListOperatorDeviceFactsResponse, OperatorView,
 } from "@socialgrowth/product-contracts";
 import {
-  ArrowClockwise, Check, ClipboardText, Copy, DeviceMobile, Folder, House, Link, Plus,
+  ArrowClockwise, Check, ClipboardText, Copy, DeviceMobile, Folder, House, Link, Plus, ShareNetwork,
   ShieldCheck, SignOut, UserCircle, UsersThree, X,
 } from "@phosphor-icons/react";
 import {
@@ -14,9 +14,10 @@ import {
 import { DeviceFactsPanel } from "./device-facts-panel.js";
 import { OperatorTodosPanel } from "./operator-todos-panel.js";
 import { ProjectPanel } from "./project-panel.js";
+import { MediaAccountsPanel } from "./media-accounts-panel.js";
 
 export const productEnvironment = "product" as const;
-type WorkspaceView = "accounts" | "devices" | "invitations" | "projects" | "todos";
+type WorkspaceView = "accounts" | "devices" | "media-accounts" | "invitations" | "projects" | "todos";
 
 function errorMessage(error: unknown): string {
   if (error instanceof ProductApiError) {
@@ -60,6 +61,7 @@ export function App() {
   const [view, setView] = useState<WorkspaceView>("invitations");
   const [message, setMessage] = useState("");
   const [projectRefreshVersion, setProjectRefreshVersion] = useState(0);
+  const [mediaAccountsRefreshVersion, setMediaAccountsRefreshVersion] = useState(0);
   const [busy, setBusy] = useState(false);
   const [maxUses, setMaxUses] = useState("5");
   const [expiresAt, setExpiresAt] = useState(defaultExpiry);
@@ -140,6 +142,7 @@ export function App() {
   }
   function refreshCurrentView(): void {
     if (view === "projects") { setProjectRefreshVersion(v => v + 1); void refresh(); }
+    else if (view === "media-accounts") setMediaAccountsRefreshVersion(v => v + 1);
     else if (view === "devices") void refreshDeviceFacts();
     else if (view === "todos") return;
     else void refresh();
@@ -233,15 +236,17 @@ export function App() {
       <button className="nav-item unavailable" disabled><House size={21} />工作台<span>后续</span></button>
       <button className={`nav-item ${view === "projects" ? "selected" : ""}`} onClick={() => selectView("projects")}><Folder size={21} />项目</button>
       <button className={`nav-item ${view === "accounts" || view === "devices" ? "selected" : ""}`} onClick={() => selectView("accounts")}><DeviceMobile size={21} />账号与设备</button>
+      <button className={`nav-item ${view === "media-accounts" ? "selected" : ""}`} onClick={() => selectView("media-accounts")}><ShareNetwork size={21} />媒体平台账号</button>
       <button className={`nav-item ${view === "invitations" ? "selected" : ""}`} onClick={() => selectView("invitations")}><UsersThree size={21} />提供者与分佣</button>
       <button className={`nav-item ${view === "todos" ? "selected" : ""}`} onClick={() => selectView("todos")}><ClipboardText size={21} />设备接入待办</button>
     </nav><div className="sidebar-footer"><div className="operator-chip"><UserCircle size={28} /><div><strong>运营账号</strong><span>正式产品</span></div></div><button className="logout-button" disabled={busy} onClick={() => void onLogout()}><SignOut size={19} />退出登录</button></div></aside>
 
-    <main className={`content-canvas ${view === "projects" ? "project-canvas" : ""}`}><header className="page-header"><div><p className="breadcrumb">{view === "projects" ? "项目 / 筹备与基本信息" : view === "invitations" ? "提供者与分佣 / 邀请与接入" : view === "todos" ? "设备接入待办 / 历史协助记录" : "账号与设备"}</p><h1>{view === "projects" ? "项目" : view === "invitations" ? "邀请与接入" : view === "devices" ? "账号与设备" : view === "todos" ? "设备接入待办" : "运营账号管理"}</h1><p className="page-description">{view === "projects" ? "分批保存项目资料，明确实际事实、缺项与后续准备范围。" : view === "invitations" ? "创建可供多人使用的邀请，并查看成功注册与设备接入进展。" : view === "devices" ? "查看提供者与手机当前归属；连接与授权须依实际确认来源判断。" : view === "todos" ? "读取已记录的设备接入协助事项和历史说明；不推断设备当前健康、执行或授权状态。" : "开通或停用同权运营账号，停用不会删除业务历史。"}</p></div><div className="header-actions"><button className="outline-button" disabled={busy || (view === "devices" && deviceFactsLoading) || view === "todos"} onClick={refreshCurrentView}><ArrowClockwise size={18} />刷新</button><button className="mobile-logout-button" disabled={busy} onClick={() => void onLogout()}><SignOut size={18} />退出登录</button></div></header>
+    <main className={`content-canvas ${view === "projects" ? "project-canvas" : ""}`}><header className="page-header"><div><p className="breadcrumb">{view === "projects" ? "项目 / 筹备与基本信息" : view === "invitations" ? "提供者与分佣 / 邀请与接入" : view === "todos" ? "设备接入待办 / 历史协助记录" : view === "media-accounts" ? "项目资源 / 媒体平台账号" : "账号与设备"}</p><h1>{view === "projects" ? "项目" : view === "invitations" ? "邀请与接入" : view === "devices" ? "账号与设备" : view === "todos" ? "设备接入待办" : view === "media-accounts" ? "媒体平台账号" : "运营账号管理"}</h1><p className="page-description">{view === "projects" ? "分批保存项目资料，明确实际事实、缺项与后续准备范围。" : view === "invitations" ? "创建可供多人使用的邀请，并查看成功注册与设备接入进展。" : view === "devices" ? "查看提供者与手机当前归属；连接与授权须依实际确认来源判断。" : view === "todos" ? "读取已记录的设备接入协助事项和历史说明；不推断设备当前健康、执行或授权状态。" : view === "media-accounts" ? "录入真实账号资料，并将账号明确分配至项目和已接入手机。" : "开通或停用同权运营账号，停用不会删除业务历史。"}</p></div><div className="header-actions"><button className="outline-button" disabled={busy || (view === "devices" && deviceFactsLoading) || view === "todos"} onClick={refreshCurrentView}><ArrowClockwise size={18} />刷新</button><button className="mobile-logout-button" disabled={busy} onClick={() => void onLogout()}><SignOut size={18} />退出登录</button></div></header>
       {message && <p className="feedback workspace-feedback" role="status">{message}</p>}
       {mobileReadOnly && <div className="mobile-readonly-note" role="note"><DeviceMobile size={20} /><span><strong>手机端为只读模式</strong>可查看项目筹备、邀请、注册和设备事实；创建、撤销及资料修改请转到电脑完成。</span></div>}
       <ProjectPanel active={view === "projects"} refreshVersion={projectRefreshVersion} operators={operators ?? []} readOnly={mobileReadOnly} onExpired={handleFailure} />
       <OperatorTodosPanel active={view === "todos"} readOnly={mobileReadOnly} onExpired={handleFailure} />
+      <MediaAccountsPanel active={view === "media-accounts"} refreshVersion={mediaAccountsRefreshVersion} readOnly={mobileReadOnly} onExpired={handleFailure} />
       {(view === "accounts" || view === "devices") && <div className="resource-tabs" role="tablist" aria-label="账号与设备分类">
         <button type="button" role="tab" aria-selected={view === "devices"} onClick={() => selectView("devices")}>手机</button>
         <button type="button" role="tab" aria-selected={view === "accounts"} onClick={() => selectView("accounts")}>运营账号</button>
@@ -254,7 +259,7 @@ export function App() {
           {invitations?.length ? <div className="table-wrap"><table><thead><tr><th>状态</th><th>注册名额</th><th>有效期</th><th>成功注册</th><th>设备进展</th><th><span className="sr-only">操作</span></th></tr></thead><tbody>{invitations.map((invitation) => { const remaining = invitation.maxUses - invitation.consumedUses; const devices = invitation.registrations.reduce((total, item) => total + item.associatedDeviceCount, 0); return <tr key={invitation.invitationId}><td><span className={`status ${invitation.status}`}>{statusLabel(invitation.status)}</span><small className="record-id">{invitation.invitationId.slice(0, 8)}</small></td><td><strong>{invitation.consumedUses} / {invitation.maxUses}</strong><small>剩余 {remaining}</small></td><td>{formatTime(invitation.expiresAt)}<small>创建于 {formatTime(invitation.createdAt)}</small></td><td><details><summary>{invitation.registrations.length} 位提供者</summary><div className="registration-popover">{invitation.registrations.length ? invitation.registrations.map((registration) => <div key={registration.providerId}><strong>{registration.displayName}</strong><span>{formatTime(registration.registeredAt)} · {registration.associatedDeviceCount} 台设备</span></div>) : <p>尚无成功注册</p>}</div></details></td><td>{devices} 台<small>{invitation.registrations.length ? "已关联设备合计" : "等待成功注册"}</small></td><td><button className="text-button danger-text" disabled={mobileReadOnly || busy || invitation.status === "revoked"} onClick={() => void onRevoke(invitation)}>{invitation.status === "revoked" ? "已撤销" : mobileReadOnly ? "转电脑操作" : "撤销"}</button></td></tr>; })}</tbody></table></div> : <div className="empty-state"><UsersThree size={34} /><h3>尚无邀请</h3><p>创建第一份多人邀请后，注册与设备进展会显示在这里。</p></div>}
           <div className="info-note"><ShieldCheck size={18} /><span>列表不再显示共享码。需要重新发放时请创建新邀请，不要从数据库或审计记录恢复秘密。</span></div>
         </section>
-      </> : view === "projects" || view === "todos" ? null : view === "devices" ? <DeviceFactsPanel
+      </> : view === "projects" || view === "todos" || view === "media-accounts" ? null : view === "devices" ? <DeviceFactsPanel
         facts={deviceFacts} loading={deviceFactsLoading} error={deviceFactsError}
         onRefresh={() => void refreshDeviceFacts()} /> : <>
         {!mobileReadOnly && <section className="panel" aria-labelledby="create-operator-title"><div><h2 id="create-operator-title">开通运营账号</h2><p className="muted">所有运营账号同权。初始密码不少于 12 个字符。</p></div><form className="create-grid" onChange={() => { createOperatorKey.current = null; }} onSubmit={(event) => void onCreateOperator(event)}><label>登录名<input name="loginName" placeholder="operator.name" pattern={"[a-z][a-z0-9._\\-]{2,63}"} required /></label><label>显示名<input name="displayName" maxLength={100} required /></label><label>初始密码<input name="initialPassword" type="password" minLength={12} autoComplete="new-password" required /></label><button disabled={busy} type="submit">开通账号</button></form></section>}
