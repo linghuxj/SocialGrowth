@@ -36,6 +36,8 @@ CREATE TABLE socialgrowth_product.business_plan_task_attempts (
   created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
   FOREIGN KEY(project_id,task_id) REFERENCES socialgrowth_product.business_plan_tasks(project_id,task_id),
   FOREIGN KEY(project_id,plan_revision,plan_id) REFERENCES socialgrowth_product.business_plan_revisions(project_id,revision,plan_id),
+  FOREIGN KEY(variant_id,material_revision) REFERENCES socialgrowth_product.material_variant_revisions(variant_id,revision),
+  FOREIGN KEY(identity_id,account_id,platform) REFERENCES socialgrowth_product.publishing_identities(identity_id,account_id,platform),
   FOREIGN KEY(reserved_device_id,project_id) REFERENCES socialgrowth_product.project_device_reservations(device_id,project_id),
   CHECK (started_at IS NULL)
 );
