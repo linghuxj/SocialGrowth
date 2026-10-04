@@ -21,6 +21,8 @@
 
 | 生命周期第三、四轮定位 | run3冻结 `81b2a59bcfc4d231941572204a733642fb94c2f9`；run4冻结 `a474a6179ae0e647523191fb64fb7a3f665bca6a`，仍未通过 | [run3](../../../../artifacts/acceptance/team-lead-20261004/integration3/lifecycle-run3-failure.json)三路GET200；[run4](../../../../artifacts/acceptance/team-lead-20261004/integration3/lifecycle-run4-failure.json)进一步确认response与requestfinished均200，导航及panel可见、项目版本0，但heading/事实区/loading/alert均不存在，业务POST0、模型阶段未开始。UX正在核对首次读取effect重播竞态，修复前不确认根因或验收通过；每轮自有服务、两容器及临时凭据均清理 |
 
+| 首次读取修复后的真实浏览器 | run5冻结 `91aafc79255435869afc638cdd55c063ddf79bb0`，已过首次读取/内部撤回/延迟暂停跨项目隔离/恢复意图，完整场景仍失败 | [固定失败摘要](../../../../artifacts/acceptance/team-lead-20261004/integration3/lifecycle-run5-failure.json)：End真实2xx提交后按设计丢弃客户端回执，写unknown被共用错误文案标作读取不可用；verifier又在内层事实区等待外层alert。原pending保留，同键重放尚未到达、模型未启动。诊断panelVisible使用多实例locator，false不能作为页面隐藏结论；正在由各自owner作最小修复，自有资源已清理 |
+
 有限安全结果：[反馈](../../../../artifacts/acceptance/team-lead-20261004/integration3/feedback-2c7910e.json)、[服务恢复](../../../../artifacts/acceptance/team-lead-20261004/integration3/runtime-restart-f7dce19.json)、[模型排期](../../../../artifacts/acceptance/team-lead-20261004/integration3/model-plan-80e871a.json)。测试输入为隔离工程输入；真实浏览器操作和真实模型响应不等于真实平台业务验收。清理前只读SQL是补充证据，未用于预置业务成功。
 
 ## 修复与独立复核
