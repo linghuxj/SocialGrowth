@@ -2,7 +2,7 @@ import type { PoolClient } from "pg";
 import { ProductTransactionError } from "./product-transaction-error.js";
 
 const s = "socialgrowth_product";
-type Reason = "project_scope_changed" | "material_revision_changed";
+type Reason = "project_scope_changed" | "material_revision_changed" | "project_lifecycle_intent_changed" | "material_withdrawn";
 
 async function append(c: PoolClient, input: {
   projectId: string;
@@ -68,5 +68,24 @@ export function appendMaterialRevisionChanged(c: PoolClient, input: {
   materialRevision: number;
 }) {
   return append(c, { projectId: input.projectId, variantId: input.variantId, reason: "material_revision_changed",
+    sourceVersion: input.materialRevision, observedProjectVersion: input.projectVersion, observedMaterialRevision: input.materialRevision });
+}
+
+export function appendProjectLifecycleIntentChanged(c: PoolClient, input: {
+  projectId: string;
+  lifecycleRevision: number;
+  projectVersion: number;
+}) {
+  return append(c, { projectId: input.projectId, reason: "project_lifecycle_intent_changed",
+    sourceVersion: input.lifecycleRevision, observedProjectVersion: input.projectVersion });
+}
+
+export function appendMaterialWithdrawn(c: PoolClient, input: {
+  projectId: string;
+  variantId: string;
+  projectVersion: number;
+  materialRevision: number;
+}) {
+  return append(c, { projectId: input.projectId, variantId: input.variantId, reason: "material_withdrawn",
     sourceVersion: input.materialRevision, observedProjectVersion: input.projectVersion, observedMaterialRevision: input.materialRevision });
 }

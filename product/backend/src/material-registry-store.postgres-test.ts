@@ -6,6 +6,7 @@ import { Pool, type PoolClient } from "pg";
 import { contractVersion, directionApprovalSchema, directionProposalSchema, directionScopeSchema, emptyProjectPlanningInputs, initialDirectionAutonomy } from "@socialgrowth/product-contracts";
 import { materialSaveSchema } from "./material-registry-core.js";
 import { MaterialRegistryStore, MaterialRegistryError, type MaterialObjectVerifier } from "./material-registry-store.js";
+import { ProjectLifecycleService } from "./project-lifecycle-service.js";
 import { OperatorAuthService } from "./operator-auth-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
 const url = process.env.SG_PRODUCT_TEST_DATABASE_URL;
@@ -15,6 +16,7 @@ const s = "socialgrowth_product", auth = new OperatorAuthService(pool, "syntheti
 const references = new Map<string, unknown>(); // NON-UI fixture, not actual verified storage/media.
 const verifier: MaterialObjectVerifier = { verify: async ({ objectIds }) => objectIds.map(id => references.get(id)) };
 const store = new MaterialRegistryStore(pool, auth, verifier);
+const lifecycle = new ProjectLifecycleService(pool, auth);
 const meta = () => ({ contractVersion, requestId: `request-${randomUUID()}`, idempotencyKey: `material-${randomUUID()}` });
 const code = (value: string) => (e: unknown) => (e instanceof MaterialRegistryError || e instanceof ProductTransactionError) && e.code === value && !e.cause;
 async function actor() {
@@ -90,6 +92,47 @@ test("current approved direction, exact current project version, matching langua
   const form = await save(wrongForm, withConfirmation(wrongForm.input, wrongFormScope)); assert.equal(form.eligibilityReason, "no_approved_content_form");
   const stale = await fixture(), staleScope = await approveDirection(stale); await pool.query(`UPDATE ${s}.projects SET fact_version=2 WHERE project_id=$1`, [stale.input.projectId]);
   const oldScope = await save(stale, withConfirmation(stale.input, staleScope)); assert.equal(oldScope.eligibilityReason, "approved_direction_stale");
+});
+test("terminal material withdrawal remains visible but cannot re-enter current planning candidates", async () => {
+  const f = await fixture(), scope = await approveDirection(f), saved = await save(f, withConfirmation(f.input, scope));
+  assert.equal(saved.candidateAllowed, true);
+  const withdrawal = await lifecycle.withdrawMaterial(f.a.token, f.a.csrf, f.input.projectId, f.input.variantId,
+    { metadata: meta(), expectedMaterialRevision: saved.currentRevision });
+  assert.equal(withdrawal.changed, true); assert.equal(withdrawal.replayed, false);
+  const current = await store.read(f.a.token, f.input.projectId, f.input.variantId);
+  assert.equal(current.status, "pending_validation"); assert.equal(current.candidateAllowed, false);
+  assert.equal(current.eligibilityReason, "material_withdrawn"); assert.equal(current.publicationAllowed, false);
+  assert.equal(current.currentRevision, saved.currentRevision); assert.deepEqual(current.revisions, saved.revisions);
+  assert.deepEqual(current.withdrawal, { state: "withdrawn", materialRevision: saved.currentRevision,
+    requestId: withdrawal.requestId, recordedAt: current.withdrawal?.recordedAt });
+  assert.match(current.withdrawal!.recordedAt!, /^\d{4}-\d{2}-\d{2}T/);
+  const c = await pool.connect();
+  try {
+    await c.query("BEGIN");
+    const candidates = await store.listCurrentForBusinessPlan(c, f.input.projectId);
+    assert.equal(candidates.find(item => item.variantId === f.input.variantId)?.candidateAllowed, false);
+    assert.equal(candidates.filter(item => item.candidateAllowed).some(item => item.variantId === f.input.variantId), false);
+    await c.query("ROLLBACK");
+  } catch (error) { await c.query("ROLLBACK"); throw error; } finally { c.release(); }
+  await assert.rejects(save(f, { ...f.input, metadata: meta(), expectedCurrentRevision: saved.currentRevision }), code("FACT_VERSION_STALE"));
+});
+test("a pending material on a newly created version-zero project can be withdrawn and replayed without rewriting history", async () => {
+  const f = await fixture();
+  const before = await save(f);
+  assert.equal(Number((await pool.query(`SELECT fact_version FROM ${s}.projects WHERE project_id=$1`, [f.input.projectId])).rows[0]!.fact_version), 0);
+  assert.equal(before.status, "pending_validation"); assert.equal(before.candidateAllowed, false);
+  const request = { metadata: meta(), expectedMaterialRevision: before.currentRevision };
+  const first = await lifecycle.withdrawMaterial(f.a.token, f.a.csrf, f.input.projectId, f.input.variantId, request);
+  assert.equal(first.changed, true); assert.equal(first.replayed, false); assert.equal(first.materialRevision, before.currentRevision);
+  const replay = await lifecycle.withdrawMaterial(f.a.token, f.a.csrf, f.input.projectId, f.input.variantId, request);
+  assert.deepEqual(replay, { ...first, changed: false, replayed: true });
+  const current = await store.read(f.a.token, f.input.projectId, f.input.variantId);
+  assert.equal(current.status, "pending_validation"); assert.equal(current.candidateAllowed, false);
+  assert.equal(current.eligibilityReason, "material_withdrawn"); assert.equal(current.publicationAllowed, false);
+  assert.equal(current.currentRevision, before.currentRevision); assert.deepEqual(current.revisions, before.revisions);
+  assert.deepEqual(current.withdrawal, { state: "withdrawn", materialRevision: before.currentRevision,
+    requestId: request.metadata.requestId, recordedAt: current.withdrawal?.recordedAt });
+  assert.equal(Number((await pool.query(`SELECT fact_version FROM ${s}.projects WHERE project_id=$1`, [f.input.projectId])).rows[0]!.fact_version), 0);
 });
 test("exact SHA already bound to another contentUnit keeps both current revisions pending; same unit language shares remain candidates", async () => {
   const first = await fixture(), firstScope = await approveDirection(first, "en-us", ["facebook_video"], ["en-us", "es"]), firstSaved = await save(first, withConfirmation(first.input, firstScope));
