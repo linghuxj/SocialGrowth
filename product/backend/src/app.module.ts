@@ -27,6 +27,8 @@ import { ProjectService } from "./project-service.js";
 import { ProjectController } from "./project.controller.js";
 import { ProjectLifecycleController } from "./project-lifecycle.controller.js";
 import { ProjectLifecycleService } from "./project-lifecycle-service.js";
+import { ProjectCycleConfigController } from "./project-cycle-config.controller.js";
+import { ProjectCycleConfigService } from "./project-cycle-config-service.js";
 import { ResourceReservationStore } from "./resource-reservation-store.js";
 import { ResourcePreparationController } from "./resource-preparation.controller.js";
 import { MediaCredentialStore } from "./media-credential-store.js";
@@ -152,6 +154,7 @@ const providerAuthProvider = {
     ProviderDeviceLabelController,
     ProjectController,
     ProjectLifecycleController,
+    ProjectCycleConfigController,
     ResourcePreparationController,
     MediaCredentialsController,
     ProjectPlanningController,
@@ -182,6 +185,7 @@ const providerAuthProvider = {
     { provide: MaterialRuntime, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new MaterialRuntime(pool, auth, readMaterialRuntimeConfig()) },
     { provide: ProjectService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ProjectService(pool, auth) },
     { provide: ProjectLifecycleService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ProjectLifecycleService(pool, auth) },
+    { provide: ProjectCycleConfigService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ProjectCycleConfigService(pool, auth) },
     { provide: ResourceReservationStore, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ResourceReservationStore(pool, auth) },
     // No real controlled key custodian is configured. Metadata can be read;
     // writes authenticate then fail closed. No ambient/historical key fallback.
