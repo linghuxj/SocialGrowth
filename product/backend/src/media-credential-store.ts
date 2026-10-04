@@ -5,7 +5,7 @@ import { requestMetadataSchema, uuidSchema } from "@socialgrowth/product-contrac
 import { OperatorAuthService } from "./operator-auth-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
 import { MediaCredentialKeyCustodian } from "./media-credential-key-custodian.js";
-import { maxMediaCredentialPayloadBytes, sealMediaCredentialPayload, type MediaCredentialKey } from "./media-credential-envelope.js";
+import { maxMediaCredentialPayloadBytes, sealMediaCredentialPayload, withDecryptedMediaCredential, type MediaCredentialKey } from "./media-credential-envelope.js";
 
 const s = "socialgrowth_product", id = uuidSchema.length(36).refine(v => v === v.toLowerCase());
 const loginIdentifier = z.string().min(1).max(320).refine(value => value.trim() === value && !value.includes("\u0000"));
@@ -94,6 +94,58 @@ export class MediaCredentialStore {
   async read(token: string, accountId: unknown): Promise<MediaCredentialMetadata | null> {
     const parsed = id.safeParse(accountId); if (!parsed.success) throw invalid();
     return this.transaction(token, null, client => this.current(client, parsed.data));
+  }
+  // Internal trusted-authority port only. Selectors are rechecked against the
+  // locked current head; plaintext is lent synchronously to a sealer and never
+  // returned through this store. This method is deliberately not an HTTP API.
+  async withCurrentSecretForMediaInput(scope: Readonly<{ accountId: string; platform: "facebook" | "youtube"; credentialId: string; expectedRevision: bigint }>,
+    seal: (secretUtf8: Buffer) => Buffer): Promise<Buffer> {
+    const account = id.safeParse(scope?.accountId), credential = id.safeParse(scope?.credentialId);
+    if (!account.success || !credential.success || !["facebook", "youtube"].includes(scope.platform)
+      || typeof scope.expectedRevision !== "bigint" || scope.expectedRevision < 1n || scope.expectedRevision > BigInt(Number.MAX_SAFE_INTEGER)
+      || typeof seal !== "function") throw unavailable();
+    let keys: MediaCredentialWriteKeys | undefined;
+    try {
+      if (this.keys instanceof MediaCredentialKeyCustodian) this.keys.withWriteKeys(input => { keys = snapshotKeys(input); });
+      else keys = snapshotKeys(this.keys);
+    } catch { keys = undefined; }
+    if (!keys) throw unavailable();
+    let client: PoolClient | undefined, output: Buffer | undefined, committed = false;
+    try {
+      client = await this.pool.connect();
+      await client.query("BEGIN"); await client.query("SET LOCAL lock_timeout='5s'"); await client.query("SET LOCAL statement_timeout='10s'");
+      // Match the account/credential write lock order before the global
+      // resource guard so rotation and assignment cannot cross this snapshot.
+      await client.query(`LOCK TABLE ${s}.operators IN SHARE ROW EXCLUSIVE MODE`);
+      if ((await client.query(`SELECT 1 FROM ${s}.resource_reservation_guard WHERE singleton=true FOR UPDATE`)).rowCount !== 1) throw unavailable();
+      const row = (await client.query<{ revision: string; state: string; encryption_key_id: string | null; envelope: unknown }>(
+        `SELECT h.revision::text AS revision,r.state,r.encryption_key_id,r.envelope
+         FROM ${s}.media_credentials h JOIN ${s}.media_credential_revisions r
+           ON (h.credential_id,h.account_id,h.platform,h.revision)=(r.credential_id,r.account_id,r.platform,r.revision)
+         WHERE h.account_id=$1 AND h.platform=$2 AND h.credential_id=$3 FOR UPDATE OF h,r`,
+        [account.data, scope.platform, credential.data])).rows[0];
+      if (!row || row.state !== "stored_unverified" || BigInt(row.revision) !== scope.expectedRevision
+        || !row.envelope || !keys.encryption || row.encryption_key_id !== keys.encryption.keyId) throw stale();
+      await withDecryptedMediaCredential(row.envelope, { credentialId: credential.data, accountId: account.data,
+        platform: scope.platform, revision: Number(scope.expectedRevision) }, async payload => {
+        const sealed = seal(payload);
+        if (!Buffer.isBuffer(sealed) || sealed.length < 1 || sealed.length > 131072 || sealed.buffer === payload.buffer) {
+          if (Buffer.isBuffer(sealed)) sealed.fill(0);
+          throw unavailable();
+        }
+        output = Buffer.from(sealed); sealed.fill(0);
+      }, keys.encryption);
+      if (!output) throw unavailable();
+      await client.query("COMMIT"); committed = true;
+      return output;
+    } catch (error) {
+      output?.fill(0);
+      if (client && !committed) try { await client.query("ROLLBACK"); } catch { /* preserve the safe error below */ }
+      if (error instanceof ProductTransactionError) throw error;
+      throw unavailable();
+    } finally {
+      client?.release(); keys.encryption.key.fill(0); for (const key of keys.digestKeys) key.key.fill(0);
+    }
   }
   async write(token: string, csrf: string, input: unknown, payloadInput?: unknown): Promise<{ credential: MediaCredentialMetadata; changed: boolean; replayed: boolean }> {
     const parsed = commandSchema.safeParse(input); if (!parsed.success) throw invalid();
