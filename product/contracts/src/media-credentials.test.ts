@@ -4,12 +4,12 @@ import { contractVersion } from "./common.js";
 import { mediaCredentialMetadataSchema, readMediaCredentialResponseSchema, writeMediaCredentialRequestSchema, writeMediaCredentialResponseSchema } from "./media-credentials.js";
 const id = "a0000000-0000-4000-8000-000000000001";
 const command = { metadata: { contractVersion, requestId: "request-credential", idempotencyKey: "credential_intent_1" }, credentialId: id, accountId: id,
-  platform: "facebook", expectedRevision: 0, operation: "put", payloadBase64: Buffer.from('{"login":"synthetic","password":" synthetic 密码 "}').toString("base64") };
+  platform: "facebook", expectedRevision: 0, operation: "put", loginIdentifier: "synthetic", payloadBase64: Buffer.from('{"login":"synthetic","password":" synthetic 密码 "}').toString("base64") };
 test("credential transport bounds canonical original bytes, not plaintext/password policy or an encryption assertion", () => {
   assert.ok(writeMediaCredentialRequestSchema.safeParse(command).success);
   for (const n of [1, 2, 3, 8190, 8191, 8192]) assert.ok(writeMediaCredentialRequestSchema.safeParse({ ...command, payloadBase64: Buffer.alloc(n, 255).toString("base64") }).success);
   for (const payloadBase64 of ["", "AA", "AB==", "AAB=", "AA===", "AA==\n", Buffer.alloc(8193).toString("base64"), "秘密"]) assert.equal(writeMediaCredentialRequestSchema.safeParse({ ...command, payloadBase64 }).success, false);
-  const { payloadBase64: _secret, ...withoutSecret } = command;
+  const { payloadBase64: _secret, loginIdentifier: _loginIdentifier, ...withoutSecret } = command;
   assert.ok(writeMediaCredentialRequestSchema.safeParse({ ...withoutSecret, operation: "invalidate" }).success);
   assert.equal(writeMediaCredentialRequestSchema.safeParse({ ...command, operation: "invalidate" }).success, false);
 });

@@ -6,13 +6,14 @@ const ref = z.string().regex(/^[A-Za-z0-9_-]{1,150}$(?![\s\S])/);
 const version = z.int().min(0).max(Number.MAX_SAFE_INTEGER);
 const metadata = requestMetadataSchema.extend({ idempotencyKey: z.string().regex(/^[A-Za-z0-9_-]{16,128}$(?![\s\S])/) });
 export const accountPreparationIntentSchema = z.strictObject({
-  accountId: uuidSchema.nullable(), deviceId: uuidSchema.nullable(), parentLoginRef: ref,
+  accountId: uuidSchema.nullable(), deviceId: uuidSchema.nullable(), parentLoginRef: ref.nullable().optional(),
   mode: z.enum(["check_only", "prepare_if_missing"]), target: preparationTargetSchema,
   scopeRef: ref, allowTrustedInstall: z.boolean(), allowIdentityCreation: z.boolean(),
 });
 export const requestAccountPreparationSchema = z.strictObject({ metadata,
   protocolVersion: z.literal(executionLibraryVersion), projectId: uuidSchema,
-  expectedProjectVersion: version, expectedResourceVersion: version, intent: accountPreparationIntentSchema,
+  expectedProjectVersion: version, expectedResourceVersion: version,
+  intent: accountPreparationIntentSchema.extend({ accountId: uuidSchema, deviceId: uuidSchema, parentLoginRef: z.null().optional() }),
 });
 export const recheckAccountPreparationSchema = z.strictObject({ metadata,
   protocolVersion: z.literal(executionLibraryVersion), projectId: uuidSchema, taskId: uuidSchema, expectedTaskVersion: version,
