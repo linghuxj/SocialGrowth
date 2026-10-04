@@ -322,15 +322,15 @@ export function ProjectCycleConfigPanel({ projectId, active, readOnly, onExpired
         <label>下周期复盘间隔（1–366 天）<input aria-label="下周期复盘间隔（天）" inputMode="numeric" min="1" max="366" value={form.reviewIntervalDays} onChange={e => edit("reviewIntervalDays", e.target.value)} /></label>
         <label>下周期每周期引流最低数<input aria-label="下周期每周期引流最低数" inputMode="numeric" min="0" value={form.trafficMinimumPerCycle} onChange={e => edit("trafficMinimumPerCycle", e.target.value)} /></label>
       </fieldset>
-      {pending && <p className="form-note" aria-label="冻结的原请求">原请求编号 {pending.requestId} · 请求键 <code>{pending.idempotencyKey}</code>{!pendingActorMatches && " · 当前登录身份不同，仅保留未知事实"}</p>}
-      {(!readOnly || pending) && <div className="project-save-actions">
-        {!readOnly && !pending && <><button disabled={busy || keyConflict || storageBlocked || loading || !current || !dirty || !pendingActorMatches} onClick={() => void save()}>确认下周期配置</button>
-          <button className="outline-button" disabled={busy || storageBlocked || !!pending || !dirty} onClick={() => { setForm(formFrom(view)); dirtyRef.current = false; setDirty(false); setError(""); }}>放弃本次修改</button></>}
-        {pending && <>
-          <button className="outline-button" disabled={busy || !pendingActorMatches || storageBlocked} onClick={() => void verifyPending()}>只读核对原请求回执</button>
-          {!readOnly && <button className="outline-button" disabled={busy || keyConflict || !pendingActorMatches || storageBlocked} onClick={() => void save()}>{keyConflict ? "请求键冲突，停止重发" : "明确接续同一请求"}</button>}
-        </>}
-      </div>}
     </>}
+    {pending && <p className="form-note" aria-label="冻结的原请求">原请求编号 {pending.requestId} · 请求键 <code>{pending.idempotencyKey}</code>{!pendingActorMatches && " · 当前登录身份不同，仅保留未知事实"}</p>}
+    {(!readOnly || pending) && <div className="project-save-actions">
+      {!readOnly && !pending && <><button disabled={busy || keyConflict || storageBlocked || loading || !current || !dirty || !pendingActorMatches} onClick={() => void save()}>确认下周期配置</button>
+        <button className="outline-button" disabled={busy || storageBlocked || !!pending || !dirty} onClick={() => { if (view) setForm(formFrom(view)); dirtyRef.current = false; setDirty(false); setError(""); }}>放弃本次修改</button></>}
+      {pending && <>
+        <button className="outline-button" disabled={busy || !pendingActorMatches || storageBlocked} onClick={() => void verifyPending()}>只读核对原请求回执</button>
+        {!readOnly && <button className="outline-button" disabled={busy || keyConflict || !pendingActorMatches || storageBlocked} onClick={() => void save()}>{keyConflict ? "请求键冲突，停止重发" : "明确接续同一请求"}</button>}
+      </>}
+    </div>}
   </section>;
 }

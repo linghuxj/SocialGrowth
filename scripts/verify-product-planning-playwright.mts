@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { isAbsolute } from "node:path";
-import { chromium, type BrowserContext, type Locator, type Page, type Response } from "playwright";
+import { chromium, type APIResponse, type BrowserContext, type Locator, type Page } from "playwright";
 // Reproducible REAL UI draft scope. Never run to bypass a policy refusal;
 // admin admission must first be restored. Synthetic text here proves only
 // unapproved draft UI persistence, never actual approved business direction.
@@ -203,7 +203,7 @@ try {
     }
     const key = typeof request.metadata?.idempotencyKey === "string" ? request.metadata.idempotencyKey : "";
     cycleRouteFetchStarted = true;
-    let response: Response;
+    let response: APIResponse;
     try {
       response = await route.fetch({ timeout: 60_000 });
       cycleRouteResponseReceived = true;
