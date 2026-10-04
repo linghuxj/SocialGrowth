@@ -56,6 +56,9 @@ async function readCycleFromVisiblePage(target: Page, region: Locator): Promise<
   latestCycleRead = await response.json() as CycleReadEvidence;
   return latestCycleRead;
 }
+function getLatestCycleRead(): CycleReadEvidence | null {
+  return latestCycleRead;
+}
 async function waitForSuccessorFromVisiblePage(target: Page, region: Locator, previous: CycleReadEvidence): Promise<CycleReadEvidence> {
   const previousCycle = previous.currentCycle;
   assert.ok(previousCycle, "a UI-created current cycle is required before waiting for its natural successor");
@@ -623,18 +626,19 @@ try {
 } catch (error) {
   // Never persist page text/screenshots in this flow: after the lost-response
   // point the visible panel includes a replay-capable request key.
+  const lastRead = getLatestCycleRead();
   await writeFile(`${output}/cycle-config-failure.json`, JSON.stringify({ phase: cyclePhase, errorType: error instanceof Error ? error.name : "unknown",
     cycleCheckpoint, actualModelAttempts, cycleConfigAcceptanceExecuted: cycleFlowPassed,
     plannedNaturalBoundaryAt: new Date(plannedCycleEndAt).toISOString(),
-    latestCycleRead: latestCycleRead ? { projectId: latestCycleRead.projectId, observedAt: latestCycleRead.observedAt,
-      configurationRevision: latestCycleRead.configurationRevision, nextCycle: null,
-      currentCycle: latestCycleRead.currentCycle ? { cycleId: latestCycleRead.currentCycle.cycleId,
-        cycleNumber: latestCycleRead.currentCycle.cycleNumber, startsAt: latestCycleRead.currentCycle.startsAt,
-        endsAt: latestCycleRead.currentCycle.endsAt, recordedAt: latestCycleRead.currentCycle.recordedAt,
-        origin: latestCycleRead.currentCycle.origin } : null,
-      nextConfiguration: latestCycleRead.nextConfiguration ? { configurationRevision: latestCycleRead.nextConfiguration.configurationRevision,
-        basedOnCycleId: latestCycleRead.nextConfiguration.basedOnCycleId,
-        application: latestCycleRead.nextConfiguration.application } : null } : null,
+    latestCycleRead: lastRead ? { projectId: lastRead.projectId, observedAt: lastRead.observedAt,
+      configurationRevision: lastRead.configurationRevision, nextCycle: null,
+      currentCycle: lastRead.currentCycle ? { cycleId: lastRead.currentCycle.cycleId,
+        cycleNumber: lastRead.currentCycle.cycleNumber, startsAt: lastRead.currentCycle.startsAt,
+        endsAt: lastRead.currentCycle.endsAt, recordedAt: lastRead.currentCycle.recordedAt,
+        origin: lastRead.currentCycle.origin } : null,
+      nextConfiguration: lastRead.nextConfiguration ? { configurationRevision: lastRead.nextConfiguration.configurationRevision,
+        basedOnCycleId: lastRead.nextConfiguration.basedOnCycleId,
+        application: lastRead.nextConfiguration.application } : null } : null,
     cyclePostObserved, cycleRouteFetchStarted, cycleRouteResponseReceived, cycleRouteFetchErrorType, firstPostStatus,
     cycleRouteBodyMismatch, cycleRouteBodyInvalid,
     safeCycleFacts, credentialsRecorded: false, requestBodyRecorded: false, executionAllowed: false, publicationAllowed: false }, null, 2), { mode: 0o600 });
