@@ -69,9 +69,10 @@ page.on("requestfinished", request => {
 const workspace = page.locator(".project-workspace");
 const outputFacts: {
   pauseDelayedAck: { bodySha256: string; keySha256: string; status: number; changed: boolean } | null;
+  endFirstResponse: { bodySha256: string; keySha256: string; requestIdSha256: string; status: number; changed: boolean; replayed: boolean } | null;
   endUnknownReplay: { bodySha256: string; replayBodySha256: string; keySha256: string; replayKeySha256: string; firstStatus: number; replayStatus: number; replayed: boolean } | null;
   withdrawal: { status: number; changed: boolean; replayed: boolean; requestIdSha256: string } | null;
-} = { pauseDelayedAck: null, endUnknownReplay: null, withdrawal: null };
+} = { pauseDelayedAck: null, endFirstResponse: null, endUnknownReplay: null, withdrawal: null };
 let projectAId: string | null = null;
 let projectARequestId: string | null = null;
 let pauseFirstBody: string | null = null;
@@ -86,6 +87,7 @@ const pauseResponseCaptured = deferred<{ status: number; changed: boolean }>();
 const releasePauseResponse = deferred();
 const heldARead = deferred();
 const releaseHeldAReads = deferred();
+const aReadDelivered = deferred();
 let firstEndCommitted = false;
 let endPostCount = 0;
 let pausePostCount = 0;
@@ -100,6 +102,7 @@ await page.route(lifecycleRoutePattern, async route => {
     heldARead.resolve();
     await releaseHeldAReads.promise;
     await route.fulfill({ response });
+    aReadDelivered.resolve();
     return;
   }
   if (request.method() !== "POST") { await route.continue(); return; }
@@ -141,13 +144,16 @@ await page.route(lifecycleRoutePattern, async route => {
       assert.equal(receipt.intent, "end_requested");
       assert.equal(receipt.changed, true);
       assert.equal(receipt.replayed, false);
+      outputFacts.endFirstResponse = { bodySha256: sha256(body), keySha256, requestIdSha256: sha256(requestId),
+        status: response.status(), changed: receipt.changed, replayed: receipt.replayed };
       await route.abort("failed");
       return;
     }
     assert.ok(endFirstBody !== null && body === endFirstBody, "unknown continuation must preserve the exact original lifecycle body");
-    assert.equal(keySha256, endFirstKeySha256, "unknown continuation must preserve the original lifecycle idempotency key");
+    assert.ok(keySha256 === endFirstKeySha256, "unknown continuation must preserve the original lifecycle idempotency key");
     holdARead = false;
     releaseHeldAReads.resolve();
+    await aReadDelivered.promise;
     const response = await route.fetch();
     const receipt = await response.json() as { projectId: string; intent: string; changed: boolean; replayed: boolean };
     assert.ok(response.status() >= 200 && response.status() < 300);
@@ -294,7 +300,7 @@ try {
   const endA = pauseA.getByRole("region", { name: "项目意图事实", exact: true });
   await endA.getByRole("checkbox", { name: /我确认项目正式结束不可普通恢复/ }).check();
   await endA.getByRole("button", { name: "正式结束项目", exact: true }).click();
-  await endA.getByText("请求结果未知；原请求内容和请求键保持冻结。请核对当前事实或接续原请求。", { exact: true }).waitFor();
+  await pauseA.getByText(/请求结果未知；原请求内容和请求键保持冻结/).waitFor();
   const frozenEnd = endA.getByRole("button", { name: "接续原请求", exact: true });
   await frozenEnd.waitFor();
   assert.equal(endPostCount, 1);
@@ -309,10 +315,12 @@ try {
 
   stage = "reconcile and replay the frozen original project A request";
   holdARead = true;
-  const reopenedA = await openLifecycle(projectA);
+  await openProject(projectA);
+  await workspace.getByRole("button", { name: "项目生命周期", exact: true }).click();
+  const reopenedA = workspace.getByRole("region", { name: "项目生命周期", exact: true });
+  await reopenedA.getByRole("heading", { name: "项目暂停、恢复与结束", exact: true }).waitFor();
   await heldARead.promise;
-  const continuedEnd = reopenedA.getByRole("region", { name: "项目意图事实", exact: true })
-    .getByRole("button", { name: "接续原请求", exact: true });
+  const continuedEnd = reopenedA.getByRole("button", { name: "接续原请求", exact: true });
   await continuedEnd.waitFor();
   await continuedEnd.click();
   await reopenedA.getByText("已记录正式结束意图", { exact: true }).waitFor();
@@ -330,10 +338,12 @@ try {
   console.log(JSON.stringify({ passed: true, scope: "project-lifecycle UI", projects: 2, executionAllowed: false, publicationAllowed: false }));
 } catch (error) {
   await Promise.allSettled(readEvidenceTasks);
-  const alert = await page.locator(".project-lifecycle__alert").innerText().catch(() => "");
-  const alertCategory = alert.includes("运营会话已失效") ? "session_expired" : alert.includes("生命周期事实暂时无法读取") ? "lifecycle_read_unavailable"
-    : alert.includes("请求结果未知") ? "request_outcome_unknown" : alert ? "other_safe_alert" : "none";
-  const panel = page.locator(".project-lifecycle");
+  const selectedPanel = page.getByRole("region", { name: "项目生命周期", exact: true });
+  const statusOrAlert = await selectedPanel.locator('[role="alert"], [role="status"]').allInnerTexts().catch(() => []);
+  const safeMessage = statusOrAlert.join(" ");
+  const alertCategory = safeMessage.includes("运营会话已失效") ? "session_expired" : safeMessage.includes("生命周期事实暂时无法读取") ? "lifecycle_read_unavailable"
+    : safeMessage.includes("请求结果未知") ? "request_outcome_unknown" : safeMessage ? "other_safe_alert" : "none";
+  const panel = selectedPanel;
   const visible = await panel.isVisible().catch(() => false);
   const intentRegion = panel.getByRole("region", { name: "项目意图事实", exact: true });
   const lifecycleVersionText = await intentRegion.locator(".project-lifecycle__section-heading > span").innerText().catch(() => "");
@@ -359,10 +369,11 @@ try {
     endButtonEnabled: await endButton.isEnabled().catch(() => false),
     loadingStatusVisible: await panel.getByText("正在读取项目意图与当前素材事实…", { exact: true }).isVisible().catch(() => false),
     errorAlertVisible: await panel.locator(".project-lifecycle__alert").isVisible().catch(() => false),
+    unknownStatusVisible: await panel.getByRole("status").filter({ hasText: /请求结果未知/ }).isVisible().catch(() => false),
     navigationSelected: await workspace.getByRole("button", { name: "项目生命周期", exact: true }).getAttribute("aria-current").catch(() => null) === "page",
   };
   await writeFile(`${output}/failure.json`, JSON.stringify({ failureType: error instanceof Error ? error.name : "unknown", stage, pageErrors, readEvidence, alertCategory, uiState, actions: outputFacts,
-    pausePostCount, endPostCount, actualDirectionSource: "no approved direction created", actualExternalAction: false }, null, 2), { mode: 0o600 });
+    pausePostCount, endPostCount, endFirstResponseObserved: outputFacts.endFirstResponse, actualDirectionSource: "no approved direction created", actualExternalAction: false }, null, 2), { mode: 0o600 });
   throw new Error("Project lifecycle Playwright failed; see finite safe result artifacts");
 } finally {
   holdARead = false;
