@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { isAbsolute } from "node:path";
 import { chromium, type APIResponse, type BrowserContext, type Locator, type Page } from "playwright";
-import { projectCycleConfigurationCommandReadResponseSchema, saveProjectCycleConfigurationReceiptSchema } from "@socialgrowth/product-contracts";
+import { projectCycleConfigurationCommandReadResponseSchema, saveProjectCycleConfigurationReceiptSchema } from "../product/contracts/dist/index.js";
 import type { ProjectCycleConfigurationReadResponse, SaveProjectCycleConfigurationReceipt } from "@socialgrowth/product-contracts";
 // Reproducible REAL UI draft scope. Never run to bypass a policy refusal;
 // admin admission must first be restored. Synthetic text here proves only
