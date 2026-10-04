@@ -132,7 +132,16 @@ try {
     await run("business-plan-postgres", "pnpm", ["--filter", "@socialgrowth/product-backend", "exec", "tsx", "--test", "src/business-plan-service.postgres-test.ts"], { SG_PRODUCT_TEST_DATABASE_URL: url, SG_PRODUCT_TEST_ALLOW_RESET: "1" });
   }
   if (postgresOnlyScope) await run("business-plan-postgres", "pnpm", ["--filter", "@socialgrowth/product-backend", "exec", "tsx", "--test", "src/business-plan-service.postgres-test.ts"], { SG_PRODUCT_TEST_DATABASE_URL: url, SG_PRODUCT_TEST_ALLOW_RESET: "1" });
-  if (mediaPostgresOnlyScope) await run("media-accounts-postgres", "pnpm", ["--filter", "@socialgrowth/product-backend", "exec", "tsx", "--test", "src/media-accounts-r159.pg-test.ts"], { SG_PRODUCT_TEST_DATABASE_URL: url, SG_PRODUCT_TEST_ALLOW_RESET: "1" });
+  if (mediaPostgresOnlyScope) {
+    const systemIdentifier = (await pool.query("SELECT system_identifier::text FROM pg_control_system()")).rows[0].system_identifier;
+    await run("media-accounts-postgres", "pnpm", ["--filter", "@socialgrowth/product-backend", "exec", "tsx", "--test", "src/media-accounts-r159.pg-test.ts"], {
+      SG_PRODUCT_TEST_DATABASE_URL: url, SG_PRODUCT_TEST_ALLOW_RESET: "1",
+      SG_PRODUCT_TEST_EXPECT_DATABASE_NAME: "sg_core_local",
+      SG_PRODUCT_TEST_OWNED_PG_CONTAINER_ID: pg.cid,
+      SG_PRODUCT_TEST_OWNED_PG_LABEL: pg.owner,
+      SG_PRODUCT_TEST_EXPECT_DATABASE_SYSTEM_IDENTIFIER: systemIdentifier,
+    });
+  }
   if (!sqlOnly) {
   const migrations = (await readdir(join(repo, "product/backend/migrations"))).filter(f => /^\d{4}.*\.sql$/.test(f)).sort();
   for (const file of migrations) await pool.query(await readFile(join(repo, "product/backend/migrations", file), "utf8"));
