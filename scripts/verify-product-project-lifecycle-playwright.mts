@@ -193,7 +193,9 @@ async function openLifecycle(name: string) {
   await openProject(name);
   await workspace.getByRole("button", { name: "项目生命周期", exact: true }).click();
   const panel = workspace.getByRole("region", { name: "项目生命周期", exact: true });
+  stage = "wait for lifecycle panel heading";
   await panel.getByRole("heading", { name: "项目暂停、恢复与结束", exact: true }).waitFor();
+  stage = "wait for lifecycle intent data text";
   await panel.getByText(/尚无项目生命周期意图|已记录暂停意图|已记录恢复前复核意图|已记录正式结束意图/).waitFor();
   return panel;
 }
@@ -333,12 +335,28 @@ try {
     : alert.includes("请求结果未知") ? "request_outcome_unknown" : alert ? "other_safe_alert" : "none";
   const panel = page.locator(".project-lifecycle");
   const visible = await panel.isVisible().catch(() => false);
+  const intentRegion = panel.getByRole("region", { name: "项目意图事实", exact: true });
+  const lifecycleVersionText = await intentRegion.locator(".project-lifecycle__section-heading > span").innerText().catch(() => "");
+  const lifecycleVersionMatch = /^生命周期版本 v(\d+)$/.exec(lifecycleVersionText.trim());
+  const projectVersionText = await workspace.locator("#project-basics .section-heading > span").innerText().catch(() => "");
+  const projectVersionMatch = /^已保存版本 (\d+)$/.exec(projectVersionText.trim());
+  const pauseButton = intentRegion.getByRole("button", { name: "请求暂停发布", exact: true });
+  const resumeButton = intentRegion.getByRole("button", { name: "请求检查恢复条件", exact: true });
+  const endButton = intentRegion.getByRole("button", { name: "正式结束项目", exact: true });
   const uiState = {
     panelPresent: await panel.count().catch(() => 0) > 0,
     panelVisible: visible,
     lifecycleHeadingVisible: await panel.getByRole("heading", { name: "项目暂停、恢复与结束", exact: true }).isVisible().catch(() => false),
+    lifecycleFactRegionPresent: await intentRegion.count().catch(() => 0) > 0,
     lifecycleFactRegionVisible: await panel.getByRole("region", { name: "项目意图事实", exact: true }).isVisible().catch(() => false),
     knownIntentVisible: await panel.getByText(/尚无项目生命周期意图|已记录暂停意图|已记录恢复前复核意图|已记录正式结束意图/).isVisible().catch(() => false),
+    lifecycleRevisionLabelPresent: lifecycleVersionMatch !== null,
+    lifecycleRevision: lifecycleVersionMatch ? Number(lifecycleVersionMatch[1]) : null,
+    projectVersionLabelPresent: projectVersionMatch !== null,
+    projectVersion: projectVersionMatch ? Number(projectVersionMatch[1]) : null,
+    pauseButtonEnabled: await pauseButton.isEnabled().catch(() => false),
+    resumeButtonEnabled: await resumeButton.isEnabled().catch(() => false),
+    endButtonEnabled: await endButton.isEnabled().catch(() => false),
     loadingStatusVisible: await panel.getByText("正在读取项目意图与当前素材事实…", { exact: true }).isVisible().catch(() => false),
     errorAlertVisible: await panel.locator(".project-lifecycle__alert").isVisible().catch(() => false),
     navigationSelected: await workspace.getByRole("button", { name: "项目生命周期", exact: true }).getAttribute("aria-current").catch(() => null) === "page",
