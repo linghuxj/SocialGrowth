@@ -22,6 +22,7 @@ let appliedConfigurationReadVerified = false;
 let carryForwardReadVerified = false;
 let carryProjectName = "";
 let carryBaselineCycle: CycleReadEvidence | null = null;
+let latestCycleRead: CycleReadEvidence | null = null;
 let commandReadsByDifferentOperator = 0;
 let cycleCheckpoint = "planning-draft-only";
 let cyclePostObserved = false;
@@ -42,7 +43,8 @@ async function readCycleFromVisiblePage(target: Page, region: Locator): Promise<
   await region.getByRole("button", { name: "刷新周期事实", exact: true }).click();
   const response = await responsePromise;
   assert.equal(response.status(), 200, "visible page cycle refresh must return an authoritative read");
-  return await response.json() as CycleReadEvidence;
+  latestCycleRead = await response.json() as CycleReadEvidence;
+  return latestCycleRead;
 }
 async function waitForSuccessorFromVisiblePage(target: Page, region: Locator, previous: CycleReadEvidence): Promise<CycleReadEvidence> {
   const previousCycle = previous.currentCycle;
@@ -580,6 +582,16 @@ try {
   // point the visible panel includes a replay-capable request key.
   await writeFile(`${output}/cycle-config-failure.json`, JSON.stringify({ phase: cyclePhase, errorType: error instanceof Error ? error.name : "unknown",
     cycleCheckpoint, actualModelAttempts, cycleConfigAcceptanceExecuted: cycleFlowPassed,
+    plannedNaturalBoundaryAt: new Date(plannedCycleEndAt).toISOString(),
+    latestCycleRead: latestCycleRead ? { projectId: latestCycleRead.projectId, observedAt: latestCycleRead.observedAt,
+      configurationRevision: latestCycleRead.configurationRevision, nextCycle: null,
+      currentCycle: latestCycleRead.currentCycle ? { cycleId: latestCycleRead.currentCycle.cycleId,
+        cycleNumber: latestCycleRead.currentCycle.cycleNumber, startsAt: latestCycleRead.currentCycle.startsAt,
+        endsAt: latestCycleRead.currentCycle.endsAt, recordedAt: latestCycleRead.currentCycle.recordedAt,
+        origin: latestCycleRead.currentCycle.origin } : null,
+      nextConfiguration: latestCycleRead.nextConfiguration ? { configurationRevision: latestCycleRead.nextConfiguration.configurationRevision,
+        basedOnCycleId: latestCycleRead.nextConfiguration.basedOnCycleId,
+        application: latestCycleRead.nextConfiguration.application } : null } : null,
     cyclePostObserved, cycleRouteFetchStarted, cycleRouteResponseReceived, cycleRouteFetchErrorType, firstPostStatus,
     cycleRouteBodyMismatch, cycleRouteBodyInvalid,
     safeCycleFacts, credentialsRecorded: false, requestBodyRecorded: false, executionAllowed: false, publicationAllowed: false }, null, 2), { mode: 0o600 });
