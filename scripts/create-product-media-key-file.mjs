@@ -1,5 +1,5 @@
 // Explicit offline custodian setup. Never run automatically at service startup.
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, generateKeyPairSync, randomBytes, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { lstat, open, realpath } from "node:fs/promises";
 import { dirname, isAbsolute, resolve } from "node:path";
@@ -17,14 +17,17 @@ async function checkTrustedDirectoryChain(directory) {
 
 let file;
 let directoryFile;
+let fileBytes;
 const encryptionKey = randomBytes(32);
 const digestKey = randomBytes(32);
 try {
   const args = process.argv.slice(2);
-  if (args.length !== 1 || !isAbsolute(args[0]) || typeof process.getuid !== "function") {
+  const grantSigning = args.length === 2 && args[0] === "--grant-signing";
+  const target = grantSigning ? args[1] : args[0];
+  if ((!grantSigning && args.length !== 1) || !isAbsolute(target) || typeof process.getuid !== "function") {
     throw new Error("input_invalid");
   }
-  const path = resolve(args[0]);
+  const path = resolve(target);
   const directory = dirname(path);
   const stat = await lstat(directory);
   if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid()
@@ -51,22 +54,34 @@ try {
     throw new Error("custodian_path_changed");
   }
   await checkTrustedDirectoryChain(directory);
-  const encryptionId = `encryption-${randomUUID()}`;
-  const digestId = `digest-${randomUUID()}`;
-  await file.writeFile(JSON.stringify({
-    encryption: { keyId: encryptionId, keyBase64: encryptionKey.toString("base64") },
-    currentDigestKeyId: digestId,
-    digestKeys: [{ keyId: digestId, keyBase64: digestKey.toString("base64") }],
-  }) + "\n", "utf8");
+  let publicGrantKeyId;
+  if (grantSigning) {
+    const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+    fileBytes = Buffer.from(privateKey.export({ format: "pem", type: "pkcs8" }), "utf8");
+    publicGrantKeyId = createHash("sha256").update(publicKey.export({ format: "der", type: "spki" })).digest("hex");
+  } else {
+    const encryptionId = `encryption-${randomUUID()}`;
+    const digestId = `digest-${randomUUID()}`;
+    fileBytes = Buffer.from(JSON.stringify({
+      encryption: { keyId: encryptionId, keyBase64: encryptionKey.toString("base64") },
+      currentDigestKeyId: digestId,
+      digestKeys: [{ keyId: digestId, keyBase64: digestKey.toString("base64") }],
+    }) + "\n", "utf8");
+  }
+  await file.writeFile(fileBytes);
   await file.sync();
   await directoryFile.sync();
-  console.log("Created persistent media credential key file (0600). Preserve it with the encrypted database backup.");
+  console.log(publicGrantKeyId
+    ? "Created persistent media grant signing key file (0600)."
+    : "Created persistent media credential key file (0600). Preserve it with the encrypted database backup.");
+  if (publicGrantKeyId) console.log(JSON.stringify({ publicGrantKeyId }));
 } catch {
   console.error("Media credential key setup failed. Require a new absolute file path inside an owned, real 0700 directory with trusted parents; existing files are never replaced.");
   process.exitCode = 1;
 } finally {
   encryptionKey.fill(0);
   digestKey.fill(0);
+  fileBytes?.fill(0);
   await file?.close();
   await directoryFile?.close();
 }
