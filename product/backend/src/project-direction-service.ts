@@ -7,7 +7,9 @@ import { OperatorAuthService } from "./operator-auth-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
 import { canonicalMaterial } from "./material-registry-core.js";
 import type { InitialDirectionModel } from "./artemis-business-model.js";
+import { ProjectCycleStore } from "./project-cycle-store.js";
 const s = "socialgrowth_product";
+const projectCycles = new ProjectCycleStore();
 const invalid = (message = "Direction scope is incomplete") => new ProductTransactionError("INPUT_INVALID", message);
 const stale = () => new ProductTransactionError("FACT_VERSION_STALE", "Direction inputs changed; read and compare before confirming");
 const unavailable = () => new ProductTransactionError("INTERNAL_ERROR", "Direction service unavailable", true);
@@ -23,9 +25,11 @@ export class ProjectDirectionService {
       await c.query(`LOCK TABLE ${s}.operators IN SHARE ROW EXCLUSIVE MODE`);
       const actor = await this.auth.authenticateSessionInTransaction(c, token, csrf ?? undefined, csrf !== null);
       // Shared ordering with material and resource writers: global material
-      // guard -> resource guard -> project. No network call while locked.
+      // guard -> resource guard -> business-plan/cycle guard -> project. No
+      // network call while locked.
       if ((await c.query(`SELECT 1 FROM ${s}.material_registry_guard FOR UPDATE`)).rowCount !== 1) throw unavailable();
       if ((await c.query(`SELECT 1 FROM ${s}.resource_reservation_guard FOR UPDATE`)).rowCount !== 1) throw unavailable();
+      if ((await c.query(`SELECT 1 FROM ${s}.business_plan_guard FOR UPDATE`)).rowCount !== 1) throw unavailable();
       const result = await fn(c, actor.operator.operatorId);
       const valid = await c.query(`SELECT 1 FROM ${s}.operator_sessions WHERE session_id=$1 AND revoked_at IS NULL AND expires_at>clock_timestamp()`, [actor.sessionId]);
       if (valid.rowCount !== 1) throw new ProductTransactionError("AUTHENTICATION_REQUIRED", "Operator session expired");
@@ -81,7 +85,8 @@ export class ProjectDirectionService {
     return projectDirectionResponseSchema.parse({ projectId, projectVersion: Number(p.fact_version), proposal: proposal ? directionProposalSchema.parse(proposal.record) : null,
       approval: approved ? directionApprovalSchema.parse(approved.record) : null,
       attempt: currentAttempt ? { attemptId: currentAttempt.attempt_id, state: currentAttempt.expired ? "unavailable" : currentAttempt.state, proposalId: currentAttempt.proposal_id } : null,
-      blockers: ["素材来源与首次发布准入未接入真实证据", "发布身份与手机初始化尚待真实核验", "持久排期、任务及实时动作许可尚待接入"], executionAllowed: false, publicationAllowed: false });
+      blockers: ["素材来源与首次发布准入未接入真实证据", "发布身份与手机初始化尚待真实核验", "周期窗口仅在边界可明确计算时持久记录；真实周期推进、反馈来源、Task安排及实时动作许可尚待接入"],
+      executionAllowed: false, publicationAllowed: false });
   }
   async read(token: string, projectId: string) {
     const parsed = uuidSchema.safeParse(projectId); if (!parsed.success) throw invalid("Invalid project identifier");
@@ -163,14 +168,17 @@ export class ProjectDirectionService {
       if (facts.projectVersion !== r.expectedProjectVersion || proposal.projectVersion !== r.expectedProjectVersion || proposal.snapshotDigest !== r.snapshotDigest || facts.digest !== r.snapshotDigest) throw stale();
       const currentProposal = (await this.view(c, r.projectId)).proposal;
       if (currentProposal?.proposalId !== proposal.proposalId) throw stale();
-      const now = (await c.query<{ now: Date }>("SELECT clock_timestamp() now")).rows[0]!.now.toISOString();
+      const now = (await c.query<{ now: string }>(`SELECT to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS now`)).rows[0]!.now;
       const confirmedByOperatorName = (await c.query<{ display_name: string }>(`SELECT display_name FROM ${s}.operators WHERE operator_id=$1`, [actor])).rows[0]?.display_name;
       const approval = directionApprovalSchema.parse({ approvalId: randomUUID(), proposal, confirmedByOperatorId: actor, confirmedByOperatorName, confirmedAt: now, status: "approved_waiting_readiness" });
       await c.query(`INSERT INTO ${s}.project_direction_approvals(approval_id,project_id,proposal_id,actor_id,request_key,payload_digest,record) VALUES($1,$2,$3,$4,$5,$6,$7)`,
         [approval.approvalId, r.projectId, proposal.proposalId, actor, metadata.idempotencyKey, intent, approval]);
       if ((await c.query(`UPDATE ${s}.projects SET fact_version=fact_version+1,updated_at=clock_timestamp() WHERE project_id=$1 AND fact_version<9007199254740991`, [r.projectId])).rowCount !== 1) throw stale();
+      const cycle = await projectCycles.appendApprovedConfiguration(c, approval);
       await c.query(`INSERT INTO ${s}.audit_records(audit_record_id,actor_type,actor_id,action,object_type,object_id,request_id,facts)
-        VALUES($1,'operator',$2,'project.direction_confirmed','project',$3,$4,$5)`, [randomUUID(), actor, r.projectId, r.metadata.requestId, { approvalId: approval.approvalId, proposalId: proposal.proposalId, status: approval.status }]);
+        VALUES($1,'operator',$2,'project.direction_confirmed','project',$3,$4,$5)`, [randomUUID(), actor, r.projectId, r.metadata.requestId,
+        { approvalId: approval.approvalId, proposalId: proposal.proposalId, status: approval.status,
+          reviewCycle: cycle.state === "unresolved" ? { state: cycle.state, reason: cycle.reason } : { state: cycle.state, cycleId: cycle.cycle.cycleId } }]);
       return this.view(c, r.projectId);
     });
   }
