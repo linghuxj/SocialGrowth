@@ -355,8 +355,8 @@ try {
   await page.getByRole("button", { name: "账号与设备", exact: true }).click();
   await page.getByRole("tab", { name: "运营账号", exact: true }).click();
   const operatorRow = page.getByRole("row").filter({ hasText: operatorBLogin });
-  await operatorRow.getByRole("button", { name: "停用", exact: true }).click();
   page.once("dialog", dialog => void dialog.accept());
+  await operatorRow.getByRole("button", { name: "停用", exact: true }).click();
   await page.getByText("账号已停用，会话已撤销", { exact: true }).waitFor();
 
   cycleFlowPassed = true;
