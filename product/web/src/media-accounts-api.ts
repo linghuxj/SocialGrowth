@@ -60,9 +60,11 @@ export async function readAccountAssignments(projectId?: string): Promise<Accoun
   const query = projectId ? `?projectId=${encodeURIComponent(projectId.toLowerCase())}` : "";
   try {
     const value = await readOperatorResource(`/api/operator/resources/account-assignments${query}`, accountAssignmentListResponseSchema);
+    if (projectId && value.projectId?.toLowerCase() !== projectId.toLowerCase()) throw new MediaAccountsApiError("MEDIA_ACCOUNTS_RESPONSE_INVALID");
     checkSession();
     return value;
   } catch (error) {
+    if (error instanceof MediaAccountsApiError) throw error;
     if (error instanceof ProductApiError) throw error;
     throw new MediaAccountsApiError("MEDIA_ACCOUNTS_UNAVAILABLE");
   }
@@ -130,7 +132,7 @@ export class PreparedMediaAccountProfile {
 
 export function prepareMediaAccountCreate(input: {
   expectedResourceVersion: number; platform: "facebook" | "youtube"; displayName: string;
-  loginIdentifier: string; password: string; persona: { name: string | null; birthday: string | null; gender: string | null } | null;
+  loginIdentifier: string; password: string; persona?: { name: string | null; birthday: string | null; gender: string | null };
 }) {
   return new PreparedMediaAccountCreate({ metadata: newMediaMetadata(), ...input });
 }
