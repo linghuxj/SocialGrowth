@@ -350,7 +350,8 @@ export class MediaInputAuthorityStore {
         `SELECT task_id,project_id FROM ${s}.artemis_preparation_intents WHERE task_attempt_id=$1`, [scope.taskAttemptId])).rows[0];
       if (!locator || locator.task_id !== scope.taskId || locator.project_id !== scope.projectId) denied();
       await c.query(`LOCK TABLE ${s}.operators IN SHARE MODE`);
-      if ((await c.query(`SELECT 1 FROM ${s}.resource_reservation_guard FOR SHARE`)).rowCount !== 1) denied();
+      const resourceVersion = (await c.query<{ version: string }>(`SELECT version::text FROM ${s}.resource_reservation_guard WHERE singleton=true FOR SHARE`)).rows[0]?.version;
+      if (!resourceVersion) denied();
       const project = (await c.query<{ fact_version: string; phase: string }>(`SELECT fact_version::text,phase FROM ${s}.projects WHERE project_id=$1 FOR SHARE`, [scope.projectId])).rows[0];
       const task = (await c.query<{ task_version: string; selected_account_id: string | null; selected_device_id: string | null; intent: unknown;
         intent_digest: string; requested_by: string; state: string; next_operation_id: string | null }>(
@@ -445,7 +446,7 @@ export class MediaInputAuthorityStore {
       const leaseUntilMillis = BigInt(Date.parse(holder.leaseUntil));
       const holderGrantValidUntilMillis = BigInt(Date.parse(holder.validUntil));
       if (leaseUntilMillis <= BigInt(now.getTime()) || holderGrantValidUntilMillis <= BigInt(now.getTime())) denied();
-      const snapshot = hash(Buffer.from(canonical({ scope, credential, projectVersion: project.fact_version, taskVersion: task.task_version,
+      const snapshot = hash(Buffer.from(canonical({ scope, credential, resourceVersion, projectVersion: project.fact_version, taskVersion: task.task_version,
         accountAssignment: assignment, launch: launch.fingerprint, association, installationGeneration: installation.generation,
         deviceState: device.state, enrollmentGeneration: enrollment.generation, enrollmentVersion: admitted.version,
         enrollmentExpiry: admitted.expiresAt, node: admitted.node, formalEvidenceId: admitted.formalEvidenceId,
