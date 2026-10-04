@@ -27,7 +27,7 @@ type Props = {
 
 const intentLabels: Record<NonNullable<ProjectLifecycleIntentView["intent"]>, string> = {
   pause_requested: "已记录暂停意图",
-  resume_requested: "已记录恢复复核意图",
+  resume_requested: "已记录恢复前复核意图",
   end_requested: "已记录正式结束意图",
 };
 const blockerLabels: Record<ProjectCurrentChecksView["tasks"][number]["blockers"][number], string> = {
@@ -299,7 +299,7 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
   const ended = lifecycle?.intent === "end_requested";
   return <section hidden={!active} className="project-lifecycle" aria-label="项目生命周期">
     <div className="section-heading">
-      <div><h2>项目生命周期</h2><p className="muted">项目意图、素材内部撤回和任务当前事实分别读取。意图记录不代表手机已停止；素材撤回不删除平台内容。</p></div>
+      <div><h2>项目生命周期</h2><p className="muted">项目意图、素材内部撤回和任务当前事实分别读取。恢复请求只触发恢复前复核，不会自动重启任务或发布；素材撤回不删除平台内容。</p></div>
       <button className="outline-button" type="button" disabled={loading || busy} onClick={() => void refresh(false)}>
         <ArrowClockwise size={18} />{loading ? "核对中…" : "核对当前事实"}
       </button>
@@ -316,7 +316,7 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
       </dl>
       {!readOnly && <div className="project-lifecycle__actions">
         <button type="button" disabled={busy || !!pending || ended || lifecycle.intent === "pause_requested"} onClick={() => startLifecycle("pause")}>请求暂停发布</button>
-        <button type="button" className="outline-button" disabled={busy || !!pending || ended || lifecycle.intent !== "pause_requested"} onClick={() => startLifecycle("resume")}>请求复核并恢复</button>
+        <button type="button" className="outline-button" disabled={busy || !!pending || ended || lifecycle.intent !== "pause_requested"} onClick={() => startLifecycle("resume")}>请求检查恢复条件</button>
         <button type="button" className="danger-button" disabled={busy || !!pending || ended} onClick={() => startLifecycle("end")}>正式结束项目</button>
       </div>}
       {!readOnly && !ended && <label className="project-lifecycle__confirm"><input type="checkbox" checked={endConfirmed} disabled={busy || !!pending} onChange={event => setEndConfirmed(event.currentTarget.checked)} />我确认项目正式结束不可普通恢复；未知提交仍需独立核实。</label>}
@@ -357,6 +357,6 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
         void refresh(true).finally(() => setLoadingMore(false));
       }}>{loadingMore ? "读取更多中…" : "读取更多素材"}</button>}
     </section>
-    <p className="project-lifecycle__footnote">暂停只表示停止新发布意图；手机现场停止、已提交任务结果、资源释放与内容撤下仍需各自独立核实。本页不执行平台删除。</p>
+    <p className="project-lifecycle__footnote">暂停只记录停止新增发布的意图，不终止效果观察，也不证明手机已停止。已提交任务结果、资源释放与内容撤下仍需各自独立核实；本页不执行平台删除。</p>
   </section>;
 }
