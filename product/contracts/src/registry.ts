@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { directionProposalSchema, directionApprovalSchema, projectDirectionResponseSchema, generateProjectDirectionRequestSchema, confirmProjectDirectionRequestSchema } from "./project-direction.js";
 import { mediaCredentialMetadataSchema, readMediaCredentialResponseSchema, writeMediaCredentialRequestSchema, writeMediaCredentialResponseSchema } from "./media-credentials.js";
+import { accountAssignmentListResponseSchema, accountAssignmentRequestSchema, accountAssignmentResponseSchema,
+  createMediaAccountRequestSchema, createMediaAccountResponseSchema, mediaAccountCommandLookupResponseSchema,
+  mediaAccountListResponseSchema, resourceCommandLookupResponseSchema, resourceHandoverRequestSchema,
+  resourceHandoverResponseSchema, updateMediaAccountRequestSchema, updateMediaAccountResponseSchema } from "./media-account.js";
 import { registerMediaIdentityRequestSchema, registerMediaIdentityResponseSchema, reserveResourcePreparationRequestSchema, resourcePreparationResponseSchema } from "./resource-preparation.js";
 import { centralPublicationTaskSchema, taskDispatchNoticeSchema, taskExecutionObservationSchema } from "./task-dispatch.js";
 import { saveMaterialDeclarationRequestSchema, materialCurrentViewSchema, saveMaterialDeclarationResponseSchema, batchMaterialDeclarationsRequestSchema, batchMaterialDeclarationsResponseSchema, materialHistoryQuerySchema, materialHistoryResponseSchema, materialLibraryQuerySchema, materialLibraryResponseSchema } from "./material-registry.js";
@@ -95,6 +99,18 @@ import {
 } from "./status.js";
 
 export const firstBatchContractRegistry = {
+  mediaAccount: mediaAccountListResponseSchema,
+  createMediaAccountRequest: createMediaAccountRequestSchema,
+  createMediaAccountResponse: createMediaAccountResponseSchema,
+  updateMediaAccountRequest: updateMediaAccountRequestSchema,
+  updateMediaAccountResponse: updateMediaAccountResponseSchema,
+  mediaAccountCommandLookupResponse: mediaAccountCommandLookupResponseSchema,
+  resourceCommandLookupResponse: resourceCommandLookupResponseSchema,
+  accountAssignment: accountAssignmentListResponseSchema,
+  accountAssignmentRequest: accountAssignmentRequestSchema,
+  accountAssignmentResponse: accountAssignmentResponseSchema,
+  resourceHandoverRequest: resourceHandoverRequestSchema,
+  resourceHandoverResponse: resourceHandoverResponseSchema,
   directionProposal: directionProposalSchema,
   directionApproval: directionApprovalSchema,
   projectDirectionResponse: projectDirectionResponseSchema,

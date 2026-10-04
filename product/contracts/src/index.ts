@@ -17,6 +17,7 @@ export * from "./material-upload.js";
 export * from "./material-registry.js";
 export * from "./project-lifecycle.js";
 export * from "./media-credentials.js";
+export * from "./media-account.js";
 export * from "./network-admission.js";
 export * from "./operator.js";
 export * from "./provider-auth.js";
