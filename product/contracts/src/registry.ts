@@ -11,6 +11,7 @@ import { deviceControlSnapshotSchema, installationSelfControlCommandRequestSchem
 import { phoneActionRequestSchema } from "./action-permission.js";
 import { createProjectRequestSchema, updateProjectRequestSchema, projectResponseSchema, projectViewSchema, listProjectsResponseSchema } from "./project.js";
 import { projectPlanningInputsSchema, projectPlanningDraftViewSchema, projectPlanningResponseSchema, saveProjectPlanningRequestSchema } from "./project-planning.js";
+import { projectCycleCurrentFactSchema, projectCycleNextConfigurationSchema, projectCycleConfigurationUnresolvedReasonSchema, projectCycleConfigurationReadResponseSchema, saveProjectCycleConfigurationRequestSchema, saveProjectCycleConfigurationReceiptSchema, projectCycleConfigurationCommandReadResponseSchema } from "./project-cycle-next-config.js";
 import { businessPlanTaskSchema, businessPlanCurrentViewSchema, readBusinessPlanResponseSchema, arrangeBusinessPlanRequestSchema, arrangeBusinessPlanResponseSchema } from "./business-plan-task.js";
 import { businessPlanCurrentImpactReferenceSchema, businessPlanCurrentCheckTaskSchema, businessPlanCurrentChecksResponseSchema,
   createBusinessPlanTaskAttemptRequestSchema, createBusinessPlanTaskAttemptResponseSchema } from "./business-plan-current-checks.js";
@@ -142,6 +143,13 @@ export const firstBatchContractRegistry = {
   projectPlanningDraftView: projectPlanningDraftViewSchema,
   projectPlanningResponse: projectPlanningResponseSchema,
   saveProjectPlanningRequest: saveProjectPlanningRequestSchema,
+  projectCycleCurrentFact: projectCycleCurrentFactSchema,
+  projectCycleNextConfiguration: projectCycleNextConfigurationSchema,
+  projectCycleConfigurationUnresolvedReason: projectCycleConfigurationUnresolvedReasonSchema,
+  projectCycleConfigurationReadResponse: projectCycleConfigurationReadResponseSchema,
+  saveProjectCycleConfigurationRequest: saveProjectCycleConfigurationRequestSchema,
+  saveProjectCycleConfigurationReceipt: saveProjectCycleConfigurationReceiptSchema,
+  projectCycleConfigurationCommandReadResponse: projectCycleConfigurationCommandReadResponseSchema,
   businessPlanTask: businessPlanTaskSchema,
   businessPlanCurrentView: businessPlanCurrentViewSchema,
   readBusinessPlanResponse: readBusinessPlanResponseSchema,
