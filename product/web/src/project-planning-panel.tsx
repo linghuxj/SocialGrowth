@@ -5,6 +5,7 @@ import { isDefinitiveProjectRejection, newIdempotencyKey, ProductApiError } from
 import { PreparedPlanningDraft, readPlanningDraft, samePlanningInputs } from "./project-planning-api.js";
 import { numberFields, planningFormOf, planningInputOf, type PlanningForm } from "./project-planning-editor.js";
 import { ProjectDirectionPanel } from "./project-direction-panel.js";
+import { ProjectCycleConfigPanel } from "./project-cycle-config-panel.js";
 const zones = projectPlanningInputsSchema.shape.businessTimeZone.unwrap().options;
 const numericLabels = { reviewIntervalDays: "复盘间隔（天）", trafficMinimumPerCycle: "项目每周期引流最低任务数", observationWindowHours: "内容观察窗口（小时）", tailObservationDays: "结束后收尾观察（天）", maxPublicationsPerDay: "每日总发布上界" };
 const forms = { facebook_video: "Facebook 视频", facebook_image_text: "Facebook 图文", youtube_shorts: "YouTube Shorts", youtube_video: "YouTube 常规视频" };
@@ -64,7 +65,7 @@ export function ProjectPlanningPanel({ projectId, active, readOnly, onExpired, o
     <nav className="project-tabs" aria-label="草案分区"><button className="text-button" aria-current={section === "goals" ? "page" : undefined} onClick={() => setSection("goals")}><Target size={18} />目标与范围</button><button className="text-button" aria-current={section === "cycle" ? "page" : undefined} onClick={() => setSection("cycle")}><CalendarBlank size={18} />周期与观察</button><span>{pending ? "原保存待确认" : dirty ? "有未保存输入" : base?.draftVersion ? `已保存草案 v${base.draftVersion}` : "草案事实尚未确认"}</span></nav>
     {message && <p role="status" className="feedback">{message}</p>}{loading && <p role="status">正在读取规划事实…</p>}
     {!base ? <p>目标与周期事实尚未读取，不能推定为空或不受限制。</p> : <>
-      <section className="project-direction-note"><div><h3>当前为筹备草案，不是批准范围</h3><p>项目版本 {base.projectFactVersion}，草案版本 {base.draftVersion}。{base.savedAt ? `保存时间 ${base.savedAt}；保存人 ${base.savedByOperatorId}` : "尚无保存记录"}。没有实际运行周期，不显示示例进度或生效时间。</p></div></section>
+      <section className="project-direction-note"><div><h3>当前为筹备草案，不是批准范围</h3><p>项目版本 {base.projectFactVersion}，草案版本 {base.draftVersion}。{base.savedAt ? `保存时间 ${base.savedAt}；保存人 ${base.savedByOperatorId}` : "尚无保存记录"}。此处只展示筹备草案，不能据此判断实际运行周期或批准范围。</p></div></section>
       <fieldset disabled={readOnly || busy || !!pending}>
         <section className="panel planning-form-grid" hidden={section !== "goals"}>
           <label>正式开通前阶段目标<textarea aria-label="正式开通前阶段目标" maxLength={150} value={form.preOpeningGoal} onChange={e => edit("preOpeningGoal", e.target.value)} /></label>
@@ -81,6 +82,9 @@ export function ProjectPlanningPanel({ projectId, active, readOnly, onExpired, o
           <label>发布有效窗口开始（ISO 含时区）<input value={form.windowStart} onChange={e => edit("windowStart", e.target.value)} /></label><label>发布有效窗口结束（ISO 含时区，结束不含）<input value={form.windowEnd} onChange={e => edit("windowEnd", e.target.value)} /></label>
         </section>
       </fieldset>
+      <div hidden={section !== "cycle"}>
+        <ProjectCycleConfigPanel projectId={projectId} active={active && section === "cycle"} readOnly={readOnly} onExpired={onExpired} onFactsChanged={onFactsChanged} />
+      </div>
       <p className="form-note">空项保持未配置，不自动填候选国家、语言、7天、时区或最低数。时间输入是带明确偏移的实际时刻，不按浏览器或手机时区猜测；本页不做本地时刻/DST换算。</p>
       <p className="form-note">保存覆盖本页两个分区的全部草案字段。运行中修改不走此筹备入口；后续周期变更需从下周期连续生效，当前周期和历史口径不改。</p>
       {!readOnly && <div className="project-save-actions"><button disabled={busy || (!dirty && !pending)} onClick={() => void save()}>{busy ? "保存中…" : pending ? "接续原草案保存" : "保存全部草案"}</button><button className="outline-button" disabled={busy || !!pending || !dirty} onClick={() => { setForm(planningFormOf(base.inputs)); draftRef.current = false; setDirty(false); setObserved(null); }}>放弃本次输入</button></div>}

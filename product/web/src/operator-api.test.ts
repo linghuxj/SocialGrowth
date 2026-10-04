@@ -17,6 +17,7 @@ const {
   createInvitation,
   createOperator,
   hasCsrfToken,
+  currentOperatorSessionContext,
   listInvitations,
   listOperatorDeviceFacts,
   login,
@@ -67,10 +68,12 @@ test("login stores CSRF locally and a failed logout preserves it", async () => {
   }), { status: 200, headers: { "content-type": "application/json" } });
   await login("operator.one", "a-secure-password");
   assert.equal(hasCsrfToken(), true);
+  assert.deepEqual(currentOperatorSessionContext(), { operatorId: operator.operatorId, sessionId: "00000000-0000-4000-8000-000000000002" });
 
   globalThis.fetch = async () => new Response("upstream unavailable", { status: 503 });
   await assert.rejects(logout(), ProductApiError);
   assert.equal(hasCsrfToken(), true);
+  assert.deepEqual(currentOperatorSessionContext(), { operatorId: operator.operatorId, sessionId: "00000000-0000-4000-8000-000000000002" });
 });
 
 test("401 clears local CSRF and malformed errors receive a safe fallback", async () => {
@@ -84,6 +87,7 @@ test("401 clears local CSRF and malformed errors receive a safe fallback", async
       && error.response.error.code === "INTERNAL_ERROR",
   );
   assert.equal(hasCsrfToken(), false);
+  assert.equal(currentOperatorSessionContext(), null);
 });
 
 test("a network retry reuses the pending mutation idempotency key", async () => {

@@ -8,6 +8,7 @@ import {
   listInvitationsResponseSchema,
   operatorLoginResponseSchema,
   productErrorResponseSchema,
+  uuidSchema,
   revokeInvitationResponseSchema,
   type CreateInvitationResponse,
   type InvitationView,
@@ -20,6 +21,23 @@ import {
 } from "@socialgrowth/product-contracts";
 
 const csrfStorageKey = "socialgrowth.operator.csrf";
+const operatorContextStorageKey = "socialgrowth.operator.session-context";
+
+export type OperatorSessionContext = { operatorId: string; sessionId: string };
+
+export function currentOperatorSessionContext(): OperatorSessionContext | null {
+  try {
+    if (!csrfToken()) return null;
+    const raw = sessionStorage.getItem(operatorContextStorageKey);
+    if (!raw) return null;
+    const value: unknown = JSON.parse(raw);
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+    const record = value as Record<string, unknown>;
+    if (Object.keys(record).sort().join(",") !== "operatorId,sessionId") return null;
+    const operatorId = uuidSchema.safeParse(record.operatorId), sessionId = uuidSchema.safeParse(record.sessionId);
+    return operatorId.success && sessionId.success ? { operatorId: operatorId.data.toLowerCase(), sessionId: sessionId.data.toLowerCase() } : null;
+  } catch { return null; }
+}
 
 export class ProductApiError extends Error {
   constructor(readonly response: ProductErrorResponse, readonly status: number) {
@@ -37,7 +55,10 @@ function mutationMetadata(idempotencyKey: string) {
 }
 function csrfToken(): string { return sessionStorage.getItem(csrfStorageKey) ?? ""; }
 export function hasCsrfToken(): boolean { return csrfToken().length > 0; }
-export function clearLocalSession(): void { sessionStorage.removeItem(csrfStorageKey); }
+export function clearLocalSession(): void {
+  sessionStorage.removeItem(csrfStorageKey);
+  sessionStorage.removeItem(operatorContextStorageKey);
+}
 
 function fallbackError(status: number): ProductErrorResponse {
   return {
@@ -148,6 +169,14 @@ export async function login(loginName: string, password: string): Promise<Operat
     }),
   });
   sessionStorage.setItem(csrfStorageKey, response.csrfToken);
+  try {
+    sessionStorage.setItem(operatorContextStorageKey, JSON.stringify({
+      operatorId: response.operator.operatorId.toLowerCase(),
+      sessionId: response.session.sessionId.toLowerCase(),
+    }));
+  } catch {
+    sessionStorage.removeItem(operatorContextStorageKey);
+  }
   return response;
 }
 
