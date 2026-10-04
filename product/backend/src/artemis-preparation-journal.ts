@@ -34,10 +34,15 @@ export class PostgresArtemisPreparationJournal implements ArtemisPreparationJour
       || task.state !== "waiting_executor" || task.next_operation_id !== a.operationId || task.selected_account_id !== a.input.accountId || task.selected_device_id !== a.input.deviceId) throw unavailable();
     const intent = accountPreparationIntentSchema.parse(task.intent);
     if (createHash("sha256").update(canonicalMaterial(intent)).digest("hex") !== task.intent_digest
-      || intent.parentLoginRef !== a.input.parentLoginRef || canonicalMaterial(intent.target) !== canonicalMaterial(a.input.target)
+      || canonicalMaterial(intent.target) !== canonicalMaterial(a.input.target)
       || intent.mode !== a.input.mode || intent.scopeRef !== a.input.requestedScope.scopeRef
       || intent.allowTrustedInstall !== a.input.requestedScope.allowTrustedInstall || intent.allowIdentityCreation !== a.input.requestedScope.allowIdentityCreation) throw unavailable();
-    const scoped = (await c.query(`SELECT 1 FROM ${s}.project_account_reservations a JOIN ${s}.project_device_reservations d ON d.project_id=a.project_id WHERE a.project_id=$1 AND a.account_id=$2 AND d.device_id=$3`, [a.input.projectId, a.input.accountId, a.input.deviceId])).rowCount;
+    const scoped = (await c.query(`SELECT 1 FROM ${s}.project_account_reservations a JOIN ${s}.project_device_reservations d ON d.project_id=a.project_id
+      WHERE a.project_id=$1 AND a.account_id=$2 AND d.device_id=$3 AND (
+        EXISTS (SELECT 1 FROM ${s}.project_media_account_assignments m WHERE m.account_id=a.account_id AND m.project_id=a.project_id AND m.device_id=d.device_id AND m.handover_requested=false)
+        OR (NOT EXISTS (SELECT 1 FROM ${s}.project_media_account_assignments m WHERE m.account_id=a.account_id)
+          AND EXISTS (SELECT 1 FROM ${s}.project_identity_reservations i WHERE i.account_id=a.account_id AND i.project_id=a.project_id AND i.device_id=d.device_id)))`,
+      [a.input.projectId, a.input.accountId, a.input.deviceId])).rowCount;
     if (scoped !== 1) throw unavailable();
   }
   async claim(raw: ArtemisPreparationAssignment, fingerprint: string) {

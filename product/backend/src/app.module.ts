@@ -34,6 +34,10 @@ import { ResourceReservationStore } from "./resource-reservation-store.js";
 import { ResourcePreparationController } from "./resource-preparation.controller.js";
 import { MediaCredentialStore } from "./media-credential-store.js";
 import { MediaCredentialsController } from "./media-credentials.controller.js";
+import { MediaAccountsController } from "./media-accounts.controller.js";
+import { MediaAccountStore } from "./media-account-store.js";
+import { MediaCredentialKeyCustodian } from "./media-credential-key-custodian.js";
+import { readMediaCredentialKeysFile } from "./media-credential-key-file.js";
 import { ProjectPlanningController } from "./project-planning.controller.js";
 import { ProjectPlanningService } from "./project-planning-service.js";
 import { ProjectDirectionService } from "./project-direction-service.js";
@@ -157,6 +161,7 @@ const providerAuthProvider = {
     ProjectLifecycleController,
     ProjectCycleConfigController,
     ResourcePreparationController,
+    MediaAccountsController,
     MediaCredentialsController,
     ProjectPlanningController,
     ProjectDirectionController,
@@ -189,9 +194,18 @@ const providerAuthProvider = {
     { provide: ProjectCycleConfigService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ProjectCycleConfigService(pool, auth) },
     ProjectCycleProgressionLifecycle,
     { provide: ResourceReservationStore, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ResourceReservationStore(pool, auth) },
-    // No real controlled key custodian is configured. Metadata can be read;
-    // writes authenticate then fail closed. No ambient/historical key fallback.
-    { provide: MediaCredentialStore, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new MediaCredentialStore(pool, auth, null) },
+    { provide: MediaCredentialKeyCustodian, useFactory: () => {
+      const config = readOperatorRuntimeConfig();
+      const keys = readMediaCredentialKeysFile(config.SG_PRODUCT_MEDIA_CREDENTIAL_KEY_FILE);
+      try { return new MediaCredentialKeyCustodian(keys); }
+      finally { if (keys) { keys.encryption.key.fill(0); for (const key of keys.digestKeys) key.key.fill(0); } }
+    } },
+    { provide: MediaAccountStore, inject: [Pool, OperatorAuthService, MediaCredentialKeyCustodian],
+      useFactory: (pool: Pool, auth: OperatorAuthService, keys: MediaCredentialKeyCustodian) => new MediaAccountStore(pool, auth, keys) },
+    // Metadata can be read; writes authenticate then fail closed if the explicit
+    // protected key file is absent/invalid. No ambient/historical key fallback.
+    { provide: MediaCredentialStore, inject: [Pool, OperatorAuthService, MediaCredentialKeyCustodian],
+      useFactory: (pool: Pool, auth: OperatorAuthService, keys: MediaCredentialKeyCustodian) => new MediaCredentialStore(pool, auth, keys) },
     { provide: ProjectPlanningService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ProjectPlanningService(pool, auth) },
     { provide: ArtemisBusinessModel, useFactory: () => readInitialDirectionModel() },
     { provide: ProjectDirectionService, inject: [Pool, OperatorAuthService, ArtemisBusinessModel], useFactory: (pool: Pool, auth: OperatorAuthService, model: ArtemisBusinessModel | null) => new ProjectDirectionService(pool, auth, model) },

@@ -51,12 +51,13 @@ async function fixture(platform: "facebook" | "youtube" = "facebook") {
   return { a, credentialId, accountId, platform };
 }
 type Fixture = Awaited<ReturnType<typeof fixture>>;
-const input = (f: Fixture, expectedRevision = 0, operation: "put" | "invalidate" = "put") => ({ metadata: metadata(), credentialId: f.credentialId, accountId: f.accountId, platform: f.platform, expectedRevision, operation });
-const payload = () => Buffer.from('{ "password": " synthetic-only 密码 空格 ", "login": " synthetic-login " }');
+const input = (f: Fixture, expectedRevision = 0, operation: "put" | "invalidate" = "put") => ({ metadata: metadata(), credentialId: f.credentialId, accountId: f.accountId, platform: f.platform, expectedRevision, operation,
+  ...(operation === "put" ? { loginIdentifier: "synthetic-login" } : {}) });
+const payload = () => Buffer.from('{ "password": " synthetic-only 密码 空格 ", "login": "synthetic-login" }');
 async function write(f: Fixture, revision = 0, operation: "put" | "invalidate" = "put") { return store.write(f.a.token, f.a.csrf, input(f, revision, operation), operation === "put" ? payload() : undefined); }
 async function image() {
   const result: Record<string, unknown> = {};
-  for (const table of ["media_credentials", "media_credential_revisions", "media_credential_commands", "audit_records", "resource_reservation_guard", "media_accounts", "publishing_identities", "project_identity_reservations"]) {
+  for (const table of ["media_credentials", "media_credential_revisions", "media_credential_commands", "media_account_commands", "audit_records", "resource_reservation_guard", "media_accounts", "publishing_identities", "project_identity_reservations"]) {
     result[table] = (await pool.query(`SELECT to_jsonb(t) value FROM ${s}.${table} t ORDER BY to_jsonb(t)::text`)).rows.map(v => v.value);
   }
   return result;
@@ -65,17 +66,23 @@ let oldRegistry: unknown;
 before(async () => {
   await ddl(`DROP SCHEMA IF EXISTS ${s} CASCADE`);
   const dir = new URL("../migrations/", import.meta.url);
-  const files = (await readdir(dir)).filter(v => /^\d{4}.*\.sql$/.test(v)).sort(); assert.equal(files.length, 23);
-  for (const file of files.filter(v => !v.startsWith("0023_"))) await ddl(await readFile(new URL(file, dir), "utf8"));
+  const files = (await readdir(dir)).filter(v => /^\d{4}.*\.sql$/.test(v)).sort(); assert.equal(files.length, 39);
+  for (const file of files.filter(v => !v.startsWith("0023_") && !v.startsWith("0039_"))) await ddl(await readFile(new URL(file, dir), "utf8"));
   const f = await fixture();
   await pool.query(`INSERT INTO ${s}.publishing_identities(identity_id,account_id,platform,canonical_identity_ref) VALUES($1,$2,$3,'old_synthetic_identity')`, [randomUUID(), f.accountId, f.platform]);
   oldRegistry = (await pool.query(`SELECT to_jsonb(t) value FROM ${s}.media_accounts t ORDER BY account_id`)).rows;
   await ddl(await readFile(new URL("0023_media_credentials.sql", dir), "utf8"));
+  await ddl(await readFile(new URL("0039_media_accounts_r159.sql", dir), "utf8"));
 });
 after(async () => { try { await ddl(`DROP SCHEMA IF EXISTS ${s} CASCADE`); } finally { await pool.end(); keys.encryption.key.fill(0); for (const key of keys.digestKeys) key.key.fill(0); } });
 
-test("0023 forward upgrade preserves prior 0022 references; metadata read creates no credential or permission", async () => {
-  assert.deepEqual((await pool.query(`SELECT to_jsonb(t) value FROM ${s}.media_accounts t ORDER BY account_id`)).rows, oldRegistry);
+test("0023 and 0039 upgrade preserve old references as explicitly unverified history; metadata read creates no credential or permission", async () => {
+  const priorRows = oldRegistry as Array<{ value: { account_id: string; canonical_account_ref: string } }>;
+  for (const row of priorRows) {
+    const current = (await pool.query(`SELECT account_id,canonical_account_ref,legacy_declared_canonical_account_ref,parent_login_verification,login_identifier FROM ${s}.media_accounts WHERE account_id=$1`, [row.value.account_id])).rows[0];
+    assert.equal(current.canonical_account_ref, null); assert.equal(current.legacy_declared_canonical_account_ref, row.value.canonical_account_ref);
+    assert.equal(current.parent_login_verification, "registered_unverified"); assert.equal(current.login_identifier, null);
+  }
   const f = await fixture(), before = await image(); assert.equal(await store.read(f.a.token, f.accountId), null); assert.deepEqual(await image(), before);
 });
 test("durable put/update/invalidate preserves encrypted history and original raw bytes; replay returns CURRENT invalidation after restart", async () => {
@@ -93,9 +100,23 @@ test("durable put/update/invalidate preserves encrypted history and original raw
   const ordinary = JSON.stringify({ current, retry, audits: (await pool.query(`SELECT facts FROM ${s}.audit_records WHERE object_id=$1`, [f.accountId])).rows });
   assert.ok(!ordinary.includes("password") && !ordinary.includes("synthetic-login") && !ordinary.includes("envelope") && !ordinary.includes("ciphertext"));
   assert.equal(current?.actionPermissionGranted, false); assert.equal(current?.acceptanceStarted, false);
-  assert.equal((await pool.query(`SELECT version::text FROM ${s}.resource_reservation_guard`)).rows[0].version, "0");
+  assert.equal((await pool.query(`SELECT version::text FROM ${s}.resource_reservation_guard`)).rows[0].version, "3");
   assert.equal((await pool.query(`SELECT 1 FROM ${s}.project_identity_reservations`)).rowCount, 0);
   assert.equal((await pool.query(`SELECT 1 FROM ${s}.commission_income_sources`)).rowCount, 0);
+});
+test("credential rotation invalidates current parent verification but retains its canonical identity as history", async () => {
+  const f = await fixture("facebook");
+  await write(f, 0);
+  const canonical = `verified_${randomUUID().replaceAll("-", "")}`;
+  await pool.query(`UPDATE ${s}.media_accounts SET canonical_account_ref=$2,parent_login_verification='verified' WHERE account_id=$1`, [f.accountId, canonical]);
+  const rotated = await store.write(f.a.token, f.a.csrf, { ...input(f, 1), loginIdentifier: "rotated-login" }, Buffer.from('{"login":"rotated-login","password":"new-synthetic-secret"}'));
+  assert.equal(rotated.credential.revision, 2);
+  const current = (await pool.query(`SELECT canonical_account_ref,parent_login_verification,login_identifier FROM ${s}.media_accounts WHERE account_id=$1`, [f.accountId])).rows[0];
+  assert.equal(current.canonical_account_ref, canonical);
+  assert.equal(current.parent_login_verification, "registered_unverified");
+  assert.equal(current.login_identifier, "rotated-login");
+  const revisions = (await pool.query(`SELECT revision,state FROM ${s}.media_credential_revisions WHERE account_id=$1 ORDER BY revision`, [f.accountId])).rows;
+  assert.deepEqual(revisions, [{ revision: "1", state: "stored_unverified" }, { revision: "2", state: "stored_unverified" }]);
 });
 test("actor/key binds exact bytes, operation, version and immutable account; requestId is excluded without weakening intent", async () => {
   const f = await fixture(), original = input(f), secret = payload(); await store.write(f.a.token, f.a.csrf, original, secret);
