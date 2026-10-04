@@ -47,14 +47,21 @@ function timestamp(value: string | null): string {
   return `${new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(date)} UTC`;
 }
 
-function errorText(error: unknown): string {
+function errorText(error: unknown, context: "read" | "write" = "read"): string {
   if (error instanceof ProductApiError) {
     const code = error.response.error.code;
     if (code === "FACT_VERSION_STALE") return "事实版本已变化；本次命令被服务拒绝。正在刷新当前事实。";
     if (code === "IDEMPOTENCY_KEY_REUSED") return "服务报告原请求键与已有请求冲突；结果保持未知，不能改用新请求。";
     if (error.status === 401) return "运营会话已失效；原命令结果仍需核对，不能改用新请求。";
   }
-  if (error instanceof ProjectLifecycleApiError) return "生命周期事实暂时无法读取或校验；没有把未知当作未发生。";
+  if (error instanceof ProjectLifecycleApiError) {
+    if (context === "write") {
+      return error.code === "LIFECYCLE_INPUT_INVALID"
+        ? "写请求未通过本地参数校验，没有发送。"
+        : "写请求回执未能确认，结果未知；原请求内容与请求键保持冻结。请核对当前事实或接续原请求。";
+    }
+    return "生命周期事实暂时无法读取或校验；没有把未知当作未发生。";
+  }
   return "请求结果未知；原请求内容和请求键保持冻结。请核对当前事实或接续原请求。";
 }
 
@@ -186,6 +193,7 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
     sequence.current++;
     setBusy(true);
     setErrorMessage("");
+    setMessage("");
     updatePending(command);
     try {
       if (command.kind === "project") {
@@ -214,11 +222,12 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
       if (definitiveStale) {
         if (pendingRef.current === command) updatePending(null);
         if (stillInCommandView()) {
-          setErrorMessage(errorText(error));
+          setMessage(errorText(error));
+          setErrorMessage("");
           await refresh(false, true);
         }
       } else if (pendingRef.current === command && stillInCommandView()) {
-        setErrorMessage(errorText(error));
+        setMessage(errorText(error, "write"));
       }
     } finally {
       busyRef.current = false;
