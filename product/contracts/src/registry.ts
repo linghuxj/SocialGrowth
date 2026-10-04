@@ -11,7 +11,11 @@ import { deviceControlSnapshotSchema, installationSelfControlCommandRequestSchem
 import { phoneActionRequestSchema } from "./action-permission.js";
 import { createProjectRequestSchema, updateProjectRequestSchema, projectResponseSchema, projectViewSchema, listProjectsResponseSchema } from "./project.js";
 import { projectPlanningInputsSchema, projectPlanningDraftViewSchema, projectPlanningResponseSchema, saveProjectPlanningRequestSchema } from "./project-planning.js";
-import { projectCycleCurrentFactSchema, projectCycleNextConfigurationSchema, projectCycleConfigurationUnresolvedReasonSchema, projectCycleConfigurationReadResponseSchema, saveProjectCycleConfigurationRequestSchema, saveProjectCycleConfigurationReceiptSchema, projectCycleConfigurationCommandReadResponseSchema } from "./project-cycle-next-config.js";
+import { projectCycleCurrentFactSchema, projectCycleCurrentReadFactSchema, projectCycleOriginSchema,
+  projectCycleNextConfigurationSchema, projectCycleNextConfigurationReadSchema, projectCycleConfigurationApplicationSchema,
+  projectCycleConfigurationUnresolvedReasonSchema, projectCycleConfigurationReadResponseSchema,
+  saveProjectCycleConfigurationRequestSchema, saveProjectCycleConfigurationReceiptSchema,
+  projectCycleConfigurationCommandReadResponseSchema } from "./project-cycle-next-config.js";
 import { businessPlanTaskSchema, businessPlanCurrentViewSchema, readBusinessPlanResponseSchema, arrangeBusinessPlanRequestSchema, arrangeBusinessPlanResponseSchema } from "./business-plan-task.js";
 import { businessPlanCurrentImpactReferenceSchema, businessPlanCurrentCheckTaskSchema, businessPlanCurrentChecksResponseSchema,
   createBusinessPlanTaskAttemptRequestSchema, createBusinessPlanTaskAttemptResponseSchema } from "./business-plan-current-checks.js";
@@ -144,7 +148,11 @@ export const firstBatchContractRegistry = {
   projectPlanningResponse: projectPlanningResponseSchema,
   saveProjectPlanningRequest: saveProjectPlanningRequestSchema,
   projectCycleCurrentFact: projectCycleCurrentFactSchema,
+  projectCycleCurrentReadFact: projectCycleCurrentReadFactSchema,
+  projectCycleOrigin: projectCycleOriginSchema,
   projectCycleNextConfiguration: projectCycleNextConfigurationSchema,
+  projectCycleNextConfigurationRead: projectCycleNextConfigurationReadSchema,
+  projectCycleConfigurationApplication: projectCycleConfigurationApplicationSchema,
   projectCycleConfigurationUnresolvedReason: projectCycleConfigurationUnresolvedReasonSchema,
   projectCycleConfigurationReadResponse: projectCycleConfigurationReadResponseSchema,
   saveProjectCycleConfigurationRequest: saveProjectCycleConfigurationRequestSchema,

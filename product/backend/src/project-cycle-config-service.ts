@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
-import { contractVersion, idempotencyKeySchema, projectCycleConfigurationCommandReadResponseSchema,
-  projectCycleConfigurationReadResponseSchema, projectCycleCurrentFactSchema, projectCycleNextConfigurationSchema,
+import { compareTimestamps, contractVersion, idempotencyKeySchema, projectCycleConfigurationCommandReadResponseSchema,
+  projectCycleConfigurationReadResponseSchema, projectCycleCurrentReadFactSchema, projectCycleNextConfigurationReadSchema,
   projectPlanningInputsSchema, saveProjectCycleConfigurationReceiptSchema,
   saveProjectCycleConfigurationRequestSchema, uuidSchema,
   type ProjectCycleConfigurationReadResponse } from "@socialgrowth/product-contracts";
@@ -17,6 +17,9 @@ const at = (field: string) => `to_char(${field} AT TIME ZONE 'UTC','YYYY-MM-DD"T
 interface CurrentCycleRow {
   cycle_id: string; cycle_number: string; config_version: string; business_time_zone: string;
   traffic_minimum: number; starts_at: string; ends_at: string; approved_inputs: unknown;
+  approval_id: string; origin_kind: "initial_direction_approval" | "confirmed_next_configuration" | "carry_forward";
+  source_configuration_revision: string | null; predecessor_cycle_id: string | null;
+  predecessor_cycle_number: string | null; review_interval_days: number | null; recorded_at: string;
 }
 interface ConfigRow {
   configuration_revision: string; based_on_cycle_id: string; business_time_zone: string; review_interval_days: number;
@@ -66,11 +69,14 @@ export class ProjectCycleConfigService {
     const observedAt = (await c.query<{ observed_at: string }>(`SELECT ${at("clock_timestamp()")} observed_at`)).rows[0]?.observed_at;
     if (!observedAt) throw unavailable();
     const active = await c.query<CurrentCycleRow>(`SELECT cycle_id,cycle_number::text,config_version::text,business_time_zone,traffic_minimum,
-      starts_at,ends_at,approved_inputs FROM ${s}.project_review_cycles
+      starts_at,ends_at,approved_inputs,approval_id,origin_kind,source_configuration_revision::text,predecessor_cycle_id,
+      predecessor_cycle_number::text,review_interval_days,${at("recorded_at")} recorded_at FROM ${s}.project_review_cycles
       WHERE project_id=$1 AND starts_at::timestamptz<=$2::timestamptz AND ends_at::timestamptz>$2::timestamptz
       ORDER BY cycle_number DESC LIMIT 2`, [projectId, observedAt]);
     const latest = await c.query<CurrentCycleRow>(`SELECT cycle_id,cycle_number::text,config_version::text,business_time_zone,traffic_minimum,
-      starts_at,ends_at,approved_inputs FROM ${s}.project_review_cycles WHERE project_id=$1 ORDER BY cycle_number DESC LIMIT 1`, [projectId]);
+      starts_at,ends_at,approved_inputs,approval_id,origin_kind,source_configuration_revision::text,predecessor_cycle_id,
+      predecessor_cycle_number::text,review_interval_days,${at("recorded_at")} recorded_at FROM ${s}.project_review_cycles
+      WHERE project_id=$1 ORDER BY cycle_number DESC LIMIT 1`, [projectId]);
     if (active.rows.length > 1) throw unavailable();
     return { observedAt, current: active.rows[0] ?? null, latest: latest.rows[0] ?? null };
   }
@@ -82,6 +88,46 @@ export class ProjectCycleConfigService {
       WHERE project_id=$1 ORDER BY configuration_revision DESC LIMIT 1`, [projectId])).rows[0] ?? null;
   }
 
+  private async configApplication(c: PoolClient, projectId: string, config: ConfigRow, latestCycle: CurrentCycleRow | null) {
+    const revision = Number(config.configuration_revision);
+    const applied = await c.query<{ cycle_id: string }>(`SELECT cycle_id FROM ${s}.project_review_cycles
+      WHERE project_id=$1 AND origin_kind='confirmed_next_configuration' AND source_configuration_revision=$2
+      ORDER BY cycle_number LIMIT 2`, [projectId, revision]);
+    if (applied.rows.length > 1) throw unavailable();
+    if (applied.rows[0]) return { state: "applied" as const, materializedCycleId: applied.rows[0].cycle_id, reason: null };
+
+    const lifecycle = (await c.query<{ intent: string }>(`SELECT intent FROM ${s}.project_lifecycle_intents
+      WHERE project_id=$1 ORDER BY revision DESC LIMIT 1`, [projectId])).rows[0]?.intent;
+    if (lifecycle === "end_requested") return { state: "unresolved" as const, materializedCycleId: null, reason: "project_ended" as const };
+
+    const source = (await c.query<CurrentCycleRow>(`SELECT cycle_id,cycle_number::text,config_version::text,business_time_zone,traffic_minimum,
+      starts_at,ends_at,approved_inputs,approval_id,origin_kind,source_configuration_revision::text,predecessor_cycle_id,
+      predecessor_cycle_number::text,review_interval_days,${at("recorded_at")} recorded_at
+      FROM ${s}.project_review_cycles WHERE project_id=$1 AND cycle_id=$2`, [projectId, config.based_on_cycle_id])).rows[0];
+    if (!source) return { state: "unresolved" as const, materializedCycleId: null, reason: "predecessor_missing" as const };
+    if (!latestCycle || source.cycle_id !== latestCycle.cycle_id) {
+      return { state: "unresolved" as const, materializedCycleId: null, reason: "source_missing" as const };
+    }
+    if (compareTimestamps(config.effective_starts_at, source.ends_at)! !== 0
+      || compareTimestamps(config.confirmed_at, source.ends_at)! > 0) {
+      return { state: "unresolved" as const, materializedCycleId: null, reason: "predecessor_missing" as const };
+    }
+    if (!process.versions.tz || !process.versions.icu) {
+      return { state: "unresolved" as const, materializedCycleId: null, reason: "calendar_runtime_unavailable" as const };
+    }
+    const preview = resolveProjectCycleWindow(source.ends_at, config.review_interval_days, config.business_time_zone);
+    if (!preview) {
+      const year = new Date(source.ends_at).getUTCFullYear();
+      const reason = year < 2000 || year > 2099 ? "outside_verified_calendar_range" as const : "civil_boundary_ambiguous" as const;
+      return { state: "unresolved" as const, materializedCycleId: null, reason };
+    }
+    if (compareTimestamps(preview.startsAt, config.effective_starts_at)! !== 0
+      || compareTimestamps(preview.endsAt, config.projected_ends_at)! !== 0) {
+      return { state: "unresolved" as const, materializedCycleId: null, reason: "window_preview_mismatch" as const };
+    }
+    return { state: "pending" as const, materializedCycleId: null, reason: null };
+  }
+
   private async readFacts(c: PoolClient, projectId: string): Promise<ProjectCycleConfigurationReadResponse> {
     await this.projectExists(c, projectId);
     const snapshot = await this.cycleSnapshot(c, projectId);
@@ -90,18 +136,34 @@ export class ProjectCycleConfigService {
     let currentCycle: unknown = null;
     if (snapshot.current) {
       const inputs = projectPlanningInputsSchema.parse(snapshot.current.approved_inputs);
-      if (!inputs.reviewIntervalDays || inputs.businessTimeZone !== snapshot.current.business_time_zone
-        || inputs.trafficMinimumPerCycle !== snapshot.current.traffic_minimum) throw unavailable();
-      currentCycle = projectCycleCurrentFactSchema.parse({ cycleId: snapshot.current.cycle_id, cycleNumber: Number(snapshot.current.cycle_number),
+      const reviewIntervalDays = snapshot.current.review_interval_days ?? inputs.reviewIntervalDays;
+      if (!reviewIntervalDays) throw unavailable();
+      if (snapshot.current.origin_kind === "initial_direction_approval"
+        && (inputs.businessTimeZone !== snapshot.current.business_time_zone || inputs.reviewIntervalDays !== reviewIntervalDays
+          || inputs.trafficMinimumPerCycle !== snapshot.current.traffic_minimum)) throw unavailable();
+      let origin: unknown;
+      if (snapshot.current.origin_kind === "initial_direction_approval") {
+        if (Number(snapshot.current.cycle_number) !== 1 || snapshot.current.source_configuration_revision !== null
+          || snapshot.current.predecessor_cycle_id !== null) throw unavailable();
+        origin = { kind: "initial_direction_approval", approvalId: snapshot.current.approval_id };
+      } else if (snapshot.current.origin_kind === "confirmed_next_configuration") {
+        if (!snapshot.current.source_configuration_revision || !snapshot.current.predecessor_cycle_id) throw unavailable();
+        origin = { kind: "confirmed_next_configuration", configurationRevision: Number(snapshot.current.source_configuration_revision) };
+      } else {
+        if (!snapshot.current.predecessor_cycle_id || snapshot.current.source_configuration_revision !== null) throw unavailable();
+        origin = { kind: "carry_forward", predecessorCycleId: snapshot.current.predecessor_cycle_id };
+      }
+      currentCycle = projectCycleCurrentReadFactSchema.parse({ cycleId: snapshot.current.cycle_id, cycleNumber: Number(snapshot.current.cycle_number),
         configVersion: Number(snapshot.current.config_version), businessTimeZone: snapshot.current.business_time_zone,
-        reviewIntervalDays: inputs.reviewIntervalDays, trafficMinimumPerCycle: snapshot.current.traffic_minimum,
-        startsAt: snapshot.current.starts_at, endsAt: snapshot.current.ends_at });
+        reviewIntervalDays, trafficMinimumPerCycle: snapshot.current.traffic_minimum,
+        startsAt: snapshot.current.starts_at, endsAt: snapshot.current.ends_at, recordedAt: snapshot.current.recorded_at, origin });
     }
-    const nextConfiguration = latest ? projectCycleNextConfigurationSchema.parse({ configurationRevision: revision,
+    const nextConfiguration = latest ? projectCycleNextConfigurationReadSchema.parse({ configurationRevision: revision,
       basedOnCycleId: latest.based_on_cycle_id, businessTimeZone: latest.business_time_zone,
       reviewIntervalDays: latest.review_interval_days, trafficMinimumPerCycle: latest.traffic_minimum_per_cycle,
       effectiveStartsAt: latest.effective_starts_at, projectedEndsAt: latest.projected_ends_at,
-      confirmedByOperatorId: latest.confirmed_by_operator_id, confirmedAt: latest.confirmed_at, requestId: latest.request_id }) : null;
+      confirmedByOperatorId: latest.confirmed_by_operator_id, confirmedAt: latest.confirmed_at, requestId: latest.request_id,
+      application: await this.configApplication(c, projectId, latest, snapshot.latest) }) : null;
     return projectCycleConfigurationReadResponseSchema.parse({ contractVersion, projectId, observedAt: snapshot.observedAt,
       configurationRevision: revision, currentCycle, nextConfiguration, nextCycle: null,
       executionAllowed: false, publicationAllowed: false });
