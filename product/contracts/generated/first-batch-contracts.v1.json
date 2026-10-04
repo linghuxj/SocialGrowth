@@ -14173,7 +14173,9 @@
           "type": "string",
           "enum": [
             "project_scope_changed",
-            "material_revision_changed"
+            "material_revision_changed",
+            "project_lifecycle_intent_changed",
+            "material_withdrawn"
           ]
         },
         "observedProjectVersion": {
@@ -14355,6 +14357,118 @@
             }
           ]
         },
+        "attempt": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "taskAttemptId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "attemptNumber": {
+                  "type": "number",
+                  "const": 1
+                },
+                "state": {
+                  "type": "string",
+                  "const": "pending_current_checks"
+                },
+                "assignmentSemantics": {
+                  "type": "string",
+                  "const": "logical_reservation_bound"
+                },
+                "reservedDeviceIdAtCreation": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "assignmentRelation": {
+                  "type": "string",
+                  "enum": [
+                    "current",
+                    "stale",
+                    "unknown"
+                  ]
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                },
+                "startedAt": {
+                  "type": "null"
+                },
+                "executionAllowed": {
+                  "type": "boolean",
+                  "const": false
+                },
+                "publicationAllowed": {
+                  "type": "boolean",
+                  "const": false
+                }
+              },
+              "required": [
+                "taskAttemptId",
+                "attemptNumber",
+                "state",
+                "assignmentSemantics",
+                "reservedDeviceIdAtCreation",
+                "assignmentRelation",
+                "createdAt",
+                "startedAt",
+                "executionAllowed",
+                "publicationAllowed"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cancelledBeforeStart": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "reason": {
+                  "type": "string",
+                  "enum": [
+                    "project_end",
+                    "material_withdrawal"
+                  ]
+                },
+                "requestId": {
+                  "type": "string",
+                  "minLength": 8,
+                  "maxLength": 128
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "recordedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                }
+              },
+              "required": [
+                "reason",
+                "requestId",
+                "revision",
+                "recordedAt"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "current": {
           "type": "object",
           "properties": {
@@ -14477,6 +14591,27 @@
                 }
               ]
             },
+            "projectLifecycleIntent": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "pause_requested",
+                    "resume_requested",
+                    "end_requested"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "materialWithdrawn": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
             "participationCurrent": {
               "type": [
                 "boolean",
@@ -14501,6 +14636,8 @@
             "installationGeneration",
             "controlIntent",
             "controlStop",
+            "projectLifecycleIntent",
+            "materialWithdrawn",
             "participationCurrent",
             "networkAdmitted"
           ],
@@ -14521,7 +14658,9 @@
                 "type": "string",
                 "enum": [
                   "project_scope_changed",
-                  "material_revision_changed"
+                  "material_revision_changed",
+                  "project_lifecycle_intent_changed",
+                  "material_withdrawn"
                 ]
               },
               "observedProjectVersion": {
@@ -14559,18 +14698,25 @@
         },
         "blockers": {
           "minItems": 1,
-          "maxItems": 15,
+          "maxItems": 24,
           "type": "array",
           "items": {
             "type": "string",
             "enum": [
               "plan_missing",
+              "task_missing",
               "plan_stale",
               "project_scope_changed",
               "material_missing",
               "material_revision_changed",
               "material_not_eligible",
+              "material_withdrawn",
+              "project_pause_requested",
+              "project_resume_requested",
+              "project_end_requested",
+              "task_cancelled_before_start",
               "identity_reservation_missing",
+              "attempt_assignment_stale",
               "device_association_missing",
               "installation_missing",
               "device_paused",
@@ -14596,6 +14742,8 @@
         "scheduledAt",
         "expectedFiles",
         "currentFiles",
+        "attempt",
+        "cancelledBeforeStart",
         "current",
         "impactReferences",
         "blockers"
@@ -14804,6 +14952,118 @@
                   }
                 ]
               },
+              "attempt": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "taskAttemptId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "attemptNumber": {
+                        "type": "number",
+                        "const": 1
+                      },
+                      "state": {
+                        "type": "string",
+                        "const": "pending_current_checks"
+                      },
+                      "assignmentSemantics": {
+                        "type": "string",
+                        "const": "logical_reservation_bound"
+                      },
+                      "reservedDeviceIdAtCreation": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "assignmentRelation": {
+                        "type": "string",
+                        "enum": [
+                          "current",
+                          "stale",
+                          "unknown"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                      },
+                      "startedAt": {
+                        "type": "null"
+                      },
+                      "executionAllowed": {
+                        "type": "boolean",
+                        "const": false
+                      },
+                      "publicationAllowed": {
+                        "type": "boolean",
+                        "const": false
+                      }
+                    },
+                    "required": [
+                      "taskAttemptId",
+                      "attemptNumber",
+                      "state",
+                      "assignmentSemantics",
+                      "reservedDeviceIdAtCreation",
+                      "assignmentRelation",
+                      "createdAt",
+                      "startedAt",
+                      "executionAllowed",
+                      "publicationAllowed"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "cancelledBeforeStart": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "reason": {
+                        "type": "string",
+                        "enum": [
+                          "project_end",
+                          "material_withdrawal"
+                        ]
+                      },
+                      "requestId": {
+                        "type": "string",
+                        "minLength": 8,
+                        "maxLength": 128
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "recordedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                      }
+                    },
+                    "required": [
+                      "reason",
+                      "requestId",
+                      "revision",
+                      "recordedAt"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "current": {
                 "type": "object",
                 "properties": {
@@ -14926,6 +15186,27 @@
                       }
                     ]
                   },
+                  "projectLifecycleIntent": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "pause_requested",
+                          "resume_requested",
+                          "end_requested"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "materialWithdrawn": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
                   "participationCurrent": {
                     "type": [
                       "boolean",
@@ -14950,6 +15231,8 @@
                   "installationGeneration",
                   "controlIntent",
                   "controlStop",
+                  "projectLifecycleIntent",
+                  "materialWithdrawn",
                   "participationCurrent",
                   "networkAdmitted"
                 ],
@@ -14970,7 +15253,9 @@
                       "type": "string",
                       "enum": [
                         "project_scope_changed",
-                        "material_revision_changed"
+                        "material_revision_changed",
+                        "project_lifecycle_intent_changed",
+                        "material_withdrawn"
                       ]
                     },
                     "observedProjectVersion": {
@@ -15008,18 +15293,25 @@
               },
               "blockers": {
                 "minItems": 1,
-                "maxItems": 15,
+                "maxItems": 24,
                 "type": "array",
                 "items": {
                   "type": "string",
                   "enum": [
                     "plan_missing",
+                    "task_missing",
                     "plan_stale",
                     "project_scope_changed",
                     "material_missing",
                     "material_revision_changed",
                     "material_not_eligible",
+                    "material_withdrawn",
+                    "project_pause_requested",
+                    "project_resume_requested",
+                    "project_end_requested",
+                    "task_cancelled_before_start",
                     "identity_reservation_missing",
+                    "attempt_assignment_stale",
                     "device_association_missing",
                     "installation_missing",
                     "device_paused",
@@ -15045,6 +15337,8 @@
               "scheduledAt",
               "expectedFiles",
               "currentFiles",
+              "attempt",
+              "cancelledBeforeStart",
               "current",
               "impactReferences",
               "blockers"
@@ -15066,6 +15360,208 @@
         "checkedAt",
         "plan",
         "tasks",
+        "executionAllowed",
+        "publicationAllowed"
+      ],
+      "additionalProperties": false
+    },
+    "createBusinessPlanTaskAttemptRequest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "metadata": {
+          "type": "object",
+          "properties": {
+            "contractVersion": {
+              "type": "string",
+              "const": "2026-09-29.identity-v1"
+            },
+            "requestId": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            },
+            "idempotencyKey": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 128
+            }
+          },
+          "required": [
+            "contractVersion",
+            "requestId",
+            "idempotencyKey"
+          ],
+          "additionalProperties": false
+        },
+        "expectedPlanRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "expectedTaskRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "metadata",
+        "expectedPlanRevision",
+        "expectedTaskRevision"
+      ],
+      "additionalProperties": false
+    },
+    "createBusinessPlanTaskAttemptResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "type": "string",
+          "const": "2026-09-29.identity-v1"
+        },
+        "projectId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "taskId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "created",
+            "replayed",
+            "blocked"
+          ]
+        },
+        "attempt": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "taskAttemptId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "attemptNumber": {
+                  "type": "number",
+                  "const": 1
+                },
+                "state": {
+                  "type": "string",
+                  "const": "pending_current_checks"
+                },
+                "assignmentSemantics": {
+                  "type": "string",
+                  "const": "logical_reservation_bound"
+                },
+                "reservedDeviceIdAtCreation": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "assignmentRelation": {
+                  "type": "string",
+                  "enum": [
+                    "current",
+                    "stale",
+                    "unknown"
+                  ]
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                },
+                "startedAt": {
+                  "type": "null"
+                },
+                "executionAllowed": {
+                  "type": "boolean",
+                  "const": false
+                },
+                "publicationAllowed": {
+                  "type": "boolean",
+                  "const": false
+                }
+              },
+              "required": [
+                "taskAttemptId",
+                "attemptNumber",
+                "state",
+                "assignmentSemantics",
+                "reservedDeviceIdAtCreation",
+                "assignmentRelation",
+                "createdAt",
+                "startedAt",
+                "executionAllowed",
+                "publicationAllowed"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "blockers": {
+          "maxItems": 24,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "plan_missing",
+              "task_missing",
+              "plan_stale",
+              "project_scope_changed",
+              "material_missing",
+              "material_revision_changed",
+              "material_not_eligible",
+              "material_withdrawn",
+              "project_pause_requested",
+              "project_resume_requested",
+              "project_end_requested",
+              "task_cancelled_before_start",
+              "identity_reservation_missing",
+              "attempt_assignment_stale",
+              "device_association_missing",
+              "installation_missing",
+              "device_paused",
+              "stop_unconfirmed",
+              "participation_missing",
+              "network_not_admitted",
+              "action_inspector_unavailable",
+              "current_fact_unknown"
+            ]
+          }
+        },
+        "checkedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        },
+        "executionAllowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "publicationAllowed": {
+          "type": "boolean",
+          "const": false
+        }
+      },
+      "required": [
+        "contractVersion",
+        "projectId",
+        "taskId",
+        "outcome",
+        "attempt",
+        "blockers",
+        "checkedAt",
         "executionAllowed",
         "publicationAllowed"
       ],
