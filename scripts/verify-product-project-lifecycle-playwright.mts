@@ -15,6 +15,21 @@ function deferred<T = void>() {
   const promise = new Promise<T>(yes => { resolve = yes; });
   return { promise, resolve };
 }
+const lifecycleRouteFailure = deferred<Error>();
+function waitForLifecycleSignal<T>(signal: Promise<T>, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} deadline exceeded`)), 30_000);
+    let settled = false;
+    const finish = (complete: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      complete();
+    };
+    signal.then(value => finish(() => resolve(value)), error => finish(() => reject(error)));
+    lifecycleRouteFailure.promise.then(error => finish(() => reject(error)));
+  });
+}
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1365, height: 950 }, locale: "zh-CN" });
@@ -94,6 +109,7 @@ let pausePostCount = 0;
 const lifecycleRoutePattern = "**/api/operator/projects/*/lifecycle-intents";
 
 await page.route(lifecycleRoutePattern, async route => {
+  try {
   const request = route.request();
   const pathname = new URL(request.url()).pathname;
   const projectId = pathname.split("/").at(-2)!.toLowerCase();
@@ -153,7 +169,7 @@ await page.route(lifecycleRoutePattern, async route => {
     assert.ok(keySha256 === endFirstKeySha256, "unknown continuation must preserve the original lifecycle idempotency key");
     holdARead = false;
     releaseHeldAReads.resolve();
-    await aReadDelivered.promise;
+    await waitForLifecycleSignal(aReadDelivered.promise, "held lifecycle read delivery");
     const response = await route.fetch();
     const receipt = await response.json() as { projectId: string; intent: string; changed: boolean; replayed: boolean };
     assert.ok(response.status() >= 200 && response.status() < 300);
@@ -166,6 +182,10 @@ await page.route(lifecycleRoutePattern, async route => {
     return;
   }
   await route.continue();
+  } catch (error) {
+    lifecycleRouteFailure.resolve(error instanceof Error ? error : new Error("intercepted lifecycle route failed"));
+    throw error;
+  }
 });
 
 await page.route("**/api/operator/projects/*/materials/*/withdrawal", async route => {
@@ -272,7 +292,7 @@ try {
     && response.request().method() === "POST");
   stage = "submit project A pause intent";
   await actionA.getByRole("button", { name: "请求暂停发布", exact: true }).click();
-  const pauseReceipt = await pauseResponseCaptured.promise;
+  const pauseReceipt = await waitForLifecycleSignal(pauseResponseCaptured.promise, "pause response capture");
   assert.equal(pauseReceipt.status, 201);
   stage = "verify delayed A response isolation while viewing B";
   await returnToList();
@@ -324,7 +344,7 @@ try {
   await workspace.getByRole("button", { name: "项目生命周期", exact: true }).click();
   const reopenedA = workspace.getByRole("region", { name: "项目生命周期", exact: true });
   await reopenedA.getByRole("heading", { name: "项目暂停、恢复与结束", exact: true }).waitFor();
-  await heldARead.promise;
+  await waitForLifecycleSignal(heldARead.promise, "held project A read arrival");
   const continuedEnd = reopenedA.getByRole("button", { name: "接续原请求", exact: true });
   await continuedEnd.waitFor();
   await continuedEnd.click();
