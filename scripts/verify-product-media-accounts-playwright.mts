@@ -79,7 +79,6 @@ try {
   assert.equal(fbResponse.account.platform, "facebook");
   assert.equal(fbResponse.account.loginIdentifier, fbLogin);
   assert.equal(fbResponse.account.canonicalAccountRef, null);
-  assert.equal(fbResponse.account.persona, null);
   assert.equal(fbResponse.account.parentLoginVerification, "registered_unverified");
   assert.equal(fbResponse.account.credential.state, "stored_unverified");
   assert.equal(fbResponse.account.persona.name, "自动化测试资料（非真实）");
@@ -259,6 +258,15 @@ try {
   await page.getByRole("group", { name: "未知操作恢复" }).waitFor();
   const unresolvedPending = await page.evaluate(() => sessionStorage.getItem("sg.media-accounts.pending.v1") ?? "");
   assert.equal(unresolvedPending.includes("NeverPersist"), false);
+  let mobileRecoveryPosts = 0;
+  page.on("request", request => { if (new URL(request.url()).pathname === "/api/operator/media-accounts" && request.method() === "POST") mobileRecoveryPosts++; });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("note").filter({ hasText: "手机端为只读模式" }).waitFor();
+  const liveRecovery = page.getByRole("group", { name: "未知操作恢复" });
+  await liveRecovery.getByRole("button", { name: "查询原操作" }).waitFor();
+  assert.equal(await liveRecovery.getByRole("button", { name: "继续原请求" }).count(), 0);
+  assert.equal(mobileRecoveryPosts, 0);
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.unroute("**/api/operator/media-accounts");
   await page.reload(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor(); await openMediaAccounts();
   const recovery = page.getByRole("group", { name: "未知操作恢复" });
@@ -267,7 +275,7 @@ try {
   assert.equal(await recovery.getByRole("button", { name: "继续原请求" }).count(), 0);
   assert.equal(await page.getByText(unrecoverableLogin, { exact: true }).count(), 0);
   blocked.push("刷新后原键查无结果：只保留操作键、不保存密码，也不生成新键重建；需等权威回读或人工核对");
-  passed.push("未知请求刷新恢复遵守不重复创建边界");
+  passed.push("未知请求刷新恢复遵守不重复创建边界；窄屏在保留原请求闭包时不显示续接写按钮且无额外POST");
 
   // Screenshot only after clearing every password field and closing any temporary credential editor.
   await page.locator("input[type=password]").evaluateAll((nodes: HTMLInputElement[]) => nodes.forEach(input => { input.value = ""; }));

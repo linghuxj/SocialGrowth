@@ -121,7 +121,7 @@ export function MediaAccountsPanel({ active, refreshVersion, readOnly, onExpired
   }, [projectId]);
 
   async function submitForm(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const form = event.currentTarget; const values = new FormData(form);
+    event.preventDefault(); if (readOnly) return; const form = event.currentTarget; const values = new FormData(form);
     setBusy(true); setNotice(""); setError("");
     try {
       const password = String(values.get("password") ?? "");
@@ -155,12 +155,14 @@ export function MediaAccountsPanel({ active, refreshVersion, readOnly, onExpired
     } finally { setBusy(false); }
   }
   async function retryPending() {
+    if (readOnly) return;
     const op = pending.current; if (!op?.send) { setNotice("原请求内容未保留，不能安全重试；请先等待服务端回读或人工核对。"); return; }
     setBusy(true);
     try { await op.send(); clearPending(); createForm.current?.reset(); setSecretAccount(""); setProfileAccount(""); setNotice("原请求已完成；列表状态已刷新。"); await refresh(); }
     catch (e) { handleWriteFailure(e); } finally { setBusy(false); }
   }
   async function credentialAction(account: MediaAccount, operation: "put" | "invalidate", loginIdentifier = "", password = "") {
+    if (readOnly) return;
     setBusy(true); setError(""); setNotice("");
     try {
       const prepared = operation === "put" ? prepareCredentialPut(account, loginIdentifier, password) : prepareCredentialInvalidate(account);
@@ -173,7 +175,7 @@ export function MediaAccountsPanel({ active, refreshVersion, readOnly, onExpired
     } catch (e) { handleWriteFailure(e); } finally { setBusy(false); }
   }
   async function submitProfile(event: FormEvent<HTMLFormElement>, account: MediaAccount) {
-    event.preventDefault(); const values = new FormData(event.currentTarget);
+    event.preventDefault(); if (readOnly) return; const values = new FormData(event.currentTarget);
     setBusy(true); setError(""); setNotice("");
     try {
       const name = String(values.get("personName") ?? "").trim();
@@ -191,7 +193,7 @@ export function MediaAccountsPanel({ active, refreshVersion, readOnly, onExpired
     } catch (e) { handleWriteFailure(e); } finally { setBusy(false); }
   }
   async function assign(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!assignment || !projectId || assignment.projectId?.toLowerCase() !== projectId.toLowerCase()
+    event.preventDefault(); if (readOnly || !assignment || !projectId || assignment.projectId?.toLowerCase() !== projectId.toLowerCase()
       || projectIdRef.current.toLowerCase() !== projectId.toLowerCase()) return;
     const form = new FormData(event.currentTarget); const deviceId = String(form.get("deviceId") ?? "");
     const accountIds = form.getAll("accountId").map(String).filter(Boolean);
@@ -229,7 +231,7 @@ export function MediaAccountsPanel({ active, refreshVersion, readOnly, onExpired
         <details className="optional-persona"><summary>可选：真实个人资料（帮助识别）</summary><div><label>真实姓名<input name="personName" autoComplete="name" /></label><label>生日<input name="birthday" type="date" /></label><label>性别<select name="gender" defaultValue=""><option value="">不填写</option><option value="female">女</option><option value="male">男</option><option value="unspecified">其他／不透露</option></select></label></div></details>
         </fieldset><button type="submit" disabled={busy || Boolean(pendingKey)}>{busy ? "保存中…" : "保存账号"}</button>
       </form>}
-      {pendingKey && <div className="info-note" role="group" aria-label="未知操作恢复"><span>原操作结果未知。先查询原请求键，再决定是否用同一请求继续。</span><code>{pendingKey}</code><button type="button" disabled={busy} onClick={() => void queryPending()}>查询原操作</button>{pending.current?.send && <button type="button" disabled={busy} onClick={() => void retryPending()}>继续原请求</button>}</div>}
+      {pendingKey && <div className="info-note" role="group" aria-label="未知操作恢复"><span>原操作结果未知。先查询原请求键，再决定是否用同一请求继续。</span><code>{pendingKey}</code><button type="button" disabled={busy} onClick={() => void queryPending()}>查询原操作</button>{!readOnly && pending.current?.send && <button type="button" disabled={busy} onClick={() => void retryPending()}>继续原请求</button>}</div>}
     </section>
     <section className="panel" aria-labelledby="media-account-list-title"><div className="section-heading"><div><h2 id="media-account-list-title">账号与凭据状态</h2><p className="muted">密码不会再次显示。保存凭据不代表平台验证成功。</p></div><button type="button" className="outline-button" disabled={busy} onClick={() => void refresh()}>刷新</button></div>
       {accounts.length ? <div className="media-account-list">{accounts.map(account => <article className="media-account-card" key={account.accountId}>
