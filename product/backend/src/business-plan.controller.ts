@@ -23,6 +23,20 @@ export class BusinessPlanController {
     catch (error) { rethrowHttp(error, `request-${randomUUID()}`); }
   }
 
+  @Post("tasks/:taskId/attempts") @Header("Cache-Control", "no-store")
+  async createTaskAttempt(@Param("projectId") projectInput: string, @Param("taskId") taskInput: string, @Body() body: unknown,
+    @Req() request: Request, @Headers("x-csrf-token") csrf: string | undefined) {
+    try {
+      requireSupportedContract(body);
+      return await this.service.createTaskAttempt(operatorSessionTokenFrom(request.headers.cookie), csrf ?? "", projectInput, taskInput, body);
+    } catch (error) {
+      if (!(error instanceof ProductTransactionError) && error instanceof Error && error.name === "ZodError") {
+        rethrowHttp(new ProductTransactionError("INPUT_INVALID", "Invalid business plan task attempt request"), requestIdFrom(body));
+      }
+      rethrowHttp(error, requestIdFrom(body));
+    }
+  }
+
   @Post() @Header("Cache-Control", "no-store")
   async arrange(@Param("projectId") projectInput: string, @Body() body: unknown, @Req() request: Request, @Headers("x-csrf-token") csrf: string | undefined) {
     try {

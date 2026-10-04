@@ -18,4 +18,4 @@
 
 截至 2026-09-29，需求已对齐至 R-156，主要架构已由 ADR-0001～0011 确认，具备进入系统整体开发、分批实现与验收的条件。正式实现与 Demo 同仓库分目录维护；首批交付“运营邀请 → 提供者注册／登录 → 逐台扫码关联 → 两端状态可见”，见[首批业务流程与最小契约](docs/first-delivery-flow.md)。具体组件、数据与接口随对应模块落实，不再开展全面需求扩展。
 
-已取得单机原生端口发现及既有密钥下 Tailscale IPv6 ADB 身份核对的[实测证据](docs/connectivity-verification-2026-09-28.md)。设备认证、端口上报、首次配对和受控重连随对应模块开发验证；局部通过不代表完整接入、控制或首期验收通过。正式产品工程尚未搭建；已形成开发工作包及质量监督文档，任务待实名分配。当前准入判断见[审查报告](docs/development-readiness-audit-2026-09-28.md#当前复核2026-09-29)，具体实施边界见[技术设计](docs/technical-design.md)，交付顺序及资源落实时点见[推进安排](docs/next-stage-plan.md)。
+已取得单机原生端口发现及既有密钥下 Tailscale IPv6 ADB 身份核对的[实测证据](docs/connectivity-verification-2026-09-28.md)。设备认证、端口上报、首次配对和受控重连随对应模块开发验证；局部通过不代表完整接入、控制或首期验收通过。正式产品工程已在 `product/` 分目录实现多个有限切片，团队正在独立工作树开发和补验；整体开发、首期验收与生产部署仍未完成，具体边界见[当前团队交接记录](docs/engineering/delivery/records/team-integration2-20261004.md)。当前准入判断见[审查报告](docs/development-readiness-audit-2026-09-28.md#当前复核2026-09-29)，具体实施边界见[技术设计](docs/technical-design.md)，交付顺序及资源落实时点见[推进安排](docs/next-stage-plan.md)。

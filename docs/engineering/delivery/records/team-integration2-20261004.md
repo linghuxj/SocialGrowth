@@ -52,4 +52,4 @@ Web 规划此前两轮失败均保留。第一轮窄流 flag 未透传，实际�
 | RES-06/08/10 平台/来源/到账 | 可信接口工程及诚实未知/未配置显示 | 真实Page/YT身份、素材/效果证据、比例和到账；不造数据 |
 | SEC-WP14-01/WP10原13 | 独立增量继续，旧固定门禁保留 | 原责任方凭据核查/原窗口独立反例复验；作者不自签关闭 |
 
-正式签名、生产灾备参数及旧客户端属于对应运维验收的未验证输入，复用原工作包资源条目；不能因新增门禁或隔离恢复通过就称已上线。全部可开发切片继续推进，最终 fixed head 的安全批准、适当检查、真实页面结果及 hosted CI 齐备后才提交本批 PR；当前工作分支集成不代表默认 main 或生产发布。
+正式签名、生产灾备参数及旧客户端属于对应运维验收的未验证输入，复用原工作包资源条目；不能因新增门禁或隔离恢复通过就称已上线。本批最终固定工程检查点 `7e8f33b57e133db53940400f40997f4d71854c7c` 已获[完整独立批准](team-review-integration2-7e8f33b.md)，[草稿PR23](https://github.com/linghuxj/SocialGrowth/pull/23) 仅目标当前推进分支。[hosted CI37160816944](https://github.com/linghuxj/SocialGrowth/actions/runs/37160816944) 两任务实际通过，包含 built identity Playwright 与 debug/release负向门禁，见[固定结果](../../../../artifacts/acceptance/team-lead-20261004/integration2/hosted-ci-7e8f33b.json)。该成功只属于7e候选；后续模型诊断、反馈导航及生命周期等新源码需重新固定组合复核和检查。全部可开发切片继续推进，当前工作分支集成不代表默认 main 或生产发布。
