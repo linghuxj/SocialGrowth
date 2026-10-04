@@ -39,7 +39,10 @@ async function createAccount(name: string, platform: "facebook" | "youtube", log
   await form.getByLabel("识别名称（可选）", { exact: true }).fill(name);
   await form.getByLabel("登录账号", { exact: true }).fill(login);
   await form.getByLabel("密码", { exact: true }).fill(secret);
-  if (optional) await form.getByRole("button", { name: "可选：真实个人资料（帮助识别）" }).click();
+  if (optional) {
+    await form.getByRole("button", { name: "可选：真实个人资料（帮助识别）" }).click();
+    await form.getByLabel("真实姓名", { exact: true }).fill("自动化测试资料（非真实）");
+  }
   const response = page.waitForResponse(r => new URL(r.url()).pathname === "/api/operator/media-accounts" && r.request().method() === "POST");
   await form.getByRole("button", { name: "保存账号", exact: true }).click();
   return response;
@@ -69,8 +72,9 @@ try {
   step = "create-account-and-secret-nonreadback";
   const suffix = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
   const fbLogin = `media-fb-${suffix}@example.invalid`;
+  let fbDisplayName = `验收演示 Facebook ${suffix}`;
   const fbPassword = `NotARealPlatformSecret-${crypto.randomUUID()}`;
-  const fbResponsePromise = createAccount(`验收演示 Facebook ${suffix}`, "facebook", fbLogin, fbPassword);
+  const fbResponsePromise = createAccount(fbDisplayName, "facebook", fbLogin, fbPassword, true);
   const fbResponse = await (await fbResponsePromise).json();
   assert.equal(fbResponse.account.platform, "facebook");
   assert.equal(fbResponse.account.loginIdentifier, fbLogin);
@@ -78,12 +82,30 @@ try {
   assert.equal(fbResponse.account.persona, null);
   assert.equal(fbResponse.account.parentLoginVerification, "registered_unverified");
   assert.equal(fbResponse.account.credential.state, "stored_unverified");
+  assert.equal(fbResponse.account.persona.name, "自动化测试资料（非真实）");
   assert.equal(fbResponse.actionPermissionGranted, false);
   assert.equal(fbResponse.publicationAllowed, false);
   await page.getByText("账号资料已保存；登录和平台身份仍未核验。密码已清除。", { exact: true }).waitFor();
   await page.getByText(fbLogin, { exact: true }).waitFor();
   assert.equal(await page.locator(".media-account-list").getByText(fbPassword, { exact: true }).count(), 0);
   passed.push("通过Web创建合成账号，保存状态仍未核验且密码未回显");
+
+  step = "profile-edit-and-clear-optional-persona";
+  const fbCardForProfile = page.locator(".media-account-card").filter({ hasText: fbLogin });
+  await fbCardForProfile.getByRole("button", { name: "编辑识别资料", exact: true }).click();
+  fbDisplayName = `Facebook资料已更正 ${suffix}`;
+  await fbCardForProfile.getByLabel(`更正 ${fbLogin} 的识别名称`).fill(fbDisplayName);
+  await fbCardForProfile.getByLabel(`更正 ${fbLogin} 的真实姓名`).fill("");
+  const profileResponsePromise = page.waitForResponse(r => new URL(r.url()).pathname.endsWith("/profile") && r.request().method() === "POST");
+  await fbCardForProfile.getByRole("button", { name: "保存资料修改", exact: true }).click();
+  const profileResponse = await (await profileResponsePromise).json();
+  assert.equal(profileResponse.account.displayName, fbDisplayName);
+  assert.equal(profileResponse.account.loginIdentifier, fbLogin);
+  assert.equal(profileResponse.account.persona, null);
+  assert.equal(profileResponse.account.credential.state, "stored_unverified");
+  await page.getByText("账号识别资料已更新；平台账号与登录核验状态未改变。", { exact: true }).waitFor();
+  await page.locator(".media-account-card").filter({ hasText: fbLogin }).getByRole("heading", { name: fbDisplayName, exact: true }).waitFor();
+  passed.push("真实Web更正账号识别名并清空可选资料，账号及核验状态仍保留");
 
   step = "unknown-ack-lookup-applied";
   const ytLogin = `media-yt-${suffix}@example.invalid`;
@@ -118,7 +140,8 @@ try {
   assert.equal(recoveredAccount.persona, null);
   assert.equal(recoveredAccount.canonicalAccountRef, null);
   assert.equal(recoveredAccount.credential.state, "stored_unverified");
-  await page.getByText(ytLogin, { exact: true }).waitFor();
+  const youtubeCard = page.locator(".media-account-card").filter({ hasText: ytLogin });
+  await youtubeCard.locator("code").getByText(ytLogin, { exact: true }).waitFor();
   await page.unroute(routePath);
   assert.equal(await page.locator(".media-account-card").filter({ hasText: ytLogin }).count(), 1);
   passed.push("实际服务已提交但丢失响应后，查询原键确认同一账号，未重复创建");
@@ -128,7 +151,8 @@ try {
   await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
   await openMediaAccounts();
   await page.getByText(fbLogin, { exact: true }).waitFor();
-  await page.getByText(ytLogin, { exact: true }).waitFor();
+  const youtubeCardAfterReload = page.locator(".media-account-card").filter({ hasText: ytLogin });
+  await youtubeCardAfterReload.locator("code").getByText(ytLogin, { exact: true }).waitFor();
   assert.equal(await page.getByText(fbPassword, { exact: true }).count(), 0);
   assert.equal(await page.getByText(ytPassword, { exact: true }).count(), 0);
   passed.push("刷新后列表仍可读账号状态，页面不回显密码");
@@ -136,14 +160,14 @@ try {
   step = "credential-rotation-invalidation";
   const facebookCard = page.locator(".media-account-card").filter({ hasText: fbLogin });
   await facebookCard.getByRole("button", { name: "替换凭据", exact: true }).click();
-  await facebookCard.getByLabel(`替换 验收演示 Facebook ${suffix} 的密码`).fill(`Rotated-${crypto.randomUUID()}`);
+  await facebookCard.getByLabel(`替换 ${fbDisplayName} 的密码`).fill(`Rotated-${crypto.randomUUID()}`);
   await facebookCard.getByRole("button", { name: "保存凭据", exact: true }).click();
   await page.getByText("凭据已替换并保存；平台登录仍未核验。", { exact: true }).waitFor();
-  await facebookCard.getByText("已保存，未核验", { exact: true }).waitFor();
+  await facebookCard.getByText("凭据：已保存，未核验", { exact: true }).waitFor();
   passed.push("真实Web凭据轮换后状态仍显示未核验");
   await facebookCard.getByRole("button", { name: "使凭据失效", exact: true }).click();
   await page.getByText("本系统保存的凭据已失效；这不代表平台密码已修改或已退出登录。", { exact: true }).waitFor();
-  await facebookCard.getByText("已失效", { exact: true }).waitFor();
+  await facebookCard.getByText("凭据：已失效", { exact: true }).waitFor();
   passed.push("真实Web凭据失效清楚区分本地秘密和平台密码状态");
 
   step = "project-account-phone-assignment";
@@ -163,7 +187,7 @@ try {
   if (noEligibleDevices) {
     blocked.push("本环境没有真实可分配手机；项目账号持久分配与竞争拒绝无法通过Web验收。未创建或播种手机事实。");
   } else {
-    const accountCheck = page.getByRole("checkbox", { name: new RegExp(`验收演示 Facebook ${suffix}`) });
+    const accountCheck = page.getByRole("checkbox", { name: new RegExp(ytLogin.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) });
     const deviceSelect = page.getByLabel("可用手机", { exact: true });
     const deviceId = await deviceSelect.locator("option").nth(1).getAttribute("value");
     assert.ok(deviceId);
@@ -187,7 +211,7 @@ try {
     await competitorProjectSelect.selectOption(await competitorOption.getAttribute("value") ?? "");
     await competitor.getByText("本项目尚无账号与手机分配。", { exact: true }).waitFor();
     await competitor.getByLabel("可用手机", { exact: true }).selectOption(deviceId);
-    await competitor.getByRole("checkbox", { name: new RegExp(`验收演示 Facebook ${suffix}`) }).check();
+    await competitor.getByRole("checkbox", { name: new RegExp(ytLogin.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) }).check();
     await page.locator(".media-accounts-workspace").getByRole("button", { name: "刷新", exact: true }).click();
     await page.getByText("本项目尚无账号与手机分配。", { exact: true }).waitFor();
     const firstPost = page.waitForResponse(r => new URL(r.url()).pathname === "/api/operator/resources/account-assignments" && r.request().method() === "POST");
@@ -210,7 +234,7 @@ try {
     ]);
     await winner.getByText("本项目已占用：", { exact: false }).waitFor();
     await loser.getByText("本项目尚无账号与手机分配。", { exact: true }).waitFor();
-    await loser.locator(".media-account-card").filter({ hasText: fbLogin }).getByText(/已占用/).waitFor();
+    await loser.locator(".media-account-card").filter({ hasText: ytLogin }).getByText(/已占用/).waitFor();
     passed.push("真实Web分配竞争的201胜者随机确认；刷新两侧后只存在一条持久绑定，另一方保持未分配");
     await competitor.close();
   }

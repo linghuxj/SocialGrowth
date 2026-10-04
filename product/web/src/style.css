@@ -220,11 +220,13 @@ summary { color: #0f5eea; font-weight: 700; cursor: pointer; }
 .media-account-list { display: grid; gap: 12px; margin-top: 16px; }
 .media-account-card { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(180px, 1fr) minmax(0, 1fr); align-items: start; gap: 16px; padding: 16px; border: 1px solid #dce2ea; border-radius: 8px; }
 .media-account-card h3, .media-account-card p { margin: 0 0 6px; }
-.media-account-card > div:nth-child(2), .credential-actions { display: grid; gap: 7px; min-width: 0; }
+.media-account-card > div:nth-child(2), .credential-actions, .profile-actions { display: grid; gap: 7px; min-width: 0; }
 .media-account-card span, .media-account-card small, .media-account-card code { overflow-wrap: anywhere; }
 .credential-actions { grid-template-columns: 1fr 1fr; }
 .credential-actions label { grid-column: 1 / -1; }
 .credential-actions button { padding: 8px 10px; }
+.profile-actions form { display: grid; gap: 10px; min-width: 0; }
+.profile-actions form > button { justify-self: start; }
 .media-accounts-workspace .info-note { flex-wrap: wrap; min-width: 0; }
 .media-accounts-workspace .info-note code { overflow-wrap: anywhere; }
 .media-accounts-workspace fieldset { display: flex; gap: 14px; flex-wrap: wrap; margin: 14px 0; padding: 12px; border: 1px solid #dce2ea; border-radius: 7px; }
@@ -333,7 +335,7 @@ code { color: #31425f; }
   .media-account-form, .media-account-form .media-account-create-fields, .optional-persona > div { grid-template-columns: minmax(0, 1fr); }
   .media-account-card { grid-template-columns: minmax(0, 1fr); }
   .media-account-card > div:nth-child(2) { grid-template-columns: minmax(0, 1fr); }
-  .credential-actions { grid-template-columns: minmax(0, 1fr); }
+  .credential-actions, .profile-actions { grid-template-columns: minmax(0, 1fr); }
   .resource-tabs { margin-top: 12px; }
   .resource-tabs button { min-width: 0; flex: 1; }
   .device-filters { grid-template-columns: 1fr; padding: 14px; }
