@@ -444,7 +444,7 @@ export class BusinessPlanService {
          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'pending_initialization',$19,$20,$21)
          RETURNING created_at`, [attemptId, taskId, projectId, task.plan_id, Number(task.plan_revision), view.plan.projectVersion,
           view.plan.approvalId, view.plan.window.startsAt, view.plan.window.endsAt, Number(task.task_revision), task.content_unit_id,
-          task.variant_id, Number(task.material_revision), manifest, reservation.identity_id, reservation.account_id,
+          task.variant_id, Number(task.material_revision), JSON.stringify(manifest), reservation.identity_id, reservation.account_id,
           reservation.platform, reservation.device_id, reservation.reserved_by_operator_id, reservation.reserved_at, actorId])).rows[0];
       if (!recorded) throw unavailable();
       const attempt = { taskAttemptId: attemptId, attemptNumber: 1 as const, state: "pending_current_checks" as const,

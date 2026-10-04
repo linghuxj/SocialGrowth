@@ -4,7 +4,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { after, before, test } from "node:test";
 import { NestFactory } from "@nestjs/core";
 import { Pool } from "pg";
-import { contractVersion, emptyProjectPlanningInputs, type ProjectPlanningInputs } from "@socialgrowth/product-contracts";
+import { contractVersion, emptyProjectPlanningInputs, createBusinessPlanTaskAttemptResponseSchema, type ProjectPlanningInputs } from "@socialgrowth/product-contracts";
 import { BusinessPlanService } from "./business-plan-service.js";
 import { MaterialRegistryStore } from "./material-registry-store.js";
 import { materialDeclarationSchema } from "./material-registry-core.js";
@@ -15,6 +15,7 @@ import { ProjectPlanningService } from "./project-planning-service.js";
 import { ProjectDirectionService } from "./project-direction-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
 import { BusinessPlanController } from "./business-plan.controller.js";
+import { ProjectLifecycleService } from "./project-lifecycle-service.js";
 import { ProductExceptionFilter } from "./product-exception.filter.js";
 import type { BusinessModelPort } from "./business-model-coordinator.js";
 import type { BusinessSuggestionContext } from "./business-suggestion-core.js";
@@ -231,6 +232,22 @@ async function currentChecksOverHttp(service: BusinessPlanService, projectId: st
   } finally { await app.close(); }
 }
 
+async function createAttemptOverHttp(service: BusinessPlanService, projectId: string, taskId: string, token: string, csrf: string, body: unknown) {
+  const app = await NestFactory.create({ module: CurrentChecksHttpFixtureModule,
+    controllers: [BusinessPlanController], providers: [{ provide: BusinessPlanService, useValue: service }] }, { logger: false });
+  app.useGlobalFilters(new ProductExceptionFilter());
+  await app.listen(0, "127.0.0.1");
+  try {
+    const address = app.getHttpServer().address() as { port: number };
+    const url = `http://127.0.0.1:${address.port}/api/operator/projects/${projectId}/business-plan/tasks/${taskId}/attempts`;
+    const request = { method: "POST", headers: { "content-type": "application/json", cookie: `__Host-sg_operator_session=${token}`, "x-csrf-token": csrf }, body: JSON.stringify(body) };
+    const response = await fetch(url, request);
+    assert.equal(response.status, 201);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    return createBusinessPlanTaskAttemptResponseSchema.parse(await response.json());
+  } finally { await app.close(); }
+}
+
 test("material-backed schedule atomically persists current-scope plan, Task, quota slot and check-reference outbox", async () => {
   arrangementCalls = 0; arrangementGate = null; makeArrangement = scheduleSuggestion;
   const f = await approvedProject(), material = await seedCandidateMaterial(f), current = await f.service.read(f.token, f.projectId);
@@ -302,7 +319,7 @@ test("logical attempt is source-bound, idempotent, and never enables execution",
     { ...command, expectedTaskRevision: 2 }), error("FACT_VERSION_STALE"));
   assert.equal((await pool.query(`SELECT count(*)::int count FROM socialgrowth_product.business_plan_task_attempts WHERE project_id=$1`, [f.projectId])).rows[0]!.count, 0);
 
-  const created = await f.service.createTaskAttempt(f.token, f.csrf, f.projectId, taskId, command);
+  const created = await createAttemptOverHttp(f.service, f.projectId, taskId, f.token, f.csrf, command);
   assert.equal(created.outcome, "created");
   assert.equal(created.taskId, taskId);
   assert.equal(created.attempt?.attemptNumber, 1);
@@ -314,7 +331,7 @@ test("logical attempt is source-bound, idempotent, and never enables execution",
   assert.ok(created.blockers.includes("action_inspector_unavailable"));
   assert.ok(created.blockers.includes("device_association_missing"));
 
-  const replay = await f.service.createTaskAttempt(f.token, f.csrf, f.projectId, taskId,
+  const replay = await createAttemptOverHttp(f.service, f.projectId, taskId, f.token, f.csrf,
     { ...command, metadata: { ...command.metadata, requestId: `retry-${randomUUID()}` } });
   assert.equal(replay.outcome, "replayed");
   assert.equal(replay.attempt?.taskAttemptId, created.attempt?.taskAttemptId);
@@ -332,6 +349,44 @@ test("logical attempt is source-bound, idempotent, and never enables execution",
   const otherProject = await approvedProject();
   await assert.rejects(f.service.createTaskAttempt(f.token, f.csrf, otherProject.projectId, taskId, command), error("IDEMPOTENCY_KEY_REUSED"));
   assert.equal((await pool.query(`SELECT count(*)::int count FROM socialgrowth_product.business_plan_task_attempts WHERE project_id=$1`, [otherProject.projectId])).rows[0]!.count, 0);
+  makeArrangement = confirmationSuggestion;
+});
+
+test("pause and end remain lifecycle blockers; end cancellation never becomes an attempt", async () => {
+  arrangementCalls = 0; arrangementGate = null; makeArrangement = scheduleSuggestion;
+  const f = await approvedProject(); await seedCandidateMaterial(f);
+  const current = await f.service.read(f.token, f.projectId);
+  const plan = await f.service.arrange(f.token, f.csrf, f.projectId, { metadata: metadata(),
+    expectedProjectVersion: current.currentScope.projectVersion, expectedApprovalId: current.currentScope.approvalId!, expectedPlanRevision: 0 });
+  const taskId = plan.tasks[0]!.taskId;
+  const lifecycle = new ProjectLifecycleService(pool, auth);
+  const paused = await lifecycle.setIntent(f.token, f.csrf, f.projectId, { metadata: metadata(), expectedLifecycleRevision: 0, intent: "pause" });
+  assert.equal(paused.intent, "pause_requested");
+  let checks = await f.service.currentChecks(f.token, f.projectId);
+  assert.equal(checks.tasks[0]?.current.projectLifecycleIntent, "pause_requested");
+  assert.ok(checks.tasks[0]?.blockers.includes("project_pause_requested"));
+  let result = await f.service.createTaskAttempt(f.token, f.csrf, f.projectId, taskId,
+    { metadata: metadata(), expectedPlanRevision: plan.plan!.revision, expectedTaskRevision: 1 });
+  assert.equal(result.outcome, "blocked"); assert.equal(result.attempt, null); assert.ok(result.blockers.includes("project_pause_requested"));
+  assert.equal((await pool.query(`SELECT count(*)::int count FROM socialgrowth_product.business_plan_task_attempts WHERE project_id=$1`, [f.projectId])).rows[0]!.count, 0);
+
+  const resumed = await lifecycle.setIntent(f.token, f.csrf, f.projectId, { metadata: metadata(), expectedLifecycleRevision: 1, intent: "resume" });
+  assert.equal(resumed.intent, "resume_requested");
+  result = await f.service.createTaskAttempt(f.token, f.csrf, f.projectId, taskId,
+    { metadata: metadata(), expectedPlanRevision: plan.plan!.revision, expectedTaskRevision: 1 });
+  assert.equal(result.outcome, "blocked"); assert.ok(result.blockers.includes("project_resume_requested"));
+
+  const ended = await lifecycle.setIntent(f.token, f.csrf, f.projectId, { metadata: metadata(), expectedLifecycleRevision: 2, intent: "end" });
+  assert.equal(ended.intent, "end_requested"); assert.equal(ended.cancelledTaskCount, 1);
+  checks = await f.service.currentChecks(f.token, f.projectId);
+  assert.equal(checks.tasks[0]?.current.projectLifecycleIntent, "end_requested");
+  assert.equal(checks.tasks[0]?.cancelledBeforeStart?.reason, "project_end");
+  assert.equal(checks.tasks[0]?.cancelledBeforeStart?.requestId, ended.requestId);
+  result = await f.service.createTaskAttempt(f.token, f.csrf, f.projectId, taskId,
+    { metadata: metadata(), expectedPlanRevision: plan.plan!.revision, expectedTaskRevision: 1 });
+  assert.equal(result.outcome, "blocked"); assert.equal(result.attempt, null);
+  assert.ok(result.blockers.includes("project_end_requested")); assert.ok(result.blockers.includes("task_cancelled_before_start"));
+  assert.equal((await pool.query(`SELECT count(*)::int count FROM socialgrowth_product.business_plan_task_attempts WHERE project_id=$1`, [f.projectId])).rows[0]!.count, 0);
   makeArrangement = confirmationSuggestion;
 });
 
