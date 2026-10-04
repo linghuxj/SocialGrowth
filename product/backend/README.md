@@ -240,3 +240,27 @@ start 建立显式参与 run；challenge 六秒有效，confirm 保存十秒有�
 本类是内部组件，没有 HTTP 许可接口、AppModule 注册、环境开启开关或设备调用。`PhysicalPreparationInspector` 必须由真实 runtime 提供当前网络路径、ADB 准确目标、所有读屏／动作路径保护、控制占用／交还及静止的观测；默认 null 拒绝执行。PG 中 inspector、网络和停止证明都是明确的合成 fixture，不证明该真实实现已经存在。既有 SDK 原始 ADB、UIAutomator、人工补图、读取旁路及截图占位回退还需接线；正式 executor 仍关闭。
 
 补充事务检查仅在 `sg_broker6_component` 准确独立库运行，注入 `SG_PRODUCT_TEST_DATABASE_URL`、`SG_PRODUCT_TEST_CLUSTER_ID` 和 `SG_PRODUCT_TEST_ALLOW_RESET=1` 后执行 `pnpm --filter @socialgrowth/product-backend exec tsx --test --test-concurrency=1 src/preparation-action-broker.pg-test.ts`。脚本核对回环地址、库名与集群 ID 才 reset，不在共享库运行。正式 Web 验证仍使用根 `pnpm test:playwright`。
+
+### 公司社媒凭据的持久密钥
+
+账号登记和凭据替换使用独立 AES 加密密钥及 HMAC 幂等摘要密钥。服务通过显式 `SG_PRODUCT_MEDIA_CREDENTIAL_KEY_FILE` 读取受保护的持久 JSON 文件；缺失或不合法时关闭写入，不在启动或重启时随机生成替代钥。账号密码不写入此密钥文件。
+
+首次保管器设置可从仓库根目录运行[离线初始化工具](../../scripts/create-product-media-key-file.mjs)，以实际服务用户创建密钥。先准备该用户持有的真实 `0700` 目录；路径祖先须由 root／该用户持有，拒绝非 sticky 且可由组或其他用户写入的祖先。输出必须为显式绝对新文件路径：
+
+```sh
+pnpm exec node scripts/create-product-media-key-file.mjs /absolute/private-key-directory/media-credential-keys.json
+```
+
+工具只创建新 `0600` 文件，不覆盖既有文件、不输出密钥。返回失败时目标可能为空或不完整，应由保管者核对后处理；不能自动覆盖重试。将文件保存在 Git、普通日志和页面验收产物之外，并把配置传给实际后端服务进程。
+
+数据库备份恢复必须保留对应加密密钥及所有仍被历史命令引用的 HMAC key ID／密钥。重新生成同名文件不属于恢复，会导致旧密文和原请求核对不可用。此工具只做首次持久密钥设置，不提供加密密钥轮换、平台改密或退出登录；本轮隔离验收的临时钥只用于合成数据，不能复用到真实公司账号。
+
+受控输入使用另一把独立 P-256 授权签名钥，不能复用上述加密或 HMAC 密钥。同一离线工具提供显式模式：
+
+```sh
+pnpm exec node scripts/create-product-media-key-file.mjs --grant-signing /absolute/private-key-directory/media-input-grant-signing.pem
+```
+
+该模式只写新 `0600` PKCS#8 PEM 文件，仅输出由公开 SPKI 计算的 `publicGrantKeyId`，不输出私钥。签名保管器使用这个公开 ID 核对显式加载的私钥；安装认证的公钥查询与实际当前动作授权分别校验。生成文件本身不开放手机动作或证明登录成功。
+
+后端签名配置须同时提供 `SG_PRODUCT_MEDIA_INPUT_GRANT_KEY_FILE`（绝对路径）、`SG_PRODUCT_MEDIA_INPUT_GRANT_KEY_ID`（工具输出的公开 ID）、`SG_PRODUCT_MEDIA_INPUT_GRANT_NOT_BEFORE_MILLIS` 和 `SG_PRODUCT_MEDIA_INPUT_GRANT_NOT_AFTER_MILLIS`（明确的 Unix 毫秒有效期）。缺少全部配置时授权组件关闭，部分配置或非法范围拒绝启动；不从示例猜测生产有效期。该配置只接通后端签名组件，实际 Artemis 工具、观察排空及可信手机传输仍按[阻断记录](../../docs/engineering/delivery/records/r159-artemis-controlled-login-blocker-20261005.md)处理。

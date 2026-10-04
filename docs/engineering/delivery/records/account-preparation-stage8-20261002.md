@@ -1,5 +1,9 @@
 # Artemis 私有读屏桥接与拒绝路径
 
+> **文档状态：历史阶段证据（2026-10-04 标记）。** 正文中的“当前”“下一阶段”和操作授权仅对应记录日期及固定候选，不作为现在的开发任务、设备状态或执行许可。历史通过、失败、阻断、未知结果及证据范围保留；不因本次标记自动关闭阻断。
+>
+> 账号管理与受控登录开发先读[最新需求基线](../../../current-requirements-summary.md)、[R-159 确认记录](../../../requirements-alignment.md#r-159公司社媒账号独占分配与-artemis-受控辅助登录)及[当前账号交接](media-accounts-web-handoff-20261004.md)。执行编排见[执行库说明](../../../specs/2026-10-02-account-preparation-execution-library.md)；阶段验收限制见[2026-10-04 收尾快照](team-integration5-20261004.md)。本记录仅用于追溯与按原范围复用证据。
+
 2026-10-02；输入提交 `ca22974b77601497bd3ec61a2b07bffbb2bf7a1a`，承接“继续推进下一阶段内容”，沿用 `codex/core-automation-loop-stage1`。本轮完成 Python／实际 SDK driver → 私有 IPC → 原本地 fence → 受控 transport 的源码组合及组件验证。**完整物理隔离、真实检查器和正式真机闭环仍未完成**。作者结果，不代替非作者复核／独立 QA，不合入 Developer、不更新父 pending。源码与证据见[manifest](../../../../artifacts/acceptance/product/B3/account-preparation-stage8-20261002/manifest.json)。
 
 ## 实际实现

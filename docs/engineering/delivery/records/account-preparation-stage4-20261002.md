@@ -1,5 +1,9 @@
 # 初始化控制权与逐动作执行边界
 
+> **文档状态：历史阶段证据（2026-10-04 标记）。** 正文中的“当前”“下一阶段”和操作授权仅对应记录日期及固定候选，不作为现在的开发任务、设备状态或执行许可。历史通过、失败、阻断、未知结果及证据范围保留；不因本次标记自动关闭阻断。
+>
+> 账号管理与受控登录开发先读[最新需求基线](../../../current-requirements-summary.md)、[R-159 确认记录](../../../requirements-alignment.md#r-159公司社媒账号独占分配与-artemis-受控辅助登录)及[当前账号交接](media-accounts-web-handoff-20261004.md)。执行编排见[执行库说明](../../../specs/2026-10-02-account-preparation-execution-library.md)；阶段验收限制见[2026-10-04 收尾快照](team-integration5-20261004.md)。本记录仅用于追溯与按原范围复用证据。
+
 2026-10-02；承接用户“继续推进”，沿用 `codex/core-automation-loop-stage1`，输入检查点 `45095cd038e8765659e22503d238e2b1cb2d75d9`。源码与结果摘要见[manifest](../../../../artifacts/acceptance/product/B3/account-preparation-stage4-20261002/manifest.json)。本记录为作者检查；未合入 Developer，未代替非作者复核／独立 QA，未修改父 pending、受保护发布脚本、既有模型配置或外来未提交工作。
 
 ## 实际实现

@@ -1,5 +1,9 @@
 # Artemis 专属只读会话启动与退出
 
+> **文档状态：历史阶段证据（2026-10-04 标记）。** 正文中的“当前”“下一阶段”和操作授权仅对应记录日期及固定候选，不作为现在的开发任务、设备状态或执行许可。历史通过、失败、阻断、未知结果及证据范围保留；不因本次标记自动关闭阻断。
+>
+> 账号管理与受控登录开发先读[最新需求基线](../../../current-requirements-summary.md)、[R-159 确认记录](../../../requirements-alignment.md#r-159公司社媒账号独占分配与-artemis-受控辅助登录)及[当前账号交接](media-accounts-web-handoff-20261004.md)。执行编排见[执行库说明](../../../specs/2026-10-02-account-preparation-execution-library.md)；阶段验收限制见[2026-10-04 收尾快照](team-integration5-20261004.md)。本记录仅用于追溯与按原范围复用证据。
+
 2026-10-02；输入提交 `dc8abf515202400454fde0d56a485a9db21c2b9b`，承接“继续推进下一阶段内容”，沿用 `codex/core-automation-loop-stage1`。本轮完成**本机 macOS 专属只读 SDK 会话**的实际启动、观察、退出和原启动记录恢复验证。完整 Artemis 业务任务、正式真机 inspect_app 和整机控制交还仍未完成。作者验证，不代替非作者复核／独立 QA；不合入 Developer、不更新父 pending。固定源码及证据见[manifest](../../../../artifacts/acceptance/product/B3/account-preparation-stage9-20261002/manifest.json)。
 
 ## 完成内容

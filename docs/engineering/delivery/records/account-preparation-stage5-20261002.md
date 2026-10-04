@@ -1,5 +1,9 @@
 # 手机当前参与事实接线
 
+> **文档状态：历史阶段证据（2026-10-04 标记）。** 正文中的“当前”“下一阶段”和操作授权仅对应记录日期及固定候选，不作为现在的开发任务、设备状态或执行许可。历史通过、失败、阻断、未知结果及证据范围保留；不因本次标记自动关闭阻断。
+>
+> 账号管理与受控登录开发先读[最新需求基线](../../../current-requirements-summary.md)、[R-159 确认记录](../../../requirements-alignment.md#r-159公司社媒账号独占分配与-artemis-受控辅助登录)及[当前账号交接](media-accounts-web-handoff-20261004.md)。执行编排见[执行库说明](../../../specs/2026-10-02-account-preparation-execution-library.md)；阶段验收限制见[2026-10-04 收尾快照](team-integration5-20261004.md)。本记录仅用于追溯与按原范围复用证据。
+
 2026-10-02；承接用户“继续推进下一阶段内容”，沿用 `codex/core-automation-loop-stage1`，输入提交 `1b3c37b62718358e7e60b6ba453c1266d16950a3`。本轮落实上一阶段第一项中的**本机参与确认及其中央事实读取**。完整真实执行接线仍未完成；本记录是作者检查，不代替非作者复核或独立 QA，不更新父 pending，不合入 Developer。源码和检查结果见[manifest](../../../../artifacts/acceptance/product/B3/account-preparation-stage5-20261002/manifest.json)。
 
 ## 实现

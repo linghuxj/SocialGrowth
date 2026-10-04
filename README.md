@@ -16,6 +16,8 @@
 - [现有 Demo 工程规范](CLAUDE.md)：操作此仓库时适用，不锁定最终技术方案。
 - [旧版归档](archive/2026-09-25-before-realignment/ARCHIVE.md)：仅供追溯。
 
-截至 2026-09-29，需求已对齐至 R-156，主要架构已由 ADR-0001～0011 确认，具备进入系统整体开发、分批实现与验收的条件。正式实现与 Demo 同仓库分目录维护；首批交付“运营邀请 → 提供者注册／登录 → 逐台扫码关联 → 两端状态可见”，见[首批业务流程与最小契约](docs/first-delivery-flow.md)。具体组件、数据与接口随对应模块落实，不再开展全面需求扩展。
+截至 2026-10-04，需求已对齐至 R-159，主要架构已由 ADR-0001～0011 确认，具备进入系统整体开发、分批实现与验收的条件。正式实现与 Demo 同仓库分目录维护；首批交付“运营邀请 → 提供者注册／登录 → 逐台扫码关联 → 两端状态可见”，见[首批业务流程与最小契约](docs/first-delivery-flow.md)。具体组件、数据与接口随对应模块落实，不再开展全面需求扩展。
 
-已取得单机原生端口发现及既有密钥下 Tailscale IPv6 ADB 身份核对的[实测证据](docs/connectivity-verification-2026-09-28.md)。设备认证、端口上报、首次配对和受控重连随对应模块开发验证；局部通过不代表完整接入、控制或首期验收通过。正式产品工程已在 `product/` 分目录实现多个有限切片，团队正在独立工作树开发和补验；整体开发、首期验收与生产部署仍未完成，具体边界见[当前团队交接记录](docs/engineering/delivery/records/team-integration2-20261004.md)。当前准入判断见[审查报告](docs/development-readiness-audit-2026-09-28.md#当前复核2026-09-29)，具体实施边界见[技术设计](docs/technical-design.md)，交付顺序及资源落实时点见[推进安排](docs/next-stage-plan.md)。
+已取得单机原生端口发现及既有密钥下 Tailscale IPv6 ADB 身份核对的[实测证据](docs/connectivity-verification-2026-09-28.md)。设备认证、端口上报、首次配对和受控重连随对应模块开发验证；局部通过不代表完整接入、控制或首期验收通过。正式产品工程已在 `product/` 分目录实现多个有限切片，团队正在独立工作树开发和补验；整体开发、首期验收与生产部署仍未完成，具体边界见[2026-10-04 第五批收尾快照](docs/engineering/delivery/records/team-integration5-20261004.md)。早期准入依据保留于[历史审查报告](docs/development-readiness-audit-2026-09-28.md#当前复核2026-09-29)，具体实施边界见[技术设计](docs/technical-design.md)，早期批次规划与资源准备原则见[历史推进安排](docs/next-stage-plan.md)。
+
+媒体账号与真机管理账号的当前规则见 [R-159](docs/requirements-alignment.md#r-159公司社媒账号独占分配与-artemis-受控辅助登录)及[账号管理交接](docs/engineering/delivery/records/media-accounts-web-handoff-20261004.md)。[2026-10-05 实施与验收](docs/engineering/delivery/records/media-accounts-r159-20261005.md)记录账号管理页面通过及数据库约束结果；真实手机分配及 Artemis 辅助登录仍阻断。历史过程文档已标明用途和替代入口，不能将旧设备状态或“下一步”当作当前执行许可。

@@ -1,5 +1,9 @@
 # 初始化检查入口、持久任务与 Artemis 原操作记录
 
+> **文档状态：历史阶段证据（2026-10-04 标记）。** 正文中的“当前”“下一阶段”和操作授权仅对应记录日期及固定候选，不作为现在的开发任务、设备状态或执行许可。历史通过、失败、阻断、未知结果及证据范围保留；不因本次标记自动关闭阻断。
+>
+> 账号管理与受控登录开发先读[最新需求基线](../../../current-requirements-summary.md)、[R-159 确认记录](../../../requirements-alignment.md#r-159公司社媒账号独占分配与-artemis-受控辅助登录)及[当前账号交接](media-accounts-web-handoff-20261004.md)。执行编排见[执行库说明](../../../specs/2026-10-02-account-preparation-execution-library.md)；阶段验收限制见[2026-10-04 收尾快照](team-integration5-20261004.md)。本记录仅用于追溯与按原范围复用证据。
+
 2026-10-02；分支 `codex/core-automation-loop-stage1`，输入检查点 `57ac7c248311226942e693b583a4d691976ec08c`。承接 R-158 与用户“继续推进下一个阶段”的授权。第一阶段执行库登记和本阶段实现凝聚提交；当前来源 SHA-256 见[manifest](../../../../artifacts/acceptance/product/B3/account-preparation-stage2-20261002/manifest.json)。这是作者验证记录，未代替独立复核／QA 签收，未更新 Developer、父 pending 或旧任务结果。
 
 ## 已完成

@@ -1,5 +1,9 @@
 # 当前真机验收与新版 Android 候选安装
 
+> **文档状态：历史阶段证据（2026-10-04 标记）。** 正文中的“当前”“下一阶段”和操作授权仅对应记录日期及固定候选，不作为现在的开发任务、设备状态或执行许可。历史通过、失败、阻断、未知结果及证据范围保留；不因本次标记自动关闭阻断。
+>
+> 账号管理与受控登录开发先读[最新需求基线](../../../current-requirements-summary.md)、[R-159 确认记录](../../../requirements-alignment.md#r-159公司社媒账号独占分配与-artemis-受控辅助登录)及[当前账号交接](media-accounts-web-handoff-20261004.md)。执行编排见[执行库说明](../../../specs/2026-10-02-account-preparation-execution-library.md)；阶段验收限制见[2026-10-04 收尾快照](team-integration5-20261004.md)。本记录仅用于追溯与按原范围复用证据。
+
 2026-10-02；承接“现在开始进行真机测试和验收，然后继续推进下一阶段内容”。输入提交 `d2ae8c73d22b4563af4412ae18a1f612381532a5`，沿用 `codex/core-automation-loop-stage1`。本轮已完成真实 Demo Web→Google Artemis→人工反馈→最终回执的**只读观察验收**，并推进到新版自有 Android 客户端的实际更新安装和真机签名基础验证。正式参与、正式 inspect_app、Page／频道创建及完整业务验收未通过，不能从本轮局部结果外推。作者验证，不代替独立 QA 或非作者复核，不合入 Developer，不更新父 pending。
 
 ## 实际设备和环境
