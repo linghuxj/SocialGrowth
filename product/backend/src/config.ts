@@ -37,6 +37,7 @@ const operatorRuntimeConfigSchema = z.object({
   SG_PRODUCT_AUTH_PEPPER: z.string().min(32),
   SG_PRODUCT_DATABASE_URL: z.string().min(1),
   SG_PRODUCT_SMS_CODE_LENGTH: z.coerce.number().int().min(4).max(8).default(6),
+  SG_PRODUCT_MEDIA_CREDENTIAL_KEY_FILE: z.string().min(1).optional(),
 });
 
 const smsRuntimeConfigSchema = backendConfigSchema

@@ -8,9 +8,13 @@ import { MediaCredentialKeyCustodian } from "./media-credential-key-custodian.js
 import { maxMediaCredentialPayloadBytes, sealMediaCredentialPayload, type MediaCredentialKey } from "./media-credential-envelope.js";
 
 const s = "socialgrowth_product", id = uuidSchema.length(36).refine(v => v === v.toLowerCase());
-const commandSchema = z.strictObject({ metadata: requestMetadataSchema, credentialId: id, accountId: id,
-  platform: z.enum(["facebook", "youtube"]), expectedRevision: z.int().min(0).max(Number.MAX_SAFE_INTEGER),
-  operation: z.enum(["put", "invalidate"]) });
+const loginIdentifier = z.string().min(1).max(320).refine(value => value.trim() === value && !value.includes("\u0000"));
+const commandSchema = z.discriminatedUnion("operation", [
+  z.strictObject({ metadata: requestMetadataSchema, credentialId: id.nullable(), accountId: id, platform: z.enum(["facebook", "youtube"]),
+    expectedRevision: z.int().min(0).max(Number.MAX_SAFE_INTEGER), operation: z.literal("put"), loginIdentifier }),
+  z.strictObject({ metadata: requestMetadataSchema, credentialId: id, accountId: id, platform: z.enum(["facebook", "youtube"]),
+    expectedRevision: z.int().min(0).max(Number.MAX_SAFE_INTEGER), operation: z.literal("invalidate") }),
+]);
 const metadataSchema = z.strictObject({ credentialId: id, accountId: id, platform: z.enum(["facebook", "youtube"]),
   revision: z.int().min(1).max(Number.MAX_SAFE_INTEGER), state: z.enum(["stored_unverified", "invalidated"]),
   actionPermissionGranted: z.literal(false), acceptanceStarted: z.literal(false) });
@@ -43,7 +47,8 @@ function intentDigest(r: z.infer<typeof commandSchema>, payload: Buffer | undefi
   const hmac = createHmac("sha256", key.key);
   hmac.update("SocialGrowth/media-credential-command/v1\0");
   hmac.update(JSON.stringify({ credentialId: r.credentialId, accountId: r.accountId, platform: r.platform,
-    expectedRevision: r.expectedRevision, operation: r.operation, metadata: { contractVersion: r.metadata.contractVersion, idempotencyKey: r.metadata.idempotencyKey } }));
+    expectedRevision: r.expectedRevision, operation: r.operation, ...(r.operation === "put" ? { loginIdentifier: r.loginIdentifier } : {}),
+    metadata: { contractVersion: r.metadata.contractVersion, idempotencyKey: r.metadata.idempotencyKey } }));
   hmac.update("\0"); if (payload) hmac.update(payload); return hmac.digest();
 }
 // SERVER-ONLY metadata/write port, deliberately NOT registered in AppModule or
@@ -61,7 +66,8 @@ export class MediaCredentialStore {
     try {
       await client.query("BEGIN"); await client.query("SET LOCAL lock_timeout='5s'"); await client.query("SET LOCAL statement_timeout='10s'");
       // Preserve resource/project metadata ordering; no phone lease or network
-      // calls inside this short transaction, and no resource version mutation.
+      // calls inside this short transaction. Credential revisions change the
+      // account-management view and advance the shared resource snapshot.
       await client.query(`LOCK TABLE ${s}.operators IN SHARE ROW EXCLUSIVE MODE`);
       const context = await this.auth.authenticateSessionInTransaction(client, token, csrf ?? undefined, csrf !== null);
       const guard = await client.query(`SELECT 1 FROM ${s}.resource_reservation_guard WHERE singleton=true FOR UPDATE`);
@@ -97,6 +103,11 @@ export class MediaCredentialStore {
       if (r.operation === "put") {
         if (!Buffer.isBuffer(payloadInput) || payloadInput.length < 1 || payloadInput.length > maxMediaCredentialPayloadBytes) throw invalid();
         payload = Buffer.from(payloadInput); // Snapshot before any await; caller mutation cannot replace the intent.
+        try {
+          const decoded: unknown = JSON.parse(payload.toString("utf8"));
+          if (!Buffer.from(payload.toString("utf8"), "utf8").equals(payload) || !decoded || typeof decoded !== "object"
+            || (decoded as { login?: unknown }).login !== r.loginIdentifier) throw invalid();
+        } catch { throw invalid(); }
       } else if (payloadInput !== undefined) throw invalid();
       // Snapshot owned keys before any await, but report unavailability only
       // AFTER actual operator/CSRF authentication below. Reads need no keys.
@@ -109,9 +120,19 @@ export class MediaCredentialStore {
         const ownedKeys = keys;
         const command = (await client.query<{ payload_digest: Buffer; digest_key_id: string; credential_id: string; account_id: string; platform: string }>(
           `SELECT payload_digest,digest_key_id,credential_id,account_id,platform FROM ${s}.media_credential_commands WHERE actor_id=$1 AND request_key=$2`, [actor, r.metadata.idempotencyKey])).rows[0];
+        const accountCommand = (await client.query<{ command_kind: string; payload_digest: Buffer; account_id: string }>(
+          `SELECT command_kind,payload_digest,account_id FROM ${s}.media_account_commands WHERE actor_id=$1 AND request_key=$2`, [actor, r.metadata.idempotencyKey])).rows[0];
+        const otherCommand = await client.query(`SELECT 1 FROM ${s}.media_registry_commands WHERE actor_id=$1 AND request_key=$2
+          UNION ALL SELECT 1 FROM ${s}.resource_reservation_commands WHERE actor_id=$1 AND request_key=$2 LIMIT 1`, [actor, r.metadata.idempotencyKey]);
+        if (otherCommand.rowCount) throw new ProductTransactionError("IDEMPOTENCY_KEY_REUSED", "Request key belongs to another resource command");
         const key = ownedKeys.digestKeys.find(k => k.keyId === (command?.digest_key_id ?? ownedKeys.currentDigestKeyId));
         if (!key) throw unavailable(); // Missing old digest key cannot turn a retry into a new command.
         const digest = intentDigest(r, payload, key), current = await this.current(client, r.accountId);
+        const kind = r.operation === "put" ? "credential_put" : "credential_invalidate";
+        if (accountCommand && (!command || accountCommand.account_id !== r.accountId || accountCommand.command_kind !== kind
+          || accountCommand.payload_digest.length !== digest.length || !timingSafeEqual(accountCommand.payload_digest, digest))) {
+          throw new ProductTransactionError("IDEMPOTENCY_KEY_REUSED", "Media account command key already used");
+        }
         if (command) {
           if (command.payload_digest.length !== digest.length || !timingSafeEqual(command.payload_digest, digest)) {
             throw new ProductTransactionError("IDEMPOTENCY_KEY_REUSED", "Controlled credential request key already used");
@@ -119,27 +140,44 @@ export class MediaCredentialStore {
           if (!current || current.credentialId !== command.credential_id || current.accountId !== command.account_id || current.platform !== command.platform) throw stale();
           return { credential: current, changed: false, replayed: true }; // Current state, never resurrect an old secret.
         }
-        const account = await client.query(`SELECT 1 FROM ${s}.media_accounts WHERE account_id=$1 AND platform=$2`, [r.accountId, r.platform]);
+        if (accountCommand) throw unavailable();
+        const account = await client.query<{ login_identifier: string | null }>(`SELECT login_identifier FROM ${s}.media_accounts WHERE account_id=$1 AND platform=$2 FOR UPDATE`, [r.accountId, r.platform]);
+        const credentialId = current?.credentialId ?? r.credentialId ?? randomUUID();
         if (account.rowCount !== 1 || (current?.revision ?? 0) !== r.expectedRevision
-          || (current && (current.credentialId !== r.credentialId || current.platform !== r.platform)) || (!current && r.operation === "invalidate")) throw stale();
+          || (current && (r.credentialId !== null && current.credentialId !== r.credentialId || current.platform !== r.platform))
+          || (!current && (r.operation === "invalidate" || r.expectedRevision !== 0 || r.credentialId !== null))) throw stale();
         const changed = r.operation === "put" || current!.state !== "invalidated";
         if (changed && r.expectedRevision === Number.MAX_SAFE_INTEGER) throw stale();
         const revision = r.expectedRevision + (changed ? 1 : 0), state = r.operation === "put" ? "stored_unverified" : "invalidated";
         const write = async (sql: string, values: unknown[]) => { if ((await client.query(sql, values)).rowCount !== 1) throw unavailable(); };
         if (changed) {
+          if (r.operation === "put") {
+            const duplicate = await client.query(`SELECT 1 FROM ${s}.media_accounts WHERE platform=$1 AND normalized_login_identifier=lower(btrim($2)) AND account_id<>$3`, [r.platform, r.loginIdentifier, r.accountId]);
+            if (duplicate.rowCount) throw new ProductTransactionError("FACT_VERSION_STALE", "Login identifier is already registered for this platform");
+            const updateAccount = await client.query(`UPDATE ${s}.media_accounts SET login_identifier=$2,normalized_login_identifier=lower(btrim($2)),
+              parent_login_verification=CASE WHEN parent_login_verification='verified' THEN 'registered_unverified' ELSE parent_login_verification END
+              WHERE account_id=$1`, [r.accountId, r.loginIdentifier]);
+            if (updateAccount.rowCount !== 1) throw stale();
+          }
           let envelope;
-          try { envelope = r.operation === "put" ? sealMediaCredentialPayload(payload, { credentialId: r.credentialId, accountId: r.accountId, platform: r.platform, revision }, ownedKeys.encryption) : null; }
+          try { envelope = r.operation === "put" ? sealMediaCredentialPayload(payload, { credentialId, accountId: r.accountId, platform: r.platform, revision }, ownedKeys.encryption) : null; }
           catch { throw invalid(); }
           await write(`INSERT INTO ${s}.media_credential_revisions(credential_id,account_id,platform,revision,state,encryption_key_id,envelope,recorded_by)
-            VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, [r.credentialId, r.accountId, r.platform, revision, state, envelope?.keyId ?? null, envelope, actor]);
-          if (current) await write(`UPDATE ${s}.media_credentials SET revision=$2 WHERE credential_id=$1 AND revision=$3`, [r.credentialId, revision, r.expectedRevision]);
-          else await write(`INSERT INTO ${s}.media_credentials(credential_id,account_id,platform,revision) VALUES($1,$2,$3,$4)`, [r.credentialId, r.accountId, r.platform, revision]);
+            VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, [credentialId, r.accountId, r.platform, revision, state, envelope?.keyId ?? null, envelope, actor]);
+          if (current) await write(`UPDATE ${s}.media_credentials SET revision=$2 WHERE credential_id=$1 AND revision=$3`, [credentialId, revision, r.expectedRevision]);
+          else await write(`INSERT INTO ${s}.media_credentials(credential_id,account_id,platform,revision) VALUES($1,$2,$3,$4)`, [credentialId, r.accountId, r.platform, revision]);
           await write(`INSERT INTO ${s}.audit_records(audit_record_id,actor_type,actor_id,action,object_type,object_id,request_id,facts)
             VALUES($1,'operator',$2,'resource.media_credential_changed','media_account',$3,$4,$5)`, [randomUUID(), actor, r.accountId, r.metadata.requestId,
-            { credentialId: r.credentialId, platform: r.platform, revision, state }]);
+            { credentialId, platform: r.platform, revision, state }]);
         }
+        const versionRow = await client.query<{ version: string }>(`SELECT version::text FROM ${s}.resource_reservation_guard WHERE singleton=true`);
+        const resourceVersion = Number(versionRow.rows[0]?.version);
+        if (!Number.isSafeInteger(resourceVersion) || resourceVersion < 0 || (changed && resourceVersion === Number.MAX_SAFE_INTEGER)) throw stale();
+        if (changed) await write(`UPDATE ${s}.resource_reservation_guard SET version=version+1 WHERE singleton=true`, []);
         await write(`INSERT INTO ${s}.media_credential_commands(actor_id,request_key,digest_key_id,payload_digest,credential_id,account_id,platform,applied_revision)
-          VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, [actor, r.metadata.idempotencyKey, key.keyId, digest, r.credentialId, r.accountId, r.platform, revision]);
+          VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, [actor, r.metadata.idempotencyKey, key.keyId, digest, credentialId, r.accountId, r.platform, revision]);
+        await write(`INSERT INTO ${s}.media_account_commands(actor_id,request_key,command_kind,payload_digest,digest_key_id,account_id,applied_version)
+          VALUES($1,$2,$3,$4,$5,$6,$7)`, [actor, r.metadata.idempotencyKey, kind, digest, key.keyId, r.accountId, resourceVersion + (changed ? 1 : 0)]);
         const credential = await this.current(client, r.accountId); if (!credential) throw unavailable();
         return { credential, changed, replayed: false };
       });

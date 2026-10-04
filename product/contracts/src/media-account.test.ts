@@ -41,6 +41,7 @@ test("account list and profile response never admit secrets or client verificati
     assert.equal(mediaAccountListResponseSchema.safeParse({ ...response, accounts: [{ ...account, ...extra }] }).success, false);
   }
   assert.equal(mediaAccountListResponseSchema.safeParse({ ...response, accounts: [{ ...account, parentLoginVerification: "verified" }] }).success, false);
+  assert.ok(mediaAccountListResponseSchema.safeParse({ ...response, accounts: [{ ...account, canonicalAccountRef: "historically_verified_parent" }] }).success);
   assert.ok(updateMediaAccountRequestSchema.safeParse({ metadata, expectedResourceVersion: 1, displayName: "Renamed", persona: null }).success);
   assert.equal(updateMediaAccountRequestSchema.safeParse({ metadata, expectedResourceVersion: 1, displayName: "Renamed", persona: null, loginIdentifier: "other" }).success, false);
 });

@@ -25136,10 +25136,24 @@
             "read_screen",
             "navigate",
             "write_input",
+            "submit_login",
             "submit_publication",
             "remove_content",
             "sign_out"
           ]
+        },
+        "fieldRef": {
+          "type": "string",
+          "enum": [
+            "login",
+            "password"
+          ]
+        },
+        "targetViewIdResourceName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^[A-Za-z0-9_.]+:id\\/[A-Za-z0-9_]+$"
         }
       },
       "required": [

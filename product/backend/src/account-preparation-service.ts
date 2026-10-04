@@ -3,7 +3,7 @@ import type { Pool, PoolClient } from "pg";
 import { accountPreparationIntentSchema, accountPreparationTaskViewSchema, accountPreparationWorkspaceSchema,
   requestAccountPreparationSchema, recheckAccountPreparationSchema, executionLibraryVersion, planAccountPreparation,
   reviewAccountPreparationExecutionSchema, accountPreparationExecutionReviewSchema, accountPreparationOriginalOperationSchema,
-  artemisPreparationAssignmentSchema, artemisPreparationObservationSchema,
+  artemisPreparationObservationSchema,
   uuidSchema, type AccountPreparationIntent, type AccountPreparationTaskView } from "@socialgrowth/product-contracts";
 import { OperatorAuthService } from "./operator-auth-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
@@ -11,6 +11,7 @@ import { canonicalMaterial } from "./material-registry-core.js";
 import { parsePhoneControlRecord } from "./action-permission-core.js";
 import { loadCurrentLocalParticipation } from "./local-participation-service.js";
 import { parseAdmissionRecord } from "./network-admission-record.js";
+import { readArtemisPreparationHistory } from "./artemis-preparation-history.js";
 const s = "socialgrowth_product";
 const digest = (v: unknown) => createHash("sha256").update(canonicalMaterial(v)).digest("hex");
 const unavailable = () => new ProductTransactionError("INTERNAL_ERROR", "Preparation service unavailable", true);
@@ -21,7 +22,11 @@ interface Row { task_id: string; project_id: string; intent: unknown; intent_dig
 function view(r: Row): AccountPreparationTaskView {
   const intent = accountPreparationIntentSchema.parse(r.intent);
   if (digest(intent) !== r.intent_digest) throw unavailable();
-  return accountPreparationTaskViewSchema.parse({ taskId: r.task_id, projectId: r.project_id, taskVersion: Number(r.task_version), intent,
+  // Old operator-entered parent references remain part of the immutable
+  // request digest, but are not repeated into the current account-preparation
+  // UI projection. Their presence never authorizes account selection.
+  const { parentLoginRef: _legacyReference, ...safeIntent } = intent;
+  return accountPreparationTaskViewSchema.parse({ taskId: r.task_id, projectId: r.project_id, taskVersion: Number(r.task_version), intent: { ...safeIntent, parentLoginRef: null },
     selectedAccountId: r.selected_account_id, selectedDeviceId: r.selected_device_id,
     state: r.state, nextOperationId: r.next_operation_id, blockers: r.blockers, requestedBy: r.requested_by,
     requestedAt: r.requested_at.toISOString(), checkedAt: r.checked_at.toISOString(),
@@ -74,11 +79,11 @@ export class AccountPreparationService {
         WHERE task_attempt_id=i.task_attempt_id ORDER BY received_at DESC,observation_id DESC LIMIT 1) o ON true
       WHERE t.project_id=$1 ORDER BY i.claimed_at,i.task_attempt_id LIMIT 101`, [projectId]);
     return rows.rows.map(r => {
-      const a = artemisPreparationAssignmentSchema.parse(r.assignment), intent = accountPreparationIntentSchema.parse(r.intent);
-      if (createHash("sha256").update(JSON.stringify(a)).digest("hex") !== r.fingerprint || a.taskId !== r.task_id
+      const { assignment: a } = readArtemisPreparationHistory(r.assignment, r.fingerprint), intent = accountPreparationIntentSchema.parse(r.intent);
+      if (a.taskId !== r.task_id
         || a.taskAttemptId !== r.task_attempt_id || a.taskVersion !== Number(r.task_version) || a.operationId !== r.operation_id
         || a.input.projectId !== projectId || a.input.accountId !== r.selected_account_id || a.input.deviceId !== r.selected_device_id
-        || a.input.parentLoginRef !== intent.parentLoginRef || canonicalMaterial(a.input.target) !== canonicalMaterial(intent.target)
+        || canonicalMaterial(a.input.target) !== canonicalMaterial(intent.target)
         || a.input.mode !== intent.mode || a.input.requestedScope.scopeRef !== intent.scopeRef
         || a.input.requestedScope.allowTrustedInstall !== intent.allowTrustedInstall || a.input.requestedScope.allowIdentityCreation !== intent.allowIdentityCreation) throw unavailable();
       const observation = r.observation === null ? null : artemisPreparationObservationSchema.parse(r.observation);
@@ -155,10 +160,13 @@ export class AccountPreparationService {
   private async check(c: PoolClient, projectId: string, intent: AccountPreparationIntent) {
     const waiting = (reason: string) => ({ state: "waiting_resources" as const, next: null, blockers: [reason] });
     if (!intent.accountId || !intent.deviceId) return waiting("RESOURCE_ASSIGNMENT_REQUIRED");
-    const account = (await c.query<{ canonical_account_ref: string; platform: string }>(`SELECT a.canonical_account_ref,a.platform FROM ${s}.media_accounts a JOIN ${s}.project_account_reservations r ON a.account_id=r.account_id WHERE a.account_id=$1 AND r.project_id=$2`, [intent.accountId, projectId])).rows[0];
+    const account = (await c.query<{ platform: string }>(`SELECT a.platform FROM ${s}.media_accounts a JOIN ${s}.project_account_reservations r ON a.account_id=r.account_id WHERE a.account_id=$1 AND r.project_id=$2`, [intent.accountId, projectId])).rows[0];
     const device = (await c.query<{ state: string }>(`SELECT d.state FROM ${s}.devices d JOIN ${s}.project_device_reservations r ON d.device_id=r.device_id WHERE d.device_id=$1 AND r.project_id=$2 FOR UPDATE OF d`, [intent.deviceId, projectId])).rows[0];
-    if (!account || !device) return waiting("RESOURCE_ASSIGNMENT_REQUIRED");
-    if (account.platform !== intent.target.platform || account.canonical_account_ref !== intent.parentLoginRef) return waiting("PARENT_ACCOUNT_SCOPE_MISMATCH");
+    const assignment = await c.query(`SELECT 1 WHERE EXISTS (SELECT 1 FROM ${s}.project_media_account_assignments WHERE account_id=$1 AND project_id=$2 AND device_id=$3 AND handover_requested=false)
+      OR (NOT EXISTS (SELECT 1 FROM ${s}.project_media_account_assignments WHERE account_id=$1)
+        AND EXISTS (SELECT 1 FROM ${s}.project_identity_reservations WHERE account_id=$1 AND project_id=$2 AND device_id=$3))`, [intent.accountId, projectId, intent.deviceId]);
+    if (!account || !device || assignment.rowCount !== 1) return waiting("RESOURCE_ASSIGNMENT_REQUIRED");
+    if (account.platform !== intent.target.platform) return waiting("PARENT_ACCOUNT_SCOPE_MISMATCH");
     if (["paused", "restore_pending", "exit_pending", "exited"].includes(device.state)) return waiting("DEVICE_PARTICIPATION_RECHECK_REQUIRED");
     // SDK completion/report is not independent reconciliation. Until a trusted
     // consumer resolves the original operation, a new task version cannot
@@ -173,7 +181,7 @@ export class AccountPreparationService {
     }
     const binding = (await c.query<{ canonical_identity_ref: string }>(`SELECT i.canonical_identity_ref FROM ${s}.project_identity_reservations r JOIN ${s}.publishing_identities i ON i.identity_id=r.identity_id WHERE r.device_id=$1 AND r.platform=$2`, [intent.deviceId, intent.target.platform])).rows[0];
     const p = planAccountPreparation({ protocolVersion: executionLibraryVersion, projectId, accountId: intent.accountId, deviceId: intent.deviceId,
-      parentLoginRef: intent.parentLoginRef, mode: intent.mode, target: intent.target,
+      mode: intent.mode, target: intent.target,
       requestedScope: { scopeRef: intent.scopeRef, allowTrustedInstall: intent.allowTrustedInstall, allowIdentityCreation: intent.allowIdentityCreation },
       facts: { version: 1, currentScopeMatches: true, unresolvedDeviceTask: false, boundIdentityId: binding?.canonical_identity_ref ?? null, priorCreation: "none",
         app: { state: "unknown", evidenceRef: null }, login: { state: "unknown", evidenceRef: null },
@@ -202,8 +210,11 @@ export class AccountPreparationService {
       if ("intent" in r) {
         const resourceVersion = Number((await c.query<{ version: string }>(`SELECT version::text FROM ${s}.resource_reservation_guard`)).rows[0]?.version);
         if (projectVersion !== r.expectedProjectVersion || resourceVersion !== r.expectedResourceVersion) throw stale();
-        const intent = r.intent, intentDigest = digest(intent);
-        const existing = (await c.query<Row>(`SELECT * FROM ${s}.account_preparation_tasks WHERE project_id=$1 AND parent_login_ref=$2 AND platform=$3 FOR UPDATE`, [r.projectId, intent.parentLoginRef, intent.target.platform])).rows[0];
+        // Canonicalize the deprecated, nullable compatibility field once.
+        // New stored intents always carry explicit null; original command
+        // digests still cover the exact user request for idempotency.
+        const intent = { ...r.intent, parentLoginRef: null }, intentDigest = digest(intent);
+        const existing = (await c.query<Row>(`SELECT * FROM ${s}.account_preparation_tasks WHERE project_id=$1 AND selected_account_id=$2 AND platform=$3 FOR UPDATE`, [r.projectId, intent.accountId, intent.target.platform])).rows[0];
         if (existing) {
           view(existing); if (existing.intent_digest !== intentDigest) throw stale(); task = existing;
         } else {
@@ -212,7 +223,7 @@ export class AccountPreparationService {
           const checked = await this.check(c, r.projectId, intent);
           if (intent.accountId || intent.deviceId) await this.requireSelection(c, r.projectId, intent, intent.accountId, intent.deviceId);
           task = (await c.query<Row>(`INSERT INTO ${s}.account_preparation_tasks(task_id,project_id,parent_login_ref,platform,intent,intent_digest,state,next_operation_id,blockers,requested_by,selected_account_id,selected_device_id)
-            VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`, [randomUUID(), r.projectId, intent.parentLoginRef, intent.target.platform, intent, intentDigest, checked.state, checked.next, JSON.stringify(checked.blockers), actor, intent.accountId, intent.deviceId])).rows[0]!;
+            VALUES($1,$2,NULL,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`, [randomUUID(), r.projectId, intent.target.platform, intent, intentDigest, checked.state, checked.next, JSON.stringify(checked.blockers), actor, intent.accountId, intent.deviceId])).rows[0]!;
           isNew = true;
         }
       } else {
@@ -241,8 +252,10 @@ export class AccountPreparationService {
   }
   private async requireSelection(c: PoolClient, projectId: string, intent: AccountPreparationIntent, accountId: string | null, deviceId: string | null) {
     if (!accountId || !deviceId || (intent.accountId !== null && accountId !== intent.accountId) || (intent.deviceId !== null && deviceId !== intent.deviceId)) throw stale();
-    const a = (await c.query<{ canonical_account_ref: string; platform: string }>(`SELECT a.canonical_account_ref,a.platform FROM ${s}.media_accounts a JOIN ${s}.project_account_reservations r ON a.account_id=r.account_id WHERE a.account_id=$1 AND r.project_id=$2`, [accountId, projectId])).rows[0];
-    const d = (await c.query(`SELECT 1 FROM ${s}.project_device_reservations WHERE device_id=$1 AND project_id=$2`, [deviceId, projectId])).rowCount;
-    if (!a || !d || a.canonical_account_ref !== intent.parentLoginRef || a.platform !== intent.target.platform) throw stale();
+    const a = (await c.query<{ platform: string }>(`SELECT a.platform FROM ${s}.media_accounts a JOIN ${s}.project_account_reservations r ON a.account_id=r.account_id WHERE a.account_id=$1 AND r.project_id=$2`, [accountId, projectId])).rows[0];
+    const assignment = await c.query(`SELECT 1 WHERE EXISTS (SELECT 1 FROM ${s}.project_media_account_assignments WHERE account_id=$1 AND project_id=$2 AND device_id=$3 AND handover_requested=false)
+      OR (NOT EXISTS (SELECT 1 FROM ${s}.project_media_account_assignments WHERE account_id=$1)
+        AND EXISTS (SELECT 1 FROM ${s}.project_identity_reservations WHERE account_id=$1 AND project_id=$2 AND device_id=$3))`, [accountId, projectId, deviceId]);
+    if (!a || assignment.rowCount !== 1 || a.platform !== intent.target.platform) throw stale();
   }
 }
