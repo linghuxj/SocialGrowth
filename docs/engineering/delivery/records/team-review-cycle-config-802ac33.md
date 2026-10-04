@@ -31,3 +31,13 @@
 作者报告本精确 head：Node24.16/SQLiteOK、contracts generate/build/check、focused contracts2/2、backend build、lint 仅未改文件旧警告、隔离 PG3/3、diff-check 通过。PG 包含配置追加/当前不变、回放/键冲突/CAS、晚确认/DST unresolved 及会话到期事务回滚。作者确认自有 `sg-cycle-config-final-94449415772b-pg` 容器已移除；本轮未收到持久有限测试 JSON，以上属于作者报告而非 reviewer 重复运行或独立环境核验。
 
 Reviewer 本轮仅源码、生成 JSON 结构和 diff 检查；未运行编译、测试、容器、服务、模型、浏览器或设备，未读取私有配置/日志/受保护发布脚本。真实 UI、下一周期生效、调度/review/metrics 与实际执行均未验证。修复前此 SHA 不得用于 PR 门禁；修复后的新 SHA 必须重新审查。
+
+## 修订候选 2049a7a
+
+精确 base 不变，head `2049a7a191f86421dcf0005181e8ae0e39f47f1e`。全量十文件中八个与原审查逐文件一致，只有 service 与 PG test 变化；完整 diff-check 通过。已核对 rev3 由 backend/UX 双签：unresolved 回执携带当时保留的最新配置及原 revision，没有旧配置才为 null；不表示新增确认。
+
+CYCLE-CONFIG-RUNTIME-01 的生产修复闭合：缺 tz 或 ICU 时在调用 preview 之前进入 unresolved，不新增配置。旧事实同时保留于数据库、结果回执和原命令 GET，原 command 不被覆盖；授权与副作用边界未变化。
+
+本 head 尚需校准新增回归后再固定批准。**CYCLE-CONFIG-RUNTIME-TEST-02 — P2（验证缺口）**：新增 metadata 缺失回归选 America/New_York/21 天，依赖真实当前日期计算边界；本轮十月的边界可能跨十一月 DST，使 preview 本来返回 null，原漏洞代码也会通过该断言。请对这个用例使用固定无 DST 的可解时区，确保 preview 成功才会走到原漏洞路径；不需要扩展测试体系。该问题仅在测试，当前生产修复有效，已直接告知作者。
+
+作者报告修订 head contracts2/2、PG4/4、build/lint/diff-check 通过，独立自有容器已移除；本 reviewer 未重复运行，UX 页面仍未验。待最小修订的新 SHA 精确复核，不以生产 finding 关闭推定此 head 已获最终批准。
