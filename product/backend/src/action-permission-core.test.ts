@@ -87,7 +87,8 @@ test("recovery checks need explicit pending recovery, cannot publish and do not 
     localConfirmation: { ...facts.localConfirmation, intent: "recovery_check" }, task: { ...facts.task, operation: "recovery_check" } };
   const read = { ...request, purpose: "recovery_check" as const };
   assert.equal(checkActionPermission(recovery, read, now).kind, "read_screen");
-  for (const kind of ["write_input", "submit_publication", "remove_content", "sign_out"] as const) denies(() => checkActionPermission(recovery, { ...read, kind }, now));
+  for (const kind of ["submit_publication", "remove_content", "sign_out"] as const) denies(() => checkActionPermission(recovery, { ...read, kind }, now));
+  denies(() => checkActionPermission(recovery, { ...read, kind: "write_input", fieldRef: "login" }, now));
   for (const providerIntent of ["paused", "pause_requested", "exit_pending", "exited"] as const) denies(() => checkActionPermission({ ...recovery, providerIntent }, read, now));
 });
 
@@ -101,7 +102,22 @@ test("publication needs a recorded original intent and verified material, unknow
   denies(() => checkActionPermission({ ...facts, task: { ...facts.task, materialVerified: false } }, submit, now));
   const verify = { ...facts, task: { ...facts.task, operation: "verify_result" as const, submission: "unknown" as const } };
   assert.equal(checkActionPermission(verify, request, now).kind, "read_screen");
-  denies(() => checkActionPermission(verify, { ...request, kind: "write_input" }, now));
+  denies(() => checkActionPermission(verify, { ...request, kind: "write_input", fieldRef: "login" }, now));
+});
+
+test("credential entry and login submit are confined to the current initialization action and exact field/target", () => {
+  const { facts, request } = fixture();
+  const init: ActionAuthorityFacts = { ...facts, task: { ...facts.task, operation: "initialize", submission: "none",
+    allowedKinds: ["read_screen", "write_input", "submit_login"] } };
+  const loginField = { ...request, kind: "write_input" as const, fieldRef: "login" as const };
+  const passwordField = { ...request, actionId: randomUUID(), kind: "write_input" as const, fieldRef: "password" as const };
+  const submit = { ...request, actionId: randomUUID(), kind: "submit_login" as const,
+    targetViewIdResourceName: "com.facebook.katana:id/login" };
+  assert.equal(checkActionPermission(init, loginField, now).fieldRef, "login");
+  assert.equal(checkActionPermission(init, passwordField, now).fieldRef, "password");
+  assert.equal(checkActionPermission(init, submit, now).targetViewIdResourceName, "com.facebook.katana:id/login");
+  denies(() => checkActionPermission(facts, loginField, now));
+  denies(() => checkActionPermission({ ...init, task: { ...init.task, allowedKinds: ["read_screen", "write_input"] } }, submit, now));
 });
 
 test("removal, cleanup and operator control cannot borrow business or recovery purpose", () => {

@@ -26,6 +26,9 @@ export interface PhysicalPreparationScope {
   deviceId:string; serial:string; associationId:string; installationId:string; installationGeneration:string; installationSessionId:string;
   deviceFactVersion:number; controlVersion:number; controlGeneration:string; controlDisposition:"stopped"|"enabled"; participationRunId:string;
   projectId:string; projectVersion:number; resourceVersion:string; taskId:string; taskVersion:number; taskAttemptId:string;
+  operationId:"inspect_app"|"assist_existing_login"; actionKind:"read_screen"|"write_input"|"submit_login";
+  fieldRef:"login"|"password"|null; targetViewIdResourceName:string|null;
+  credentialId:string|null; credentialRevision:number|null;
   assignmentFingerprint:string; traceId:string|null; enrollmentId:string; enrollmentGeneration:string; enrollmentVersion:number;
   nodeId:string; nodeKey:string; networkRevision:number; policyRevision:number; formalEvidenceId:string;
   holderId:string; authorizationId:string; leaseUntil:string;
@@ -37,7 +40,8 @@ export interface PhysicalPreparationInspector {
 }
 const observationSchema=z.strictObject({nonce:uuidSchema,scopeDigest:z.string().regex(/^[a-f0-9]{64}$/),
   checkedAt:timestampSchema,validUntil:timestampSchema,networkAdmitted:z.literal(true),adbAuthorized:z.literal(true),
-  targetVerified:z.literal(true),allPathsFenced:z.literal(true),targetQuiescent:z.literal(true),controllerOwnership:z.enum(["released","held"])});
+  targetVerified:z.literal(true),allPathsFenced:z.literal(true),targetQuiescent:z.literal(true),
+  sensitiveObservationBlocked:z.boolean(),targetFieldVerified:z.boolean(),loginSubmitTargetVerified:z.boolean(),controllerOwnership:z.enum(["released","held"])});
 interface Current { scope:PhysicalPreparationScope;control:ReturnType<typeof parsePhoneControlRecord>;participation:NonNullable<Awaited<ReturnType<typeof loadCurrentLocalParticipation>>>;sessionExpiresAt:string;until:string }
 export interface BrokerActionResult { journal:PhoneJournalResult; ticket:(PhoneActionRequest & {serial:string;checkedAt:string;validUntil:string;replayed:false})|null }
 
@@ -58,7 +62,7 @@ export class PreparationActionBroker {
       throw new PreparationBrokerError("STORAGE_UNAVAILABLE");
     }finally{c.release();}
   }
-  private request(raw:unknown):PhoneActionRequest {const r=phoneActionRequestSchema.safeParse(raw);if(!r.success||r.data.purpose!=="business"||r.data.kind!=="read_screen")deny();if([r.data.deviceId,r.data.holderId,r.data.authorizationId,r.data.taskAttemptId,r.data.actionId].some(id=>id!==id.toLowerCase()))deny();return r.data;}
+  private request(raw:unknown):PhoneActionRequest {const r=phoneActionRequestSchema.safeParse(raw);if(!r.success||r.data.purpose!=="business"||!(["read_screen","write_input","submit_login"] as readonly string[]).includes(r.data.kind))deny();if([r.data.deviceId,r.data.holderId,r.data.authorizationId,r.data.taskAttemptId,r.data.actionId].some(id=>id!==id.toLowerCase()))deny();return r.data;}
   private async replay(deviceId:string,requestKey:string,command:unknown){try{return await this.journal.replayCommand(deviceId,requestKey,command);}catch(e){if(e instanceof ActionPermissionError||(e instanceof PhoneJournalError&&e.code!=="DATABASE_UNAVAILABLE"))deny();throw new PreparationBrokerError("STORAGE_UNAVAILABLE");}}
   private async loadLocked(c:PoolClient,r:PhoneActionRequest,mode:"acquire"|"begin",candidateUntil?:string):Promise<Current>{
     const locator=(await c.query<{project_id:string;task_id:string}>(`SELECT t.project_id,t.task_id FROM ${s}.artemis_preparation_intents a JOIN ${s}.account_preparation_tasks t USING(task_id) WHERE a.task_attempt_id=$1`,[r.taskAttemptId])).rows[0];
@@ -69,11 +73,28 @@ export class PreparationActionBroker {
     if((await c.query(`SELECT 1 FROM ${s}.resource_reservation_guard FOR SHARE`)).rowCount!==1)deny();
     const project=(await c.query<{fact_version:string;phase:string}>(`SELECT fact_version::text,phase FROM ${s}.projects WHERE project_id=$1 FOR SHARE`,[locator.project_id])).rows[0];
     const task=(await c.query<{task_version:string;selected_account_id:string;selected_device_id:string;intent:unknown;intent_digest:string;requested_by:string;next_operation_id:string;state:string}>(`SELECT * FROM ${s}.account_preparation_tasks WHERE task_id=$1 AND project_id=$2 FOR SHARE`,[locator.task_id,locator.project_id])).rows[0];
-    if(!project||project.phase!=="preparing"||!task||task.selected_device_id!==r.deviceId||task.state!=="waiting_executor"||task.next_operation_id!=="inspect_app")deny();
+    const operationId=task?.next_operation_id;
+    if(!project||project.phase!=="preparing"||!task||task.selected_device_id!==r.deviceId||task.state!=="waiting_executor"
+      ||!(operationId==="inspect_app"||operationId==="assist_existing_login")
+      ||(mode==="begin"&&((operationId==="inspect_app"&&r.kind!=="read_screen")
+        ||(operationId==="assist_existing_login"&&!(["write_input","submit_login"] as readonly string[]).includes(r.kind)))))deny();
+    // No durable installation-signed password receipt verifier exists yet.
+    // Never mint a submit grant from an untrusted model report or begin_call alone.
+    if(mode==="begin"&&operationId==="assist_existing_login"&&r.kind==="submit_login")physical();
     if(!(await c.query(`SELECT 1 FROM ${s}.operators WHERE operator_id=$1 AND status='active' FOR SHARE`,[task.requested_by])).rowCount)deny();
     const intent=accountPreparationIntentSchema.parse(task.intent);if(hash(intent)!==task.intent_digest)deny();
-    const account=(await c.query<{platform:string;canonical_account_ref:string}>(`SELECT a.platform,a.canonical_account_ref FROM ${s}.media_accounts a JOIN ${s}.project_account_reservations p USING(account_id) WHERE a.account_id=$1 AND p.project_id=$2 FOR SHARE OF a`,[task.selected_account_id,locator.project_id])).rows[0];
-    if(!account||account.platform!==intent.target.platform||account.canonical_account_ref!==intent.parentLoginRef||!(await c.query(`SELECT 1 FROM ${s}.project_device_reservations WHERE project_id=$1 AND device_id=$2`,[locator.project_id,r.deviceId])).rowCount)deny();
+    const account=(await c.query<{platform:string}>(`SELECT a.platform FROM ${s}.media_accounts a JOIN ${s}.project_account_reservations p USING(account_id) WHERE a.account_id=$1 AND p.project_id=$2 FOR SHARE OF a`,[task.selected_account_id,locator.project_id])).rows[0];
+    if(!account||account.platform!==intent.target.platform||!(await c.query(`SELECT 1 FROM ${s}.project_device_reservations WHERE project_id=$1 AND device_id=$2`,[locator.project_id,r.deviceId])).rowCount)deny();
+    let credentialId:string|null=null,credentialRevision:number|null=null;
+    if(mode==="begin"&&operationId==="assist_existing_login"){
+      const credential=(await c.query<{credential_id:string;revision:string;state:string}>(`SELECT h.credential_id,h.revision::text,r.state
+        FROM ${s}.media_credentials h JOIN ${s}.media_credential_revisions r
+          ON (h.credential_id,h.account_id,h.platform,h.revision)=(r.credential_id,r.account_id,r.platform,r.revision)
+        WHERE h.account_id=$1 AND h.platform=$2 FOR SHARE OF h,r`,[task.selected_account_id,intent.target.platform])).rows[0];
+      if(!credential||credential.state!=="stored_unverified")deny();
+      credentialId=credential.credential_id;credentialRevision=Number(credential.revision);
+      if(!Number.isSafeInteger(credentialRevision)||credentialRevision<1)deny();
+    }
     const expected=(await c.query<{association_id:string;provider_id:string;installation_id:string}>(`SELECT association_id,provider_id,installation_id FROM ${s}.device_associations WHERE device_id=$1 AND ended_at IS NULL`,[r.deviceId])).rows[0];if(!expected)deny();
     if(!(await c.query(`SELECT 1 FROM ${s}.providers WHERE provider_id=$1 AND status='active' FOR SHARE`,[expected.provider_id])).rowCount)deny();
     const installation=(await c.query<{generation:string}>(`SELECT generation::text FROM ${s}.installations WHERE installation_id=$1 AND status='active' FOR SHARE`,[expected.installation_id])).rows[0];if(!installation)deny();
@@ -88,7 +109,7 @@ export class PreparationActionBroker {
     const now=await clock(c),participation=await loadCurrentLocalParticipation(c,r.deviceId,now);if(!participation)deny();
     const launch=(await c.query<{assignment:unknown;fingerprint:string;task_version:string;operation_id:string;trace_id:string|null}>(`SELECT assignment,fingerprint,task_version::text,operation_id,trace_id FROM ${s}.artemis_preparation_intents WHERE task_attempt_id=$1 AND task_id=$2 FOR SHARE`,[r.taskAttemptId,locator.task_id])).rows[0];if(!launch)deny();
     const assignment=artemisPreparationAssignmentSchema.parse(launch.assignment);
-    if(createHash("sha256").update(JSON.stringify(assignment)).digest("hex")!==launch.fingerprint||assignment.taskAttemptId!==r.taskAttemptId||assignment.taskId!==locator.task_id||assignment.operationId!=="inspect_app"||launch.operation_id!=="inspect_app"||String(assignment.taskVersion)!==task.task_version||launch.task_version!==task.task_version||assignment.input.deviceId!==r.deviceId||assignment.input.accountId!==task.selected_account_id||assignment.input.projectId!==locator.project_id||assignment.input.parentLoginRef!==intent.parentLoginRef||assignment.input.mode!==intent.mode||canonicalMaterial(assignment.input.target)!==canonicalMaterial(intent.target)||assignment.input.requestedScope.scopeRef!==intent.scopeRef||assignment.input.requestedScope.allowTrustedInstall!==intent.allowTrustedInstall||assignment.input.requestedScope.allowIdentityCreation!==intent.allowIdentityCreation)deny();
+    if(createHash("sha256").update(JSON.stringify(assignment)).digest("hex")!==launch.fingerprint||assignment.taskAttemptId!==r.taskAttemptId||assignment.taskId!==locator.task_id||assignment.operationId!==operationId||launch.operation_id!==operationId||String(assignment.taskVersion)!==task.task_version||launch.task_version!==task.task_version||assignment.input.deviceId!==r.deviceId||assignment.input.accountId!==task.selected_account_id||assignment.input.projectId!==locator.project_id||assignment.input.mode!==intent.mode||canonicalMaterial(assignment.input.target)!==canonicalMaterial(intent.target)||assignment.input.requestedScope.scopeRef!==intent.scopeRef||assignment.input.requestedScope.allowTrustedInstall!==intent.allowTrustedInstall||assignment.input.requestedScope.allowIdentityCreation!==intent.allowIdentityCreation)deny();
     if((await c.query(`SELECT 1 FROM ${s}.artemis_preparation_intents WHERE task_attempt_id<>$1 AND assignment->'input'->>'deviceId'=$2 LIMIT 1`,[r.taskAttemptId,r.deviceId])).rowCount)deny();
     const observations=(await c.query<{record:unknown;fingerprint:string}>(`SELECT record,fingerprint FROM ${s}.artemis_preparation_observations WHERE task_attempt_id=$1 LIMIT 101`,[r.taskAttemptId])).rows;if(observations.length>100)deny();
     for(const o of observations){const parsed=artemisPreparationObservationSchema.parse(o.record);if(o.fingerprint!==launch.fingerprint||parsed.state!=="running"||parsed.traceId!==launch.trace_id)deny();}
@@ -96,21 +117,22 @@ export class PreparationActionBroker {
     const grant=rawGrant?phoneHolderGrantSchema.parse(rawGrant.record):null;
     const until=mode==="acquire"?(candidateUntil??new Date(now.getTime()+30000).toISOString()):grant?.leaseUntil;
     if(!until||!timestampSchema.safeParse(until).success||Date.parse(until)<=now.getTime()||(mode==="acquire"&&(grant||Date.parse(until)>now.getTime()+30000)))deny();
-    if(mode==="begin"&&(!grant||grant.authorizationId!==r.authorizationId||grant.taskAttemptId!==r.taskAttemptId||grant.controlGeneration!==r.controlGeneration||grant.purpose!=="business"||grant.holderKind!=="executor"||grant.operation!=="initialize"||grant.allowedKinds.length!==1||grant.allowedKinds[0]!=="read_screen"||grant.validUntil!==until))deny();
+    const expectedKinds=operationId==="assist_existing_login"?["read_screen","write_input","submit_login"]:["read_screen"];
+    if(mode==="begin"&&(!grant||grant.authorizationId!==r.authorizationId||grant.taskAttemptId!==r.taskAttemptId||grant.controlGeneration!==r.controlGeneration||grant.purpose!=="business"||grant.holderKind!=="executor"||grant.operation!=="initialize"||grant.allowedKinds.length!==expectedKinds.length||expectedKinds.some((kind,i)=>grant.allowedKinds[i]!==kind)||grant.validUntil!==until))deny();
     const resourceVersion=(await c.query<{version:string}>(`SELECT version::text FROM ${s}.resource_reservation_guard`)).rows[0]!.version;
-    const scope:PhysicalPreparationScope={deviceId:r.deviceId,serial:assignment.serial,associationId:expected.association_id,installationId:expected.installation_id,installationGeneration:installation.generation,installationSessionId:session.session_id,deviceFactVersion:Number(device.fact_version),controlVersion:control.version,controlGeneration:control.controlGeneration,controlDisposition:control.disposition as "stopped"|"enabled",participationRunId:participation.runId,projectId:locator.project_id,projectVersion:Number(project.fact_version),resourceVersion,taskId:locator.task_id,taskVersion:Number(task.task_version),taskAttemptId:r.taskAttemptId,assignmentFingerprint:launch.fingerprint,traceId:launch.trace_id,enrollmentId:admission.enrollmentId,enrollmentGeneration:a.enrollmentGeneration,enrollmentVersion:admission.version,nodeId:admission.node.nodeId,nodeKey:admission.node.nodeKey,networkRevision:admission.node.networkRevision,policyRevision:admission.formalPolicyRevision,formalEvidenceId:admission.formalEvidenceId,holderId:r.holderId,authorizationId:r.authorizationId,leaseUntil:until};
+    const scope:PhysicalPreparationScope={deviceId:r.deviceId,serial:assignment.serial,associationId:expected.association_id,installationId:expected.installation_id,installationGeneration:installation.generation,installationSessionId:session.session_id,deviceFactVersion:Number(device.fact_version),controlVersion:control.version,controlGeneration:control.controlGeneration,controlDisposition:control.disposition as "stopped"|"enabled",participationRunId:participation.runId,projectId:locator.project_id,projectVersion:Number(project.fact_version),resourceVersion,taskId:locator.task_id,taskVersion:Number(task.task_version),taskAttemptId:r.taskAttemptId,operationId:operationId as "inspect_app"|"assist_existing_login",actionKind:(mode==="acquire"?"read_screen":r.kind) as PhysicalPreparationScope["actionKind"],fieldRef:mode==="begin"&&r.kind==="write_input"?r.fieldRef!:null,targetViewIdResourceName:mode==="begin"&&r.kind==="submit_login"?r.targetViewIdResourceName!:null,credentialId,credentialRevision,assignmentFingerprint:launch.fingerprint,traceId:launch.trace_id,enrollmentId:admission.enrollmentId,enrollmentGeneration:a.enrollmentGeneration,enrollmentVersion:admission.version,nodeId:admission.node.nodeId,nodeKey:admission.node.nodeKey,networkRevision:admission.node.networkRevision,policyRevision:admission.formalPolicyRevision,formalEvidenceId:admission.formalEvidenceId,holderId:r.holderId,authorizationId:r.authorizationId,leaseUntil:until};
     if(!Number.isSafeInteger(scope.deviceFactVersion)||!Number.isSafeInteger(scope.projectVersion))deny();
     return{scope,control,participation,sessionExpiresAt:session.expires_at.toISOString(),until};
   }
   private async observe(current:Current){
     if(!this.inspector)physical();const nonce=randomUUID(),abort=new AbortController();let timer:ReturnType<typeof setTimeout>|undefined;
     try{const raw=await Promise.race([this.inspector.inspect(Object.freeze({...current.scope}),nonce,abort.signal),new Promise<never>((_,reject)=>{timer=setTimeout(()=>{abort.abort();reject(new PreparationBrokerError("PHYSICAL_BOUNDARY_REQUIRED"));},2000);})]);
-      const p=observationSchema.safeParse(raw);if(!p.success||p.data.nonce!==nonce||p.data.scopeDigest!==hash(current.scope)||Date.parse(p.data.validUntil)-Date.parse(p.data.checkedAt)!==2000||p.data.controllerOwnership!==(current.scope.controlDisposition==="stopped"?"released":"held"))physical();return p.data;
+      const p=observationSchema.safeParse(raw);if(!p.success||p.data.nonce!==nonce||p.data.scopeDigest!==hash(current.scope)||Date.parse(p.data.validUntil)-Date.parse(p.data.checkedAt)!==2000||p.data.controllerOwnership!==(current.scope.controlDisposition==="stopped"?"released":"held")||(current.scope.actionKind==="write_input"&&(!p.data.sensitiveObservationBlocked||!p.data.targetFieldVerified))||(current.scope.actionKind==="submit_login"&&(!p.data.sensitiveObservationBlocked||!p.data.loginSubmitTargetVerified)))physical();return p.data;
     }catch{physical();}finally{if(timer)clearTimeout(timer);abort.abort();}
   }
   private facts(current:Current,r:PhoneActionRequest):ActionAuthorityFacts{return{deviceId:r.deviceId,controlVersion:current.control.version,controlGeneration:r.controlGeneration,providerIntent:"active",projectPublicationPaused:true,networkAdmitted:true,adbAuthorized:true,targetVerified:true,
     holder:{holderId:r.holderId,kind:"executor",purpose:"business",taskAttemptId:r.taskAttemptId,authorizationId:r.authorizationId,controlGeneration:r.controlGeneration,leaseUntil:current.until},
-    localConfirmation:{controlGeneration:r.controlGeneration,intent:"active",checkedAt:current.participation.checkedAt},task:{taskAttemptId:r.taskAttemptId,authorizationId:r.authorizationId,operation:"initialize",authorized:true,currentVersions:true,validUntil:current.until,allowedKinds:["read_screen"],submission:"none",materialVerified:false,explicitRemovalAuthorized:false}};}
+    localConfirmation:{controlGeneration:r.controlGeneration,intent:"active",checkedAt:current.participation.checkedAt},task:{taskAttemptId:r.taskAttemptId,authorizationId:r.authorizationId,operation:"initialize",authorized:true,currentVersions:true,validUntil:current.until,allowedKinds:current.scope.operationId==="assist_existing_login"?["read_screen","write_input","submit_login"]:["read_screen"],submission:"none",materialVerified:false,explicitRemovalAuthorized:false}};}
   private async apply(r:PhoneActionRequest,mode:"acquire"|"begin"):Promise<BrokerActionResult>{
     const {actionId:_actionId,kind:_kind,...holder}=r;
     const command=mode==="acquire"?{kind:"acquire_holder" as const,request:phoneHolderRequestSchema.parse(holder)}:{kind:"begin_call" as const,request:r};
