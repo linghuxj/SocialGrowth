@@ -66,6 +66,10 @@ function validateRead(view: ProjectCycleConfigurationReadResponse, projectId: st
       throw new ProjectCycleConfigurationApiError("CYCLE_CONFIG_RESPONSE_INVALID");
     }
   }
+  if (current && view.nextConfiguration?.application.state === "pending"
+    && !sameId(view.nextConfiguration.basedOnCycleId, current.cycleId)) {
+    throw new ProjectCycleConfigurationApiError("CYCLE_CONFIG_RESPONSE_INVALID");
+  }
   if (view.nextConfiguration?.application.state === "applied"
     && view.nextConfiguration.application.materializedCycleId !== null
     && sameId(view.nextConfiguration.basedOnCycleId, view.nextConfiguration.application.materializedCycleId)) {

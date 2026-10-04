@@ -11,10 +11,17 @@ const required = (key: string) => { const v = process.env[key]; if (!v) throw ne
 const login = required("SG_PRODUCT_TEST_LOGIN_NAME"), password = required("SG_PRODUCT_TEST_PASSWORD"), output = required("SG_PRODUCT_PLANNING_SCREENSHOT_DIR");
 await mkdir(output, { recursive: true }); const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ locale: "zh-CN", viewport: { width: 1464, height: 1074 } });
+const plannedCycleEndAt = Date.now() + 15 * 60_000;
+const plannedFirstCycleStart = new Date(plannedCycleEndAt - 24 * 60 * 60_000).toISOString();
+const plannedPublishWindowEnd = new Date(plannedCycleEndAt + 7 * 24 * 60 * 60_000).toISOString();
 let secondContext: BrowserContext | null = null;
 let cyclePhase = "draft-only";
 let cycleFlowPassed = false;
 let actualModelAttempts = 0;
+let appliedConfigurationReadVerified = false;
+let carryForwardReadVerified = false;
+let carryProjectName = "";
+let carryBaselineCycle: CycleReadEvidence | null = null;
 let commandReadsByDifferentOperator = 0;
 let cycleCheckpoint = "planning-draft-only";
 let cyclePostObserved = false;
@@ -37,6 +44,21 @@ async function readCycleFromVisiblePage(target: Page, region: Locator): Promise<
   assert.equal(response.status(), 200, "visible page cycle refresh must return an authoritative read");
   return await response.json() as CycleReadEvidence;
 }
+async function waitForSuccessorFromVisiblePage(target: Page, region: Locator, previous: CycleReadEvidence): Promise<CycleReadEvidence> {
+  const previousCycle = previous.currentCycle;
+  assert.ok(previousCycle, "a UI-created current cycle is required before waiting for its natural successor");
+  const endMs = Date.parse(previousCycle.endsAt);
+  const deadline = endMs + 3 * 60_000;
+  let latest = previous;
+  while (Date.now() < deadline) {
+    latest = await readCycleFromVisiblePage(target, region);
+    const current = latest.currentCycle;
+    if (current && current.cycleNumber === previousCycle.cycleNumber + 1
+      && Date.parse(latest.observedAt) >= endMs) return latest;
+    await target.waitForTimeout(15_000);
+  }
+  throw new Error("Natural successor window was not visible within the bounded producer grace period");
+}
 try {
   const errors: string[] = [];
   page.on("pageerror", () => errors.push("pageerror"));
@@ -54,7 +76,7 @@ try {
   await planner.getByRole("button", { name: "周期与观察", exact: true }).click(); await planner.getByLabel("业务时区", { exact: true }).selectOption("Asia/Shanghai");
   await planner.getByLabel("复盘间隔（天）", { exact: true }).fill("01"); await planner.getByRole("button", { name: "保存全部草案" }).click(); await planner.getByText(/请核对文本、非重复国家/).waitFor();
   assert.equal(await planner.getByLabel("复盘间隔（天）", { exact: true }).inputValue(), "01");
-  await planner.getByLabel("复盘间隔（天）", { exact: true }).fill("7"); await planner.getByLabel("项目每周期引流最低任务数").fill("0");
+  await planner.getByLabel("复盘间隔（天）", { exact: true }).fill("1"); await planner.getByLabel("项目每周期引流最低任务数").fill("0");
   await planner.getByRole("button", { name: "保存全部草案" }).click(); await planner.getByText("目标与周期草案已保存，尚未批准；没有生成排期、开启周期或派发任务。", { exact: true }).waitFor();
   await planner.getByRole("button", { name: "目标与范围", exact: true }).click(); assert.equal(await planner.getByLabel("正式开通前阶段目标").inputValue(), goal);
   await planner.getByLabel("正式开通前阶段目标").fill("尚未保存的本人输入"); await project.getByRole("button", { name: "概览", exact: true }).click();
@@ -82,11 +104,11 @@ try {
   await planner.getByLabel("目标语言标签（逗号分隔）").fill("zh");
   await planner.getByLabel("内容规则说明", { exact: true }).fill("合成验收输入；身份未登记；不得公开发布");
   await planner.getByRole("button", { name: "周期与观察", exact: true }).click();
-  const firstStart = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const windowEnd = new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString();
+  const firstStart = plannedFirstCycleStart;
+  const windowEnd = plannedPublishWindowEnd;
   await planner.getByLabel("业务时区", { exact: true }).selectOption("Asia/Shanghai");
   await planner.getByLabel("首次统计起点（ISO 时间，须含时区）").fill(firstStart);
-  for (const [label, value] of [["复盘间隔（天）", "7"], ["项目每周期引流最低任务数", "0"], ["内容观察窗口（小时）", "24"], ["结束后收尾观察（天）", "0"], ["每日总发布上界", "1"]]) {
+  for (const [label, value] of [["复盘间隔（天）", "1"], ["项目每周期引流最低任务数", "0"], ["内容观察窗口（小时）", "24"], ["结束后收尾观察（天）", "0"], ["每日总发布上界", "1"]]) {
     await planner.getByLabel(label!, { exact: true }).fill(value!);
   }
   await planner.getByLabel("发布有效窗口开始（ISO 含时区）").fill(firstStart);
@@ -109,6 +131,69 @@ try {
   await direction.getByText("方向已确认并留存批准范围；执行条件尚未就绪。", { exact: true }).waitFor();
   await direction.getByText("当前未派发手机任务，未开启公开发布。", { exact: true }).waitFor();
   cycleCheckpoint = "direction-confirmed";
+
+  // Create the independent carry-forward branch through the same operator UI.
+  // It has a real first-cycle approval but receives no operator next-config.
+  cyclePhase = "create-carry-forward-project";
+  carryProjectName = `周期沿用UI验收-${Date.now()}`;
+  await page.getByRole("button", { name: "项目", exact: true }).click();
+  const returnToProjectListForCarry = project.getByRole("button", { name: "返回项目列表", exact: true });
+  if (await returnToProjectListForCarry.count()) await returnToProjectListForCarry.click();
+  await project.getByRole("button", { name: "新建项目" }).click();
+  await project.getByLabel("项目名称").fill(carryProjectName);
+  await project.getByRole("button", { name: "创建筹备项目" }).click();
+  await project.getByText(/基本信息已保存；仍在筹备/).waitFor();
+  await project.getByRole("button", { name: "设置 · 目标与周期" }).click();
+  const carryPlanner = page.getByRole("region", { name: "项目目标与周期草案" });
+  await carryPlanner.getByText(/项目版本 \d+，草案版本 0/).waitFor({ timeout: 10_000 });
+  await carryPlanner.getByRole("button", { name: "目标与范围", exact: true }).click();
+  await carryPlanner.getByLabel("正式开通前阶段目标", { exact: true }).fill("合成验收：验证沿用前序周期；不代表真实平台内容");
+  await carryPlanner.getByLabel("正式开通后阶段目标", { exact: true }).fill("合成验收：无新配置时沿用周期参数，不推断收益");
+  await carryPlanner.getByLabel("正式开通后优先级", { exact: true }).selectOption("balanced");
+  await carryPlanner.getByLabel("目标国家标签（逗号分隔）").fill("CN");
+  await carryPlanner.getByLabel("目标语言标签（逗号分隔）").fill("zh");
+  await carryPlanner.getByLabel("内容规则说明", { exact: true }).fill("合成验收输入；身份未登记；不得公开发布");
+  await carryPlanner.getByRole("checkbox", { name: "Facebook 图文", exact: true }).check();
+  await carryPlanner.getByRole("button", { name: "周期与观察", exact: true }).click();
+  await carryPlanner.getByLabel("业务时区", { exact: true }).selectOption("Asia/Shanghai");
+  await carryPlanner.getByLabel("首次统计起点（ISO 时间，须含时区）").fill(firstStart);
+  for (const [label, value] of [["复盘间隔（天）", "1"], ["项目每周期引流最低任务数", "0"], ["内容观察窗口（小时）", "24"], ["结束后收尾观察（天）", "0"], ["每日总发布上界", "1"]]) {
+    await carryPlanner.getByLabel(label!, { exact: true }).fill(value!);
+  }
+  await carryPlanner.getByLabel("发布有效窗口开始（ISO 含时区）").fill(firstStart);
+  await carryPlanner.getByLabel("发布有效窗口结束（ISO 含时区，结束不含）").fill(windowEnd);
+  await carryPlanner.getByRole("button", { name: "保存全部草案", exact: true }).click();
+  await carryPlanner.getByText("目标与周期草案已保存，尚未批准；没有生成排期、开启周期或派发任务。", { exact: true }).waitFor();
+  cyclePhase = "carry-forward-real-model-direction";
+  const carryDirection = page.getByRole("region", { name: "初始业务方向" });
+  await carryDirection.getByLabel("发布身份范围", { exact: true }).fill("facebook/UI_SYNTHETIC_UNREGISTERED/开通前");
+  actualModelAttempts += 1;
+  await carryDirection.getByRole("button", { name: "生成初始方向", exact: true }).click();
+  const carryProposalState = carryDirection.getByText(/真实模型方向已生成|配置模型未返回可用方向/);
+  await carryProposalState.waitFor({ timeout: 55_000 });
+  if (!(await carryProposalState.innerText()).startsWith("真实模型")) {
+    await writeFile(`${output}/result.json`, JSON.stringify({ passed: false, blocked: "second configured model call returned no usable proposal", actualModelAttempts,
+      projectCycleConfiguration: "A branch retained; B carry-forward cycle not created", executionAllowed: false, publicationAllowed: false }, null, 2), { mode: 0o600 });
+    throw new Error("Second configured model call did not return a usable proposal; carry-forward branch was not created");
+  }
+  await carryDirection.getByRole("heading", { name: "待核对方向与范围", exact: true }).waitFor();
+  await carryDirection.getByRole("button", { name: "确认方向", exact: true }).click();
+  await carryDirection.getByText("方向已确认并留存批准范围；执行条件尚未就绪。", { exact: true }).waitFor();
+  await carryDirection.getByText("当前未派发手机任务，未开启公开发布。", { exact: true }).waitFor();
+  await carryPlanner.getByRole("button", { name: "周期与观察", exact: true }).click();
+  const carryCyclePanel = page.getByRole("region", { name: "下周期配置确认" });
+  carryBaselineCycle = await readCycleFromVisiblePage(page, carryCyclePanel);
+  assert.ok(carryBaselineCycle.currentCycle, "carry-forward project needs its UI-created initial cycle");
+  assert.equal(carryBaselineCycle.currentCycle.origin.kind, "initial_direction_approval");
+  assert.equal(carryBaselineCycle.currentCycle.cycleNumber, 1);
+  assert.equal(carryBaselineCycle.nextConfiguration, null, "the carry-forward branch must have no operator config");
+  assert.equal(carryBaselineCycle.currentCycle.businessTimeZone, "Asia/Shanghai");
+  assert.equal(carryBaselineCycle.currentCycle.reviewIntervalDays, 1);
+  assert.equal(carryBaselineCycle.currentCycle.trafficMinimumPerCycle, 0);
+  assert.ok(Date.parse(carryBaselineCycle.currentCycle.startsAt) <= Date.parse(carryBaselineCycle.observedAt)
+    && Date.parse(carryBaselineCycle.observedAt) < Date.parse(carryBaselineCycle.currentCycle.endsAt),
+  "carry-forward first cycle must still be active at the actual UI read time");
+  await carryCyclePanel.getByText(/首次方向批准 · [0-9a-f-]{36}/i).waitFor();
 
   // Create a temporary real operator through the UI and let that operator
   // load revision 0 before A changes it. Credentials stay in process memory.
@@ -192,6 +277,8 @@ try {
   assert.ok(Date.parse(currentRead.currentCycle.startsAt) <= Date.parse(currentRead.observedAt)
     && Date.parse(currentRead.observedAt) < Date.parse(currentRead.currentCycle.endsAt),
   "the current cycle must still be active at the UI read timestamp");
+  assert.ok(Date.parse(currentRead.currentCycle.endsAt) - Date.parse(currentRead.observedAt) > 90_000,
+    "leave enough real active-cycle time to persist the operator-confirmed next configuration");
   await cycle.getByLabel("下周期业务时区", { exact: true }).selectOption("Asia/Tokyo");
   await cycle.getByLabel("下周期复盘间隔（天）", { exact: true }).fill("14");
   await cycle.getByLabel("下周期每周期引流最低数", { exact: true }).fill("2");
@@ -342,19 +429,8 @@ try {
   assert.equal(Date.parse(confirmedCycle.nextConfiguration.effectiveStartsAt), Date.parse(baselineCycle.currentCycle.endsAt),
     "effective start must be the exact current-cycle end instant");
   assert.ok(confirmedCycle.nextConfiguration.projectedEndsAt, "confirmed configuration has a calendar preview");
-  await writeFile(`${output}/cycle-config-safe-facts.json`, JSON.stringify({ firstPostStatus, lostResponse, commandReadsByDifferentOperator: commandReads,
-    sameOriginalBodyAndKeyReplay: safeCycleFacts.length === 2 && safeCycleFacts[0]?.bodySha256 === safeCycleFacts[1]?.bodySha256
-      && safeCycleFacts[0]?.idempotencyKeySha256 === safeCycleFacts[1]?.idempotencyKeySha256,
-    postFacts: safeCycleFacts, staleVersionRejectedInUi: true, currentCyclePreserved: true,
-    configuredNext: { businessTimeZone: confirmedCycle.nextConfiguration.businessTimeZone,
-      reviewIntervalDays: confirmedCycle.nextConfiguration.reviewIntervalDays,
-      trafficMinimumPerCycle: confirmedCycle.nextConfiguration.trafficMinimumPerCycle,
-      effectiveStartsAtMatchesCurrentEnd: true, latestConfigRevision: confirmedCycle.configurationRevision,
-      applicationState: confirmedCycle.nextConfiguration.application.state },
-    currentCycleOrigin: confirmedCycle.currentCycle?.origin.kind ?? null,
-    cycleRecordedAtIsIndependentOfBoundary: true,
-    appliedConfigurationReadVerified: false, carryForwardReadVerified: false,
-    nextCycleMaterialized: false, executionAllowed: false, publicationAllowed: false }, null, 2), { mode: 0o600 });
+  const confirmedNextConfiguration = confirmedCycle.nextConfiguration;
+  assert.ok(confirmedNextConfiguration);
 
   // Remove the temporary account through the actual operator UI after all
   // account-scoped checks. No generated credential is written to artifacts.
@@ -367,7 +443,91 @@ try {
   await operatorRow.getByRole("button", { name: "停用", exact: true }).click();
   await page.getByText("账号已停用，会话已撤销", { exact: true }).waitFor();
 
-  cycleFlowPassed = true;
+  // Wait for the real database-time boundary and producer ticks. All state
+  // is read back through visible project settings; no DB or API mutation is
+  // used to create a successful successor.
+  cyclePhase = "wait-for-natural-successors";
+  await page.getByRole("button", { name: "项目", exact: true }).click();
+  const returnToListForA = project.getByRole("button", { name: "返回项目列表", exact: true });
+  if (await returnToListForA.count()) await returnToListForA.click();
+  await project.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "准备清单" }).click();
+  await project.getByRole("button", { name: "设置 · 目标与周期" }).click();
+  await planner.getByRole("button", { name: "周期与观察", exact: true }).click();
+  cycle = page.getByRole("region", { name: "下周期配置确认" });
+  cycleCheckpoint = "A-waiting-for-configured-successor";
+  const appliedCycle = await waitForSuccessorFromVisiblePage(page, cycle, confirmedCycle);
+  const appliedCurrent = appliedCycle.currentCycle;
+  assert.ok(appliedCurrent && appliedCycle.nextConfiguration);
+  assert.equal(appliedCurrent.cycleNumber, baselineCycle.currentCycle.cycleNumber + 1);
+  assert.equal(Date.parse(appliedCurrent.startsAt), Date.parse(baselineCycle.currentCycle.endsAt),
+    "the configured successor starts at the exact predecessor end instant");
+  assert.deepEqual(appliedCurrent.origin, { kind: "confirmed_next_configuration", configurationRevision: confirmedNextConfiguration.configurationRevision });
+  assert.equal(appliedCycle.nextConfiguration.application.state, "applied");
+  assert.equal(appliedCycle.nextConfiguration.application.materializedCycleId, appliedCurrent.cycleId);
+  assert.equal(appliedCycle.nextConfiguration.application.reason, null);
+  assert.equal(appliedCycle.nextConfiguration.basedOnCycleId, baselineCycle.currentCycle.cycleId,
+    "the immutable configuration retains its original predecessor reference after application");
+  assert.equal(appliedCycle.nextConfiguration.businessTimeZone, "Asia/Tokyo");
+  assert.equal(appliedCycle.nextConfiguration.reviewIntervalDays, 14);
+  assert.equal(appliedCycle.nextConfiguration.trafficMinimumPerCycle, 2);
+  assert.equal(Date.parse(appliedCycle.nextConfiguration.effectiveStartsAt), Date.parse(baselineCycle.currentCycle.endsAt));
+  assert.ok(Number.isFinite(Date.parse(appliedCurrent.recordedAt))
+    && Date.parse(appliedCurrent.recordedAt) <= Date.parse(appliedCycle.observedAt));
+  assert.equal(appliedCycle.nextCycle, null);
+  assert.equal(appliedCycle.executionAllowed, false); assert.equal(appliedCycle.publicationAllowed, false);
+  await cycle.getByText(new RegExp(`已由周期 ${appliedCurrent.cycleId} 唯一消费`)).waitFor();
+  await cycle.getByText(/运营确认配置版本 1/).waitFor();
+  appliedConfigurationReadVerified = true;
+
+  // Project B has no operator next-config. Its next window must carry the
+  // previous cycle parameters with an explicit predecessor link.
+  cyclePhase = "wait-for-carry-forward-successor";
+  await page.getByRole("button", { name: "项目", exact: true }).click();
+  const returnToListForB = project.getByRole("button", { name: "返回项目列表", exact: true });
+  if (await returnToListForB.count()) await returnToListForB.click();
+  await project.getByRole("row").filter({ hasText: carryProjectName }).getByRole("button", { name: "准备清单" }).click();
+  await project.getByRole("button", { name: "设置 · 目标与周期" }).click();
+  const carryPlannerVisible = page.getByRole("region", { name: "项目目标与周期草案" });
+  await carryPlannerVisible.getByRole("button", { name: "周期与观察", exact: true }).click();
+  const carryCycleVisible = page.getByRole("region", { name: "下周期配置确认" });
+  cycleCheckpoint = "B-waiting-for-carry-forward-successor";
+  const carriedCycle = await waitForSuccessorFromVisiblePage(page, carryCycleVisible, carryBaselineCycle!);
+  const carriedCurrent = carriedCycle.currentCycle;
+  assert.ok(carriedCurrent);
+  assert.equal(carriedCurrent.cycleNumber, carryBaselineCycle!.currentCycle!.cycleNumber + 1);
+  assert.equal(Date.parse(carriedCurrent.startsAt), Date.parse(carryBaselineCycle!.currentCycle!.endsAt),
+    "the carried successor starts at the exact predecessor end instant");
+  assert.deepEqual(carriedCurrent.origin, { kind: "carry_forward", predecessorCycleId: carryBaselineCycle!.currentCycle!.cycleId });
+  assert.equal(carriedCurrent.businessTimeZone, carryBaselineCycle!.currentCycle!.businessTimeZone);
+  assert.equal(carriedCurrent.reviewIntervalDays, carryBaselineCycle!.currentCycle!.reviewIntervalDays);
+  assert.equal(carriedCurrent.trafficMinimumPerCycle, carryBaselineCycle!.currentCycle!.trafficMinimumPerCycle);
+  assert.equal(carriedCycle.nextConfiguration, null, "no operator configuration was created for the carry-forward project");
+  assert.ok(Number.isFinite(Date.parse(carriedCurrent.recordedAt))
+    && Date.parse(carriedCurrent.recordedAt) <= Date.parse(carriedCycle.observedAt));
+  assert.equal(carriedCycle.nextCycle, null);
+  assert.equal(carriedCycle.executionAllowed, false); assert.equal(carriedCycle.publicationAllowed, false);
+  await carryCycleVisible.getByText(new RegExp(`沿用前序周期 · ${carryBaselineCycle!.currentCycle!.cycleId}`)).waitFor();
+  await carryCycleVisible.getByText(/后续窗口沿用当前周期配置/).waitFor();
+  carryForwardReadVerified = true;
+
+  await writeFile(`${output}/cycle-config-safe-facts.json`, JSON.stringify({ firstPostStatus, lostResponse, commandReadsByDifferentOperator: commandReads,
+    sameOriginalBodyAndKeyReplay: safeCycleFacts.length === 2 && safeCycleFacts[0]?.bodySha256 === safeCycleFacts[1]?.bodySha256
+      && safeCycleFacts[0]?.idempotencyKeySha256 === safeCycleFacts[1]?.idempotencyKeySha256,
+    postFacts: safeCycleFacts, staleVersionRejectedInUi: true, originalPostReceiptStayedImmutable: true,
+    A: { projectName: name, configuredNext: { businessTimeZone: appliedCycle.nextConfiguration.businessTimeZone,
+      reviewIntervalDays: appliedCycle.nextConfiguration.reviewIntervalDays,
+      trafficMinimumPerCycle: appliedCycle.nextConfiguration.trafficMinimumPerCycle,
+      effectiveStartsAtMatchesPredecessorEnd: true, applicationState: appliedCycle.nextConfiguration.application.state,
+      materializedCycleIdMatchesCurrent: appliedCycle.nextConfiguration.application.materializedCycleId === appliedCurrent.cycleId },
+      currentCycleNumber: appliedCurrent.cycleNumber, currentCycleOrigin: appliedCurrent.origin.kind,
+      currentCycleRecordedAt: appliedCurrent.recordedAt, observedAt: appliedCycle.observedAt, nextCycle: null },
+    B: { projectName: carryProjectName, nextConfiguration: null, currentCycleNumber: carriedCurrent.cycleNumber,
+      currentCycleOrigin: carriedCurrent.origin.kind, predecessorCycleId: carryBaselineCycle!.currentCycle!.cycleId,
+      currentCycleRecordedAt: carriedCurrent.recordedAt, observedAt: carriedCycle.observedAt, nextCycle: null },
+    appliedConfigurationReadVerified, carryForwardReadVerified,
+    executionAllowed: false, publicationAllowed: false }, null, 2), { mode: 0o600 });
+
+  cycleFlowPassed = appliedConfigurationReadVerified && carryForwardReadVerified;
   }
 
   await page.getByRole("button", { name: "项目", exact: true }).click();
@@ -385,18 +545,18 @@ try {
   }
   assert.equal(cycleFlowPassed, process.env.SG_PRODUCT_ARTEMIS_ROOT !== undefined,
     "the configured Artemis environment must execute cycle-config acceptance; draft-only runs must not claim it");
-  assert.equal(actualModelAttempts, cycleFlowPassed ? 1 : 0, "cycle acceptance makes exactly one actual model request");
+  assert.equal(actualModelAttempts, cycleFlowPassed ? 2 : 0, "A-configured and B-carry-forward acceptance uses one actual model request per UI-created project");
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth), false);
   await page.screenshot({ path: `${output}/${cycleFlowPassed ? "planning-cycle-mobile" : "planning-draft-mobile"}.png`, fullPage: true });
   assert.deepEqual(errors, []);
   if (cycleFlowPassed) {
   console.log(JSON.stringify({ passed: true,
-      scope: "real planning UI plus one actual model-confirmed synthetic direction, first-cycle approval source and recordedAt, pending next-configuration projection, stale-version rejection and explicit same-actor original-request replay",
+      scope: "two real planning UI projects with one actual model-confirmed synthetic direction each; A next-config applied and B carry-forward successor at natural DB-time boundaries; stale-version rejection and explicit same-actor original-request replay",
       actualModelAttempts, cycleConfigAcceptanceExecuted: true, differentOperatorCommandReads: commandReadsByDifferentOperator,
       exactOriginalBodyAndKeyReplay: safeCycleFacts.length === 2 && safeCycleFacts[0]?.bodySha256 === safeCycleFacts[1]?.bodySha256
         && safeCycleFacts[0]?.idempotencyKeySha256 === safeCycleFacts[1]?.idempotencyKeySha256,
-      backendPageErrors: pageErrors, appliedConfigurationReadVerified: false, carryForwardReadVerified: false,
-      nextCycleMaterialized: false, execution: "not performed", publication: "not performed" }));
+      backendPageErrors: pageErrors, appliedConfigurationReadVerified, carryForwardReadVerified,
+      nextCycleMaterialized: true, execution: "not performed", publication: "not performed" }));
   } else {
     console.log(JSON.stringify({ passed: true, scope: "real planning UI draft-only persistence and mobile readonly", actualModelAttempts: 0, cycleConfigAcceptanceExecuted: false,
       nextCycleConfiguration: "not requested", execution: "not performed", publication: "not performed" }));
