@@ -65,3 +65,27 @@ pnpm --filter @socialgrowth/product-backend exec tsx --test --test-concurrency=1
 ## 未验证及边界
 
 未验证真实生产部署实例隔离、生产 key/custody、正式对象存储、维护目录授权、真实消费者停止或 executor 物理 fence、业务数据恢复、全量生产一致性、RPO/RTO、完整迁移容量/性能目标及真实运维人员签字。工程 fixture 的清空业务表和通过 inventory 不能关闭 LEAD-OPS 真实运维验收。恢复结果默认停消费/不放权。
+
+## Root 当前集成的 36 迁移补验
+
+本节是前述 33 迁移历史运行的增量补验，不覆盖或改写其证据。Root 集成源 `862508b9738b85fe74563fa6fe07ce35a801a83d` 含 0034–0036；本次冻结测试代码 SHA 为 `586fc51f9927ce9534425cd130715cacdc5e6682`。测试动态枚举 36 个迁移，并将同一读取 byte buffer 同时用于应用和 metadata SHA。上表已记录 0001–0033 的 33 个文件与 SHA；补齐文件为：
+
+| migration | SHA-256 |
+|---|---|
+| `0034_business_plan_task_attempts.sql` | `2204dcce0f6f9b2a6acd86bda700f55132121e6808566daae659ac79b2dda309` |
+| `0035_project_material_lifecycle_intents.sql` | `bf346fc6a8eba01707755c048d0a9870df940d1fadf547cf86e6399af8c76b65` |
+| `0036_project_review_cycles.sql` | `6bea896add4daf26cc78f323a4e05f8840c95d7df3ba55d7e4dac198acce45c9` |
+
+复现命令仍为：
+
+```sh
+pnpm --filter @socialgrowth/product-backend exec tsx --test --test-concurrency=1 src/database-maintenance-recovery.pg-test.ts
+```
+
+实际结果：1 test，1 pass，0 fail，0 skipped；测试耗时 `30608.753549 ms`，test runner 总耗时 `45144.714367 ms`。本轮在独立 PG17.11 + MinIO 容器中实际应用 36 个迁移，做同快照 dump、加密保存、new client load、空目标 restore、备份后撤销 session/association/participation、删除自有桶对象与联合只读检查。
+
+`business_plan_task_attempts`、`project_lifecycle_intents`、`material_withdrawal_intents`、`business_plan_task_cancellations`、`project_review_cycles` 均在备份 inventory 中；它们的 source/restore 列定义相同、行数分别为 0、0、0、0、0。此前 0031–0033 表的 9 表对照也仍在同一测试中。总 inventory 的 `databaseMatchesBackup=true`；所有这些新业务表行数为空，只证明 schema/inventory 对照，不证明业务数据恢复。
+
+清理由通过的测试 after-hook 断言：PG/S3 pools/client 关闭；精确临时加密目录只含预期文件后删除并 rmdir；本轮容器再次按完整 ownership facts 核验后 stop，随后断言容器 ID 已不在 `docker ps -aq`。两容器使用 `--rm` 与独占匿名卷，Docker 随容器移除匿名卷；测试未扫描全局 Docker 卷列表。包密钥 buffer 以 `fill(0)` 清零，合成随机凭据未打印/写入记录。未操作 live DB、USB、模拟器或其它服务。
+
+随后按依赖顺序执行 `pnpm --filter @socialgrowth/product-contracts build`（包含 `generate:check`）和 `pnpm --filter @socialgrowth/product-backend check`，均通过。真实生产数据/恢复、消费者停止、物理 fence、生产密钥与维护目录、容量和 RPO/RTO 仍未验证；许可状态仍保持 false/unknown。
