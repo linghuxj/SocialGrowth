@@ -40,3 +40,14 @@ Reviewer: `/root/adversary`。本轮为独立源码审查，不执行 build/test
 ## Gate
 
 当前两个 head 均不批准 PR。不得用既有 integration4、next-config 或局部 DTO 批准覆盖本范围。SEC-CYCLE-PROGRESSION 保持 in_progress，等待修复后的作者完整候选；root 后续完整组合还需独立审查。
+
+## Backend 复审 ff526：changes_requested
+
+- Base: `e27564d6a2aca4f00e9177f784935b5063fcfee5`
+- Head: `ff526abbcb4df42095350094997b064942fcaa80`
+- 完整十文件，新增 lifecycle 单元测试；其余原始生产范围全部纳入本次复审。
+- **SWEEP-01 closed**：逐项目 catch/finally，失败也更新游标；下轮 wrap 重试，其他项目可继续。
+- **SWEEP-02 partially fixed, still open**：25 秒共享截止时间、每条 pg query_timeout、服务端 LOCAL statement/lock timeout、未关闭事务/过期 client 销毁已解决获取连接后的等待。已核对本地实际 pg 8.23.0 / pg-pool 3.14.0 实现，Query read timeout 后 release(error) 会从 pool 移除。
+- 剩余具体问题：connectBounded 的 Promise.race 只解除 caller 等待，并不取消 pool.connect。AppModule 创建共享 Pool 未设置 connectionTimeoutMillis。TCP 已连接而 PostgreSQL 握手不回包时，connecting client 持续占据 pool；晚到 release 的回调不会触发。周期调用可积累被放弃的 connecting clients，现有 DatabaseLifecycle 的 pool.end 又等待 _clients 清空，因此应用 shutdown 可无限等待。应以驱动真实 acquisition/connect timeout 或可取消的自有获取机制关闭此边界，不能只依赖 Promise.race。
+
+作者报告 focused lifecycle 2/2、隔离 progression PG8/8、Plan PG11/11、生成契约/backend check/lint 通过，首轮 selector7/8失败已保留，容器清理。独立 range diff-check 通过，reviewer未运行测试/服务/网络故障注入。客户端逻辑测试替身不证明真实握手挂起清理；本 head 不批准 PR。
