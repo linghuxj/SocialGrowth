@@ -67,3 +67,11 @@ SEC-CYCLE-CONFIG 的 backend 与 UX 精确源码审查均已有记录，审查�
 作者报告40b3的一次真实模型完成方向确认和 B 周期 GET，随后超时，cycle POST 尚未观察到，没有配置成功回执；该次失败不作为配置 UI 通过。本 reviewer 尚未读该次有限 artifact，只记录作者报告，并提示保留实际运行 head/旧 checkpoint 原值（40b3为 second-operator-current-cycle-read，新291改为 B-current-cycle-read）。作者报告新候选 Web check、独立脚本 strict TS、diff-check 通过；新候选的实际页面尚未运行，下一次仍需主会话单独分配窗口。本次仅源码审查，无测试或运行环境操作。
 
 随后独立读取作者指定的 `UX-CYCLE-CONFIG-40b3dfb-20261004/planning/cycle-config-failure.json` 与同目录 cleanup.json：实际 checkpoint 确为 second-operator-current-cycle-read，phase 为 cycle-config-lost-response，TimeoutError、actualModelAttempts1、cycleConfigAcceptanceExecuted=false、cyclePostObserved=false、safeCycleFacts空；清理记录为自有服务退出、两容器ID移除、临时凭据删除。没有正文/原key/凭据。该有限证据核对替代前段“尚未读”状态，未读取原始日志/截图，也未复跑浏览器；当前UI仍未通过。
+
+## 2918374 导航补充发现 — 撤回当前批准
+
+同一精确 base603ace4→head29183749cf6827d63b0e7802a4bce72f3b4418a1 的当前 verdict 改为 **changes_requested**。此前源码批准保留为历史，不能再用于 PR 门禁；reviewer 对新增线索重新核查后修正结论。
+
+**CYCLE-UI-NAV-05 — P2，验证器对保留的项目详情误按列表导航。** 主会话提示后，独立读取 app.tsx 与 project-panel.tsx 确认：ProjectPanel 始终挂载，active 仅决定隐藏，selected 和 tab 保留；只有 selected=null 才渲染项目列表 row。verifier 在 A 已选项目设置后切到 accounts 创建 B，再点“项目”仍是 A 详情，却直接等待该项目 row/准备清单，必定没有列表目标。后面 cleanup account→项目→mobile 检查也有同样前提。应通过已有真实“返回项目列表”入口回到列表，再按预期项目重开，或明确处理仍在同一详情的真实 UI；不改业务状态或用后台调用替代。
+
+此前40b3有限证据的 phase=cycle-config-lost-response 是 B 的三个输入编辑后才赋值，因此它已越过 B 编辑，超时发生在返回 A 的路径；旧 checkpoint 较粗不能推断卡在 B 编辑前。291只有新检查点，并未解决这条可由源码定位的导航缺口，不能用又一次模型运行来重复发现。已直接要求 UX 最小修正并新精确 head，暂停当前候选的运行/PR建议，其他已关闭 findings 不重开。
