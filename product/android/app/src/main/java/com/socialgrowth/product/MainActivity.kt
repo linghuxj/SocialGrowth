@@ -47,6 +47,7 @@ class MainActivity : ComponentActivity() {
         val requestAccepted: Boolean,
         val knownRejected: Boolean,
     )
+    private data class DeviceLabelAttempt(val device: ProviderDevice?, val errorCode: String?)
     private val blue = Color.rgb(36, 89, 196)
     private val canvas = Color.rgb(244, 246, 250)
     private val ink = Color.rgb(23, 43, 77)
@@ -59,6 +60,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var associationApi: AssociationApiClient
     private lateinit var sessionStore: ProviderSessionStore
     private lateinit var installationStore: InstallationIdentityStore
+    private lateinit var deviceLabelCommandStore: ProviderDeviceLabelCommandStore
     private var registrationMode = true
     private var invitationCode: String? = null
     private var challenge: PhoneVerificationChallenge? = null
@@ -96,6 +98,7 @@ class MainActivity : ComponentActivity() {
         associationApi = AssociationApiClient(api)
         sessionStore = ProviderSessionStore(this)
         installationStore = InstallationIdentityStore(this)
+        deviceLabelCommandStore = ProviderDeviceLabelCommandStore(this)
         invitationCode = intent?.data?.getQueryParameter("invitation")
             ?: intent?.data?.getQueryParameter("code")
             ?: intent?.getStringExtra("invitation")
@@ -1372,10 +1375,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showRenameProviderDeviceDialog(session: StoredProviderSession, device: ProviderDevice) {
+        val loadedCommand = runCatching { deviceLabelCommandStore.load(session.providerId, device.deviceId) }
+        var pendingCommand = loadedCommand.getOrNull()
+        val pendingReadFailed = loadedCommand.isFailure
         val input = editText("设备备注名", InputType.TYPE_CLASS_TEXT).apply {
-            setText(device.displayName)
+            setText(pendingCommand?.displayName ?: device.displayName)
             filters = arrayOf(android.text.InputFilter.LengthFilter(100))
             maxLines = 1
+            isEnabled = pendingCommand == null && !pendingReadFailed
         }
         val error = label("", 13f, danger).apply { visibility = View.GONE }
         val content = vertical(10).apply {
@@ -1387,44 +1394,157 @@ class MainActivity : ComponentActivity() {
             .setMessage("只修改你本人设备列表中的名称。")
             .setView(content)
             .setNegativeButton("取消", null)
-            .setPositiveButton("保存", null)
+            .setPositiveButton(if (pendingCommand == null) "保存" else "用同一请求重试", null)
+            .setNeutralButton("核实当前事实", null)
             .create()
-        var submittedName: String? = null
-        var renameRequestKey = newIdempotencyKey("device-label")
+        var requestInFlight = false
         dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { buttonView ->
-                val name = input.text.toString().trim()
-                if (name.isEmpty() || name.codePointCount(0, name.length) > 100) {
-                    error.text = "请输入 1 到 100 个字符。"
-                    error.visibility = View.VISIBLE
-                    return@setOnClickListener
+            val saveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            val verifyButton = dialog.getButton(AlertDialog.BUTTON_NEUTRAL)
+            val cancelButton = dialog.getButton(AlertDialog.BUTTON_NEGATIVE)
+            if (pendingReadFailed) {
+                error.text = "存在无法读取的改名请求记录；为避免重复修改，请先刷新设备事实。"
+                error.visibility = View.VISIBLE
+                saveButton.isEnabled = false
+                verifyButton.isEnabled = false
+                cancelButton.isEnabled = false
+                return@setOnShowListener
+            }
+            if (pendingCommand != null) {
+                error.text = "上次改名结果尚未确认；原名称、事实版本和请求键已冻结。可核实当前事实或接续原请求。"
+                error.visibility = View.VISIBLE
+            } else {
+                verifyButton.isEnabled = false
+            }
+            fun setUnresolved(command: ProviderDeviceLabelCommand, message: String) {
+                requestInFlight = false
+                pendingCommand = command
+                input.setText(command.displayName)
+                input.isEnabled = false
+                error.text = message
+                error.visibility = View.VISIBLE
+                saveButton.text = "用同一请求重试"
+                saveButton.isEnabled = true
+                verifyButton.visibility = View.VISIBLE
+                verifyButton.isEnabled = true
+                cancelButton.isEnabled = true
+                dialog.setCancelable(true)
+                dialog.setCanceledOnTouchOutside(true)
+            }
+            fun setBusy(busy: Boolean) {
+                requestInFlight = busy
+                saveButton.isEnabled = !busy
+                verifyButton.isEnabled = !busy && pendingCommand != null
+                cancelButton.isEnabled = !busy
+                dialog.setCancelable(!busy)
+                dialog.setCanceledOnTouchOutside(!busy)
+            }
+            fun finishReconciled(command: ProviderDeviceLabelCommand, latest: ProviderDevice) {
+                if (!deviceLabelCommandStore.archiveAfterFactAdvance(command, latest)) {
+                    setUnresolved(command, "服务端事实已读取，但本机请求记录未能解除锁定；请稍后重新核实。")
+                    return
                 }
-                if (submittedName != name) {
-                    submittedName = name
-                    renameRequestKey = newIdempotencyKey("device-label")
+                pendingCommand = null
+                dialog.dismiss()
+                val message = if (latest.displayName == command.displayName) {
+                    "原请求结果仍未知；当前设备名称与目标一致。已保留原请求记录，可基于最新事实开始新的明确编辑。"
+                } else {
+                    "原请求结果仍未知；已读取更新后的设备事实。原请求已冻结归档，可基于最新事实开始新的明确编辑。"
                 }
-                buttonView.isEnabled = false
-                error.visibility = View.GONE
+                Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
+                showProviderDeviceDetail(session, latest.deviceId)
+            }
+            fun reconcile(command: ProviderDeviceLabelCommand) {
+                if (requestInFlight) return
+                setBusy(true)
+                error.text = "正在读取本人当前设备事实；不会重复提交改名。"
+                error.visibility = View.VISIBLE
+                runManagementNetwork(session, screenGeneration,
+                    action = {
+                        val latest = associationApi.devices(session.sessionToken).firstOrNull { it.deviceId == command.deviceId }
+                        DeviceLabelAttempt(latest, null)
+                    },
+                    success = { result ->
+                        val latest = result.device
+                        if (latest == null) {
+                            setUnresolved(command, "当前本人设备清单中无法核实此设备；原请求仍被冻结。")
+                        } else if (latest.factVersion == command.expectedFactVersion + 1L && latest.displayName == command.displayName) {
+                            finishReconciled(command, latest)
+                        } else if (latest.factVersion > command.expectedFactVersion) {
+                            finishReconciled(command, latest)
+                        } else {
+                            setUnresolved(command, "当前事实尚未变化，原请求仍可能在处理中；请用同一请求重试或稍后重新核实。")
+                        }
+                    },
+                    failure = {
+                        setUnresolved(command, "当前设备事实暂时无法核实；原请求仍被冻结，请稍后重试核实。")
+                    },
+                )
+            }
+            saveButton.setOnClickListener {
+                if (requestInFlight) return@setOnClickListener
+                val command = pendingCommand ?: run {
+                    val name = input.text.toString().trim()
+                    if (name.isEmpty() || name.length > 100) {
+                        error.text = "请输入 1 到 100 个字符。"
+                        error.visibility = View.VISIBLE
+                        return@setOnClickListener
+                    }
+                    ProviderDeviceLabelCommand.create(session.providerId, device, name).also { created ->
+                        if (!deviceLabelCommandStore.save(created)) {
+                            error.text = "无法安全保存本次请求；没有发送改名操作。"
+                            error.visibility = View.VISIBLE
+                            return@setOnClickListener
+                        }
+                        pendingCommand = created
+                        input.isEnabled = false
+                    }
+                }
+                setBusy(true)
+                error.text = "正在提交改名；期间不会发送另一请求。"
+                error.visibility = View.VISIBLE
                 runManagementNetwork(session, screenGeneration,
                     action = {
                         try {
-                            associationApi.renameDevice(session.sessionToken, device, name, renameRequestKey)
-                        } catch (failure: Exception) {
-                            val current = runCatching { associationApi.devices(session.sessionToken).firstOrNull { it.deviceId == device.deviceId } }.getOrNull()
-                            if (current?.displayName == name && current.factVersion == device.factVersion + 1L) current else throw failure
+                            DeviceLabelAttempt(associationApi.renameDevice(session.sessionToken, device, command), null)
+                        } catch (failure: ProviderApiException) {
+                            if (failure.code == "AUTHENTICATION_REQUIRED" || failure.code == "PROVIDER_DISABLED") throw failure
+                            DeviceLabelAttempt(null, failure.code)
+                        } catch (_: Exception) {
+                            DeviceLabelAttempt(null, null)
                         }
                     },
-                    success = { updated ->
-                        dialog.dismiss()
-                        Toast.makeText(this, "设备名称已更新。", Toast.LENGTH_SHORT).show()
-                        showProviderDeviceDetail(session, updated.deviceId)
+                    success = { attempt ->
+                        val updated = attempt.device
+                        if (updated != null) {
+                            if (updated.displayName == command.displayName && updated.factVersion == command.expectedFactVersion + 1L
+                                && deviceLabelCommandStore.clear(command)) {
+                                pendingCommand = null
+                                dialog.dismiss()
+                                Toast.makeText(this@MainActivity, "设备名称已更新。", Toast.LENGTH_SHORT).show()
+                                showProviderDeviceDetail(session, updated.deviceId)
+                            } else setUnresolved(command, "服务响应与原请求或本机锁定记录不一致；请核实当前事实后再继续。")
+                        } else {
+                            val message = when (attempt.errorCode) {
+                                "FACT_VERSION_STALE" -> "设备事实版本已变化；核实当前事实后再继续。原请求保持冻结。"
+                                "IDEMPOTENCY_KEY_REUSED" -> "服务端报告原请求键冲突；结果仍需核实，不会生成新请求。"
+                                "AUTHORIZATION_DENIED" -> "当前无法确认本人仍拥有这台设备；原请求保持冻结。"
+                                else -> "名称尚未确认保存；可核实当前事实或用原请求键重试。"
+                            }
+                            setUnresolved(command, message)
+                        }
                     },
-                    failure = { message ->
-                        buttonView.isEnabled = true
-                        error.text = "名称未确认保存；可使用同一请求重试，或刷新事实后重新编辑。"
-                        error.visibility = View.VISIBLE
-                    },
+                    failure = { setUnresolved(command, "名称结果未知；原名称、事实版本与请求键已冻结。请核实当前事实或接续原请求。") },
                 )
+            }
+            verifyButton.setOnClickListener {
+                pendingCommand?.let(::reconcile)
+            }
+            if (pendingCommand == null) {
+                verifyButton.visibility = View.GONE
+                cancelButton.isEnabled = true
+            } else {
+                verifyButton.visibility = View.VISIBLE
             }
         }
         dialog.show()

@@ -6154,7 +6154,8 @@
                       "scope_confirmation_stale",
                       "content_rules_need_human_check",
                       "source_record_conflict",
-                      "exact_sha_collision"
+                      "exact_sha_collision",
+                      "material_withdrawn"
                     ]
                   },
                   {
@@ -6165,6 +6166,68 @@
               "publicationAllowed": {
                 "type": "boolean",
                 "const": false
+              },
+              "withdrawal": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "enum": [
+                          "not_withdrawn",
+                          "withdrawn"
+                        ]
+                      },
+                      "materialRevision": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 9007199254740991
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "requestId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 8,
+                            "maxLength": 128
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "recordedAt": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "state",
+                      "materialRevision",
+                      "requestId",
+                      "recordedAt"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "required": [
@@ -6182,7 +6245,8 @@
               "status",
               "candidateAllowed",
               "eligibilityReason",
-              "publicationAllowed"
+              "publicationAllowed",
+              "withdrawal"
             ],
             "additionalProperties": false
           }
@@ -6517,7 +6581,8 @@
                               "scope_confirmation_stale",
                               "content_rules_need_human_check",
                               "source_record_conflict",
-                              "exact_sha_collision"
+                              "exact_sha_collision",
+                              "material_withdrawn"
                             ]
                           },
                           {
@@ -6528,6 +6593,68 @@
                       "publicationAllowed": {
                         "type": "boolean",
                         "const": false
+                      },
+                      "withdrawal": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "state": {
+                                "type": "string",
+                                "enum": [
+                                  "not_withdrawn",
+                                  "withdrawn"
+                                ]
+                              },
+                              "materialRevision": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "requestId": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "minLength": 8,
+                                    "maxLength": 128
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "recordedAt": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "format": "date-time",
+                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "state",
+                              "materialRevision",
+                              "requestId",
+                              "recordedAt"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       },
                       "changed": {
                         "type": "boolean"
@@ -6552,6 +6679,7 @@
                       "candidateAllowed",
                       "eligibilityReason",
                       "publicationAllowed",
+                      "withdrawal",
                       "changed",
                       "replayed"
                     ],
@@ -6917,7 +7045,8 @@
                     "scope_confirmation_stale",
                     "content_rules_need_human_check",
                     "source_record_conflict",
-                    "exact_sha_collision"
+                    "exact_sha_collision",
+                    "material_withdrawn"
                   ]
                 },
                 {
@@ -6928,6 +7057,68 @@
             "publicationAllowed": {
               "type": "boolean",
               "const": false
+            },
+            "withdrawal": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "not_withdrawn",
+                        "withdrawn"
+                      ]
+                    },
+                    "materialRevision": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "requestId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 8,
+                          "maxLength": 128
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recordedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "state",
+                    "materialRevision",
+                    "requestId",
+                    "recordedAt"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": [
@@ -6945,7 +7136,8 @@
             "status",
             "candidateAllowed",
             "eligibilityReason",
-            "publicationAllowed"
+            "publicationAllowed",
+            "withdrawal"
           ],
           "additionalProperties": false
         },
@@ -7582,7 +7774,8 @@
                 "scope_confirmation_stale",
                 "content_rules_need_human_check",
                 "source_record_conflict",
-                "exact_sha_collision"
+                "exact_sha_collision",
+                "material_withdrawn"
               ]
             },
             {
@@ -7593,6 +7786,68 @@
         "publicationAllowed": {
           "type": "boolean",
           "const": false
+        },
+        "withdrawal": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "not_withdrawn",
+                    "withdrawn"
+                  ]
+                },
+                "materialRevision": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "requestId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 8,
+                      "maxLength": 128
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "recordedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "state",
+                "materialRevision",
+                "requestId",
+                "recordedAt"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -7610,7 +7865,8 @@
         "status",
         "candidateAllowed",
         "eligibilityReason",
-        "publicationAllowed"
+        "publicationAllowed",
+        "withdrawal"
       ],
       "additionalProperties": false
     },
@@ -7856,7 +8112,8 @@
                 "scope_confirmation_stale",
                 "content_rules_need_human_check",
                 "source_record_conflict",
-                "exact_sha_collision"
+                "exact_sha_collision",
+                "material_withdrawn"
               ]
             },
             {
@@ -7867,6 +8124,68 @@
         "publicationAllowed": {
           "type": "boolean",
           "const": false
+        },
+        "withdrawal": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "not_withdrawn",
+                    "withdrawn"
+                  ]
+                },
+                "materialRevision": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "requestId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 8,
+                      "maxLength": 128
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "recordedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "state",
+                "materialRevision",
+                "requestId",
+                "recordedAt"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "changed": {
           "type": "boolean"
@@ -7891,6 +8210,7 @@
         "candidateAllowed",
         "eligibilityReason",
         "publicationAllowed",
+        "withdrawal",
         "changed",
         "replayed"
       ],
@@ -13842,6 +14162,1413 @@
         "publicationAllowed",
         "outcome",
         "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "businessPlanCurrentImpactReference": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "impactRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "project_scope_changed",
+            "material_revision_changed",
+            "project_lifecycle_intent_changed",
+            "material_withdrawn"
+          ]
+        },
+        "observedProjectVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "observedMaterialRevision": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recordedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        }
+      },
+      "required": [
+        "impactRevision",
+        "reason",
+        "observedProjectVersion",
+        "observedMaterialRevision",
+        "recordedAt"
+      ],
+      "additionalProperties": false
+    },
+    "businessPlanCurrentCheckTask": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "taskId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "taskRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "planId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "planRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "variantId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "expectedMaterialRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "identityId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "platform": {
+          "type": "string",
+          "enum": [
+            "facebook",
+            "youtube"
+          ]
+        },
+        "form": {
+          "type": "string",
+          "enum": [
+            "facebook_video",
+            "facebook_image_text",
+            "youtube_shorts",
+            "youtube_video"
+          ]
+        },
+        "scheduledAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        },
+        "expectedFiles": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "objectId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 134217728
+              },
+              "contentType": {
+                "type": "string",
+                "enum": [
+                  "application/octet-stream",
+                  "video/mp4",
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ]
+              }
+            },
+            "required": [
+              "objectId",
+              "sha256",
+              "bytes",
+              "contentType"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "currentFiles": {
+          "anyOf": [
+            {
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "objectId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "bytes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 134217728
+                  },
+                  "contentType": {
+                    "type": "string",
+                    "enum": [
+                      "application/octet-stream",
+                      "video/mp4",
+                      "image/jpeg",
+                      "image/png",
+                      "image/webp"
+                    ]
+                  }
+                },
+                "required": [
+                  "objectId",
+                  "sha256",
+                  "bytes",
+                  "contentType"
+                ],
+                "additionalProperties": false
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "attempt": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "taskAttemptId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "attemptNumber": {
+                  "type": "number",
+                  "const": 1
+                },
+                "state": {
+                  "type": "string",
+                  "const": "pending_current_checks"
+                },
+                "assignmentSemantics": {
+                  "type": "string",
+                  "const": "logical_reservation_bound"
+                },
+                "reservedDeviceIdAtCreation": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "assignmentRelation": {
+                  "type": "string",
+                  "enum": [
+                    "current",
+                    "stale",
+                    "unknown"
+                  ]
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                },
+                "startedAt": {
+                  "type": "null"
+                },
+                "executionAllowed": {
+                  "type": "boolean",
+                  "const": false
+                },
+                "publicationAllowed": {
+                  "type": "boolean",
+                  "const": false
+                }
+              },
+              "required": [
+                "taskAttemptId",
+                "attemptNumber",
+                "state",
+                "assignmentSemantics",
+                "reservedDeviceIdAtCreation",
+                "assignmentRelation",
+                "createdAt",
+                "startedAt",
+                "executionAllowed",
+                "publicationAllowed"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cancelledBeforeStart": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "reason": {
+                  "type": "string",
+                  "enum": [
+                    "project_end",
+                    "material_withdrawal"
+                  ]
+                },
+                "requestId": {
+                  "type": "string",
+                  "minLength": 8,
+                  "maxLength": 128
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "recordedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                }
+              },
+              "required": [
+                "reason",
+                "requestId",
+                "revision",
+                "recordedAt"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "current": {
+          "type": "object",
+          "properties": {
+            "projectVersion": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "approvalId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "materialRevision": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "materialStatus": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "pending_validation",
+                    "candidate"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "materialCandidateAllowed": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "reservedDeviceId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "associationCurrent": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "installationGeneration": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]{0,18}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "controlIntent": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "active",
+                    "pause_requested",
+                    "paused",
+                    "resume_requested",
+                    "exit_pending",
+                    "exited"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "controlStop": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "not_requested",
+                    "requested",
+                    "confirmed",
+                    "unknown"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "projectLifecycleIntent": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "pause_requested",
+                    "resume_requested",
+                    "end_requested"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "materialWithdrawn": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "participationCurrent": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "networkAdmitted": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "projectVersion",
+            "approvalId",
+            "materialRevision",
+            "materialStatus",
+            "materialCandidateAllowed",
+            "reservedDeviceId",
+            "associationCurrent",
+            "installationGeneration",
+            "controlIntent",
+            "controlStop",
+            "projectLifecycleIntent",
+            "materialWithdrawn",
+            "participationCurrent",
+            "networkAdmitted"
+          ],
+          "additionalProperties": false
+        },
+        "impactReferences": {
+          "maxItems": 1000,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "impactRevision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "project_scope_changed",
+                  "material_revision_changed",
+                  "project_lifecycle_intent_changed",
+                  "material_withdrawn"
+                ]
+              },
+              "observedProjectVersion": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "observedMaterialRevision": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "recordedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              }
+            },
+            "required": [
+              "impactRevision",
+              "reason",
+              "observedProjectVersion",
+              "observedMaterialRevision",
+              "recordedAt"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "blockers": {
+          "minItems": 1,
+          "maxItems": 24,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "plan_missing",
+              "task_missing",
+              "plan_stale",
+              "project_scope_changed",
+              "material_missing",
+              "material_revision_changed",
+              "material_not_eligible",
+              "material_withdrawn",
+              "project_pause_requested",
+              "project_resume_requested",
+              "project_end_requested",
+              "task_cancelled_before_start",
+              "identity_reservation_missing",
+              "attempt_assignment_stale",
+              "device_association_missing",
+              "installation_missing",
+              "device_paused",
+              "stop_unconfirmed",
+              "participation_missing",
+              "network_not_admitted",
+              "action_inspector_unavailable",
+              "current_fact_unknown"
+            ]
+          }
+        }
+      },
+      "required": [
+        "taskId",
+        "taskRevision",
+        "planId",
+        "planRevision",
+        "variantId",
+        "expectedMaterialRevision",
+        "identityId",
+        "platform",
+        "form",
+        "scheduledAt",
+        "expectedFiles",
+        "currentFiles",
+        "attempt",
+        "cancelledBeforeStart",
+        "current",
+        "impactReferences",
+        "blockers"
+      ],
+      "additionalProperties": false
+    },
+    "businessPlanCurrentChecksResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "checkedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        },
+        "plan": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "planId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "projectVersion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "approvalId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                }
+              },
+              "required": [
+                "planId",
+                "revision",
+                "projectVersion",
+                "approvalId"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tasks": {
+          "maxItems": 1000,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "taskId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "taskRevision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "planId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "planRevision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "variantId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "expectedMaterialRevision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "identityId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "platform": {
+                "type": "string",
+                "enum": [
+                  "facebook",
+                  "youtube"
+                ]
+              },
+              "form": {
+                "type": "string",
+                "enum": [
+                  "facebook_video",
+                  "facebook_image_text",
+                  "youtube_shorts",
+                  "youtube_video"
+                ]
+              },
+              "scheduledAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "expectedFiles": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "objectId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "bytes": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 134217728
+                    },
+                    "contentType": {
+                      "type": "string",
+                      "enum": [
+                        "application/octet-stream",
+                        "video/mp4",
+                        "image/jpeg",
+                        "image/png",
+                        "image/webp"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "objectId",
+                    "sha256",
+                    "bytes",
+                    "contentType"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "currentFiles": {
+                "anyOf": [
+                  {
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "objectId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "sha256": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "bytes": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 134217728
+                        },
+                        "contentType": {
+                          "type": "string",
+                          "enum": [
+                            "application/octet-stream",
+                            "video/mp4",
+                            "image/jpeg",
+                            "image/png",
+                            "image/webp"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "objectId",
+                        "sha256",
+                        "bytes",
+                        "contentType"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "attempt": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "taskAttemptId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "attemptNumber": {
+                        "type": "number",
+                        "const": 1
+                      },
+                      "state": {
+                        "type": "string",
+                        "const": "pending_current_checks"
+                      },
+                      "assignmentSemantics": {
+                        "type": "string",
+                        "const": "logical_reservation_bound"
+                      },
+                      "reservedDeviceIdAtCreation": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "assignmentRelation": {
+                        "type": "string",
+                        "enum": [
+                          "current",
+                          "stale",
+                          "unknown"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                      },
+                      "startedAt": {
+                        "type": "null"
+                      },
+                      "executionAllowed": {
+                        "type": "boolean",
+                        "const": false
+                      },
+                      "publicationAllowed": {
+                        "type": "boolean",
+                        "const": false
+                      }
+                    },
+                    "required": [
+                      "taskAttemptId",
+                      "attemptNumber",
+                      "state",
+                      "assignmentSemantics",
+                      "reservedDeviceIdAtCreation",
+                      "assignmentRelation",
+                      "createdAt",
+                      "startedAt",
+                      "executionAllowed",
+                      "publicationAllowed"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "cancelledBeforeStart": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "reason": {
+                        "type": "string",
+                        "enum": [
+                          "project_end",
+                          "material_withdrawal"
+                        ]
+                      },
+                      "requestId": {
+                        "type": "string",
+                        "minLength": 8,
+                        "maxLength": 128
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "recordedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                      }
+                    },
+                    "required": [
+                      "reason",
+                      "requestId",
+                      "revision",
+                      "recordedAt"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "current": {
+                "type": "object",
+                "properties": {
+                  "projectVersion": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "approvalId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "materialRevision": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "materialStatus": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "pending_validation",
+                          "candidate"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "materialCandidateAllowed": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "reservedDeviceId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "associationCurrent": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "installationGeneration": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[1-9][0-9]{0,18}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "controlIntent": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "active",
+                          "pause_requested",
+                          "paused",
+                          "resume_requested",
+                          "exit_pending",
+                          "exited"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "controlStop": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "not_requested",
+                          "requested",
+                          "confirmed",
+                          "unknown"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "projectLifecycleIntent": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "pause_requested",
+                          "resume_requested",
+                          "end_requested"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "materialWithdrawn": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "participationCurrent": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "networkAdmitted": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "projectVersion",
+                  "approvalId",
+                  "materialRevision",
+                  "materialStatus",
+                  "materialCandidateAllowed",
+                  "reservedDeviceId",
+                  "associationCurrent",
+                  "installationGeneration",
+                  "controlIntent",
+                  "controlStop",
+                  "projectLifecycleIntent",
+                  "materialWithdrawn",
+                  "participationCurrent",
+                  "networkAdmitted"
+                ],
+                "additionalProperties": false
+              },
+              "impactReferences": {
+                "maxItems": 1000,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "impactRevision": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "reason": {
+                      "type": "string",
+                      "enum": [
+                        "project_scope_changed",
+                        "material_revision_changed",
+                        "project_lifecycle_intent_changed",
+                        "material_withdrawn"
+                      ]
+                    },
+                    "observedProjectVersion": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "observedMaterialRevision": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recordedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    }
+                  },
+                  "required": [
+                    "impactRevision",
+                    "reason",
+                    "observedProjectVersion",
+                    "observedMaterialRevision",
+                    "recordedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "blockers": {
+                "minItems": 1,
+                "maxItems": 24,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "plan_missing",
+                    "task_missing",
+                    "plan_stale",
+                    "project_scope_changed",
+                    "material_missing",
+                    "material_revision_changed",
+                    "material_not_eligible",
+                    "material_withdrawn",
+                    "project_pause_requested",
+                    "project_resume_requested",
+                    "project_end_requested",
+                    "task_cancelled_before_start",
+                    "identity_reservation_missing",
+                    "attempt_assignment_stale",
+                    "device_association_missing",
+                    "installation_missing",
+                    "device_paused",
+                    "stop_unconfirmed",
+                    "participation_missing",
+                    "network_not_admitted",
+                    "action_inspector_unavailable",
+                    "current_fact_unknown"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "taskId",
+              "taskRevision",
+              "planId",
+              "planRevision",
+              "variantId",
+              "expectedMaterialRevision",
+              "identityId",
+              "platform",
+              "form",
+              "scheduledAt",
+              "expectedFiles",
+              "currentFiles",
+              "attempt",
+              "cancelledBeforeStart",
+              "current",
+              "impactReferences",
+              "blockers"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "executionAllowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "publicationAllowed": {
+          "type": "boolean",
+          "const": false
+        }
+      },
+      "required": [
+        "projectId",
+        "checkedAt",
+        "plan",
+        "tasks",
+        "executionAllowed",
+        "publicationAllowed"
+      ],
+      "additionalProperties": false
+    },
+    "createBusinessPlanTaskAttemptRequest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "metadata": {
+          "type": "object",
+          "properties": {
+            "contractVersion": {
+              "type": "string",
+              "const": "2026-09-29.identity-v1"
+            },
+            "requestId": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            },
+            "idempotencyKey": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 128
+            }
+          },
+          "required": [
+            "contractVersion",
+            "requestId",
+            "idempotencyKey"
+          ],
+          "additionalProperties": false
+        },
+        "expectedPlanRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "expectedTaskRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "metadata",
+        "expectedPlanRevision",
+        "expectedTaskRevision"
+      ],
+      "additionalProperties": false
+    },
+    "createBusinessPlanTaskAttemptResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "type": "string",
+          "const": "2026-09-29.identity-v1"
+        },
+        "projectId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "taskId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "created",
+            "replayed",
+            "blocked"
+          ]
+        },
+        "attempt": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "taskAttemptId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "attemptNumber": {
+                  "type": "number",
+                  "const": 1
+                },
+                "state": {
+                  "type": "string",
+                  "const": "pending_current_checks"
+                },
+                "assignmentSemantics": {
+                  "type": "string",
+                  "const": "logical_reservation_bound"
+                },
+                "reservedDeviceIdAtCreation": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "assignmentRelation": {
+                  "type": "string",
+                  "enum": [
+                    "current",
+                    "stale",
+                    "unknown"
+                  ]
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                },
+                "startedAt": {
+                  "type": "null"
+                },
+                "executionAllowed": {
+                  "type": "boolean",
+                  "const": false
+                },
+                "publicationAllowed": {
+                  "type": "boolean",
+                  "const": false
+                }
+              },
+              "required": [
+                "taskAttemptId",
+                "attemptNumber",
+                "state",
+                "assignmentSemantics",
+                "reservedDeviceIdAtCreation",
+                "assignmentRelation",
+                "createdAt",
+                "startedAt",
+                "executionAllowed",
+                "publicationAllowed"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "blockers": {
+          "maxItems": 24,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "plan_missing",
+              "task_missing",
+              "plan_stale",
+              "project_scope_changed",
+              "material_missing",
+              "material_revision_changed",
+              "material_not_eligible",
+              "material_withdrawn",
+              "project_pause_requested",
+              "project_resume_requested",
+              "project_end_requested",
+              "task_cancelled_before_start",
+              "identity_reservation_missing",
+              "attempt_assignment_stale",
+              "device_association_missing",
+              "installation_missing",
+              "device_paused",
+              "stop_unconfirmed",
+              "participation_missing",
+              "network_not_admitted",
+              "action_inspector_unavailable",
+              "current_fact_unknown"
+            ]
+          }
+        },
+        "checkedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        },
+        "executionAllowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "publicationAllowed": {
+          "type": "boolean",
+          "const": false
+        }
+      },
+      "required": [
+        "contractVersion",
+        "projectId",
+        "taskId",
+        "outcome",
+        "attempt",
+        "blockers",
+        "checkedAt",
+        "executionAllowed",
+        "publicationAllowed"
       ],
       "additionalProperties": false
     },

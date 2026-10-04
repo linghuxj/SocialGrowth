@@ -15,7 +15,8 @@ const viewDeclaration = { ...input.declaration, expectedApprovedDirectionId: nul
 const saved = { ...input, declaration: viewDeclaration, currentRevision: 1, revisions: [{ revision: 1, declaration: viewDeclaration,
   objects: [{ objectId: id, sha256: "a".repeat(64), bytes: 10, contentType: "video/mp4", key: "internal-never-emit", storageLocationId: id }],
   recordedAt: "2026-10-01T00:00:00Z", recordedByOperatorId: id, status: "pending_validation" }], status: "pending_validation", candidateAllowed: false,
-  eligibilityReason: "direction_not_approved", publicationAllowed: false, changed: true, replayed: false };
+  eligibilityReason: "direction_not_approved", publicationAllowed: false,
+  withdrawal: { state: "not_withdrawn", materialRevision: null, requestId: null, recordedAt: null }, changed: true, replayed: false };
 test("material controller preauthenticates current Cookie/CSRF and projects only current declaration and byte facts", async () => {
   const calls: string[] = [];
   const registry = { authorizeWrite: async (session: string, csrf: string, project: string) => { calls.push("auth"); assert.equal(session, token); assert.equal(csrf, "csrf"); assert.equal(project, id); },

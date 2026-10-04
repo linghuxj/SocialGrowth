@@ -5,6 +5,7 @@ import { compareTimestamps, timestampSchema, uuidSchema, materialLibraryQuerySch
 import { materialSaveSchema, materialDeclarationSchema, materialIdentitySchema, materialObjectReferenceSchema, canonicalMaterial, type MaterialSave } from "./material-registry-core.js";
 import { OperatorAuthService, type OperatorSessionContext } from "./operator-auth-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
+import { appendMaterialRevisionChanged } from "./business-plan-task-impact-writer.js";
 const s = "socialgrowth_product", stale = () => new ProductTransactionError("FACT_VERSION_STALE", "Material identity, revision or source changed");
 export class MaterialRegistryError extends Error {
   constructor(readonly code: "VERIFIER_UNAVAILABLE" | "INVALID_OBJECTS" | "CORRUPT_HISTORY") { super(code); }
@@ -117,10 +118,20 @@ export class MaterialRegistryStore {
     }
     const currentObjects = parsedObjects.at(-1)!;
     const reason = await this.eligibilityReason(c, u, v.language_tag, revisions.at(-1)!.declaration, currentObjects.map(o => o.sha256));
-    const currentStatus = reason === null ? "candidate" as const : "pending_validation" as const;
+    const withdrawalTable = (await c.query<{ table_name: string | null }>(`SELECT to_regclass($1)::text table_name`, [`${s}.material_withdrawal_intents`])).rows[0]?.table_name;
+    if (!withdrawalTable) throw new ProductTransactionError("INTERNAL_ERROR", "Material withdrawal source is unavailable", true);
+    const withdrawalRow = (await c.query<{ project_id: string; material_revision: string; request_id: string; recorded_at: string }>(`SELECT project_id,material_revision::text,request_id,
+      to_char(recorded_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') recorded_at
+      FROM ${s}.material_withdrawal_intents WHERE variant_id=$1`, [v.variant_id])).rows[0] ?? null;
+    if (withdrawalRow && withdrawalRow.project_id !== u.project_id) return invalid();
+    const withdrawal = withdrawalRow ? { state: "withdrawn" as const, materialRevision: Number(withdrawalRow.material_revision),
+      requestId: withdrawalRow.request_id, recordedAt: withdrawalRow.recorded_at }
+      : { state: "not_withdrawn" as const, materialRevision: null, requestId: null, recordedAt: null };
+    const effectiveReason = withdrawalRow ? "material_withdrawn" as const : reason;
+    const effectiveStatus = effectiveReason === null ? "candidate" as const : "pending_validation" as const;
     return { contentUnitId: u.content_unit_id, projectId: u.project_id, sourceId: u.source_id, sourceRecordId: u.source_record_id, identity,
-      variantId: v.variant_id, languageTag: v.language_tag, currentRevision: rows.length, revisions, status: currentStatus,
-      candidateAllowed: reason === null, eligibilityReason: reason, publicationAllowed: false as const };
+      variantId: v.variant_id, languageTag: v.language_tag, currentRevision: rows.length, revisions, status: effectiveStatus,
+      candidateAllowed: effectiveReason === null, eligibilityReason: effectiveReason, publicationAllowed: false as const, withdrawal };
   }
   async read(token: string, projectId: string, variantId: string) {
     if (!uuidSchema.safeParse(projectId).success || !uuidSchema.safeParse(variantId).success) throw new ProductTransactionError("INPUT_INVALID", "Invalid material locator");
@@ -202,7 +213,15 @@ export class MaterialRegistryStore {
       const saved = await this.load(c, r.variantId); if (!saved || saved.projectId !== r.projectId) return invalid(); return { ...saved, changed: false, replayed: true };
     };
     // Authenticate actual actor/project, release all locks BEFORE object IO.
-    const old = await this.tx(token, csrf, async (c, a) => { await this.project(c, r.projectId); return replay(c, a.operator.operatorId); });
+    const old = await this.tx(token, csrf, async (c, a) => {
+      await this.project(c, r.projectId);
+      if (!(await c.query<{ table_name: string | null }>(`SELECT to_regclass($1)::text table_name`, [`${s}.material_withdrawal_intents`])).rows[0]?.table_name)
+        throw new ProductTransactionError("INTERNAL_ERROR", "Material withdrawal source is unavailable", true);
+      const repeated = await replay(c, a.operator.operatorId);
+      if (repeated) return repeated;
+      if ((await c.query(`SELECT 1 FROM ${s}.material_withdrawal_intents WHERE variant_id=$1 AND project_id=$2`, [r.variantId, r.projectId])).rowCount) throw stale();
+      return null;
+    });
     if (old) return old;
     const objects = await this.verify(r);
     return this.tx(token, csrf, async (c, a) => {
@@ -211,6 +230,7 @@ export class MaterialRegistryStore {
       if (unit.length > 1 || (unit[0] && (unit[0].content_unit_id !== r.contentUnitId || unit[0].project_id !== r.projectId || unit[0].source_id !== r.sourceId || unit[0].source_record_id !== r.sourceRecordId || canonicalMaterial(unit[0].identity) !== canonicalMaterial(r.identity)))) throw stale();
       const current = await this.load(c, r.variantId);
       if (current && (current.projectId !== r.projectId || current.contentUnitId !== r.contentUnitId || current.languageTag !== r.languageTag)) throw stale();
+      if (current?.withdrawal.state === "withdrawn") throw stale();
       if (!current && (await c.query(`SELECT 1 FROM ${s}.material_variants WHERE content_unit_id=$1 AND language_tag=$2`, [r.contentUnitId, r.languageTag])).rowCount) throw stale();
       if (!unit.length && r.identity.seriesId && (await c.query(`SELECT 1 FROM ${s}.material_content_units WHERE identity->>'seriesId'=$1 AND
         (project_id<>$2 OR identity->>'businessEntityId'<>$3 OR identity->>'episodeNumber'=$4)`, [r.identity.seriesId, r.projectId, r.identity.businessEntityId, String(r.identity.episodeNumber)])).rowCount) throw stale();
@@ -232,7 +252,14 @@ export class MaterialRegistryStore {
         await this.affected(c, `INSERT INTO ${s}.audit_records(audit_record_id,actor_type,actor_id,action,object_type,object_id,request_id,facts) VALUES($1,'operator',$2,'material.declaration_saved','material_variant',$3,$4,$5)`, [randomUUID(), a.operator.operatorId, r.variantId, r.metadata.requestId, { revision, status: reason === null ? "candidate" : "pending_validation", eligibilityReason: reason }]);
       }
       await this.affected(c, `INSERT INTO ${s}.material_registry_commands(actor_id,request_key,payload_digest,variant_id) VALUES($1,$2,$3,$4)`, [a.operator.operatorId, metadata.idempotencyKey, digest, r.variantId]);
-      const saved = await this.load(c, r.variantId); if (!saved) return invalid(); return { ...saved, changed: !unchanged, replayed: false };
+      const saved = await this.load(c, r.variantId); if (!saved) return invalid();
+      if (!unchanged) {
+        const project = (await c.query<{ fact_version: string }>(`SELECT fact_version::text FROM ${s}.projects WHERE project_id=$1`, [r.projectId])).rows[0];
+        if (!project) throw stale();
+        await appendMaterialRevisionChanged(c, { projectId: r.projectId, variantId: r.variantId,
+          projectVersion: Number(project.fact_version), materialRevision: saved.currentRevision });
+      }
+      return { ...saved, changed: !unchanged, replayed: false };
     });
   }
   async saveBatch(token: string, csrf: string, input: unknown) {

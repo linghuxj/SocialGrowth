@@ -1,0 +1,37 @@
+{
+  "candidate": "2517b08bdb31228315a4bba5489dcdcc5b5d390c",
+  "device": "emulator-5554",
+  "artemisSession": "da2c70f1-c93f-4b7d-ae61-302684540566",
+  "process": {
+    "exitCode": 0,
+    "timeout": false
+  },
+  "actualArtemisUiPath": [
+    "use-choice",
+    "management-registration-form",
+    "use-choice",
+    "execution-introduction",
+    "use-choice"
+  ],
+  "verified": [
+    "two-separate-entry-cards",
+    "management-does-not-enroll-local-phone-copy",
+    "blank-form-required-field-hints-visible",
+    "form-back-navigation",
+    "enrollment-does-not-grant-execution-copy",
+    "final-use-choice-screen"
+  ],
+  "reportSource": "Artemis action trace/checker report plus root final screenshot visual inspection",
+  "identityCreated": false,
+  "smsRequested": false,
+  "participationCommandIssued": false,
+  "physicalDeviceTouched": false,
+  "unverified": [
+    "provider-login",
+    "device-list-and-control-routes",
+    "installation-enrollment",
+    "permissions-and-system-settings",
+    "physical-stop-confirmation",
+    "real-Tailnet-source"
+  ]
+}

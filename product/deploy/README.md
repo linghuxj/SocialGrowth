@@ -46,9 +46,28 @@ Inventory仅接受内部identity依赖明确关联到同一schema的identity seq
 
 [故障接续阶段](../../docs/engineering/delivery/records/WP-27-stage5.md)实际验证文件落地后丢响应/部分写/权限失效/自己的pending未能清理等场景，UNKNOWN保留原ID和原包核对，不创建替代ID或自动信任两链接文件。IO端口仅trusted服务端代码、缺省真实fs，不能从HTTP/config提供；不实现自动orphan清理/chmod。作者fs14为真实合成文件故障补充，不是本轮PG/断电/生产灾备/当前批准/真实Web或真机验收。
 
-当前仅有server维护加密包组件与独占合成PG的实际导出/恢复演练，见[WP-27阶段记录](../../docs/engineering/delivery/records/WP-27.md)。不是自动生产备份、生产恢复CLI或联合对象/队列/密钥备份方案；不得将示例Compose配置或加密包的false字段当已部署恢复fence。
+当前已有server维护加密包组件、独占合成PG导出/恢复，以及自有PG/MinIO的有限联合演练（迁移子集与测试identity fixture，见下方命令）；完整产品schema/消费者停止/物理fence仍未验证，见[WP-27阶段记录](../../docs/engineering/delivery/records/WP-27.md)。不是自动生产备份、生产恢复CLI或联合对象/队列/密钥备份方案；不得将示例Compose配置或加密包的false字段当已部署恢复fence。
 
 正式OPS须先落实维护权限、离线密钥保管与轮换、保留/频率/RPO/RTO及实际容量；恢复前停止消费，只接受受信任来源SQL并核对目标/完整备份/当前设备及外部事实。数据库恢复成功后先核对最新暂停、撤权、分配、在途/提交未知、对象与队列，不能直接重放历史消息。没有正式联合恢复、Android签名升级与回滚证据时，AC-52/53/60和B5保持未验收。
+
+## Android正式构建输入门禁
+
+现有 `assembleDebug` 命令不变，继续使用本地调试端点默认值。`assembleRelease`、`bundleRelease` 以及会生成release变体的聚合 `assemble`/`build`/`bundle` 必须显式提供以下环境变量；release没有demo/调试签名回退：
+
+| 变量 | 用途 |
+| --- | --- |
+| `SG_PRODUCT_ANDROID_VERSION_CODE` | 本候选正整数版本码 |
+| `SG_PRODUCT_ANDROID_VERSION_NAME` | 简短版本名 |
+| `SG_PRODUCT_ANDROID_PREVIOUS_VERSION_CODE` | 明确提供的上一版版本码；候选必须更大，门禁不猜生产版本 |
+| `SG_PRODUCT_ANDROID_API_BASE_URL` | 真实服务 HTTPS URL，拒绝保留示例/本机域名 |
+| `SG_PRODUCT_ANDROID_SIGNING_KEYSTORE` | 外部提供的正式 keystore 路径 |
+| `SG_PRODUCT_ANDROID_SIGNING_KEY_ALIAS` | 正式签名 alias |
+| `SG_PRODUCT_ANDROID_SIGNING_STORE_PASSWORD` / `SG_PRODUCT_ANDROID_SIGNING_KEY_PASSWORD` | 构建进程环境中的签名凭据 |
+| `SG_PRODUCT_ANDROID_SIGNING_CERT_SHA256` | 预先可信的公开证书 SHA-256 指纹，可带冒号 |
+
+正式变体的输出版本由同一显式version输入设置；release打包任务无论使用完整名还是Gradle缩写都会先运行门禁，校验版本单调、HTTPS host、keystore可用签名条目及证书指纹。仓库和CI不保存签名秘密或正式证书。本仓库的CI继续构建debug，并用缺项（含`:app:aR`缩写）、占位endpoint、非递增版本的负例及临时生成的合成测试证书指纹不匹配确认release fail closed；不会使用该合成证书签包或保存它。它不会生成/签署正式包。不要把Gradle构建日志、环境诊断或公开metadata用于输出签名密码/keystore内容。
+
+这只是正式构建配置门禁，不证明真实发布签名、升级后安装身份/本地状态保留、旧客户端兼容、回滚/前向修复、设备安装或用户验收；上述AC-53/60证据仍需真实受控候选和运营资源。
 
 `pnpm --filter @socialgrowth/product-backend exec tsx --test --test-concurrency=1 src/database-maintenance-recovery.pg-test.ts`在自有回环PG17/MinIO容器上实际联验同包采集、provider/install撤权与installation/association/participation变化、未解决holder/outbox、对象删除后未核验和默认关闭许可。该演练只应用其文件列出的维护依赖migration子集与测试identity fixture；不是完整产品schema恢复、消费者停止、物理fence、生产灾备或业务验收证据。
 

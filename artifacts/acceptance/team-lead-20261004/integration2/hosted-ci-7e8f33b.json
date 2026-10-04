@@ -1,0 +1,21 @@
+{
+  "candidate": "7e8f33b57e133db53940400f40997f4d71854c7c",
+  "pullRequest": "https://github.com/linghuxj/SocialGrowth/pull/23",
+  "runId": 37160816944,
+  "url": "https://github.com/linghuxj/SocialGrowth/actions/runs/37160816944",
+  "conclusion": "success",
+  "jobs": [
+    "typescript",
+    "android"
+  ],
+  "scope": [
+    "product type/lint/unit/build",
+    "built identity browser Playwright in isolated synthetic local environment",
+    "Android debug build",
+    "release missing-input and mismatch fail-closed checks"
+  ],
+  "limitations": [
+    "Not newer root source after this exact candidate",
+    "Not physical execution, real metrics, signed upgrade, production or whole product acceptance"
+  ]
+}

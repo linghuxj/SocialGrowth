@@ -21,7 +21,8 @@ test("current material projection exposes only the finite candidate decision wit
   const { metadata: _metadata, objectIds: _objectIds, expectedCurrentRevision: _expected, ...common } = input;
   const current = { ...common, declaration: { ...common.declaration, expectedApprovedDirectionId: null, expectedApprovedProjectVersion: null, contentRulesReviewed: false },
     languageTag: "en-us", currentRevision: 1, objects: [{ objectId: id, sha256: "a".repeat(64), bytes: 10, contentType: "video/mp4" }],
-    recordedAt: "2026-10-01T00:00:00.123456789123Z", status: "pending_validation", candidateAllowed: false, eligibilityReason: "direction_not_approved", publicationAllowed: false };
+    recordedAt: "2026-10-01T00:00:00.123456789123Z", status: "pending_validation", candidateAllowed: false, eligibilityReason: "direction_not_approved", publicationAllowed: false,
+    withdrawal: { state: "not_withdrawn", materialRevision: null, requestId: null, recordedAt: null } };
   materialCurrentViewSchema.parse(current); saveMaterialDeclarationResponseSchema.parse({ ...current, changed: true, replayed: false });
   materialCurrentViewSchema.parse({ ...current, status: "candidate", candidateAllowed: true, eligibilityReason: null });
   for (const patch of [{ key: "private" }, { recordedByOperatorId: id }, { revisions: [] }, { status: "approved" }, { publicationAllowed: true },
@@ -35,7 +36,8 @@ function current() {
   return { ...common, declaration: { ...common.declaration, expectedApprovedDirectionId: null, expectedApprovedProjectVersion: null, contentRulesReviewed: false },
     languageTag: "en-us", currentRevision: 2, objects: [{ objectId: id, sha256: "a".repeat(64), bytes: 10, contentType: "video/mp4" }],
     recordedAt: "2026-10-01T00:00:01.123456789123Z", status: "pending_validation" as const, candidateAllowed: false as const,
-    eligibilityReason: "direction_not_approved" as const, publicationAllowed: false as const };
+    eligibilityReason: "direction_not_approved" as const, publicationAllowed: false as const,
+    withdrawal: { state: "not_withdrawn" as const, materialRevision: null, requestId: null, recordedAt: null } };
 }
 test("batch envelope is trace-only and each item result stays indexed, scoped and pending without whole-batch success", () => {
   const metadata = { contractVersion, requestId: input.metadata.requestId };

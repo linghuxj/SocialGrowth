@@ -1,0 +1,32 @@
+{
+  "candidate": "821f3156552fa85363cc7317d46378ba5f76c03f",
+  "apkSha256": "9e3515abd7d2e9ac6bc01f2517f575cbda6e9925d47bd12d2b373c1d3518412e",
+  "device": "owned Android emulator API35",
+  "runtimeSource": "7e12f5f",
+  "finalState": {
+    "readOnly": true,
+    "originalNameCurrent": true,
+    "temporaryBCurrent": false,
+    "factVersion": "5",
+    "state": "associated_pending_access",
+    "counts": {
+      "control_commands": "0",
+      "holder_grants": "0"
+    }
+  },
+  "originalRequestOutcome": {
+    "readOnly": true,
+    "originalKeyReceiptCount": 1,
+    "receiptStatus": "succeeded",
+    "receiptTargetMatches": true,
+    "receiptVersion": 4
+  },
+  "scope": "Actual Artemis UI operations plus explicitly separated readonly supplements",
+  "limitations": [
+    "Not full native acceptance: stale-version/session-error UI paths not exercised",
+    "Same-key retry checker retained 2 inconclusive; readonly exact-key success receipt separately verifies original request outcome",
+    "Two file-path goal invocations invalid; excluded from business acceptance",
+    "No physical participation or execution authority validation",
+    "No real SMS delivery/release/production acceptance"
+  ]
+}
