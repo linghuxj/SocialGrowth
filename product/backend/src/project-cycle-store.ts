@@ -113,6 +113,36 @@ interface PersistedCycle extends ProjectCycle {
   cycle_number: string;
   approval_id: string;
   project_version: string;
+  origin_kind: "initial_direction_approval" | "confirmed_next_configuration" | "carry_forward";
+  source_configuration_revision: string | null;
+  predecessor_cycle_id: string | null;
+  predecessor_cycle_number: string | null;
+  review_interval_days: number | null;
+  recorded_at: string;
+  approved_inputs: unknown;
+}
+
+interface CycleConfigurationRow {
+  configuration_revision: string;
+  based_on_cycle_id: string;
+  business_time_zone: string;
+  review_interval_days: number;
+  traffic_minimum_per_cycle: number;
+  effective_starts_at: string;
+  projected_ends_at: string;
+  confirmed_at: string;
+}
+
+export type ProjectCycleProgressionResult =
+  | { state: "idle" }
+  | { state: "created"; cycle: ProjectCycle; origin: "confirmed_next_configuration" | "carry_forward"; recordedAt: string }
+  | { state: "unresolved"; reason: "predecessor_missing" | "source_missing" | "configuration_already_consumed" | "calendar_runtime_unavailable" | "outside_verified_calendar_range" | "civil_boundary_ambiguous" | "window_preview_mismatch" | "project_ended" | "tail_window_unconfigured" };
+
+function windowFailureReason(start: string): "outside_verified_calendar_range" | "civil_boundary_ambiguous" {
+  const parsed = parseInstant(start);
+  if (!parsed || parsed.seconds < Date.UTC(VERIFIED_YEAR_MIN, 0, 1) / 1000
+    || parsed.seconds >= Date.UTC(VERIFIED_YEAR_MAX + 1, 0, 1) / 1000) return "outside_verified_calendar_range";
+  return "civil_boundary_ambiguous";
 }
 
 /**
@@ -136,27 +166,24 @@ export class ProjectCycleStore {
 
     const rawHistory = (await c.query<PersistedCycle>(`SELECT cycle_id AS "cycleId",project_id AS "projectId",config_version::text AS "configVersion",
       business_time_zone AS "businessTimeZone",starts_at AS "startsAt",ends_at AS "endsAt",traffic_minimum AS "trafficMinimum",
-      cycle_number::text,approval_id,project_version::text FROM ${s}.project_review_cycles
+      cycle_number::text,approval_id,project_version::text,origin_kind,source_configuration_revision::text,
+      predecessor_cycle_id,predecessor_cycle_number::text,review_interval_days,recorded_at,approved_inputs
+      FROM ${s}.project_review_cycles
       WHERE project_id=$1 ORDER BY cycle_number FOR UPDATE`, [projectId])).rows;
     const history = parseProjectCycles(rawHistory.map(row => ({ cycleId: row.cycleId, projectId: row.projectId,
       configVersion: Number(row.configVersion), businessTimeZone: row.businessTimeZone, startsAt: row.startsAt,
       endsAt: row.endsAt, trafficMinimum: row.trafficMinimum })));
     const previous = history.at(-1);
-    if (previous?.configVersion === projectVersion) {
+    if (previous) {
       const existing = rawHistory.at(-1)!;
-      if (existing.approval_id !== approval.approvalId) throw new ProjectCycleError("BOUNDARY_STALE");
+      // Initial direction approval is a one-time cycle-one source. A later
+      // approval or draft change must never be treated as a fresh first cycle.
+      if (existing.origin_kind !== "initial_direction_approval" || existing.cycle_number !== "1"
+        || existing.approval_id !== approval.approvalId) throw new ProjectCycleError("BOUNDARY_STALE");
       return { state: "unchanged", cycle: previous };
     }
-    if (previous && previous.configVersion > projectVersion) throw new ProjectCycleError("BOUNDARY_STALE");
 
-    let start = inputs.firstCycleStartsAt;
-    if (previous) {
-      // confirmedAt was captured from PostgreSQL clock_timestamp() while the
-      // approval transaction held the shared source locks.
-      const nextStart = nextCycleBoundary(previous.endsAt, approval.confirmedAt);
-      if (!nextStart) return { state: "unresolved", reason: "previous_window_elapsed" };
-      start = nextStart;
-    }
+    const start = inputs.firstCycleStartsAt;
     if (inputs.reviewIntervalDays > MAX_DAYS_PER_WINDOW) return { state: "unresolved", reason: "outside_verified_calendar_range" };
     const window = resolveProjectCycleWindow(start, inputs.reviewIntervalDays, inputs.businessTimeZone);
     if (!window) {
@@ -169,13 +196,104 @@ export class ProjectCycleStore {
     const cycle: ProjectCycle = { cycleId: randomUUID(), projectId, configVersion: projectVersion,
       businessTimeZone: inputs.businessTimeZone, startsAt: window.startsAt, endsAt: window.endsAt,
       trafficMinimum: inputs.trafficMinimumPerCycle };
-    const appended = appendProjectCycle(history, cycle, previous?.cycleId ?? null);
+    const appended = appendProjectCycle(history, cycle, null);
     if (!appended.changed) return { state: "unchanged", cycle: appended.cycles.at(-1)! };
     const number = appended.cycles.length;
     await c.query(`INSERT INTO ${s}.project_review_cycles(cycle_id,project_id,cycle_number,config_version,approval_id,project_version,
-      business_time_zone,starts_at,ends_at,traffic_minimum,approved_inputs,icu_version,tzdata_version)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`, [cycle.cycleId, projectId, number, projectVersion, approval.approvalId,
-      projectVersion, cycle.businessTimeZone, cycle.startsAt, cycle.endsAt, cycle.trafficMinimum, inputs, icuVersion, tzdataVersion]);
+      business_time_zone,starts_at,ends_at,traffic_minimum,approved_inputs,icu_version,tzdata_version,origin_kind,review_interval_days)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'initial_direction_approval',$14)`, [cycle.cycleId, projectId, number, projectVersion, approval.approvalId,
+      projectVersion, cycle.businessTimeZone, cycle.startsAt, cycle.endsAt, cycle.trafficMinimum, inputs, icuVersion, tzdataVersion, inputs.reviewIntervalDays]);
     return { state: "created", cycle };
+  }
+
+  /** Materialize at most one already-due successor in the caller's locked project transaction. */
+  async appendDueSuccessor(c: PoolClient, projectId: string, observedAt: string): Promise<ProjectCycleProgressionResult> {
+    const lifecycle = (await c.query<{ intent: string }>(`SELECT intent FROM ${s}.project_lifecycle_intents
+      WHERE project_id=$1 ORDER BY revision DESC LIMIT 1`, [projectId])).rows[0]?.intent;
+    if (lifecycle === "end_requested") return { state: "unresolved", reason: "project_ended" };
+
+    const previous = (await c.query<PersistedCycle>(`SELECT cycle_id AS "cycleId",project_id AS "projectId",config_version::text AS "configVersion",
+      business_time_zone AS "businessTimeZone",starts_at AS "startsAt",ends_at AS "endsAt",traffic_minimum AS "trafficMinimum",
+      cycle_number::text,approval_id,project_version::text,origin_kind,source_configuration_revision::text,
+      predecessor_cycle_id,predecessor_cycle_number::text,review_interval_days,recorded_at,approved_inputs
+      FROM ${s}.project_review_cycles WHERE project_id=$1 ORDER BY cycle_number DESC LIMIT 1 FOR UPDATE`, [projectId])).rows[0];
+    if (!previous) return { state: "idle" };
+    if (compareTimestamps(observedAt, previous.endsAt)! < 0) return { state: "idle" };
+    if (!process.versions.tz || !process.versions.icu) return { state: "unresolved", reason: "calendar_runtime_unavailable" };
+
+    const latest = (await c.query<CycleConfigurationRow>(`SELECT configuration_revision::text,based_on_cycle_id,business_time_zone,
+      review_interval_days,traffic_minimum_per_cycle,effective_starts_at,projected_ends_at,
+      to_char(confirmed_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') confirmed_at
+      FROM ${s}.project_review_cycle_configs WHERE project_id=$1 ORDER BY configuration_revision DESC LIMIT 1`, [projectId])).rows[0];
+    let origin: "confirmed_next_configuration" | "carry_forward" = "carry_forward";
+    let sourceConfigurationRevision: number | null = null;
+    let timeZone: ProjectCycle["businessTimeZone"] = previous.businessTimeZone;
+    let intervalDays: number | null = previous.review_interval_days;
+    let trafficMinimum = previous.trafficMinimum;
+    if (intervalDays === null) {
+      const inputs = projectPlanningInputsSchema.safeParse(previous.approved_inputs);
+      intervalDays = inputs.success ? inputs.data.reviewIntervalDays : null;
+    }
+    if (latest) {
+      const consumed = await c.query(`SELECT 1 FROM ${s}.project_review_cycles
+        WHERE project_id=$1 AND origin_kind='confirmed_next_configuration' AND source_configuration_revision=$2`,
+      [projectId, Number(latest.configuration_revision)]);
+      if (latest.based_on_cycle_id === previous.cycleId && consumed.rowCount === 0) {
+        if (compareTimestamps(latest.confirmed_at, previous.endsAt)! > 0
+          || compareTimestamps(latest.effective_starts_at, previous.endsAt)! !== 0) {
+          return { state: "unresolved", reason: "predecessor_missing" };
+        }
+        origin = "confirmed_next_configuration";
+        sourceConfigurationRevision = Number(latest.configuration_revision);
+        const parsedTimeZone = projectPlanningInputsSchema.shape.businessTimeZone.unwrap().safeParse(latest.business_time_zone);
+        if (!parsedTimeZone.success) return { state: "unresolved", reason: "source_missing" };
+        timeZone = parsedTimeZone.data;
+        intervalDays = latest.review_interval_days;
+        trafficMinimum = latest.traffic_minimum_per_cycle;
+      } else if (consumed.rowCount === 0) {
+        const source = await c.query(`SELECT 1 FROM ${s}.project_review_cycles WHERE project_id=$1 AND cycle_id=$2`, [projectId, latest.based_on_cycle_id]);
+        if (source.rowCount !== 1 || latest.based_on_cycle_id !== previous.cycleId) return { state: "unresolved", reason: "source_missing" };
+        return { state: "unresolved", reason: "configuration_already_consumed" };
+      }
+    }
+    if (intervalDays === null || !Number.isSafeInteger(intervalDays) || intervalDays < 1 || intervalDays > MAX_DAYS_PER_WINDOW) {
+      return { state: "unresolved", reason: "source_missing" };
+    }
+    const window = resolveProjectCycleWindow(previous.endsAt, intervalDays, timeZone);
+    if (!window) return { state: "unresolved", reason: windowFailureReason(previous.endsAt) };
+    if (origin === "confirmed_next_configuration" && latest
+      && compareTimestamps(window.endsAt, latest.projected_ends_at)! !== 0) return { state: "unresolved", reason: "window_preview_mismatch" };
+
+    const historyRows = (await c.query<PersistedCycle>(`SELECT cycle_id AS "cycleId",project_id AS "projectId",config_version::text AS "configVersion",
+      business_time_zone AS "businessTimeZone",starts_at AS "startsAt",ends_at AS "endsAt",traffic_minimum AS "trafficMinimum",
+      cycle_number::text,approval_id,project_version::text,origin_kind,source_configuration_revision::text,
+      predecessor_cycle_id,predecessor_cycle_number::text,review_interval_days,recorded_at,approved_inputs
+      FROM ${s}.project_review_cycles WHERE project_id=$1 ORDER BY cycle_number`, [projectId])).rows;
+    const history = parseProjectCycles(historyRows.map(row => ({ cycleId: row.cycleId, projectId: row.projectId,
+      configVersion: Number(row.configVersion), businessTimeZone: row.businessTimeZone, startsAt: row.startsAt,
+      endsAt: row.endsAt, trafficMinimum: row.trafficMinimum })));
+    const previousCycle = history.at(-1);
+    if (!previousCycle || previousCycle.cycleId !== previous.cycleId) return { state: "unresolved", reason: "source_missing" };
+    const configVersion = origin === "confirmed_next_configuration" ? Number(previous.configVersion) + 1 : Number(previous.configVersion);
+    if (!Number.isSafeInteger(configVersion)) return { state: "unresolved", reason: "source_missing" };
+    const cycle: ProjectCycle = { cycleId: randomUUID(), projectId, configVersion,
+      businessTimeZone: timeZone, startsAt: window.startsAt, endsAt: window.endsAt, trafficMinimum };
+    const appended = appendProjectCycle(history, cycle, previous.cycleId);
+    if (!appended.changed) return { state: "idle" };
+    const predecessorNumber = Number(previous.cycle_number);
+    const tzdataVersion = process.versions.tz, icuVersion = process.versions.icu;
+    if (!tzdataVersion || !icuVersion) return { state: "unresolved", reason: "calendar_runtime_unavailable" };
+    const inserted = await c.query(`INSERT INTO ${s}.project_review_cycles(cycle_id,project_id,cycle_number,config_version,approval_id,project_version,
+      business_time_zone,starts_at,ends_at,traffic_minimum,approved_inputs,icu_version,tzdata_version,origin_kind,
+      source_configuration_revision,predecessor_cycle_id,predecessor_cycle_number,review_interval_days)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`, [cycle.cycleId, projectId,
+      predecessorNumber + 1, configVersion, previous.approval_id, Number(previous.project_version), timeZone, cycle.startsAt, cycle.endsAt,
+      trafficMinimum, previous.approved_inputs, icuVersion, tzdataVersion, origin, sourceConfigurationRevision, previous.cycleId,
+      predecessorNumber, intervalDays]);
+    if (inserted.rowCount !== 1) throw new ProjectCycleError("BOUNDARY_STALE");
+    const recordedAt = (await c.query<{ recorded_at: string }>(`SELECT to_char(recorded_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') recorded_at
+      FROM ${s}.project_review_cycles WHERE project_id=$1 AND cycle_id=$2`, [projectId, cycle.cycleId])).rows[0]?.recorded_at;
+    if (!recordedAt) throw new ProjectCycleError("BOUNDARY_STALE");
+    return { state: "created", cycle, origin, recordedAt };
   }
 }

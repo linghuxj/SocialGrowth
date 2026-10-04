@@ -48,9 +48,31 @@ function validateRead(view: ProjectCycleConfigurationReadResponse, projectId: st
   if (!sameId(view.projectId, projectId) || view.executionAllowed || view.publicationAllowed || view.nextCycle !== null) {
     throw new ProjectCycleConfigurationApiError("CYCLE_CONFIG_RESPONSE_INVALID");
   }
-  if (view.nextConfiguration && (view.nextConfiguration.configurationRevision !== view.configurationRevision
-    || (view.currentCycle && (!sameId(view.nextConfiguration.basedOnCycleId, view.currentCycle.cycleId)
-      || Date.parse(view.nextConfiguration.effectiveStartsAt) !== Date.parse(view.currentCycle.endsAt))))) {
+  if (view.nextConfiguration && view.nextConfiguration.configurationRevision !== view.configurationRevision) {
+    throw new ProjectCycleConfigurationApiError("CYCLE_CONFIG_RESPONSE_INVALID");
+  }
+  const current = view.currentCycle;
+  if (current && (current.cycleNumber === 1) !== (current.origin.kind === "initial_direction_approval")) {
+    throw new ProjectCycleConfigurationApiError("CYCLE_CONFIG_RESPONSE_INVALID");
+  }
+  if (current && current.origin.kind === "carry_forward" && sameId(current.origin.predecessorCycleId, current.cycleId)) {
+    throw new ProjectCycleConfigurationApiError("CYCLE_CONFIG_RESPONSE_INVALID");
+  }
+  if (current && current.origin.kind === "confirmed_next_configuration") {
+    const config = view.nextConfiguration;
+    if (!config) throw new ProjectCycleConfigurationApiError("CYCLE_CONFIG_RESPONSE_INVALID");
+    if (current.origin.configurationRevision === config.configurationRevision
+      && (config.application.state !== "applied" || config.application.materializedCycleId !== current.cycleId)) {
+      throw new ProjectCycleConfigurationApiError("CYCLE_CONFIG_RESPONSE_INVALID");
+    }
+  }
+  if (current && view.nextConfiguration?.application.state === "pending"
+    && !sameId(view.nextConfiguration.basedOnCycleId, current.cycleId)) {
+    throw new ProjectCycleConfigurationApiError("CYCLE_CONFIG_RESPONSE_INVALID");
+  }
+  if (view.nextConfiguration?.application.state === "applied"
+    && view.nextConfiguration.application.materializedCycleId !== null
+    && sameId(view.nextConfiguration.basedOnCycleId, view.nextConfiguration.application.materializedCycleId)) {
     throw new ProjectCycleConfigurationApiError("CYCLE_CONFIG_RESPONSE_INVALID");
   }
 }

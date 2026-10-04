@@ -30,6 +30,45 @@ export const projectCycleNextConfigurationSchema = z.strictObject({
   requestId: requestIdSchema,
 });
 
+export const projectCycleOriginSchema = z.union([
+  z.strictObject({ kind: z.literal("initial_direction_approval"), approvalId: uuidSchema }),
+  z.strictObject({ kind: z.literal("confirmed_next_configuration"), configurationRevision: z.int().min(1) }),
+  z.strictObject({ kind: z.literal("carry_forward"), predecessorCycleId: uuidSchema }),
+]);
+
+export const projectCycleCurrentReadFactSchema = projectCycleCurrentFactSchema.extend({
+  recordedAt: timestampSchema,
+  origin: projectCycleOriginSchema,
+});
+
+export const projectCycleConfigurationApplicationSchema = z.strictObject({
+  state: z.enum(["pending", "applied", "unresolved"]),
+  materializedCycleId: uuidSchema.nullable(),
+  reason: z.enum([
+    "predecessor_missing",
+    "source_missing",
+    "configuration_already_consumed",
+    "calendar_runtime_unavailable",
+    "outside_verified_calendar_range",
+    "civil_boundary_ambiguous",
+    "window_preview_mismatch",
+    "project_ended",
+    "tail_window_unconfigured",
+  ]).nullable(),
+}).superRefine((value, ctx) => {
+  if ((value.state === "applied") !== (value.materializedCycleId !== null)) {
+    ctx.addIssue({ code: "custom", path: ["materializedCycleId"], message: "Only an applied configuration names its unique successor cycle" });
+  }
+  if ((value.state === "unresolved") !== (value.reason !== null)) {
+    ctx.addIssue({ code: "custom", path: ["reason"], message: "Only an unresolved configuration includes a reason" });
+  }
+});
+
+// GET-only projection. Keep the persisted POST receipt schema above immutable.
+export const projectCycleNextConfigurationReadSchema = projectCycleNextConfigurationSchema.extend({
+  application: projectCycleConfigurationApplicationSchema,
+});
+
 export const projectCycleConfigurationUnresolvedReasonSchema = z.enum([
   "current_cycle_missing",
   "current_cycle_stale",
@@ -44,8 +83,8 @@ export const projectCycleConfigurationReadResponseSchema = z.strictObject({
   projectId: uuidSchema,
   observedAt: timestampSchema,
   configurationRevision: z.int().min(0),
-  currentCycle: projectCycleCurrentFactSchema.nullable(),
-  nextConfiguration: projectCycleNextConfigurationSchema.nullable(),
+  currentCycle: projectCycleCurrentReadFactSchema.nullable(),
+  nextConfiguration: projectCycleNextConfigurationReadSchema.nullable(),
   // A confirmed next configuration is not a materialized successor cycle.
   nextCycle: z.null(),
   executionAllowed: z.literal(false),
@@ -95,6 +134,10 @@ export const projectCycleConfigurationCommandReadResponseSchema = z.strictObject
 
 export type ProjectCycleCurrentFact = z.infer<typeof projectCycleCurrentFactSchema>;
 export type ProjectCycleNextConfiguration = z.infer<typeof projectCycleNextConfigurationSchema>;
+export type ProjectCycleOrigin = z.infer<typeof projectCycleOriginSchema>;
+export type ProjectCycleCurrentReadFact = z.infer<typeof projectCycleCurrentReadFactSchema>;
+export type ProjectCycleConfigurationApplication = z.infer<typeof projectCycleConfigurationApplicationSchema>;
+export type ProjectCycleNextConfigurationRead = z.infer<typeof projectCycleNextConfigurationReadSchema>;
 export type ProjectCycleConfigurationReadResponse = z.infer<typeof projectCycleConfigurationReadResponseSchema>;
 export type SaveProjectCycleConfigurationRequest = z.infer<typeof saveProjectCycleConfigurationRequestSchema>;
 export type SaveProjectCycleConfigurationReceipt = z.infer<typeof saveProjectCycleConfigurationReceiptSchema>;

@@ -9,7 +9,8 @@ import { ProjectService } from "./project-service.js";
 import { ProjectPlanningService } from "./project-planning-service.js";
 import { ProjectDirectionService } from "./project-direction-service.js";
 import { ProjectCycleConfigService } from "./project-cycle-config-service.js";
-import { resolveProjectCycleWindow } from "./project-cycle-store.js";
+import { ProjectCycleStore, resolveProjectCycleWindow } from "./project-cycle-store.js";
+import { ProjectCycleProgressionLifecycle } from "./project-cycle-progression-lifecycle.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
 import type { InitialDirectionModel } from "./artemis-business-model.js";
 
@@ -19,6 +20,7 @@ const pool = new Pool({ connectionString: url, max: 8 });
 const auth = new OperatorAuthService(pool, "isolated-cycle-config-pepper-only-00000001");
 const projects = new ProjectService(pool, auth), planning = new ProjectPlanningService(pool, auth);
 const configuration = new ProjectCycleConfigService(pool, auth);
+const cycles = new ProjectCycleStore();
 const metadata = () => ({ contractVersion, requestId: `cycle-request-${randomUUID()}`, idempotencyKey: `cycle-config-${randomUUID()}` });
 const error = (code: string) => (e: unknown) => e instanceof ProductTransactionError && e.code === code;
 const dbInstant = async (sql: string) => (await pool.query<{ value: string }>(`SELECT to_char((${sql}) AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') value`)).rows[0]!.value;
@@ -63,6 +65,51 @@ async function fixture(startOffset: string) {
   return { operatorId, sessionId, token, csrf, projectId: project.projectId, directions };
 }
 
+async function appendDueFixture(projectId: string, observedAt: string) {
+  const c = await pool.connect();
+  try {
+    await c.query("BEGIN");
+    for (const guard of ["material_registry_guard", "resource_reservation_guard", "business_plan_guard"]) {
+      assert.equal((await c.query(`SELECT 1 FROM socialgrowth_product.${guard} WHERE singleton=true FOR UPDATE`)).rowCount, 1);
+    }
+    assert.equal((await c.query("SELECT 1 FROM socialgrowth_product.projects WHERE project_id=$1 FOR UPDATE", [projectId])).rowCount, 1);
+    const result = await cycles.appendDueSuccessor(c, projectId, observedAt);
+    await c.query("COMMIT");
+    return result;
+  } catch (error) {
+    try { await c.query("ROLLBACK"); } catch { /* cleanup continues */ }
+    throw error;
+  } finally { c.release(); }
+}
+
+test("due selector pages at twenty projects and ignores a superseded due cycle", async () => {
+  const fixtures: Awaited<ReturnType<typeof fixture>>[] = [];
+  for (let i = 0; i < 21; i += 1) fixtures.push(await fixture("- interval '8 days'"));
+  const ordered = fixtures.map(item => item.projectId).sort();
+  const lifecycle = new ProjectCycleProgressionLifecycle(pool);
+  const selector = lifecycle as unknown as {
+    afterProjectId: string | null;
+    dueProjects(deadline: number): Promise<string[]>;
+  };
+  const deadline = Date.now() + 15_000;
+  selector.afterProjectId = null;
+  const firstPage = await selector.dueProjects(deadline);
+  assert.deepEqual(firstPage, ordered.slice(0, 20));
+  selector.afterProjectId = firstPage.at(-1) ?? null;
+  const secondPage = await selector.dueProjects(deadline);
+  assert.deepEqual(secondPage, ordered.slice(20));
+
+  const supersededProjectId = ordered[0]!;
+  const latest = (await pool.query<{ ends_at: string }>(`SELECT ends_at FROM socialgrowth_product.project_review_cycles
+    WHERE project_id=$1 ORDER BY cycle_number DESC LIMIT 1`, [supersededProjectId])).rows[0];
+  assert.ok(latest);
+  assert.equal((await appendDueFixture(supersededProjectId, latest.ends_at)).state, "created");
+  selector.afterProjectId = null;
+  const afterSuccessor = await selector.dueProjects(deadline);
+  assert.equal(afterSuccessor.length, 20);
+  assert.equal(afterSuccessor.includes(supersededProjectId), false);
+});
+
 test("operator confirmation appends only a next-cycle config, preserves current history, and replays the exact receipt", async () => {
   const f = await fixture("- interval '1 day'"), initial = await configuration.read(f.token, f.projectId);
   assert.ok(initial.currentCycle); assert.equal(initial.configurationRevision, 0); assert.equal(initial.nextConfiguration, null); assert.equal(initial.nextCycle, null);
@@ -78,8 +125,11 @@ test("operator confirmation appends only a next-cycle config, preserves current 
   assert.equal((await configuration.save(f.token, f.csrf, f.projectId, request)).replayed, true);
   const read = await configuration.read(f.token, f.projectId);
   assert.deepEqual(read.currentCycle, initial.currentCycle);
-  assert.deepEqual(read.nextConfiguration, result.nextConfiguration); assert.equal(read.nextCycle, null);
-  assert.equal((await configuration.readCommand(f.token, f.projectId, request.metadata.idempotencyKey)).receipt?.outcome, "confirmed");
+  assert.deepEqual(read.nextConfiguration, { ...result.nextConfiguration!, application: { state: "pending", materializedCycleId: null, reason: null } });
+  assert.equal(read.nextCycle, null);
+  const command = await configuration.readCommand(f.token, f.projectId, request.metadata.idempotencyKey);
+  assert.equal(command.receipt?.outcome, "confirmed");
+  assert.deepEqual(command.receipt?.nextConfiguration, result.nextConfiguration, "command lookup preserves the original POST receipt schema");
   assert.equal((await configuration.readCommand(f.token, f.projectId, `cycle-missing-${randomUUID()}`)).status, "not_found");
   await assert.rejects(configuration.save(f.token, f.csrf, f.projectId, { ...request, reviewIntervalDays: 29 }), error("IDEMPOTENCY_KEY_REUSED"));
   await assert.rejects(configuration.save(f.token, f.csrf, f.projectId, { ...request, metadata: metadata(), expectedConfigurationRevision: 0 }), error("FACT_VERSION_STALE"));
@@ -162,4 +212,87 @@ test("session expiry after config insert rolls config, command receipt and audit
     (SELECT count(*)::int FROM socialgrowth_product.project_review_cycle_config_commands WHERE project_id=$1) commands,
     (SELECT count(*)::int FROM socialgrowth_product.audit_records WHERE object_id=$1 AND action LIKE 'project.review_cycle_config_%') audits`, [f.projectId])).rows[0];
   assert.deepEqual(counts, { configs: 0, commands: 0, audits: 0 });
+});
+
+test("cycle progression consumes a confirmed revision once, then carries it across contiguous windows", async () => {
+  const f = await fixture("- interval '1 day'"), initial = await configuration.read(f.token, f.projectId);
+  assert.ok(initial.currentCycle);
+  const confirmed = await configuration.save(f.token, f.csrf, f.projectId, { metadata: metadata(), expectedConfigurationRevision: 0,
+    businessTimeZone: "Asia/Shanghai", reviewIntervalDays: 14, trafficMinimumPerCycle: 3 });
+  assert.equal(confirmed.outcome, "confirmed");
+  const firstBoundary = initial.currentCycle.endsAt;
+  const applied = await appendDueFixture(f.projectId, firstBoundary);
+  assert.equal(applied.state, "created");
+  if (applied.state !== "created") return;
+  assert.equal(applied.origin, "confirmed_next_configuration");
+  assert.equal(applied.cycle.startsAt, firstBoundary);
+  assert.equal(applied.cycle.businessTimeZone, "Asia/Shanghai");
+  assert.equal(applied.cycle.trafficMinimum, 3);
+  const firstRow = (await pool.query<{ origin_kind: string; source_configuration_revision: string; predecessor_cycle_id: string; recorded_at: string }>(
+    `SELECT origin_kind,source_configuration_revision::text,predecessor_cycle_id,to_char(recorded_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') recorded_at
+     FROM socialgrowth_product.project_review_cycles WHERE project_id=$1 AND cycle_id=$2`, [f.projectId, applied.cycle.cycleId])).rows[0]!;
+  assert.equal(firstRow.origin_kind, "confirmed_next_configuration");
+  assert.equal(firstRow.source_configuration_revision, "1");
+  assert.equal(firstRow.predecessor_cycle_id, initial.currentCycle.cycleId);
+  assert.notEqual(firstRow.recorded_at, applied.cycle.startsAt);
+
+  const carried = await appendDueFixture(f.projectId, applied.cycle.endsAt);
+  assert.equal(carried.state, "created");
+  if (carried.state !== "created") return;
+  assert.equal(carried.origin, "carry_forward");
+  assert.equal(carried.cycle.startsAt, applied.cycle.endsAt);
+  assert.equal(carried.cycle.configVersion, applied.cycle.configVersion);
+  assert.equal(carried.cycle.businessTimeZone, applied.cycle.businessTimeZone);
+  assert.equal(carried.cycle.trafficMinimum, applied.cycle.trafficMinimum);
+  const secondRow = (await pool.query<{ origin_kind: string; source_configuration_revision: string | null; predecessor_cycle_id: string }>(
+    `SELECT origin_kind,source_configuration_revision::text,predecessor_cycle_id FROM socialgrowth_product.project_review_cycles
+     WHERE project_id=$1 AND cycle_id=$2`, [f.projectId, carried.cycle.cycleId])).rows[0]!;
+  assert.deepEqual(secondRow, { origin_kind: "carry_forward", source_configuration_revision: null, predecessor_cycle_id: applied.cycle.cycleId });
+  const read = await configuration.read(f.token, f.projectId);
+  assert.equal(read.nextConfiguration?.application.state, "applied");
+  assert.equal(read.nextConfiguration?.application.materializedCycleId, applied.cycle.cycleId);
+  assert.equal(read.nextCycle, null);
+  assert.equal(read.executionAllowed, false); assert.equal(read.publicationAllowed, false);
+  assert.equal((await pool.query("SELECT count(*)::int count FROM socialgrowth_product.project_review_cycles WHERE project_id=$1", [f.projectId])).rows[0]!.count, 3);
+  assert.equal((await pool.query("SELECT count(*)::int count FROM socialgrowth_product.business_plan_tasks WHERE project_id=$1", [f.projectId])).rows[0]!.count, 0);
+});
+
+test("no new configuration carries the initial settings and later approval cannot reset cycle one", async () => {
+  const f = await fixture("- interval '1 day'"), first = await configuration.read(f.token, f.projectId);
+  assert.ok(first.currentCycle);
+  const carried = await appendDueFixture(f.projectId, first.currentCycle.endsAt);
+  assert.equal(carried.state, "created");
+  if (carried.state !== "created") return;
+  assert.equal(carried.origin, "carry_forward");
+  assert.equal(carried.cycle.startsAt, first.currentCycle.endsAt);
+  assert.equal(carried.cycle.businessTimeZone, first.currentCycle.businessTimeZone);
+  assert.equal(carried.cycle.trafficMinimum, first.currentCycle.trafficMinimumPerCycle);
+  assert.equal(carried.cycle.configVersion, first.currentCycle.configVersion);
+
+  const original = (await pool.query<{ record: Record<string, unknown> }>(
+    "SELECT record FROM socialgrowth_product.project_direction_approvals WHERE project_id=$1", [f.projectId])).rows[0]!.record;
+  const changedApproval = { ...original, approvalId: randomUUID() };
+  const c = await pool.connect();
+  try {
+    await c.query("BEGIN");
+    await assert.rejects(cycles.appendApprovedConfiguration(c, changedApproval), (cause: unknown) =>
+      cause instanceof Error && cause.message === "BOUNDARY_STALE");
+    await c.query("ROLLBACK");
+  } finally { c.release(); }
+  const initialRows = await pool.query<{ count: number }>(`SELECT count(*)::int count FROM socialgrowth_product.project_review_cycles
+    WHERE project_id=$1 AND origin_kind='initial_direction_approval'`, [f.projectId]);
+  assert.equal(initialRows.rows[0]!.count, 1);
+});
+
+test("project end suppresses due cycle progression without changing immutable history", async () => {
+  const f = await fixture("- interval '1 day'"), before = await configuration.read(f.token, f.projectId);
+  assert.ok(before.currentCycle);
+  const digest = createHash("sha256").update("supplemental ended-cycle fixture").digest();
+  await pool.query(`INSERT INTO socialgrowth_product.project_lifecycle_intents(project_id,revision,intent,actor_id,request_id,request_key,payload_digest)
+    VALUES($1,1,'end_requested',$2,$3,$4,$5)`, [f.projectId, f.operatorId, `cycle-end-${randomUUID()}`, `cycle-end-key-${randomUUID()}`, digest]);
+  const result = await appendDueFixture(f.projectId, before.currentCycle.endsAt);
+  assert.deepEqual(result, { state: "unresolved", reason: "project_ended" });
+  const after = await pool.query<{ count: number }>("SELECT count(*)::int count FROM socialgrowth_product.project_review_cycles WHERE project_id=$1", [f.projectId]);
+  assert.equal(after.rows[0]!.count, 1);
+  assert.equal((await configuration.read(f.token, f.projectId)).executionAllowed, false);
 });

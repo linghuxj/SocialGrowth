@@ -107,3 +107,21 @@ pnpm --filter @socialgrowth/product-backend exec tsx --test --test-concurrency=1
 最小 backend check 首次失败：独立树未构建 0037 workspace contracts dist，因而提示 8 个 project-cycle config contracts 导出缺失。随后顺序执行 `pnpm --filter @socialgrowth/product-contracts build`（其中 `generate:check` 通过），再执行 `pnpm --filter @socialgrowth/product-backend check`，退出码 0。上述初次 stale-dist 失败及临时构建修复保留为本任务工程证据；不把它扩展为全局阻断。
 
 fixture after-hook 清理通过：关闭自有 PG/S3 client/pool，按 exact temp directory/key 清除加密包并 rmdir，按 ID/name/image/label/loopback port/独占匿名卷归属再次核验本轮容器后停止，并断言容器 ID 已消失；随后只读筛查 `sg-maint-pg-`、`sg-maint-s3-` 无残留。本测试使用 `--rm` 和匿名卷，未触碰原 PG33、其他容器、USB/模拟器、队列或发布。测试仅证明 schema/inventory 及空表行数恢复：0037 两表没有配置事实或命令回执行，不能证明生产 current/history/config version 与 actor-scoped unknown/replay 回执关系、周期业务数据恢复、生产数据恢复、RPO/RTO 或 consumer/fence；不据此给业务通过结论。
+
+## 0038周期来源迁移恢复补验
+
+基线与完整获审 Backend 源为 `e1baeaa8b30cc89f7ded8b06719fbd5dbc21fe2c`（source review report `d656b378`）；测试、migrations 与通用 restore inventory 与此源相同，没有ops代码偏移。迁移目录现枚举 38 个编号SQL，0038 SHA-256：`20f16514ca4a7a8ee563154f82eb6d1ad133b38ca39b00f53c33924c9d7675c8`。
+
+先执行 `pnpm env:check`：Node `v24.16.0`，项目Node路径 `/Users/linghuxj/Library/pnpm/nodejs/24.16.0/bin/node`，SQLite OK。无 stale contracts 依赖阻断本恢复测试，因此没有额外运行 contracts build/generate、backend build/typecheck。
+
+现有恢复命令单次运行：
+
+```sh
+pnpm --filter @socialgrowth/product-backend exec tsx --test --test-concurrency=1 src/database-maintenance-recovery.pg-test.ts
+```
+
+结果：38个迁移实际应用，1 test、1 pass、0 fail、0 skipped；测试耗时 `27809.942289 ms`，runner 总耗时 `41168.683121 ms`。backup metadata 与实际应用的同一组 migration name/bytes/SHA 对齐；加密文件由现有新 client load，恢复到隔离空目标。整库 `databaseMatchesBackup=true`，包含0038对现有周期表的来源列、NULL性、checks、composite FKs、partial unique indexes、function/trigger 与行inventory对照。
+
+0038方向相关的周期/config表在fixture仍为空：该测试证明迁移/schema/空inventory在dump-restore后匹配，不能证明非空 initial/source-config/carry predecessor关系、current/history/config版本传播、command receipt/replay关联或业务周期恢复。不得将空fixture报告为业务成功、生产灾备或RPO/RTO。
+
+测试after-hook清理通过：本轮自有PG/S3 pools和client关闭，精确临时目录仅允许预期加密包后删除并rmdir；fixture按本轮容器ID/name/image/label/loopback port/匿名volume owner核验后stop，并断言容器ID不再存在；测试结束后的只读名称筛查未发现 `sg-maint-pg-` 或 `sg-maint-s3-` 容器。使用Docker `--rm`匿名卷；未检查/触碰其他Docker资源。包密钥buffer清零。没有操作原PG33/SQLite、服务队列、browser/model、USB/模拟器或发布。
