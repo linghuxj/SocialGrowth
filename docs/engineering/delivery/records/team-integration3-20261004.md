@@ -37,6 +37,8 @@
 
 Plan数据库锁等待回归曾失败，按顺序集成 `6ee0939`、`0305994`、`259bdb6` 的完整修正；修改只涉及测试，不放宽生产检查。锁持有、模型调用次数、最终数据库时钟跨界和事务清理均有断言。固定候选独立复核见[锁等待测试审查](team-review-plan-lock-6ee0939.md)；Web作者实际PG7/7通过，主窗未独立重复这次PG运行。包含反馈导航及上述修订的完整Web源已获[80e候选批准](team-review-feedback-web-f5a81e5.md)。自有进程修复见[独立审查](team-review-process-stop-dba7b34.md)。
 
+共享ledger曾被Web自有 `read | transform | replace` 管道阻塞：同一稳定flock下，read输出背压而replace先等待锁再读stdin，导致互等。作者核对自有PID后SIGTERM该管道，未删除锁文件、未改他人记录；等待read恢复。后续改为先完整消费read snapshot，再单独CAS replace并捕获输出，冲突时重读合并；不新增锁机制。
+
 ## 仍在推进与未验证
 
 团队正在各自独立工作树实现项目暂停/恢复/结束、素材内部撤回、任务单一逻辑尝试和批准配置的周期窗口持久化。契约已经按相同revision由参与方签收；尚未完成的源码不能算作已集成或已验收。逻辑尝试只记录pending，不会打开物理执行许可；内部撤回不执行公开平台撤下。
