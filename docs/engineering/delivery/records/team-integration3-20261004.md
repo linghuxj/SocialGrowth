@@ -25,6 +25,8 @@
 
 | 当前36迁移恢复组合 | 测试冻结 `586fc51f9927ce9534425cd130715cacdc5e6682`，候选 `eaef30124880aeaba2714c83d6e494380783de0e` 已获[窄范围批准](team-review-ops-inventory-eaef301.md)并完整合入 | 独立PG17.11/MinIO实际联合恢复1/1，36迁移bytes及metadata哈希一致，0034–36新增5表schema和行数恢复对照一致且均为空；contracts build/generate:check与backend check通过。所有自有资源清理，未改liveDB；不证明真实业务数据、生产灾备或物理fence，详见[同一运维记录增量](team-ops-full-schema-20261004.md) |
 
+| 未知回执文案修复后的真实浏览器 | run6冻结 `a0fd8d71cf9f20063d9ec6e56f145089d60e9aaa`，仍未通过完整场景 | [固定失败摘要](../../../../artifacts/acceptance/team-lead-20261004/integration3/lifecycle-run6-failure.json)首次End真实201/changed=true/replayed=false已经留有限证据，随后故意丢弃客户端响应。verifier仍匹配旧unknown文案，未到达原键接续，模型未启动；显示v2及按钮禁用不能推断UI已显示结束意图。执行前Webcheck/单脚本tsc通过，实际runner所需build/PG阶段通过；修脚本残留前不再启动批次。自有资源已清理 |
+
 有限安全结果：[反馈](../../../../artifacts/acceptance/team-lead-20261004/integration3/feedback-2c7910e.json)、[服务恢复](../../../../artifacts/acceptance/team-lead-20261004/integration3/runtime-restart-f7dce19.json)、[模型排期](../../../../artifacts/acceptance/team-lead-20261004/integration3/model-plan-80e871a.json)。测试输入为隔离工程输入；真实浏览器操作和真实模型响应不等于真实平台业务验收。清理前只读SQL是补充证据，未用于预置业务成功。
 
 ## 修复与独立复核
