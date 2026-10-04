@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { MediaAccount, ProjectView } from "@socialgrowth/product-contracts";
-import { listProjects, ProductApiError } from "./operator-api.js";
+import { listProjects, ProductApiError, currentOperatorSessionContext } from "./operator-api.js";
 import {
   prepareAccountAssignment, prepareCredentialInvalidate, prepareCredentialPut,
   prepareMediaAccountCreate, readAccountAssignments, readMediaAccountCommand,
@@ -8,7 +8,7 @@ import {
 } from "./media-accounts-api.js";
 
 type Props = { active: boolean; refreshVersion: number; readOnly: boolean; onExpired(error: unknown): void };
-type Pending = { key: string; kind: "account" | "assignment"; send?: () => Promise<unknown>; lookup: () => Promise<{ state: string }> };
+type Pending = { key: string; kind: "account" | "assignment"; operatorId: string; send?: () => Promise<unknown>; lookup: () => Promise<{ state: string }> };
 const pendingStorageKey = "sg.media-accounts.pending.v1";
 
 function message(error: unknown): string {
@@ -19,6 +19,12 @@ function message(error: unknown): string {
   if (code === "IDEMPOTENCY_KEY_REUSED") return "原请求仍在处理中或结果待核对，请查询原操作";
   if (code === "INPUT_INVALID") return "输入不符合要求，请检查账号资料";
   return "请求失败；请先查询原操作状态";
+}
+function isDefinitiveNoWrite(error: unknown): boolean {
+  if (!(error instanceof ProductApiError)) return false;
+  const code = error.response.error.code;
+  return (error.status === 400 && code === "INPUT_INVALID")
+    || (error.status === 409 && code === "FACT_VERSION_STALE");
 }
 
 export function MediaAccountsPanel({ active, refreshVersion, readOnly, onExpired }: Props) {
@@ -33,38 +39,86 @@ export function MediaAccountsPanel({ active, refreshVersion, readOnly, onExpired
   const [pendingKey, setPendingKey] = useState("");
   const [resourceVersion, setResourceVersion] = useState(0);
   const pending = useRef<Pending | null>(null);
+  const createForm = useRef<HTMLFormElement | null>(null);
+  const assignmentReadEpoch = useRef(0);
+  const projectIdRef = useRef(projectId);
+  projectIdRef.current = projectId;
 
   useEffect(() => {
     const saved = sessionStorage.getItem(pendingStorageKey);
     if (!saved) return;
     try {
-      const item = JSON.parse(saved) as { key: string; kind: "account" | "assignment" };
-      if (!item.key || !["account", "assignment"].includes(item.kind)) throw new Error();
+      const item = JSON.parse(saved) as { key: string; kind: "account" | "assignment"; operatorId: string };
+      const currentOwner = currentOperatorSessionContext()?.operatorId;
+      if (!item.key || !["account", "assignment"].includes(item.kind) || !item.operatorId) throw new Error();
+      if (!currentOwner || item.operatorId.toLowerCase() !== currentOwner) {
+        sessionStorage.removeItem(pendingStorageKey);
+        setNotice("上次操作属于另一运营账号，已丢弃其本地恢复键；不会查询或重试该账号的操作。");
+        return;
+      }
       const lookup = () => item.kind === "account" ? readMediaAccountCommand(item.key) : readResourceCommand(item.key);
       pending.current = { ...item, lookup };
       setPendingKey(item.key);
       setNotice("发现上次结果待确认记录。仅保存了操作键，没有保存密码或请求内容；可查询状态，若未查到不能安全重试。");
     } catch { sessionStorage.removeItem(pendingStorageKey); }
   }, []);
+  useEffect(() => () => { pending.current = null; }, []);
 
   function rememberPending(op: Pending) {
     pending.current = op; setPendingKey(op.key);
-    sessionStorage.setItem(pendingStorageKey, JSON.stringify({ key: op.key, kind: op.kind }));
+    sessionStorage.setItem(pendingStorageKey, JSON.stringify({ key: op.key, kind: op.kind, operatorId: op.operatorId }));
   }
   function clearPending() { pending.current = null; setPendingKey(""); sessionStorage.removeItem(pendingStorageKey); }
+  function discardSensitivePendingBody() {
+    const op = pending.current;
+    if (!op) return;
+    const { key, kind, operatorId, lookup } = op;
+    const safePending: Pending = { key, kind, operatorId, lookup };
+    pending.current = safePending;
+    sessionStorage.setItem(pendingStorageKey, JSON.stringify({ key, kind, operatorId }));
+    createForm.current?.reset();
+    setSecretAccount("");
+  }
+  function handleWriteFailure(error: unknown) {
+    if (isDefinitiveNoWrite(error)) clearPending();
+    if (error instanceof ProductApiError && error.status === 401) {
+      // Keep only the original key for later status lookup; never keep the
+      // secret-bearing request closure after the authenticated session fails.
+      discardSensitivePendingBody();
+      onExpired(error);
+      return;
+    }
+    setError(message(error));
+  }
+
+  async function loadAssignment(targetProjectId: string) {
+    const epoch = ++assignmentReadEpoch.current;
+    setAssignment(null);
+    try {
+      const next = await readAccountAssignments(targetProjectId);
+      if (epoch !== assignmentReadEpoch.current || targetProjectId !== projectIdRef.current
+        || next.projectId?.toLowerCase() !== targetProjectId.toLowerCase()) return;
+      setAssignment(next);
+    } catch (error) {
+      if (epoch !== assignmentReadEpoch.current || targetProjectId !== projectIdRef.current) return;
+      setError(message(error));
+      if (error instanceof ProductApiError && error.status === 401) onExpired(error);
+    }
+  }
 
   async function refresh() {
     setError("");
     try {
       const [list, projectList] = await Promise.all([readMediaAccounts(), listProjects()]);
       setAccounts(list.accounts); setProjects(projectList); setResourceVersion(list.resourceVersion);
-      if (projectId) setAssignment(await readAccountAssignments(projectId));
+      if (projectId) await loadAssignment(projectId);
     } catch (e) { if (e instanceof ProductApiError && e.status === 401) onExpired(e); setError(message(e)); }
   }
   useEffect(() => { if (active) void refresh(); }, [active, refreshVersion]);
   useEffect(() => {
-    setAssignment(null);
-    if (projectId) void readAccountAssignments(projectId).then(setAssignment).catch(e => { setError(message(e)); if (e instanceof ProductApiError && e.status === 401) onExpired(e); });
+    if (!projectId) { assignmentReadEpoch.current++; setAssignment(null); return; }
+    void loadAssignment(projectId);
+    return () => { assignmentReadEpoch.current++; };
   }, [projectId]);
 
   async function submitForm(event: FormEvent<HTMLFormElement>) {
@@ -72,18 +126,21 @@ export function MediaAccountsPanel({ active, refreshVersion, readOnly, onExpired
     setBusy(true); setNotice(""); setError("");
     try {
       const password = String(values.get("password") ?? "");
-      const prepared = prepareMediaAccountCreate({ expectedResourceVersion: Number(values.get("expectedResourceVersion")),
-        platform: String(values.get("platform")) as "facebook" | "youtube", displayName: String(values.get("displayName") ?? "").trim(),
-        loginIdentifier: String(values.get("loginIdentifier") ?? "").trim(), password,
-        persona: (String(values.get("personName") ?? "").trim() || String(values.get("birthday") ?? "") || String(values.get("gender") ?? "")) ? {
+      const persona = (String(values.get("personName") ?? "").trim() || String(values.get("birthday") ?? "") || String(values.get("gender") ?? "")) ? {
           name: String(values.get("personName") ?? "").trim() || null,
           birthday: String(values.get("birthday") ?? "") || null,
           gender: String(values.get("gender") ?? "") || null,
-        } : null });
-      rememberPending({ key: prepared.idempotencyKey, kind: "account", send: () => prepared.send(), lookup: () => readMediaAccountCommand(prepared.idempotencyKey) });
+        } : undefined;
+      const loginIdentifier = String(values.get("loginIdentifier") ?? "").trim();
+      const displayName = String(values.get("displayName") ?? "").trim() || loginIdentifier.slice(0, 200);
+      const prepared = prepareMediaAccountCreate({ expectedResourceVersion: Number(values.get("expectedResourceVersion")),
+        platform: String(values.get("platform")) as "facebook" | "youtube", displayName, loginIdentifier, password, ...(persona ? { persona } : {}) });
+      const owner = currentOperatorSessionContext()?.operatorId;
+      if (!owner) throw new Error("需要重新登录后再保存账号");
+      rememberPending({ key: prepared.idempotencyKey, kind: "account", operatorId: owner, send: () => prepared.send(), lookup: () => readMediaAccountCommand(prepared.idempotencyKey) });
       await prepared.send(); clearPending(); form.reset(); setNotice("账号资料已保存；登录和平台身份仍未核验。密码已清除。");
       await refresh();
-    } catch (e) { setError(message(e)); } finally { setBusy(false); }
+    } catch (e) { handleWriteFailure(e); } finally { setBusy(false); }
   }
 
   async function queryPending() {
@@ -91,42 +148,52 @@ export function MediaAccountsPanel({ active, refreshVersion, readOnly, onExpired
     setBusy(true);
     try {
       const result = await op.lookup();
-      if (result.state === "applied") { clearPending(); setNotice("原操作已提交；已按服务器状态刷新。不会重复创建。"); await refresh(); }
+      if (result.state === "applied") { clearPending(); createForm.current?.reset(); setSecretAccount(""); setNotice("原操作已提交；已按服务器状态刷新。不会重复创建。"); await refresh(); }
       else setNotice(op.send ? "原键当前未查到结果。可以用同一页面保留的原请求内容和原键继续；不会换键。" : "原键当前未查到结果，且原请求内容未保留。为避免重复建号，不能安全重试；请先等待服务端回读或人工核对。 ");
-    } catch (e) { setError(message(e)); } finally { setBusy(false); }
+    } catch (e) {
+      if (e instanceof ProductApiError && e.status === 401) { discardSensitivePendingBody(); onExpired(e); }
+      else setError(message(e));
+    } finally { setBusy(false); }
   }
   async function retryPending() {
     const op = pending.current; if (!op?.send) { setNotice("原请求内容未保留，不能安全重试；请先等待服务端回读或人工核对。"); return; }
     setBusy(true);
-    try { await op.send(); clearPending(); setNotice("原请求已完成；列表状态已刷新。"); await refresh(); }
-    catch (e) { setError(message(e)); } finally { setBusy(false); }
+    try { await op.send(); clearPending(); createForm.current?.reset(); setSecretAccount(""); setNotice("原请求已完成；列表状态已刷新。"); await refresh(); }
+    catch (e) { handleWriteFailure(e); } finally { setBusy(false); }
   }
   async function credentialAction(account: MediaAccount, operation: "put" | "invalidate", loginIdentifier = "", password = "") {
     setBusy(true); setError(""); setNotice("");
     try {
       const prepared = operation === "put" ? prepareCredentialPut(account, loginIdentifier, password) : prepareCredentialInvalidate(account);
-      rememberPending({ key: prepared.idempotencyKey, kind: "account", send: () => prepared.send(), lookup: () => readMediaAccountCommand(prepared.idempotencyKey) });
+      const owner = currentOperatorSessionContext()?.operatorId;
+      if (!owner) throw new Error("需要重新登录后再保存凭据");
+      rememberPending({ key: prepared.idempotencyKey, kind: "account", operatorId: owner, send: () => prepared.send(), lookup: () => readMediaAccountCommand(prepared.idempotencyKey) });
       await prepared.send(); setSecretAccount(""); setNotice(operation === "put" ? "凭据已替换并保存；平台登录仍未核验。" : "本系统保存的凭据已失效；这不代表平台密码已修改或已退出登录。");
       clearPending();
       await refresh();
-    } catch (e) { setError(message(e)); } finally { setBusy(false); }
+    } catch (e) { handleWriteFailure(e); } finally { setBusy(false); }
   }
   async function assign(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!assignment || !projectId) return;
+    event.preventDefault(); if (!assignment || !projectId || assignment.projectId?.toLowerCase() !== projectId.toLowerCase()
+      || projectIdRef.current.toLowerCase() !== projectId.toLowerCase()) return;
     const form = new FormData(event.currentTarget); const deviceId = String(form.get("deviceId") ?? "");
     const accountIds = form.getAll("accountId").map(String).filter(Boolean);
     if (!deviceId || !accountIds.length) { setError("请选择可用手机和至少一个账号"); return; }
     if (accountIds.length > 2) { setError("每个手机最多分配两个账号"); return; }
     if (assignment.projectVersion === null) { setError("项目版本暂不可读取，请刷新；本次未执行分配"); return; }
+    const device = assignment.eligibleDevices.find(d => d.deviceId.toLowerCase() === deviceId.toLowerCase());
+    if (!device) { setError("所选手机已不在当前项目的可分配列表中，请刷新后重选"); return; }
     setBusy(true); setError("");
     try {
       const prepared = prepareAccountAssignment({ expectedResourceVersion: assignment.resourceVersion,
-        expectedProjectVersion: assignment.projectVersion, expectedDeviceVersion: assignment.eligibleDevices.find(d => d.deviceId === deviceId)?.deviceVersion ?? -1,
+        expectedProjectVersion: assignment.projectVersion, expectedDeviceVersion: device.deviceVersion,
         projectId, deviceId, accountIds });
-      rememberPending({ key: prepared.idempotencyKey, kind: "assignment", send: () => prepared.send(), lookup: () => readResourceCommand(prepared.idempotencyKey) });
+      const owner = currentOperatorSessionContext()?.operatorId;
+      if (!owner) throw new Error("需要重新登录后再分配账号");
+      rememberPending({ key: prepared.idempotencyKey, kind: "assignment", operatorId: owner, send: () => prepared.send(), lookup: () => readResourceCommand(prepared.idempotencyKey) });
       await prepared.send(); clearPending(); setNotice("账号与手机分配已持久保存；这不代表账号登录成功。");
       await refresh();
-    } catch (e) { setError(message(e)); } finally { setBusy(false); }
+    } catch (e) { handleWriteFailure(e); } finally { setBusy(false); }
   }
 
   if (!active) return null;
@@ -135,11 +202,11 @@ export function MediaAccountsPanel({ active, refreshVersion, readOnly, onExpired
     <section className="panel" aria-labelledby="media-accounts-title">
       <div className="section-heading"><div><h2 id="media-accounts-title">媒体平台账号</h2><p className="muted">公司运营用的平台账号资料，与运营人员账号、提供者手机身份分开管理。</p></div><span className="count-label">{accounts.length} 个账号</span></div>
       {error && <p role="alert" className="feedback">{error}</p>}{notice && <p role="status" className="feedback">{notice}</p>}
-      {!readOnly && <form className="media-account-form" onSubmit={e => void submitForm(e)}>
+      {!readOnly && <form ref={createForm} className="media-account-form" onSubmit={e => void submitForm(e)}>
         <fieldset disabled={busy || Boolean(pendingKey)} className="media-account-create-fields">
         <input type="hidden" name="expectedResourceVersion" value={resourceVersion} />
         <label>平台<select name="platform" required defaultValue=""><option value="" disabled>请选择</option><option value="facebook">Facebook</option><option value="youtube">YouTube</option></select></label>
-        <label>识别名称<input name="displayName" maxLength={100} required /></label>
+        <label>识别名称（可选）<input name="displayName" maxLength={100} /></label>
         <label>登录账号<input name="loginIdentifier" autoComplete="username" required /></label>
         <label>密码<input name="password" type="password" autoComplete="new-password" required /></label>
         <details className="optional-persona"><summary>可选：真实个人资料（帮助识别）</summary><div><label>真实姓名<input name="personName" autoComplete="name" /></label><label>生日<input name="birthday" type="date" /></label><label>性别<select name="gender" defaultValue=""><option value="">不填写</option><option value="female">女</option><option value="male">男</option><option value="unspecified">其他／不透露</option></select></label></div></details>

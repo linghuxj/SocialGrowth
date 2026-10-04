@@ -36,7 +36,7 @@ async function openMediaAccounts() {
 async function createAccount(name: string, platform: "facebook" | "youtube", login: string, secret: string, optional = false) {
   const form = page.locator(".media-account-form");
   await form.getByLabel("平台", { exact: true }).selectOption(platform);
-  await form.getByLabel("识别名称", { exact: true }).fill(name);
+  await form.getByLabel("识别名称（可选）", { exact: true }).fill(name);
   await form.getByLabel("登录账号", { exact: true }).fill(login);
   await form.getByLabel("密码", { exact: true }).fill(secret);
   if (optional) await form.getByRole("button", { name: "可选：真实个人资料（帮助识别）" }).click();
@@ -51,11 +51,20 @@ try {
   step = "media-account-form-required-fields";
   await openMediaAccounts();
   const form = page.locator(".media-account-form");
+  let createPostCount = 0;
+  page.on("request", request => { if (new URL(request.url()).pathname === "/api/operator/media-accounts" && request.method() === "POST") createPostCount++; });
   assert.equal(await form.getByRole("button", { name: "保存账号" }).isDisabled(), false);
-  assert.equal(await form.getByLabel("平台").evaluate((el: HTMLSelectElement) => el.validity.valueMissing), true);
+  await form.getByLabel("平台").selectOption("facebook");
+  await form.getByLabel("密码").fill(`Temporary-${crypto.randomUUID()}`);
+  await form.getByRole("button", { name: "保存账号", exact: true }).click();
   assert.equal(await form.getByLabel("登录账号").evaluate((el: HTMLInputElement) => el.validity.valueMissing), true);
+  assert.equal(createPostCount, 0);
+  await form.getByLabel("登录账号").fill("missing-password@example.invalid");
+  await form.getByLabel("密码").fill("");
+  await form.getByRole("button", { name: "保存账号", exact: true }).click();
   assert.equal(await form.getByLabel("密码").evaluate((el: HTMLInputElement) => el.validity.valueMissing), true);
-  passed.push("必填平台、登录账号、密码由真实浏览器表单校验");
+  assert.equal(createPostCount, 0);
+  passed.push("真实点击后浏览器校验缺失登录账号/密码，未发送创建请求");
 
   step = "create-account-and-secret-nonreadback";
   const suffix = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
@@ -90,17 +99,28 @@ try {
   });
   const formForUnknown = page.locator(".media-account-form");
   await formForUnknown.getByLabel("平台", { exact: true }).selectOption("youtube");
-  await formForUnknown.getByLabel("识别名称", { exact: true }).fill(`验收演示 YouTube ${suffix}`);
+  // Leave optional display name and real-person fields empty; client defaults
+  // the display label to the login identifier without inventing a persona.
   await formForUnknown.getByLabel("登录账号", { exact: true }).fill(ytLogin);
   await formForUnknown.getByLabel("密码", { exact: true }).fill(ytPassword);
   await formForUnknown.getByRole("button", { name: "可选：真实个人资料（帮助识别）" }).click();
   await formForUnknown.getByRole("button", { name: "保存账号", exact: true }).click();
   await page.getByRole("group", { name: "未知操作恢复" }).getByRole("button", { name: "查询原操作" }).waitFor();
+  const savedPending = await page.evaluate(() => sessionStorage.getItem("sg.media-accounts.pending.v1") ?? "");
+  assert.equal(savedPending.includes(ytPassword), false);
+  const recoveredAccountList = page.waitForResponse(r => new URL(r.url()).pathname === "/api/operator/media-accounts" && r.request().method() === "GET");
   await page.getByRole("group", { name: "未知操作恢复" }).getByRole("button", { name: "查询原操作" }).click();
   await page.getByText(/原操作已提交/).waitFor();
+  const recoveredAccounts = await (await recoveredAccountList).json();
+  const recoveredAccount = recoveredAccounts.accounts.find((account: { loginIdentifier: string }) => account.loginIdentifier === ytLogin);
+  assert.ok(recoveredAccount);
+  assert.equal(recoveredAccount.displayName, ytLogin);
+  assert.equal(recoveredAccount.persona, null);
+  assert.equal(recoveredAccount.canonicalAccountRef, null);
+  assert.equal(recoveredAccount.credential.state, "stored_unverified");
   await page.getByText(ytLogin, { exact: true }).waitFor();
   await page.unroute(routePath);
-  assert.equal(await page.getByText(ytLogin, { exact: true }).count(), 1);
+  assert.equal(await page.locator(".media-account-card").filter({ hasText: ytLogin }).count(), 1);
   passed.push("实际服务已提交但丢失响应后，查询原键确认同一账号，未重复创建");
 
   step = "refresh-secret-nonreadback";
@@ -117,7 +137,7 @@ try {
   const facebookCard = page.locator(".media-account-card").filter({ hasText: fbLogin });
   await facebookCard.getByRole("button", { name: "替换凭据", exact: true }).click();
   await facebookCard.getByLabel(`替换 验收演示 Facebook ${suffix} 的密码`).fill(`Rotated-${crypto.randomUUID()}`);
-  await facebookCard.getByRole("button", { name: "保存新密码", exact: true }).click();
+  await facebookCard.getByRole("button", { name: "保存凭据", exact: true }).click();
   await page.getByText("凭据已替换并保存；平台登录仍未核验。", { exact: true }).waitFor();
   await facebookCard.getByText("已保存，未核验", { exact: true }).waitFor();
   passed.push("真实Web凭据轮换后状态仍显示未核验");
@@ -180,12 +200,22 @@ try {
     ]);
     const [firstResult, secondResult] = await Promise.all([firstPost, secondPost]);
     assert.deepEqual([firstResult.status(), secondResult.status()].sort(), [201, 409]);
-    await page.getByText("账号与手机分配已持久保存；这不代表账号登录成功。", { exact: true }).waitFor();
-    await competitor.getByRole("alert").getByText(/资源状态已变化/).waitFor();
-    passed.push("真实Web分配并发使用同账号时，服务仅接受一个持久绑定并拒绝竞争请求");
+    const winner = firstResult.status() === 201 ? page : competitor;
+    const loser = firstResult.status() === 409 ? page : competitor;
+    await winner.getByText("账号与手机分配已持久保存；这不代表账号登录成功。", { exact: true }).waitFor();
+    await loser.getByRole("alert").getByText(/资源状态已变化/).waitFor();
+    await Promise.all([
+      winner.locator(".media-accounts-workspace").getByRole("button", { name: "刷新", exact: true }).click(),
+      loser.locator(".media-accounts-workspace").getByRole("button", { name: "刷新", exact: true }).click(),
+    ]);
+    await winner.getByText("本项目已占用：", { exact: false }).waitFor();
+    await loser.getByText("本项目尚无账号与手机分配。", { exact: true }).waitFor();
+    await loser.locator(".media-account-card").filter({ hasText: fbLogin }).getByText(/已占用/).waitFor();
+    passed.push("真实Web分配竞争的201胜者随机确认；刷新两侧后只存在一条持久绑定，另一方保持未分配");
     await competitor.close();
   }
 
+  step = "unknown-key-not-found-after-reload";
   // Simulate loss before the request reaches the product server. After reload,
   // only the non-secret command key survives; a not_found result cannot mint a
   // replacement key or retry a request whose password body was discarded.
@@ -199,11 +229,12 @@ try {
   const unrecoverableLogin = `media-unresolved-${suffix}@example.invalid`;
   const unresolvedForm = page.locator(".media-account-form");
   await unresolvedForm.getByLabel("平台", { exact: true }).selectOption("facebook");
-  await unresolvedForm.getByLabel("识别名称", { exact: true }).fill(`验收未送达演示 ${suffix}`);
   await unresolvedForm.getByLabel("登录账号", { exact: true }).fill(unrecoverableLogin);
   await unresolvedForm.getByLabel("密码", { exact: true }).fill(`NeverPersist-${crypto.randomUUID()}`);
   await unresolvedForm.getByRole("button", { name: "保存账号", exact: true }).click();
   await page.getByRole("group", { name: "未知操作恢复" }).waitFor();
+  const unresolvedPending = await page.evaluate(() => sessionStorage.getItem("sg.media-accounts.pending.v1") ?? "");
+  assert.equal(unresolvedPending.includes("NeverPersist"), false);
   await page.unroute("**/api/operator/media-accounts");
   await page.reload(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor(); await openMediaAccounts();
   const recovery = page.getByRole("group", { name: "未知操作恢复" });
@@ -217,10 +248,12 @@ try {
   // Screenshot only after clearing every password field and closing any temporary credential editor.
   await page.locator("input[type=password]").evaluateAll((nodes: HTMLInputElement[]) => nodes.forEach(input => { input.value = ""; }));
   await page.screenshot({ path: `${output}/media-accounts-desktop.png`, fullPage: true });
+  step = "narrow-viewport";
   await page.setViewportSize({ width: 390, height: 844 });
   const width = await page.evaluate(() => ({ content: document.documentElement.scrollWidth, viewport: innerWidth }));
   assert.ok(width.content <= width.viewport + 1, "narrow viewport overflows horizontally");
   assert.equal(await page.locator(".media-account-form").count(), 0);
+  assert.equal(await page.getByRole("button", { name: "保存账号", exact: true }).count(), 0);
   assert.equal(await page.getByRole("note").filter({ hasText: "手机端为只读模式" }).count(), 1);
   await page.screenshot({ path: `${output}/media-accounts-mobile.png`, fullPage: true });
   passed.push("390px窄屏无横向溢出；写操作遵守只读模式");
@@ -233,5 +266,3 @@ try {
   console.log(JSON.stringify({ passed, blocked, failed }));
   await browser.close();
 }
-  step = "unknown-key-not-found-after-reload";
-  step = "narrow-viewport";
