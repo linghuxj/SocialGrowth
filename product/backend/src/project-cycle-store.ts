@@ -196,7 +196,7 @@ export class ProjectCycleStore {
     const cycle: ProjectCycle = { cycleId: randomUUID(), projectId, configVersion: projectVersion,
       businessTimeZone: inputs.businessTimeZone, startsAt: window.startsAt, endsAt: window.endsAt,
       trafficMinimum: inputs.trafficMinimumPerCycle };
-    const appended = appendProjectCycle(history, cycle, previous?.cycleId ?? null);
+    const appended = appendProjectCycle(history, cycle, null);
     if (!appended.changed) return { state: "unchanged", cycle: appended.cycles.at(-1)! };
     const number = appended.cycles.length;
     await c.query(`INSERT INTO ${s}.project_review_cycles(cycle_id,project_id,cycle_number,config_version,approval_id,project_version,
@@ -227,7 +227,7 @@ export class ProjectCycleStore {
       FROM ${s}.project_review_cycle_configs WHERE project_id=$1 ORDER BY configuration_revision DESC LIMIT 1`, [projectId])).rows[0];
     let origin: "confirmed_next_configuration" | "carry_forward" = "carry_forward";
     let sourceConfigurationRevision: number | null = null;
-    let timeZone = previous.businessTimeZone;
+    let timeZone: ProjectCycle["businessTimeZone"] = previous.businessTimeZone;
     let intervalDays: number | null = previous.review_interval_days;
     let trafficMinimum = previous.trafficMinimum;
     if (intervalDays === null) {
@@ -245,7 +245,9 @@ export class ProjectCycleStore {
         }
         origin = "confirmed_next_configuration";
         sourceConfigurationRevision = Number(latest.configuration_revision);
-        timeZone = latest.business_time_zone;
+        const parsedTimeZone = projectPlanningInputsSchema.shape.businessTimeZone.unwrap().safeParse(latest.business_time_zone);
+        if (!parsedTimeZone.success) return { state: "unresolved", reason: "source_missing" };
+        timeZone = parsedTimeZone.data;
         intervalDays = latest.review_interval_days;
         trafficMinimum = latest.traffic_minimum_per_cycle;
       } else if (consumed.rowCount === 0) {

@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { compareTimestamps, contractVersion, idempotencyKeySchema, projectCycleConfigurationCommandReadResponseSchema,
   projectCycleConfigurationReadResponseSchema, projectCycleCurrentReadFactSchema, projectCycleNextConfigurationReadSchema,
-  projectPlanningInputsSchema, saveProjectCycleConfigurationReceiptSchema,
+  projectCycleNextConfigurationSchema, projectPlanningInputsSchema, saveProjectCycleConfigurationReceiptSchema,
   saveProjectCycleConfigurationRequestSchema, uuidSchema,
   type ProjectCycleConfigurationReadResponse } from "@socialgrowth/product-contracts";
 import { nextCycleBoundary, resolveProjectCycleWindow } from "./project-cycle-store.js";

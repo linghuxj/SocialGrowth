@@ -96,8 +96,11 @@ test("operator confirmation appends only a next-cycle config, preserves current 
   assert.equal((await configuration.save(f.token, f.csrf, f.projectId, request)).replayed, true);
   const read = await configuration.read(f.token, f.projectId);
   assert.deepEqual(read.currentCycle, initial.currentCycle);
-  assert.deepEqual(read.nextConfiguration, result.nextConfiguration); assert.equal(read.nextCycle, null);
-  assert.equal((await configuration.readCommand(f.token, f.projectId, request.metadata.idempotencyKey)).receipt?.outcome, "confirmed");
+  assert.deepEqual(read.nextConfiguration, { ...result.nextConfiguration!, application: { state: "pending", materializedCycleId: null, reason: null } });
+  assert.equal(read.nextCycle, null);
+  const command = await configuration.readCommand(f.token, f.projectId, request.metadata.idempotencyKey);
+  assert.equal(command.receipt?.outcome, "confirmed");
+  assert.deepEqual(command.receipt?.nextConfiguration, result.nextConfiguration, "command lookup preserves the original POST receipt schema");
   assert.equal((await configuration.readCommand(f.token, f.projectId, `cycle-missing-${randomUUID()}`)).status, "not_found");
   await assert.rejects(configuration.save(f.token, f.csrf, f.projectId, { ...request, reviewIntervalDays: 29 }), error("IDEMPOTENCY_KEY_REUSED"));
   await assert.rejects(configuration.save(f.token, f.csrf, f.projectId, { ...request, metadata: metadata(), expectedConfigurationRevision: 0 }), error("FACT_VERSION_STALE"));
