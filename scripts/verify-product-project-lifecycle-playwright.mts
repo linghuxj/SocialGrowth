@@ -199,10 +199,11 @@ async function openLifecycle(name: string) {
   await openProject(name);
   await workspace.getByRole("button", { name: "项目生命周期", exact: true }).click();
   const panel = workspace.getByRole("region", { name: "项目生命周期", exact: true });
+  const intentValue = panel.getByRole("region", { name: "项目意图事实", exact: true }).locator(".project-lifecycle__facts dd").first();
   stage = "wait for lifecycle panel heading";
   await panel.getByRole("heading", { name: "项目暂停、恢复与结束", exact: true }).waitFor();
   stage = "wait for lifecycle intent data text";
-  await panel.getByText(/尚无项目生命周期意图|已记录暂停意图|已记录恢复前复核意图|已记录正式结束意图/).waitFor();
+  await intentValue.getByText(/^(尚无项目生命周期意图|已记录暂停意图|已记录恢复前复核意图|已记录正式结束意图)$/).waitFor();
   return panel;
 }
 async function saveSyntheticMaterial(projectName: string) {
@@ -300,9 +301,12 @@ try {
   const endA = pauseA.getByRole("region", { name: "项目意图事实", exact: true });
   await endA.getByRole("checkbox", { name: /我确认项目正式结束不可普通恢复/ }).check();
   await endA.getByRole("button", { name: "正式结束项目", exact: true }).click();
-  await pauseA.getByText(/请求结果未知；原请求内容和请求键保持冻结/).waitFor();
+  await pauseA.getByRole("status").filter({
+    hasText: /写请求回执未能确认，结果未知；原请求内容与请求键保持冻结。请核对当前事实或接续原请求。/,
+  }).waitFor();
   const frozenEnd = endA.getByRole("button", { name: "接续原请求", exact: true });
   await frozenEnd.waitFor();
+  assert.equal(await frozenEnd.isEnabled(), true, "the frozen original request must remain explicitly continuable");
   assert.equal(endPostCount, 1);
   assert.ok(endFirstBody !== null && endFirstKeySha256 !== null && endRequestId !== null);
 
@@ -323,7 +327,8 @@ try {
   const continuedEnd = reopenedA.getByRole("button", { name: "接续原请求", exact: true });
   await continuedEnd.waitFor();
   await continuedEnd.click();
-  await reopenedA.getByText("已记录正式结束意图", { exact: true }).waitFor();
+  await reopenedA.getByRole("region", { name: "项目意图事实", exact: true })
+    .locator(".project-lifecycle__facts dd").first().getByText("已记录正式结束意图", { exact: true }).waitFor();
   assert.equal(endPostCount, 2);
   assert.ok(outputFacts.endUnknownReplay !== null);
   assert.equal(outputFacts.endUnknownReplay.bodySha256, outputFacts.endUnknownReplay.replayBodySha256);
@@ -342,10 +347,13 @@ try {
   const statusOrAlert = await selectedPanel.locator('[role="alert"], [role="status"]').allInnerTexts().catch(() => []);
   const safeMessage = statusOrAlert.join(" ");
   const alertCategory = safeMessage.includes("运营会话已失效") ? "session_expired" : safeMessage.includes("生命周期事实暂时无法读取") ? "lifecycle_read_unavailable"
-    : safeMessage.includes("请求结果未知") ? "request_outcome_unknown" : safeMessage ? "other_safe_alert" : "none";
+    : safeMessage.includes("请求结果未知") || safeMessage.includes("结果未知；原请求内容与请求键保持冻结") ? "request_outcome_unknown"
+      : safeMessage ? "other_safe_alert" : "none";
   const panel = selectedPanel;
   const visible = await panel.isVisible().catch(() => false);
   const intentRegion = panel.getByRole("region", { name: "项目意图事实", exact: true });
+  const intentLabel = await intentRegion.locator(".project-lifecycle__facts dd").first().innerText().catch(() => "");
+  const intentLabelIsKnown = /^(尚无项目生命周期意图|已记录暂停意图|已记录恢复前复核意图|已记录正式结束意图)$/.test(intentLabel.trim());
   const lifecycleVersionText = await intentRegion.locator(".project-lifecycle__section-heading > span").innerText().catch(() => "");
   const lifecycleVersionMatch = /^生命周期版本 v(\d+)$/.exec(lifecycleVersionText.trim());
   const projectVersionText = await workspace.locator("#project-basics .section-heading > span").innerText().catch(() => "");
@@ -359,7 +367,8 @@ try {
     lifecycleHeadingVisible: await panel.getByRole("heading", { name: "项目暂停、恢复与结束", exact: true }).isVisible().catch(() => false),
     lifecycleFactRegionPresent: await intentRegion.count().catch(() => 0) > 0,
     lifecycleFactRegionVisible: await panel.getByRole("region", { name: "项目意图事实", exact: true }).isVisible().catch(() => false),
-    knownIntentVisible: await panel.getByText(/尚无项目生命周期意图|已记录暂停意图|已记录恢复前复核意图|已记录正式结束意图/).isVisible().catch(() => false),
+    knownIntentVisible: intentLabelIsKnown,
+    intentLabel: intentLabelIsKnown ? intentLabel.trim() : null,
     lifecycleRevisionLabelPresent: lifecycleVersionMatch !== null,
     lifecycleRevision: lifecycleVersionMatch ? Number(lifecycleVersionMatch[1]) : null,
     projectVersionLabelPresent: projectVersionMatch !== null,
@@ -369,7 +378,10 @@ try {
     endButtonEnabled: await endButton.isEnabled().catch(() => false),
     loadingStatusVisible: await panel.getByText("正在读取项目意图与当前素材事实…", { exact: true }).isVisible().catch(() => false),
     errorAlertVisible: await panel.locator(".project-lifecycle__alert").isVisible().catch(() => false),
-    unknownStatusVisible: await panel.getByRole("status").filter({ hasText: /请求结果未知/ }).isVisible().catch(() => false),
+    unknownStatusVisible: await panel.getByRole("status").filter({ hasText: /请求结果未知|写请求回执未能确认，结果未知/ }).isVisible().catch(() => false),
+    continuationButtonPresent: await panel.getByRole("button", { name: "接续原请求", exact: true }).count().catch(() => 0) > 0,
+    continuationButtonEnabled: await panel.getByRole("button", { name: "接续原请求", exact: true }).isEnabled().catch(() => false),
+    readonlyReceiptCheckPresent: await panel.getByRole("button", { name: "只读核对原回执", exact: true }).count().catch(() => 0) > 0,
     navigationSelected: await workspace.getByRole("button", { name: "项目生命周期", exact: true }).getAttribute("aria-current").catch(() => null) === "page",
   };
   await writeFile(`${output}/failure.json`, JSON.stringify({ failureType: error instanceof Error ? error.name : "unknown", stage, pageErrors, readEvidence, alertCategory, uiState, actions: outputFacts,
