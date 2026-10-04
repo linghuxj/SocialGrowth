@@ -48,6 +48,8 @@ import { DeviceAssistanceNotesService } from "./device-assistance-notes-service.
 import { DeviceAssistanceNotesController } from "./device-assistance-notes.controller.js";
 import { TrackingLinkService } from "./tracking-link-service.js";
 import { TrackingRedirectController } from "./tracking-redirect.controller.js";
+import { MetricFeedbackController } from "./metric-feedback.controller.js";
+import { MetricSnapshotStore } from "./metric-snapshot-store.js";
 import {
   DevelopmentSmsCapturePort,
   DisabledDevelopmentSmsCodeReader,
@@ -158,6 +160,7 @@ const providerAuthProvider = {
     ProviderCommissionFeedController,
     DeviceAssistanceNotesController,
     TrackingRedirectController,
+    MetricFeedbackController,
   ],
   providers: [
     { provide: AccountPreparationService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new AccountPreparationService(pool, auth) },
@@ -190,6 +193,9 @@ const providerAuthProvider = {
     // No real business target origin/definition has been supplied. Closed until
     // an explicit server-owned policy adapter is reviewed; no ambient fallback.
     { provide: TrackingLinkService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new TrackingLinkService(pool, auth, null) },
+    // No trusted metric source adapter is configured. The projection reports
+    // not_configured and never exposes caller-supplied or inferred observations.
+    { provide: MetricSnapshotStore, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new MetricSnapshotStore(pool, null, auth) },
     DatabaseLifecycle,
   ],
 })

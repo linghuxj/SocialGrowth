@@ -1,26 +1,33 @@
 import { z } from "zod";
-import { timestampSchema, uuidSchema } from "./common.js";
+import { contractVersionSchema, requestIdSchema, requestMetadataSchema, timestampSchema, uuidSchema } from "./common.js";
+import { materialUploadContentTypeSchema } from "./material-upload.js";
 
 const version = z.int().min(0).max(Number.MAX_SAFE_INTEGER);
 const positiveVersion = z.int().min(1).max(Number.MAX_SAFE_INTEGER);
 const blocker = z.enum([
-  "plan_missing", "plan_stale", "project_scope_changed", "material_missing", "material_revision_changed",
-  "material_not_eligible", "identity_reservation_missing", "device_association_missing", "installation_missing",
+  "plan_missing", "task_missing", "plan_stale", "project_scope_changed", "material_missing", "material_revision_changed",
+  "material_not_eligible", "material_withdrawn", "project_pause_requested", "project_resume_requested", "project_end_requested",
+  "task_cancelled_before_start", "identity_reservation_missing", "attempt_assignment_stale", "device_association_missing", "installation_missing",
   "device_paused", "stop_unconfirmed", "participation_missing", "network_not_admitted",
   "action_inspector_unavailable", "current_fact_unknown",
 ]);
+const materialFileBindingSchema = z.strictObject({ objectId: uuidSchema, sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  bytes: z.int().min(1).max(128 * 1024 * 1024), contentType: materialUploadContentTypeSchema });
+function orderedFiles(files: Array<{ objectId: string }>) {
+  return files.every((file, index) => index === 0 || files[index - 1]!.objectId.toLowerCase() < file.objectId.toLowerCase());
+}
 
 export const businessPlanCurrentImpactReferenceSchema = z.strictObject({
   impactRevision: positiveVersion,
-  reason: z.enum(["project_scope_changed", "material_revision_changed"]),
+  reason: z.enum(["project_scope_changed", "material_revision_changed", "project_lifecycle_intent_changed", "material_withdrawn"]),
   observedProjectVersion: version,
   observedMaterialRevision: positiveVersion.nullable(),
   recordedAt: timestampSchema,
 }).superRefine((value, ctx) => {
-  if (value.reason === "project_scope_changed" && value.observedMaterialRevision !== null) {
+  if ((value.reason === "project_scope_changed" || value.reason === "project_lifecycle_intent_changed") && value.observedMaterialRevision !== null) {
     ctx.addIssue({ code: "custom", message: "Project impact must not claim a material revision" });
   }
-  if (value.reason === "material_revision_changed" && value.observedMaterialRevision === null) {
+  if ((value.reason === "material_revision_changed" || value.reason === "material_withdrawn") && value.observedMaterialRevision === null) {
     ctx.addIssue({ code: "custom", message: "Material impact must identify its revision" });
   }
 });
@@ -36,6 +43,26 @@ export const businessPlanCurrentCheckTaskSchema = z.strictObject({
   platform: z.enum(["facebook", "youtube"]),
   form: z.enum(["facebook_video", "facebook_image_text", "youtube_shorts", "youtube_video"]),
   scheduledAt: timestampSchema,
+  expectedFiles: z.array(materialFileBindingSchema).max(20),
+  currentFiles: z.array(materialFileBindingSchema).max(20).nullable(),
+  attempt: z.strictObject({
+    taskAttemptId: uuidSchema,
+    attemptNumber: z.literal(1),
+    state: z.literal("pending_current_checks"),
+    assignmentSemantics: z.literal("logical_reservation_bound"),
+    reservedDeviceIdAtCreation: uuidSchema,
+    assignmentRelation: z.enum(["current", "stale", "unknown"]),
+    createdAt: timestampSchema,
+    startedAt: z.null(),
+    executionAllowed: z.literal(false),
+    publicationAllowed: z.literal(false),
+  }).nullable(),
+  cancelledBeforeStart: z.strictObject({
+    reason: z.enum(["project_end", "material_withdrawal"]),
+    requestId: requestIdSchema,
+    revision: positiveVersion,
+    recordedAt: timestampSchema,
+  }).nullable(),
   current: z.strictObject({
     projectVersion: version.nullable(),
     approvalId: uuidSchema.nullable(),
@@ -47,11 +74,27 @@ export const businessPlanCurrentCheckTaskSchema = z.strictObject({
     installationGeneration: z.string().regex(/^[1-9][0-9]{0,18}$/).nullable(),
     controlIntent: z.enum(["active", "pause_requested", "paused", "resume_requested", "exit_pending", "exited"]).nullable(),
     controlStop: z.enum(["not_requested", "requested", "confirmed", "unknown"]).nullable(),
+    projectLifecycleIntent: z.enum(["pause_requested", "resume_requested", "end_requested"]).nullable(),
+    materialWithdrawn: z.boolean().nullable(),
     participationCurrent: z.boolean().nullable(),
     networkAdmitted: z.boolean().nullable(),
   }),
   impactReferences: z.array(businessPlanCurrentImpactReferenceSchema).max(1000),
-  blockers: z.array(blocker).min(1).max(15),
+  blockers: z.array(blocker).min(1).max(24),
+}).superRefine((value, ctx) => {
+  if (!orderedFiles(value.expectedFiles) || (value.currentFiles !== null && !orderedFiles(value.currentFiles))) {
+    ctx.addIssue({ code: "custom", message: "Material file manifests must be unique and objectId ordered" });
+  }
+  if (value.expectedFiles.length === 0 && (!value.blockers.includes("material_missing") || !value.blockers.includes("current_fact_unknown"))) {
+    ctx.addIssue({ code: "custom", message: "Missing expected manifest must remain blocked" });
+  }
+  if (!value.currentFiles?.length && (!value.blockers.includes("material_missing") || !value.blockers.includes("current_fact_unknown"))) {
+    ctx.addIssue({ code: "custom", message: "Missing current manifest must remain blocked" });
+  }
+  if (value.currentFiles !== null && JSON.stringify(value.expectedFiles) !== JSON.stringify(value.currentFiles)
+    && !value.blockers.includes("material_revision_changed")) {
+    ctx.addIssue({ code: "custom", message: "Different current files must remain blocked" });
+  }
 });
 
 export const businessPlanCurrentChecksResponseSchema = z.strictObject({
@@ -63,4 +106,45 @@ export const businessPlanCurrentChecksResponseSchema = z.strictObject({
   publicationAllowed: z.literal(false),
 });
 
+export const createBusinessPlanTaskAttemptRequestSchema = z.strictObject({
+  metadata: requestMetadataSchema,
+  expectedPlanRevision: positiveVersion,
+  expectedTaskRevision: positiveVersion,
+});
+
+export const businessPlanTaskAttemptReceiptSchema = z.strictObject({
+  taskAttemptId: uuidSchema,
+  attemptNumber: z.literal(1),
+  state: z.literal("pending_current_checks"),
+  assignmentSemantics: z.literal("logical_reservation_bound"),
+  reservedDeviceIdAtCreation: uuidSchema,
+  assignmentRelation: z.enum(["current", "stale", "unknown"]),
+  createdAt: timestampSchema,
+  startedAt: z.null(),
+  executionAllowed: z.literal(false),
+  publicationAllowed: z.literal(false),
+});
+
+export const createBusinessPlanTaskAttemptResponseSchema = z.strictObject({
+  contractVersion: contractVersionSchema,
+  projectId: uuidSchema,
+  taskId: uuidSchema,
+  outcome: z.enum(["created", "replayed", "blocked"]),
+  attempt: businessPlanTaskAttemptReceiptSchema.nullable(),
+  blockers: z.array(blocker).max(24),
+  checkedAt: timestampSchema,
+  executionAllowed: z.literal(false),
+  publicationAllowed: z.literal(false),
+}).superRefine((value, ctx) => {
+  if ((value.outcome === "blocked") !== (value.attempt === null)) {
+    ctx.addIssue({ code: "custom", message: "Only blocked attempts may have a null receipt" });
+  }
+  if (value.outcome === "blocked" && value.blockers.length === 0) {
+    ctx.addIssue({ code: "custom", message: "A blocked attempt must identify current blockers" });
+  }
+});
+
 export type BusinessPlanCurrentChecksResponse = z.infer<typeof businessPlanCurrentChecksResponseSchema>;
+export type BusinessPlanCurrentCheckBlocker = z.infer<typeof blocker>;
+export type CreateBusinessPlanTaskAttemptRequest = z.infer<typeof createBusinessPlanTaskAttemptRequestSchema>;
+export type CreateBusinessPlanTaskAttemptResponse = z.infer<typeof createBusinessPlanTaskAttemptResponseSchema>;

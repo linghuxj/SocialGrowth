@@ -7,6 +7,15 @@ import { businessSuggestionSchema } from "./business-suggestion-core.js";
 import type { BusinessModelPort } from "./business-model-coordinator.js";
 const description = z.strictObject({ configured: z.literal(true), providerKey: z.string().min(1).max(100), modelKey: z.string().min(1).max(150) });
 const returned = z.strictObject({ providerKey: description.shape.providerKey, modelKey: description.shape.modelKey, responseId: z.string().uuid(), outputText: z.string().max(262144) });
+const directionFields = ["direction", "rationale", "limitations"] as const;
+const directionIssueCategories = ["unrecognized_keys", "invalid_type", "too_small", "too_big", "invalid_format", "other"] as const;
+export function summarizeDirectionOutputFailure(error: z.ZodError) {
+  const fields = [...new Set(error.issues.map(issue => directionFields.includes(String(issue.path[0]) as typeof directionFields[number]) ? String(issue.path[0]) : "object"))].sort();
+  const categories = [...new Set(error.issues.map(issue => directionIssueCategories.includes(issue.code as typeof directionIssueCategories[number])
+    ? issue.code as typeof directionIssueCategories[number] : "other"))].sort();
+  const extraKeyCount = Math.min(100, error.issues.reduce((count, issue) => count + (issue.code === "unrecognized_keys" && "keys" in issue ? issue.keys.length : 0), 0));
+  return { fields, categories, extraKeyCount };
+}
 export interface InitialDirectionModel {
   generateDirection(input: unknown, signal: AbortSignal): Promise<{ providerKey: string; modelKey: string; responseId: string; output: z.infer<typeof initialDirectionOutputSchema> }>;
 }
@@ -49,10 +58,10 @@ export class ArtemisBusinessModel implements BusinessModelPort, InitialDirection
     const response = returned.parse(await this.invoke([], { operation: "initial_direction", input, outputSchema: z.toJSONSchema(initialDirectionOutputSchema, { io: "input" }) }, signal));
     const output = initialDirectionOutputSchema.safeParse(JSON.parse(response.outputText));
     if (!output.success) {
-      // Only fixed field names/codes, never model text, unknown key names or
-      // Zod messages. This distinguishes shape failures without leaking facts.
-      console.warn(JSON.stringify({ event: "direction_output_invalid", bytes: Buffer.byteLength(response.outputText),
-        fields: [...new Set(output.error.issues.map(issue => ["direction", "rationale", "limitations"].includes(String(issue.path[0])) ? String(issue.path[0]) : "object"))] }));
+      // Only fixed categories and allowlisted paths/counts; never model text,
+      // unrecognized key names, values, prompts or Zod messages.
+      console.warn(JSON.stringify({ event: "direction_output_invalid", outputBytes: Buffer.byteLength(response.outputText),
+        ...summarizeDirectionOutputFailure(output.error) }));
       throw new Error("BUSINESS_MODEL_SCHEMA_INVALID");
     }
     return { ...response, output: output.data };

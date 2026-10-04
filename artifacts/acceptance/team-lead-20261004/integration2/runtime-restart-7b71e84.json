@@ -1,0 +1,22 @@
+{
+  "checkedAt": "2026-10-03T22:13:03.015Z",
+  "scope": "owned_local_runtime_restart_and_readonly_counts",
+  "source": "7b71e84a96c11fe17bdb2988e8068d0b97de91a1",
+  "backendCodeEquivalentToBuild": "8678c84",
+  "backendHealthStatus": 200,
+  "webStatus": 200,
+  "counts": {
+    "business_plan_outbox": 0,
+    "business_plan_tasks": 0,
+    "phone_control_commands": 0,
+    "phone_control_holder_grants": 0
+  },
+  "executorEnabled": false,
+  "databaseReset": false,
+  "demoUnknownPreserved": true,
+  "limitations": [
+    "Health statuses do not prove browser business acceptance",
+    "No queue consumer or physical participation resumed",
+    "First stop targeted tsx wrapper; owned detached listeners were then identified by PID/pgrp and cwd and explicitly stopped before new service start"
+  ]
+}

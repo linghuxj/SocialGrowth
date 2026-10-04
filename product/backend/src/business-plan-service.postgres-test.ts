@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { after, before, test } from "node:test";
+import { NestFactory } from "@nestjs/core";
 import { Pool } from "pg";
 import { contractVersion, emptyProjectPlanningInputs, type ProjectPlanningInputs } from "@socialgrowth/product-contracts";
 import { BusinessPlanService } from "./business-plan-service.js";
@@ -13,6 +14,8 @@ import { ProjectService } from "./project-service.js";
 import { ProjectPlanningService } from "./project-planning-service.js";
 import { ProjectDirectionService } from "./project-direction-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
+import { BusinessPlanController } from "./business-plan.controller.js";
+import { ProductExceptionFilter } from "./product-exception.filter.js";
 import type { BusinessModelPort } from "./business-model-coordinator.js";
 import type { BusinessSuggestionContext } from "./business-suggestion-core.js";
 import { parseContentQuota } from "./content-quota-core.js";
@@ -24,6 +27,8 @@ const pool = new Pool({ connectionString: url, max: 8 });
 const auth = new OperatorAuthService(pool, "isolated-business-plan-pepper-only-00001");
 const metadata = () => ({ contractVersion, requestId: `request-${randomUUID()}`, idempotencyKey: `business-plan-${randomUUID()}` });
 const error = (code: string) => (e: unknown) => e instanceof ProductTransactionError && e.code === code;
+
+class CurrentChecksHttpFixtureModule {}
 
 before(async () => {
   await pool.query("DROP SCHEMA IF EXISTS socialgrowth_product CASCADE");
@@ -157,6 +162,18 @@ test("plan persistence replays exact command once and never promotes advisory to
     (SELECT count(*)::int FROM socialgrowth_product.business_plan_commands WHERE project_id=$1) commands`, [f.projectId])).rows[0], { revisions: 1, tasks: 0, outbox: 0, commands: 1 });
 });
 
+test("model description budget covers the adapter's bounded startup without making it unbounded", async () => {
+  const f = await approvedProject(), initial = await f.service.read(f.token, f.projectId);
+  const delayedDescribe = { ...planModel, describe: async () => {
+    await new Promise(resolve => setTimeout(resolve, 5_500));
+    return { providerKey: "synthetic-port", modelKey: "fixture-plan" };
+  } };
+  f.service = new BusinessPlanService(pool, auth, new MaterialRuntime(pool, auth, null), delayedDescribe);
+  const response = await f.service.arrange(f.token, f.csrf, f.projectId, { metadata: metadata(), expectedProjectVersion: initial.currentScope.projectVersion,
+    expectedApprovalId: initial.currentScope.approvalId!, expectedPlanRevision: 0 });
+  assert.equal(response.outcome, "direction_confirmation_required");
+});
+
 test("concurrent arrangements against one expected revision cannot both become current", async () => {
   arrangementCalls = 0; gateEntries = 0;
   const f = await approvedProject(), initial = await f.service.read(f.token, f.projectId);
@@ -195,6 +212,25 @@ async function planRowCounts(projectId: string) {
     (SELECT count(*)::int FROM socialgrowth_product.audit_records WHERE object_type='business_plan' AND object_id=$1) audits`, [projectId])).rows[0];
 }
 
+async function currentChecksOverHttp(service: BusinessPlanService, projectId: string, token: string) {
+  const app = await NestFactory.create({ module: CurrentChecksHttpFixtureModule,
+    controllers: [BusinessPlanController], providers: [{ provide: BusinessPlanService, useValue: service }] }, { logger: false });
+  app.useGlobalFilters(new ProductExceptionFilter());
+  await app.listen(0, "127.0.0.1");
+  try {
+    const address = app.getHttpServer().address() as { port: number };
+    const url = `http://127.0.0.1:${address.port}/api/operator/projects/${projectId}/business-plan/current-checks`;
+    const response = await fetch(url, { headers: { cookie: `__Host-sg_operator_session=${token}` } });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    const body = await response.json() as { tasks: Array<{ taskId: string; expectedFiles: Array<{ sha256: string }> }>; executionAllowed: boolean; publicationAllowed: boolean };
+    assert.equal(body.executionAllowed, false); assert.equal(body.publicationAllowed, false);
+    const denied = await fetch(url);
+    assert.equal(denied.status, 401);
+    return body;
+  } finally { await app.close(); }
+}
+
 test("material-backed schedule atomically persists current-scope plan, Task, quota slot and check-reference outbox", async () => {
   arrangementCalls = 0; arrangementGate = null; makeArrangement = scheduleSuggestion;
   const f = await approvedProject(), material = await seedCandidateMaterial(f), current = await f.service.read(f.token, f.projectId);
@@ -215,11 +251,16 @@ test("material-backed schedule atomically persists current-scope plan, Task, quo
   const checks = await f.service.currentChecks(f.token, f.projectId);
   assert.equal(checks.tasks.length, 1); assert.equal(checks.tasks[0]?.taskId, rows[0]!.task_id);
   assert.equal(checks.tasks[0]?.expectedMaterialRevision, 1); assert.equal(checks.tasks[0]?.current.materialRevision, 1);
+  assert.deepEqual(checks.tasks[0]?.expectedFiles, [{ objectId: material.object.objectId, sha256: material.object.sha256,
+    bytes: material.object.bytes, contentType: material.object.contentType }]);
+  assert.deepEqual(checks.tasks[0]?.currentFiles, checks.tasks[0]?.expectedFiles);
   assert.ok(checks.tasks[0]?.blockers.includes("action_inspector_unavailable"));
   assert.ok(checks.tasks[0]?.blockers.includes("device_association_missing"));
   assert.ok(checks.tasks[0]?.blockers.includes("current_fact_unknown"));
   assert.deepEqual(checks.tasks[0]?.impactReferences, []);
   assert.equal(checks.executionAllowed, false); assert.equal(checks.publicationAllowed, false);
+  const httpChecks = await currentChecksOverHttp(f.service, f.projectId, f.token);
+  assert.deepEqual(httpChecks.tasks[0]?.expectedFiles, checks.tasks[0]?.expectedFiles);
   const providerId = randomUUID(), installationId = randomUUID(), associationSessionId = randomUUID(), associationId = randomUUID();
   const reservedDeviceId = checks.tasks[0]!.current.reservedDeviceId!;
   await pool.query(`INSERT INTO socialgrowth_product.providers(provider_id,phone_e164,display_name,status) VALUES($1,$2,'Generation fixture','active')`,
@@ -242,6 +283,55 @@ test("material-backed schedule atomically persists current-scope plan, Task, quo
   assert.equal(staleGeneration.tasks[0]?.current.installationGeneration, "2");
   assert.ok(staleGeneration.tasks[0]?.blockers.includes("device_association_missing"));
   assert.deepEqual(await planRowCounts(f.projectId), { revisions: 1, tasks: 1, outbox: 1, commands: 1, audits: 1 });
+  makeArrangement = confirmationSuggestion;
+});
+
+test("logical attempt is source-bound, idempotent, and never enables execution", async () => {
+  arrangementCalls = 0; arrangementGate = null; makeArrangement = scheduleSuggestion;
+  const f = await approvedProject(); await seedCandidateMaterial(f);
+  const current = await f.service.read(f.token, f.projectId);
+  const plan = await f.service.arrange(f.token, f.csrf, f.projectId, { metadata: metadata(),
+    expectedProjectVersion: current.currentScope.projectVersion, expectedApprovalId: current.currentScope.approvalId!, expectedPlanRevision: 0 });
+  assert.equal(plan.tasks.length, 1);
+  const taskId = plan.tasks[0]!.taskId;
+  const before = await f.service.currentChecks(f.token, f.projectId);
+  assert.equal(before.tasks[0]?.attempt, null);
+  const command = { metadata: metadata(), expectedPlanRevision: plan.plan!.revision, expectedTaskRevision: 1 };
+
+  await assert.rejects(f.service.createTaskAttempt(f.token, f.csrf, f.projectId, taskId,
+    { ...command, expectedTaskRevision: 2 }), error("FACT_VERSION_STALE"));
+  assert.equal((await pool.query(`SELECT count(*)::int count FROM socialgrowth_product.business_plan_task_attempts WHERE project_id=$1`, [f.projectId])).rows[0]!.count, 0);
+
+  const created = await f.service.createTaskAttempt(f.token, f.csrf, f.projectId, taskId, command);
+  assert.equal(created.outcome, "created");
+  assert.equal(created.taskId, taskId);
+  assert.equal(created.attempt?.attemptNumber, 1);
+  assert.equal(created.attempt?.assignmentSemantics, "logical_reservation_bound");
+  assert.equal(created.attempt?.state, "pending_current_checks");
+  assert.equal(created.attempt?.startedAt, null);
+  assert.equal(created.attempt?.executionAllowed, false);
+  assert.equal(created.attempt?.publicationAllowed, false);
+  assert.ok(created.blockers.includes("action_inspector_unavailable"));
+  assert.ok(created.blockers.includes("device_association_missing"));
+
+  const replay = await f.service.createTaskAttempt(f.token, f.csrf, f.projectId, taskId,
+    { ...command, metadata: { ...command.metadata, requestId: `retry-${randomUUID()}` } });
+  assert.equal(replay.outcome, "replayed");
+  assert.equal(replay.attempt?.taskAttemptId, created.attempt?.taskAttemptId);
+  assert.equal(replay.executionAllowed, false);
+  assert.equal(replay.publicationAllowed, false);
+  await assert.rejects(f.service.createTaskAttempt(f.token, f.csrf, f.projectId, taskId,
+    { ...command, metadata: metadata() }), error("FACT_VERSION_STALE"));
+  const counts = (await pool.query(`SELECT
+    (SELECT count(*)::int FROM socialgrowth_product.business_plan_task_attempts WHERE project_id=$1) attempts,
+    (SELECT count(*)::int FROM socialgrowth_product.business_plan_commands WHERE project_id=$1) commands,
+    (SELECT count(*)::int FROM socialgrowth_product.audit_records WHERE object_type='business_plan_task_attempt' AND object_id=$2) audits`,
+    [f.projectId, created.attempt!.taskAttemptId])).rows[0];
+  assert.deepEqual(counts, { attempts: 1, commands: 2, audits: 1 });
+
+  const otherProject = await approvedProject();
+  await assert.rejects(f.service.createTaskAttempt(f.token, f.csrf, otherProject.projectId, taskId, command), error("IDEMPOTENCY_KEY_REUSED"));
+  assert.equal((await pool.query(`SELECT count(*)::int count FROM socialgrowth_product.business_plan_task_attempts WHERE project_id=$1`, [otherProject.projectId])).rows[0]!.count, 0);
   makeArrangement = confirmationSuggestion;
 });
 
@@ -269,6 +359,11 @@ test("project and material mutations append idempotent impact references in thei
   const saved = await registry.save(f.token, f.csrf, materialRequest);
   assert.equal(saved.currentRevision, 2); assert.equal(saved.changed, true); assert.equal(saved.replayed, false);
   assert.deepEqual(await impactState(), { head: 1, impacts: 1, reasons: ["material_revision_changed"], revisions: [1] });
+  const afterMaterialImpact = await f.service.currentChecks(f.token, f.projectId);
+  assert.deepEqual(afterMaterialImpact.tasks[0]?.impactReferences.map(ref => ref.reason), ["material_revision_changed"]);
+  assert.equal(afterMaterialImpact.tasks[0]?.expectedFiles[0]?.sha256, material.object.sha256);
+  assert.equal(afterMaterialImpact.tasks[0]?.currentFiles?.[0]?.sha256, material.object.sha256);
+  assert.ok(afterMaterialImpact.tasks[0]?.blockers.includes("material_revision_changed"));
   assert.deepEqual((await pool.query(`SELECT reason,source_version::int,observed_project_version::int,observed_material_revision::int
     FROM socialgrowth_product.business_plan_outbox_impacts WHERE task_id=$1`, [taskId])).rows,
   [{ reason: "material_revision_changed", source_version: 2, observed_project_version: beforePlan.currentScope.projectVersion, observed_material_revision: 2 }]);
@@ -286,6 +381,9 @@ test("project and material mutations append idempotent impact references in thei
   const updated = await projects.save(f.token, f.csrf, updateInput, "update");
   assert.equal(updated.project.factVersion, Number(currentProject.fact_version) + 1);
   assert.deepEqual(await impactState(), { head: 2, impacts: 2, reasons: ["material_revision_changed", "project_scope_changed"], revisions: [1, 2] });
+  const afterProjectImpact = await f.service.currentChecks(f.token, f.projectId);
+  assert.deepEqual(afterProjectImpact.tasks[0]?.impactReferences.map(ref => ref.reason), ["material_revision_changed", "project_scope_changed"]);
+  assert.ok(afterProjectImpact.tasks[0]?.blockers.includes("project_scope_changed"));
   assert.deepEqual((await pool.query(`SELECT reason,source_version::int,observed_project_version::int,observed_material_revision::int
     FROM socialgrowth_product.business_plan_outbox_impacts WHERE task_id=$1 ORDER BY impact_revision`, [taskId])).rows,
   [{ reason: "material_revision_changed", source_version: 2, observed_project_version: beforePlan.currentScope.projectVersion, observed_material_revision: 2 },

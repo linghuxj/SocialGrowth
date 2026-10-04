@@ -1,8 +1,8 @@
 # Independent final Web candidate review — 8211312
 
-Reviewer: `/root/adversary`  
-Base: `1bde61548310d741bddffca15161e2b2cf2e7175`  
-Head: `8211312de68d6890eaf573a488c804c993bad569`  
+Reviewer: `/root/adversary`
+Base: `1bde61548310d741bddffca15161e2b2cf2e7175`
+Head: `8211312de68d6890eaf573a488c804c993bad569`
 Verdict: **approved**, findings: none.
 
 This approval covers the complete 38-file delta, including the BE-PLAN dependency changes present in that delta. It does not independently sign the entire earlier integration baseline. Accepted contracts remain material-candidate-read rev8, business-plan-task-read-and-arrange rev1, and operator-assistance-impact-history rev1.
