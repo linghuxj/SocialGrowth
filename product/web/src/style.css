@@ -209,6 +209,28 @@ summary { color: #0f5eea; font-weight: 700; cursor: pointer; }
 .info-note { display: flex; align-items: center; gap: 9px; margin-top: 12px; padding: 11px 13px; border-radius: 7px; color: #476486; background: #edf5ff; font-size: 13px; }
 .info-note svg { flex: 0 0 auto; color: #0f5eea; }
 .create-grid { display: grid; grid-template-columns: 1fr 1fr 1fr auto; align-items: end; gap: 14px; margin-top: 20px; }
+.media-accounts-workspace { max-width: 1220px; margin: 0 auto; display: grid; gap: 20px; }
+.media-account-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; margin-top: 20px; }
+.media-account-form .media-account-create-fields { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.media-account-form label, .media-accounts-workspace > .panel > label, .media-account-card label { display: grid; gap: 7px; min-width: 0; color: #41577a; }
+.media-account-form input, .media-account-form select, .media-accounts-workspace select, .media-account-card input { width: 100%; min-width: 0; height: 42px; padding: 8px 11px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; }
+.media-account-form > button { justify-self: start; }
+.optional-persona { grid-column: 1 / -1; padding: 12px; border: 1px solid #dce2ea; border-radius: 7px; }
+.optional-persona > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.media-account-list { display: grid; gap: 12px; margin-top: 16px; }
+.media-account-card { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(180px, 1fr) minmax(0, 1fr); align-items: start; gap: 16px; padding: 16px; border: 1px solid #dce2ea; border-radius: 8px; }
+.media-account-card h3, .media-account-card p { margin: 0 0 6px; }
+.media-account-card > div:nth-child(2), .credential-actions { display: grid; gap: 7px; min-width: 0; }
+.media-account-card span, .media-account-card small, .media-account-card code { overflow-wrap: anywhere; }
+.credential-actions { grid-template-columns: 1fr 1fr; }
+.credential-actions label { grid-column: 1 / -1; }
+.credential-actions button { padding: 8px 10px; }
+.media-accounts-workspace .info-note { flex-wrap: wrap; min-width: 0; }
+.media-accounts-workspace .info-note code { overflow-wrap: anywhere; }
+.media-accounts-workspace fieldset { display: flex; gap: 14px; flex-wrap: wrap; margin: 14px 0; padding: 12px; border: 1px solid #dce2ea; border-radius: 7px; }
+.media-accounts-workspace fieldset label { display: flex; align-items: center; gap: 8px; min-width: 0; overflow-wrap: anywhere; }
+.media-accounts-workspace input[type=checkbox] { width: 18px; height: 18px; flex: 0 0 18px; accent-color: #2459c4; }
+.media-accounts-workspace .form-note { margin-top: 14px; }
 code { color: #31425f; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
 
@@ -308,6 +330,10 @@ code { color: #31425f; }
   .summary-strip p { grid-column: auto; }
   .invitation-form, .create-grid { grid-template-columns: 1fr; }
   .panel { padding: 19px; }
+  .media-account-form, .media-account-form .media-account-create-fields, .optional-persona > div { grid-template-columns: minmax(0, 1fr); }
+  .media-account-card { grid-template-columns: minmax(0, 1fr); }
+  .media-account-card > div:nth-child(2) { grid-template-columns: minmax(0, 1fr); }
+  .credential-actions { grid-template-columns: minmax(0, 1fr); }
   .resource-tabs { margin-top: 12px; }
   .resource-tabs button { min-width: 0; flex: 1; }
   .device-filters { grid-template-columns: 1fr; padding: 14px; }
