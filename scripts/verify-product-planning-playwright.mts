@@ -148,27 +148,41 @@ try {
   const cycleB = pageB.getByRole("region", { name: "下周期配置确认" });
   await cycleB.getByText(/当前周期（不可修改）/).waitFor();
   const baselineCycle = await readCycleFromVisiblePage(pageB, cycleB);
-  cycleCheckpoint = "second-operator-current-cycle-read";
+  cycleCheckpoint = "B-current-cycle-read";
   assert.ok(baselineCycle.currentCycle, "real UI must read a current active cycle before testing configuration");
   assert.ok(Date.parse(baselineCycle.currentCycle.startsAt) <= Date.parse(baselineCycle.observedAt)
     && Date.parse(baselineCycle.observedAt) < Date.parse(baselineCycle.currentCycle.endsAt),
   "current cycle must be active at the backend's read timestamp");
   assert.equal(baselineCycle.nextCycle, null);
   assert.equal(baselineCycle.executionAllowed, false); assert.equal(baselineCycle.publicationAllowed, false);
-  await cycleB.getByLabel("下周期业务时区", { exact: true }).selectOption("America/New_York");
-  await cycleB.getByLabel("下周期复盘间隔（天）", { exact: true }).fill("21");
-  await cycleB.getByLabel("下周期每周期引流最低数", { exact: true }).fill("5");
+  const timezoneB = cycleB.getByLabel("下周期业务时区", { exact: true });
+  const intervalB = cycleB.getByLabel("下周期复盘间隔（天）", { exact: true });
+  const minimumB = cycleB.getByLabel("下周期每周期引流最低数", { exact: true });
+  assert.equal(await timezoneB.isEnabled(), true, "the second authenticated operator must be able to edit a real current cycle");
+  assert.equal(await intervalB.isEnabled(), true); assert.equal(await minimumB.isEnabled(), true);
+  cycleCheckpoint = "B-cycle-form-editable";
+  await timezoneB.selectOption("America/New_York");
+  await intervalB.fill("21");
+  await minimumB.fill("5");
+  assert.equal(await cycleB.getByRole("button", { name: "确认下周期配置", exact: true }).isEnabled(), true,
+    "the second operator stale-version command must be enabled after editing");
+  cycleCheckpoint = "B-stale-write-form-ready";
 
   // Return to A and make one real initial config request. The route forwards
   // it to the server and drops only the genuine response to create uncertainty.
   cyclePhase = "cycle-config-lost-response";
   await page.getByRole("button", { name: "项目", exact: true }).click();
+  cycleCheckpoint = "A-project-navigation-open";
   await project.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "准备清单" }).click();
+  cycleCheckpoint = "A-planning-project-open";
   await project.getByRole("button", { name: "设置 · 目标与周期" }).click();
+  cycleCheckpoint = "A-cycle-settings-open";
   await planner.getByRole("button", { name: "周期与观察", exact: true }).click();
+  cycleCheckpoint = "A-cycle-panel-open";
   cycle = page.getByRole("region", { name: "下周期配置确认" });
   await cycle.getByText(/当前周期（不可修改）/).waitFor();
   const currentRead = await readCycleFromVisiblePage(page, cycle);
+  cycleCheckpoint = "A-current-cycle-read";
   assert.ok(currentRead.currentCycle, "real UI must read the current cycle before enabling its next configuration");
   assert.deepEqual(currentRead.currentCycle, baselineCycle.currentCycle, "current-cycle facts remain unchanged between operators");
   assert.equal(currentRead.nextConfiguration, null, "no existing next configuration is assumed");
@@ -179,6 +193,7 @@ try {
   await cycle.getByLabel("下周期业务时区", { exact: true }).selectOption("Asia/Tokyo");
   await cycle.getByLabel("下周期复盘间隔（天）", { exact: true }).fill("14");
   await cycle.getByLabel("下周期每周期引流最低数", { exact: true }).fill("2");
+  cycleCheckpoint = "A-config-form-filled";
   assert.equal(await cycle.getByRole("button", { name: "确认下周期配置", exact: true }).isVisible(), true);
   assert.equal(await cycle.getByRole("button", { name: "确认下周期配置", exact: true }).isEnabled(), true);
   cycleCheckpoint = "A-current-cycle-read-and-form-ready";
