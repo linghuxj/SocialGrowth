@@ -9,7 +9,7 @@ import { once } from "node:events";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { createServer } from "node:net";
 
 const repo = resolve(new URL("..", import.meta.url).pathname);
@@ -37,8 +37,11 @@ if (scopes.includes("business-plan-postgres")) {
   assert.deepEqual(scopes, ["business-plan-postgres"], "business-plan PostgreSQL scope must run alone");
   assert.equal(sqlOnly, true, "business-plan PostgreSQL scope requires SQL-only mode");
 }
-const artemisRoot = scopes.includes("direction") && !sqlOnly ? process.env.SG_PRODUCT_CORE_ARTEMIS_ROOT : null;
-if (scopes.includes("direction") && !sqlOnly) assert.ok(artemisRoot && artemisRoot.startsWith("/"), "Direction requires an explicitly selected existing Artemis environment");
+const planningUsesConfiguredModel = scopes.includes("planning") && process.env.SG_PRODUCT_CORE_ARTEMIS_ROOT !== undefined;
+const artemisRoot = (scopes.includes("direction") || planningUsesConfiguredModel) && !sqlOnly ? process.env.SG_PRODUCT_CORE_ARTEMIS_ROOT : null;
+if ((scopes.includes("direction") || planningUsesConfiguredModel) && !sqlOnly) {
+  assert.ok(typeof artemisRoot === "string" && isAbsolute(artemisRoot), "Model-backed direction/configuration requires an explicitly selected absolute Artemis environment");
+}
 const realMaterialFiles = scopes.includes("real-material-bytes") ? process.env.SG_PRODUCT_CORE_REAL_MATERIAL_FILES : null;
 if (scopes.includes("real-material-bytes")) assert.ok(realMaterialFiles && process.env.SG_PRODUCT_CORE_REAL_MATERIAL_AUTHORIZED === "1", "Actual files require explicit existing authorization");
 const ambient = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("SG_") && !key.startsWith("AWS_")));

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
+import { isAbsolute } from "node:path";
 import { chromium, type BrowserContext, type Locator, type Page } from "playwright";
 // Reproducible REAL UI draft scope. Never run to bypass a policy refusal;
 // admin admission must first be restored. Synthetic text here proves only
@@ -11,6 +12,17 @@ await mkdir(output, { recursive: true }); const browser = await chromium.launch(
 const page = await browser.newPage({ locale: "zh-CN", viewport: { width: 1464, height: 1074 } });
 let secondContext: BrowserContext | null = null;
 let cyclePhase = "draft-only";
+let cycleFlowPassed = false;
+let actualModelAttempts = 0;
+let commandReadsByDifferentOperator = 0;
+let cycleCheckpoint = "planning-draft-only";
+let cyclePostObserved = false;
+let cycleRouteFetchStarted = false;
+let cycleRouteResponseReceived = false;
+let cycleRouteFetchErrorType: string | null = null;
+let firstPostStatus = 0;
+let cycle: Locator | null = null;
+const pageErrors: string[] = [];
 const safeCycleFacts: { sequence: number; bodySha256: string; idempotencyKeySha256: string | null; status: number;
   outcome: string | null; replayed: boolean | null; responseLost: boolean }[] = [];
 type CycleReadEvidence = {
@@ -34,7 +46,8 @@ async function readCycleFromVisiblePage(target: Page, region: Locator): Promise<
 }
 try {
   const errors: string[] = [];
-  page.on("pageerror", () => errors.push("pageerror")); await page.goto(process.env.SG_PRODUCT_WEB_URL ?? "http://127.0.0.1:3100");
+  page.on("pageerror", () => errors.push("pageerror"));
+  await page.goto(process.env.SG_PRODUCT_WEB_URL ?? "http://127.0.0.1:3100");
   await page.getByLabel("登录名", { exact: true }).fill(login); await page.getByLabel("密码", { exact: true }).fill(password);
   await page.getByRole("button", { name: "登录", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
   await page.getByRole("button", { name: "项目", exact: true }).click(); const project = page.locator(".project-workspace"), name = `周期配置全链路UI验收-${Date.now()}`;
@@ -62,6 +75,8 @@ try {
   assert.equal(await planner.getByRole("checkbox", { name: "Facebook 图文", exact: true }).isChecked(), true);
   await planner.getByRole("button", { name: "周期与观察", exact: true }).click(); assert.equal(await planner.getByLabel("项目每周期引流最低任务数").inputValue(), "0");
 
+  if (process.env.SG_PRODUCT_ARTEMIS_ROOT !== undefined) {
+  assert.ok(isAbsolute(process.env.SG_PRODUCT_ARTEMIS_ROOT), "configured planning acceptance requires an explicitly selected absolute Artemis root");
   // Save a complete synthetic direction scope through the existing form. The
   // first start is intentionally in the past so this UI-created period is
   // active at the time of confirmation; no database or clock is changed.
@@ -88,6 +103,7 @@ try {
   cyclePhase = "real-model-direction";
   const direction = page.getByRole("region", { name: "初始业务方向" });
   await direction.getByLabel("发布身份范围", { exact: true }).fill("facebook/UI_SYNTHETIC_UNREGISTERED/开通前");
+  actualModelAttempts += 1;
   await direction.getByRole("button", { name: "生成初始方向", exact: true }).click();
   const proposalState = direction.getByText(/真实模型方向已生成|配置模型未返回可用方向/);
   await proposalState.waitFor({ timeout: 55_000 });
@@ -99,6 +115,7 @@ try {
   await direction.getByRole("button", { name: "确认方向", exact: true }).click();
   await direction.getByText("方向已确认并留存批准范围；执行条件尚未就绪。", { exact: true }).waitFor();
   await direction.getByText("当前未派发手机任务，未开启公开发布。", { exact: true }).waitFor();
+  cycleCheckpoint = "direction-confirmed";
 
   // Create a temporary real operator through the UI and let that operator
   // load revision 0 before A changes it. Credentials stay in process memory.
@@ -114,7 +131,6 @@ try {
   await page.getByText("运营账号已开通", { exact: true }).waitFor();
   secondContext = await browser.newContext({ locale: "zh-CN", viewport: { width: 1464, height: 1074 } });
   const pageB = await secondContext.newPage();
-  const pageErrors: string[] = [];
   pageB.on("pageerror", () => pageErrors.push("pageerror"));
   await pageB.goto(process.env.SG_PRODUCT_WEB_URL ?? "http://127.0.0.1:3100");
   await pageB.getByLabel("登录名", { exact: true }).fill(operatorBLogin);
@@ -130,6 +146,7 @@ try {
   const cycleB = pageB.getByRole("region", { name: "下周期配置确认" });
   await cycleB.getByText(/当前周期（不可修改）/).waitFor();
   const baselineCycle = await readCycleFromVisiblePage(pageB, cycleB);
+  cycleCheckpoint = "second-operator-current-cycle-read";
   assert.ok(baselineCycle.currentCycle, "real UI must read a current active cycle before testing configuration");
   assert.ok(Date.parse(baselineCycle.currentCycle.startsAt) <= Date.parse(baselineCycle.observedAt)
     && Date.parse(baselineCycle.observedAt) < Date.parse(baselineCycle.currentCycle.endsAt),
@@ -147,7 +164,7 @@ try {
   await project.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "准备清单" }).click();
   await project.getByRole("button", { name: "设置 · 目标与周期" }).click();
   await planner.getByRole("button", { name: "周期与观察", exact: true }).click();
-  const cycle = page.getByRole("region", { name: "下周期配置确认" });
+  cycle = page.getByRole("region", { name: "下周期配置确认" });
   await cycle.getByText(/当前周期（不可修改）/).waitFor();
   const currentRead = await readCycleFromVisiblePage(page, cycle);
   assert.ok(currentRead.currentCycle, "real UI must read the current cycle before enabling its next configuration");
@@ -160,16 +177,28 @@ try {
   await cycle.getByLabel("下周期业务时区", { exact: true }).selectOption("Asia/Tokyo");
   await cycle.getByLabel("下周期复盘间隔（天）", { exact: true }).fill("14");
   await cycle.getByLabel("下周期每周期引流最低数", { exact: true }).fill("2");
-  let firstBody = "", firstPostStatus = 0;
+  assert.equal(await cycle.getByRole("button", { name: "确认下周期配置", exact: true }).isVisible(), true);
+  assert.equal(await cycle.getByRole("button", { name: "确认下周期配置", exact: true }).isEnabled(), true);
+  cycleCheckpoint = "A-current-cycle-read-and-form-ready";
+  let firstBody = "";
   let lostResponse = false;
   await page.route("**/api/operator/projects/*/review-cycle-config", async route => {
     if (route.request().method() !== "POST") return route.continue();
     const body = route.request().postData() ?? "";
+    cyclePostObserved = true;
     if (firstBody) assert.equal(body, firstBody, "explicit same-key continuation must preserve the exact original request body");
     else firstBody = body;
     const request = JSON.parse(body) as { metadata?: { idempotencyKey?: unknown } };
     const key = typeof request.metadata?.idempotencyKey === "string" ? request.metadata.idempotencyKey : "";
-    const response = await route.fetch({ timeout: 60_000 });
+    cycleRouteFetchStarted = true;
+    let response;
+    try {
+      response = await route.fetch({ timeout: 60_000 });
+      cycleRouteResponseReceived = true;
+    } catch (error) {
+      cycleRouteFetchErrorType = error instanceof Error ? error.name : "unknown";
+      throw error;
+    }
     const responseBody = await response.text();
     let outcome: string | null = null, replayed: boolean | null = null;
     try {
@@ -190,8 +219,10 @@ try {
     await route.fulfill({ response, body: responseBody });
   });
   page.once("dialog", dialog => void dialog.accept());
+  cycleCheckpoint = "confirm-click-awaiting-network";
   await cycle.getByRole("button", { name: "确认下周期配置", exact: true }).click();
   await cycle.getByRole("alert").filter({ hasText: "保存回执未确认，结果未知" }).waitFor();
+  cycleCheckpoint = "unknown-command-visible";
   assert.ok(firstPostStatus >= 200 && firstPostStatus < 300, "the server accepted the actual UI command before the response was lost");
   assert.equal(await cycle.getByRole("button", { name: "明确接续同一请求", exact: true }).count(), 1);
   assert.equal(await cycle.getByRole("button", { name: "确认下周期配置", exact: true }).count(), 0, "unknown command freezes new input");
@@ -240,6 +271,7 @@ try {
   assert.equal(await cycle.getByRole("button", { name: "明确接续同一请求", exact: true }).isEnabled(), false);
   assert.equal(commandReads, 0, "the different operator must not query A's command");
   assert.equal(cyclePostsWhileOperatorB, 0, "the different operator must not submit A's original command");
+  commandReadsByDifferentOperator = commandReads;
 
   // A logs in again with a fresh session and explicitly replays the original
   // byte-identical body/key. No automatic replay occurs on reload or login.
@@ -294,6 +326,9 @@ try {
   page.once("dialog", dialog => void dialog.accept());
   await page.getByText("账号已停用，会话已撤销", { exact: true }).waitFor();
 
+  cycleFlowPassed = true;
+  }
+
   await page.getByRole("button", { name: "项目", exact: true }).click();
   await project.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "准备清单" }).click();
   await project.getByRole("button", { name: "设置 · 目标与周期" }).click();
@@ -301,17 +336,33 @@ try {
   cyclePhase = "mobile-readonly";
   await page.setViewportSize({ width: 390, height: 1000 }); await page.getByText("手机端为只读模式", { exact: true }).waitFor();
   assert.equal(await planner.getByRole("button", { name: "保存全部草案" }).count(), 0); assert.equal(await planner.getByLabel("业务时区", { exact: true }).isDisabled(), true);
-  assert.equal(await cycle.getByRole("button", { name: "确认下周期配置", exact: true }).count(), 0);
-  assert.equal(await cycle.getByLabel("下周期业务时区", { exact: true }).isDisabled(), true);
-  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth), false); await page.screenshot({ path: `${output}/planning-cycle-mobile.png`, fullPage: true });
-  assert.deepEqual(errors, []); console.log(JSON.stringify({ passed: true,
-    scope: "real planning UI plus one actual model-confirmed synthetic direction, active current cycle, next configuration, stale-version rejection and explicit same-actor original-request replay",
-    actualModelAttempts: 1, differentOperatorCommandReads: commandReads, exactOriginalBodyAndKeyReplay: true, backendPageErrors: pageErrors,
-    nextCycleMaterialized: false, execution: "not performed", publication: "not performed" }));
+  if (cycle) {
+    assert.equal(await cycle.getByRole("button", { name: "确认下周期配置", exact: true }).count(), 0);
+    assert.equal(await cycle.getByLabel("下周期业务时区", { exact: true }).isDisabled(), true);
+  }
+  assert.equal(cycleFlowPassed, process.env.SG_PRODUCT_ARTEMIS_ROOT !== undefined,
+    "the configured Artemis environment must execute cycle-config acceptance; draft-only runs must not claim it");
+  assert.equal(actualModelAttempts, cycleFlowPassed ? 1 : 0, "cycle acceptance makes exactly one actual model request");
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth), false);
+  await page.screenshot({ path: `${output}/${cycleFlowPassed ? "planning-cycle-mobile" : "planning-draft-mobile"}.png`, fullPage: true });
+  assert.deepEqual(errors, []);
+  if (cycleFlowPassed) {
+  console.log(JSON.stringify({ passed: true,
+      scope: "real planning UI plus one actual model-confirmed synthetic direction, active current cycle, next configuration, stale-version rejection and explicit same-actor original-request replay",
+      actualModelAttempts, cycleConfigAcceptanceExecuted: true, differentOperatorCommandReads: commandReadsByDifferentOperator,
+      exactOriginalBodyAndKeyReplay: safeCycleFacts.length === 2 && safeCycleFacts[0]?.bodySha256 === safeCycleFacts[1]?.bodySha256
+        && safeCycleFacts[0]?.idempotencyKeySha256 === safeCycleFacts[1]?.idempotencyKeySha256,
+      backendPageErrors: pageErrors, nextCycleMaterialized: false, execution: "not performed", publication: "not performed" }));
+  } else {
+    console.log(JSON.stringify({ passed: true, scope: "real planning UI draft-only persistence and mobile readonly", actualModelAttempts: 0, cycleConfigAcceptanceExecuted: false,
+      nextCycleConfiguration: "not requested", execution: "not performed", publication: "not performed" }));
+  }
 } catch (error) {
   // Never persist page text/screenshots in this flow: after the lost-response
   // point the visible panel includes a replay-capable request key.
   await writeFile(`${output}/cycle-config-failure.json`, JSON.stringify({ phase: cyclePhase, errorType: error instanceof Error ? error.name : "unknown",
+    cycleCheckpoint, actualModelAttempts, cycleConfigAcceptanceExecuted: cycleFlowPassed,
+    cyclePostObserved, cycleRouteFetchStarted, cycleRouteResponseReceived, cycleRouteFetchErrorType, firstPostStatus,
     safeCycleFacts, credentialsRecorded: false, requestBodyRecorded: false, executionAllowed: false, publicationAllowed: false }, null, 2), { mode: 0o600 });
   throw error;
 } finally { if (secondContext) await secondContext.close(); await browser.close(); }
