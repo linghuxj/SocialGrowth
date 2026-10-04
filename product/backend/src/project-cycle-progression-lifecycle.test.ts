@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { createServer, type Socket } from "node:net";
+import { once } from "node:events";
 import { test } from "node:test";
-import type { Pool, PoolClient } from "pg";
+import { Pool, type PoolClient } from "pg";
 import { ProjectCycleProgressionLifecycle } from "./project-cycle-progression-lifecycle.js";
 
 test("one failed due project does not prevent later projects in the bounded page", async () => {
@@ -50,4 +52,37 @@ test("client query timeout discards the connection and prevents reuse", async ()
   await assert.rejects(bounded.query("ROLLBACK"), /progression_query_timeout/);
   bounded.release();
   assert.equal(releasedWith instanceof Error ? releasedWith.message : releasedWith, "progression_query_timeout");
+});
+
+test("pool connection timeout closes a stalled PostgreSQL handshake before pool shutdown", async () => {
+  const sockets = new Set<Socket>();
+  const server = createServer(socket => {
+    sockets.add(socket);
+    socket.on("close", () => sockets.delete(socket));
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  const pool = new Pool({ host: "127.0.0.1", port: address.port, user: "isolated-timeout-fixture",
+    database: "isolated-timeout-fixture", connectionTimeoutMillis: 60, max: 1 });
+  const startedAt = Date.now();
+  let guard: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const connectResult = Promise.race([pool.connect(), new Promise<never>((_resolve, reject) => {
+      guard = setTimeout(() => reject(new Error("test_guard_timeout")), 1_000);
+    })]);
+    await assert.rejects(connectResult, /Connection terminated due to connection timeout/);
+    assert.ok(Date.now() - startedAt < 1_000);
+    assert.equal(pool.totalCount, 0);
+    const shutdownAt = Date.now();
+    await pool.end();
+    assert.ok(Date.now() - shutdownAt < 1_000);
+    assert.equal(pool.totalCount, 0);
+  } finally {
+    if (guard) clearTimeout(guard);
+    for (const socket of sockets) socket.destroy();
+    if (pool.ended === false) await pool.end();
+    await new Promise<void>(resolve => server.close(() => resolve()));
+  }
 });

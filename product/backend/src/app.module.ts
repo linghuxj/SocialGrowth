@@ -67,7 +67,7 @@ const poolProvider = {
   provide: Pool,
   useFactory: () => {
     const config = readOperatorRuntimeConfig();
-    return new Pool({ connectionString: config.SG_PRODUCT_DATABASE_URL, max: 12 });
+    return new Pool({ connectionString: config.SG_PRODUCT_DATABASE_URL, max: 12, connectionTimeoutMillis: 5_000 });
   },
 };
 
