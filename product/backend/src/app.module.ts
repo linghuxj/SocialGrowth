@@ -38,6 +38,9 @@ import { MediaAccountsController } from "./media-accounts.controller.js";
 import { MediaAccountStore } from "./media-account-store.js";
 import { MediaCredentialKeyCustodian } from "./media-credential-key-custodian.js";
 import { readMediaCredentialKeysFile } from "./media-credential-key-file.js";
+import { MEDIA_INPUT_GRANT_KEY_CONFIG, MediaInputAuthority, type MediaInputGrantKeyConfig } from "./media-input-authority.js";
+import { MediaInputAuthorityStore } from "./media-input-authority-store.js";
+import { MediaInputInstallationController } from "./media-input-installation.controller.js";
 import { ProjectPlanningController } from "./project-planning.controller.js";
 import { ProjectPlanningService } from "./project-planning-service.js";
 import { ProjectDirectionService } from "./project-direction-service.js";
@@ -163,6 +166,7 @@ const providerAuthProvider = {
     ResourcePreparationController,
     MediaAccountsController,
     MediaCredentialsController,
+    MediaInputInstallationController,
     ProjectPlanningController,
     ProjectDirectionController,
     BusinessPlanController,
@@ -206,6 +210,20 @@ const providerAuthProvider = {
     // protected key file is absent/invalid. No ambient/historical key fallback.
     { provide: MediaCredentialStore, inject: [Pool, OperatorAuthService, MediaCredentialKeyCustodian],
       useFactory: (pool: Pool, auth: OperatorAuthService, keys: MediaCredentialKeyCustodian) => new MediaCredentialStore(pool, auth, keys) },
+    { provide: MEDIA_INPUT_GRANT_KEY_CONFIG, useFactory: (): MediaInputGrantKeyConfig | null => {
+      const config = readOperatorRuntimeConfig();
+      if (!config.SG_PRODUCT_MEDIA_INPUT_GRANT_KEY_FILE || !config.SG_PRODUCT_MEDIA_INPUT_GRANT_KEY_ID
+        || config.SG_PRODUCT_MEDIA_INPUT_GRANT_NOT_BEFORE_MILLIS === undefined
+        || config.SG_PRODUCT_MEDIA_INPUT_GRANT_NOT_AFTER_MILLIS === undefined) return null;
+      return { keyFilePath: config.SG_PRODUCT_MEDIA_INPUT_GRANT_KEY_FILE, keyId: config.SG_PRODUCT_MEDIA_INPUT_GRANT_KEY_ID,
+        notBeforeMillis: config.SG_PRODUCT_MEDIA_INPUT_GRANT_NOT_BEFORE_MILLIS,
+        notAfterMillis: config.SG_PRODUCT_MEDIA_INPUT_GRANT_NOT_AFTER_MILLIS };
+    } },
+    { provide: MediaInputAuthorityStore, inject: [Pool, InstallationAuthService],
+      useFactory: (pool: Pool, auth: InstallationAuthService) => new MediaInputAuthorityStore(pool, auth) },
+    { provide: MediaInputAuthority, inject: [MediaInputAuthorityStore, MediaCredentialStore, MEDIA_INPUT_GRANT_KEY_CONFIG],
+      useFactory: (store: MediaInputAuthorityStore, credentials: MediaCredentialStore, keyConfig: MediaInputGrantKeyConfig | null) =>
+        new MediaInputAuthority(store, credentials, keyConfig) },
     { provide: ProjectPlanningService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ProjectPlanningService(pool, auth) },
     { provide: ArtemisBusinessModel, useFactory: () => readInitialDirectionModel() },
     { provide: ProjectDirectionService, inject: [Pool, OperatorAuthService, ArtemisBusinessModel], useFactory: (pool: Pool, auth: OperatorAuthService, model: ArtemisBusinessModel | null) => new ProjectDirectionService(pool, auth, model) },

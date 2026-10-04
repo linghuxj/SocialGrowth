@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isAbsolute } from "node:path";
 
 const backendConfigSchema = z.object({
   SG_PRODUCT_DEVELOPMENT_SMS_TOKEN: z.string().min(32).optional(),
@@ -38,6 +39,24 @@ const operatorRuntimeConfigSchema = z.object({
   SG_PRODUCT_DATABASE_URL: z.string().min(1),
   SG_PRODUCT_SMS_CODE_LENGTH: z.coerce.number().int().min(4).max(8).default(6),
   SG_PRODUCT_MEDIA_CREDENTIAL_KEY_FILE: z.string().min(1).optional(),
+  SG_PRODUCT_MEDIA_INPUT_GRANT_KEY_FILE: z.string().min(1).optional(),
+  SG_PRODUCT_MEDIA_INPUT_GRANT_KEY_ID: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  SG_PRODUCT_MEDIA_INPUT_GRANT_NOT_BEFORE_MILLIS: z.coerce.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),
+  SG_PRODUCT_MEDIA_INPUT_GRANT_NOT_AFTER_MILLIS: z.coerce.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),
+}).superRefine((config, context) => {
+  const grantValues = [config.SG_PRODUCT_MEDIA_INPUT_GRANT_KEY_FILE, config.SG_PRODUCT_MEDIA_INPUT_GRANT_KEY_ID,
+    config.SG_PRODUCT_MEDIA_INPUT_GRANT_NOT_BEFORE_MILLIS, config.SG_PRODUCT_MEDIA_INPUT_GRANT_NOT_AFTER_MILLIS];
+  if (grantValues.some(value => value !== undefined) && grantValues.some(value => value === undefined)) {
+    context.addIssue({ code: "custom", message: "Media input grant signing requires an explicit complete key configuration", path: ["SG_PRODUCT_MEDIA_INPUT_GRANT_KEY_FILE"] });
+  }
+  if (config.SG_PRODUCT_MEDIA_INPUT_GRANT_KEY_FILE && !isAbsolute(config.SG_PRODUCT_MEDIA_INPUT_GRANT_KEY_FILE)) {
+    context.addIssue({ code: "custom", message: "Media input grant signing key path must be absolute", path: ["SG_PRODUCT_MEDIA_INPUT_GRANT_KEY_FILE"] });
+  }
+  if (config.SG_PRODUCT_MEDIA_INPUT_GRANT_NOT_BEFORE_MILLIS !== undefined
+    && config.SG_PRODUCT_MEDIA_INPUT_GRANT_NOT_AFTER_MILLIS !== undefined
+    && config.SG_PRODUCT_MEDIA_INPUT_GRANT_NOT_AFTER_MILLIS <= config.SG_PRODUCT_MEDIA_INPUT_GRANT_NOT_BEFORE_MILLIS) {
+    context.addIssue({ code: "custom", message: "Media input grant key validity range is invalid", path: ["SG_PRODUCT_MEDIA_INPUT_GRANT_NOT_AFTER_MILLIS"] });
+  }
 });
 
 const smsRuntimeConfigSchema = backendConfigSchema
