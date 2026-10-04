@@ -60,7 +60,7 @@ async function startControlled() {
 }
 before(async () => {
   await ddl(`DROP SCHEMA IF EXISTS ${s} CASCADE`);
-  const dir = new URL("../migrations/", import.meta.url), files = (await readdir(dir)).filter(v => /^\d{4}.*\.sql$/.test(v)).sort(); assert.equal(files.length, 23);
+  const dir = new URL("../migrations/", import.meta.url), files = (await readdir(dir)).filter(v => /^\d{4}.*\.sql$/.test(v)).sort(); assert.equal(files.length, 39);
   for (const file of files) await ddl(await readFile(new URL(file, dir), "utf8"));
   process.env.SG_PRODUCT_DATABASE_URL = url; process.env.SG_PRODUCT_AUTH_PEPPER = pepper;
   process.env.SG_PRODUCT_SMS_MODE = "unavailable"; process.env.SG_PRODUCT_MATERIAL_MODE = "unavailable"; delete process.env.SG_PRODUCT_DEVELOPMENT_SMS_TOKEN;
@@ -76,13 +76,13 @@ async function fixture(platform: "facebook" | "youtube" = "facebook") {
   const digest = (v: string) => createHash("sha256").update(v).digest();
   await pool.query(`INSERT INTO ${s}.operators(operator_id,login_name,display_name,password_hash,status) VALUES($1,$2,'Synthetic API','not-a-password','active')`, [operatorId, `fixture-${operatorId}`]);
   await pool.query(`INSERT INTO ${s}.operator_sessions(session_id,operator_id,token_digest,csrf_digest,credential_version,expires_at) VALUES($1,$2,$3,$4,1,clock_timestamp()+interval '1 day')`, [sessionId, operatorId, digest(token), digest(csrf)]);
-  await pool.query(`INSERT INTO ${s}.media_accounts(account_id,platform,canonical_account_ref) VALUES($1,$2,$3)`, [accountId, platform, `synthetic_${randomUUID().replaceAll("-", "")}`]);
+  await pool.query(`INSERT INTO ${s}.media_accounts(account_id,platform,canonical_account_ref,legacy_declared_canonical_account_ref,display_name) VALUES($1,$2,NULL,$3,'Synthetic fixture')`, [accountId, platform, `synthetic_${randomUUID().replaceAll("-", "")}`]);
   return { operatorId, sessionId, token, csrf, accountId, credentialId, platform };
 }
 type Fixture = Awaited<ReturnType<typeof fixture>>;
-const secret = () => Buffer.from('{ "password": " synthetic-api-only 密码 ", "login": " synthetic-api-login " }');
+const secret = () => Buffer.from('{ "password": " synthetic-api-only 密码 ", "login": "synthetic-api-login" }');
 const metadata = () => ({ contractVersion, requestId: `request-${randomUUID()}`, idempotencyKey: `credential-${randomUUID()}` });
-const input = (f: Fixture, revision = 0) => ({ metadata: metadata(), credentialId: f.credentialId, accountId: f.accountId, platform: f.platform, expectedRevision: revision, operation: "put", payloadBase64: secret().toString("base64") });
+const input = (f: Fixture, revision = 0) => ({ metadata: metadata(), credentialId: f.credentialId, accountId: f.accountId, platform: f.platform, expectedRevision: revision, operation: "put", loginIdentifier: "synthetic-api-login", payloadBase64: secret().toString("base64") });
 async function request(f: Fixture, body?: unknown, options: { base?: string; path?: string; headers?: Record<string, string>; raw?: string } = {}) {
   const response = await fetch(`${options.base ?? controlledBase}/api/operator/media-accounts/${options.path ?? f.accountId}/credentials`, {
     method: body === undefined && options.raw === undefined ? "GET" : "POST", headers: { cookie: `__Host-sg_operator_session=${f.token}`, "x-csrf-token": f.csrf, "content-type": "application/json", ...options.headers },
@@ -96,7 +96,7 @@ const checkError = (result: { status: number; value: unknown }, status: number, 
 async function post(f: Fixture, body = input(f)) { const result = await request(f, body); assert.equal(result.status, 201); return writeMediaCredentialResponseSchema.parse(result.value); }
 async function image() {
   const result: Record<string, unknown> = {};
-  for (const table of ["media_credentials", "media_credential_revisions", "media_credential_commands", "audit_records", "resource_reservation_guard", "media_accounts", "publishing_identities", "project_identity_reservations", "commission_income_sources"]) {
+  for (const table of ["media_credentials", "media_credential_revisions", "media_credential_commands", "media_account_commands", "audit_records", "resource_reservation_guard", "media_accounts", "publishing_identities", "project_identity_reservations", "commission_income_sources"]) {
     result[table] = (await pool.query(`SELECT to_jsonb(t) value FROM ${s}.${table} t ORDER BY to_jsonb(t)::text`)).rows.map(v => v.value);
   }
   return result;
@@ -119,7 +119,7 @@ test("actual controlled HTTP put/update/invalidate has correct original bytes an
   const ordinary = JSON.stringify({ first, get, retry, audits: (await pool.query(`SELECT facts FROM ${s}.audit_records WHERE object_id=$1`, [f.accountId])).rows });
   for (const forbidden of [body.payloadBase64, "synthetic-api-login", "password", "ciphertext", "envelope"]) assert.ok(!ordinary.includes(forbidden));
   assert.equal(first.credential.actionPermissionGranted, false); assert.equal(first.credential.acceptanceStarted, false);
-  assert.equal((await pool.query(`SELECT version::text FROM ${s}.resource_reservation_guard`)).rows[0].version, "0"); assert.equal((await pool.query(`SELECT 1 FROM ${s}.project_identity_reservations`)).rowCount, 0);
+  assert.equal((await pool.query(`SELECT version::text FROM ${s}.resource_reservation_guard`)).rows[0].version, "3"); assert.equal((await pool.query(`SELECT 1 FROM ${s}.project_identity_reservations`)).rowCount, 0);
   assert.equal((await pool.query(`SELECT 1 FROM ${s}.commission_income_sources`)).rowCount, 0);
 });
 test("actual committed HTTP response loss and restart return CURRENT invalidation on original-key retry without repeated writes", async () => {

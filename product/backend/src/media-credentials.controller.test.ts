@@ -9,7 +9,7 @@ const id = "a0000000-0000-4000-8000-000000000001", other = "b0000000-0000-4000-8
 const request = { headers: { cookie: `__Host-sg_operator_session=${"A".repeat(43)}` } };
 const secret = Buffer.from('{ "login": "synthetic", "password": " synthetic-only 密码 " }');
 const command = { metadata: { contractVersion, requestId: "request-sensitive-input", idempotencyKey: "credential_intent_1" },
-  credentialId: id, accountId: id, platform: "facebook", expectedRevision: 0, operation: "put", payloadBase64: secret.toString("base64") };
+  credentialId: id, accountId: id, platform: "facebook", expectedRevision: 0, operation: "put", loginIdentifier: "synthetic", payloadBase64: secret.toString("base64") };
 const credential = { credentialId: id, accountId: id, platform: "facebook", revision: 1, state: "stored_unverified", actionPermissionGranted: false, acceptanceStarted: false };
 test("credential controller forwards only current Cookie/CSRF and exact decoded bytes, then clears its borrowed buffer", async () => {
   let borrowed: Buffer | undefined, calls = 0;

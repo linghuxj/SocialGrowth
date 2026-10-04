@@ -46,9 +46,8 @@ export const mediaAccountSchema = z.strictObject({
   reservation: assignmentSchema.nullable(),
 }).superRefine((value, context) => {
   if ((value.parentLoginVerification === "verified" && value.canonicalAccountRef === null)
-    || (value.parentLoginVerification !== "verified" && value.canonicalAccountRef !== null)
     || (value.canonicalAccountRef !== null && value.legacyDeclaredCanonicalAccountRef !== null)) {
-    context.addIssue({ code: "custom", path: ["canonicalAccountRef"], message: "Canonical parent identity is present only after verification; legacy declarations are separate" });
+    context.addIssue({ code: "custom", path: ["canonicalAccountRef"], message: "Verified parent identity requires a canonical reference; legacy declarations are separate" });
   }
 });
 

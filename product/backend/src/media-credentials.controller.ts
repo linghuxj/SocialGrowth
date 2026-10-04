@@ -36,8 +36,9 @@ export class MediaCredentialsController {
         }
       }
       const result = await this.store.write(operatorSessionTokenFrom(request.headers.cookie), csrf ?? "",
-        { metadata, credentialId, accountId, platform, expectedRevision, operation }, payload);
-      if (result.credential.accountId !== accountId || result.credential.credentialId !== credentialId || result.credential.platform !== platform) {
+        { metadata, credentialId, accountId, platform, expectedRevision, operation,
+          ...(operation === "put" ? { loginIdentifier: parsed.loginIdentifier } : {}) }, payload);
+      if (result.credential.accountId !== accountId || (credentialId !== null && result.credential.credentialId !== credentialId) || result.credential.platform !== platform) {
         throw new Error("Controlled credential metadata mismatch");
       }
       return writeMediaCredentialResponseSchema.parse({ contractVersion, ...result });
