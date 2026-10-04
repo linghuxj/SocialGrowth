@@ -109,8 +109,8 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
     if (error instanceof ProductApiError && error.status === 401) onExpired(error);
   }, [onExpired]);
 
-  const refresh = useCallback(async (append = false) => {
-    if (loadingRef.current && loadingProjectRef.current === projectKey
+  const refresh = useCallback(async (append = false, force = false) => {
+    if (!force && loadingRef.current && loadingProjectRef.current === projectKey
       && loadingActiveEpochRef.current === activeEpochRef.current) return;
     const currentSequence = ++sequence.current;
     const currentRefreshGeneration = ++refreshGeneration.current;
@@ -172,6 +172,10 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
   async function send(command: PendingCommand) {
     if (busyRef.current || readOnly || !activeRef.current || projectKeyRef.current !== pendingProject(command)
       || (pendingRef.current && pendingRef.current !== command)) return;
+    const commandProject = pendingProject(command);
+    const commandActiveEpoch = activeEpochRef.current;
+    const stillInCommandView = () => activeRef.current && activeEpochRef.current === commandActiveEpoch
+      && projectKeyRef.current === commandProject;
     busyRef.current = true;
     sequence.current++;
     setBusy(true);
@@ -181,15 +185,21 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
       if (command.kind === "project") {
         const response = await command.command.send();
         if (!alive.current) return;
-        setMessage(`${intentLabels[response.intent]}；关联任务影响 ${response.impactedTaskCount} 项，确认未开始且无执行记录的取消 ${response.cancelledTaskCount} 项。没有确认手机物理停止。请求 ${response.requestId}。`);
+        if (pendingRef.current === command && stillInCommandView()) {
+          setMessage(`${intentLabels[response.intent]}；关联任务影响 ${response.impactedTaskCount} 项，确认未开始且无执行记录的取消 ${response.cancelledTaskCount} 项。没有确认手机物理停止。请求 ${response.requestId}。`);
+        }
       } else {
         const response = await command.command.send();
         if (!alive.current) return;
-        setMessage(`已记录该素材版本的内部撤回；关联任务影响 ${response.impactedTaskCount} 项，确认未开始且无执行记录的取消 ${response.cancelledTaskCount} 项。未操作外部平台内容。请求 ${response.requestId}。`);
+        if (pendingRef.current === command && stillInCommandView()) {
+          setMessage(`已记录该素材版本的内部撤回；关联任务影响 ${response.impactedTaskCount} 项，确认未开始且无执行记录的取消 ${response.cancelledTaskCount} 项。未操作外部平台内容。请求 ${response.requestId}。`);
+        }
       }
       if (pendingRef.current === command) updatePending(null);
-      onFactsChanged();
-      await refresh(false);
+      if (stillInCommandView()) {
+        onFactsChanged();
+        await refresh(false, true);
+      }
     } catch (error) {
       if (!alive.current) return;
       reportExpired(error);
@@ -197,9 +207,11 @@ export function ProjectLifecyclePanel({ projectId, active, readOnly, onExpired, 
         && error.response.error.code === "FACT_VERSION_STALE";
       if (definitiveStale) {
         if (pendingRef.current === command) updatePending(null);
-        setErrorMessage(errorText(error));
-        await refresh(false);
-      } else {
+        if (stillInCommandView()) {
+          setErrorMessage(errorText(error));
+          await refresh(false, true);
+        }
+      } else if (pendingRef.current === command && stillInCommandView()) {
         setErrorMessage(errorText(error));
       }
     } finally {
