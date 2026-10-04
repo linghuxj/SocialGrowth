@@ -199,11 +199,12 @@ async function openLifecycle(name: string) {
   await openProject(name);
   await workspace.getByRole("button", { name: "项目生命周期", exact: true }).click();
   const panel = workspace.getByRole("region", { name: "项目生命周期", exact: true });
-  const intentValue = panel.getByRole("region", { name: "项目意图事实", exact: true }).locator(".project-lifecycle__facts dd").first();
+  const intentValue = panel.getByRole("region", { name: "项目意图事实", exact: true }).locator(".project-lifecycle__facts dd").first()
+    .filter({ hasText: /^(尚无项目生命周期意图|已记录暂停意图|已记录恢复前复核意图|已记录正式结束意图)$/ });
   stage = "wait for lifecycle panel heading";
   await panel.getByRole("heading", { name: "项目暂停、恢复与结束", exact: true }).waitFor();
   stage = "wait for lifecycle intent data text";
-  await intentValue.getByText(/^(尚无项目生命周期意图|已记录暂停意图|已记录恢复前复核意图|已记录正式结束意图)$/).waitFor();
+  await intentValue.waitFor();
   return panel;
 }
 async function saveSyntheticMaterial(projectName: string) {
@@ -328,7 +329,7 @@ try {
   await continuedEnd.waitFor();
   await continuedEnd.click();
   await reopenedA.getByRole("region", { name: "项目意图事实", exact: true })
-    .locator(".project-lifecycle__facts dd").first().getByText("已记录正式结束意图", { exact: true }).waitFor();
+    .locator(".project-lifecycle__facts dd").first().filter({ hasText: /^已记录正式结束意图$/ }).waitFor();
   assert.equal(endPostCount, 2);
   assert.ok(outputFacts.endUnknownReplay !== null);
   assert.equal(outputFacts.endUnknownReplay.bodySha256, outputFacts.endUnknownReplay.replayBodySha256);
