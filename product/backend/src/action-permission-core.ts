@@ -1,8 +1,9 @@
 import { z } from "zod";
 import {
   actionPurposeSchema, admissionGenerationSchema, compareTimestamps,
-  phoneActionRequestSchema, timestampSchema, uuidSchema, type PhoneActionRequest,
+  phoneActionRequestSchema, phoneHolderRequestSchema, timestampSchema, uuidSchema, type PhoneActionRequest,
 } from "@socialgrowth/product-contracts";
+export { phoneHolderRequestSchema } from "@socialgrowth/product-contracts";
 
 export class ActionPermissionError extends Error {
   constructor(readonly code: "INVALID_BOUNDARY" | "AUTHORITY_CHANGED" | "ACTION_DENIED" | "BUSY" | "STOP_UNCONFIRMED" | "STALE_RECEIPT") {
@@ -30,13 +31,12 @@ const factsSchema = z.strictObject({
     taskAttemptId: uuidSchema, authorizationId: uuidSchema,
     operation: z.enum(["publish", "collect", "verify_result", "initialize", "withdraw", "recovery_check", "exit_cleanup", "operator_takeover"]),
     authorized: z.boolean(), currentVersions: z.boolean(), validUntil: timestampSchema,
-    allowedKinds: z.array(z.enum(["read_screen", "navigate", "write_input", "submit_publication", "remove_content", "sign_out"])).min(1),
+    allowedKinds: z.array(z.enum(["read_screen", "navigate", "write_input", "submit_login", "submit_publication", "remove_content", "sign_out"])).min(1),
     submission: z.enum(["none", "intent_recorded", "unknown", "confirmed_success", "confirmed_not_published"]),
     materialVerified: z.boolean(), explicitRemovalAuthorized: z.boolean(),
   }),
 });
 export type ActionAuthorityFacts = z.infer<typeof factsSchema>;
-export const phoneHolderRequestSchema = phoneActionRequestSchema.omit({ actionId: true, kind: true });
 export type PhoneHolderRequest = z.infer<typeof phoneHolderRequestSchema>;
 
 function fail(code: ActionPermissionError["code"]): never { throw new ActionPermissionError(code); }
@@ -82,6 +82,8 @@ export function checkActionPermission(input: unknown, requestInput: unknown, now
     || f.task.submission !== "intent_recorded" || !f.task.materialVerified || f.projectPublicationPaused)) fail("ACTION_DENIED");
   if (r.kind === "remove_content" && (r.purpose !== "business" || f.task.operation !== "withdraw" || !f.task.explicitRemovalAuthorized)) fail("ACTION_DENIED");
   if (r.kind === "sign_out" && r.purpose !== "exit_cleanup") fail("ACTION_DENIED");
+  if ((r.kind === "write_input" || r.kind === "submit_login")
+    && (r.purpose !== "business" || f.task.operation !== "initialize")) fail("ACTION_DENIED");
   return r;
 }
 

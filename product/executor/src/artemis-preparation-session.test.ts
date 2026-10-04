@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { executionLibraryVersion, artemisPreparationAssignmentSchema, type ArtemisPreparationAssignment, type ArtemisPreparationJournal } from "@socialgrowth/product-contracts";
 import { ArtemisPreparationSession } from "./artemis-preparation-session.js";
 function assignment(): ArtemisPreparationAssignment { return artemisPreparationAssignmentSchema.parse({ taskId: randomUUID(), taskVersion: 0, taskAttemptId: randomUUID(), serial: "SYNTHETIC_NOT_A_DEVICE", operationId: "inspect_app",
-  input: { protocolVersion: executionLibraryVersion, projectId: randomUUID(), deviceId: randomUUID(), accountId: randomUUID(), parentLoginRef: "synthetic-parent", mode: "check_only",
+  input: { protocolVersion: executionLibraryVersion, projectId: randomUUID(), deviceId: randomUUID(), accountId: randomUUID(), mode: "check_only",
     target: { platform: "facebook", name: "Synthetic Page", expectedId: null, category: null, description: "" }, requestedScope: { scopeRef: "synthetic-scope", allowTrustedInstall: false, allowIdentityCreation: false },
     facts: { version: 1, currentScopeMatches: true, unresolvedDeviceTask: false, boundIdentityId: null, priorCreation: "none", app: { state: "unknown", evidenceRef: null }, login: { state: "unknown", evidenceRef: null }, identity: { state: "unknown", observedId: null, observedName: null, kind: null, managementVerified: false, evidenceRef: null } } } }); }
 function fixture() {
