@@ -89,3 +89,11 @@ pnpm --filter @socialgrowth/product-backend exec tsx --test --test-concurrency=1
 清理由通过的测试 after-hook 断言：PG/S3 pools/client 关闭；精确临时加密目录只含预期文件后删除并 rmdir；本轮容器再次按完整 ownership facts 核验后 stop，随后断言容器 ID 已不在 `docker ps -aq`。两容器使用 `--rm` 与独占匿名卷，Docker 随容器移除匿名卷；测试未扫描全局 Docker 卷列表。包密钥 buffer 以 `fill(0)` 清零，合成随机凭据未打印/写入记录。未操作 live DB、USB、模拟器或其它服务。
 
 随后按依赖顺序执行 `pnpm --filter @socialgrowth/product-contracts build`（包含 `generate:check`）和 `pnpm --filter @socialgrowth/product-backend check`，均通过。真实生产数据/恢复、消费者停止、物理 fence、生产密钥与维护目录、容量和 RPO/RTO 仍未验证；许可状态仍保持 false/unknown。
+
+## 0037配置事实/共享回执表补验准备
+
+任务 `BE-OPS-CONFIG-SCHEMA` 由 `/root/ops` 原子认领成功（ledger rev510）；依赖 `INTEGRATE-3` 已 done。独立树基于已获审的 36 迁移/恢复候选，安全快进同步完整批准提交 `603ace4a9fd03007f23424366c839885f144ae80`，没有将 canonical 工作树里的用户未提交改动带入或改写。当前源迁移集合为 37 个编号 SQL 文件，0037 SHA-256：`b1d245302364d139e1df3786dd482817919fddcc92a6f9d5dc1dbd19d6cbeca1`。
+
+0037 新增事实表 `project_review_cycle_configs` 与共享幂等回执表 `project_review_cycle_config_commands`。现有 fixture 仅创建 project/operator，不创建 review-cycle、配置事实或配置命令，因此本次最窄断言将两表追加到既有恢复检查：要求两表均出现在同一备份 inventory，逐列对比 source/restore 定义，并对比精确行数。这个既有 fixture 预期两表均为 0 行；它不会构造成功配置、当前周期、配置版本、重复写或回放回执，也不能证明未知写结果与 replay/read-command 的业务关系保持一致。那些关系保留为未验证边界，不据此给出业务恢复或生产结论。
+
+当前候选是基于 `603ace4a9fd03007f23424366c839885f144ae80` 的 source-only diff，已通过 `git diff --check`；受 UX 窗口占用，本节对应改动尚未运行构建、类型检查、PG/MinIO 或服务。待 lead 释放唯一窗口后，仅顺序运行现有隔离 PG/MinIO 恢复测试及必要最小检查，再记录确切候选 SHA 与实际结果。
