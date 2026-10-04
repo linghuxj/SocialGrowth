@@ -29,6 +29,12 @@ test("explicit custodian setup protects independent persistent keys and never ov
     await mkdir(publicDirectory, { mode: 0o755 });
     await chmod(publicDirectory, 0o755);
     assert.equal(run(join(publicDirectory, "keys.json")).status, 1);
+    const unsafeAncestor = join(taskDirectory, "unsafe-ancestor");
+    await mkdir(unsafeAncestor, { mode: 0o777 });
+    await chmod(unsafeAncestor, 0o777);
+    const secureChild = join(unsafeAncestor, "private");
+    await mkdir(secureChild, { mode: 0o700 });
+    assert.equal(run(join(secureChild, "keys.json")).status, 1);
     const alias = join(taskDirectory, "alias");
     await symlink(taskDirectory, alias);
     assert.equal(run(join(alias, "another.json")).status, 1);
