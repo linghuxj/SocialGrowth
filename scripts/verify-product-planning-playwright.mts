@@ -173,6 +173,9 @@ try {
   cyclePhase = "cycle-config-lost-response";
   await page.getByRole("button", { name: "项目", exact: true }).click();
   cycleCheckpoint = "A-project-navigation-open";
+  const returnToProjectList = project.getByRole("button", { name: "返回项目列表", exact: true });
+  if (await returnToProjectList.count()) await returnToProjectList.click();
+  cycleCheckpoint = "A-project-list-open";
   await project.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "准备清单" }).click();
   cycleCheckpoint = "A-planning-project-open";
   await project.getByRole("button", { name: "设置 · 目标与周期" }).click();
@@ -360,6 +363,8 @@ try {
   }
 
   await page.getByRole("button", { name: "项目", exact: true }).click();
+  const returnToProjectListForMobile = project.getByRole("button", { name: "返回项目列表", exact: true });
+  if (await returnToProjectListForMobile.count()) await returnToProjectListForMobile.click();
   await project.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "准备清单" }).click();
   await project.getByRole("button", { name: "设置 · 目标与周期" }).click();
   await planner.getByRole("button", { name: "周期与观察", exact: true }).click();
