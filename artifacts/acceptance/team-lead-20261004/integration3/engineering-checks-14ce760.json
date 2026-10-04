@@ -1,0 +1,65 @@
+{
+  "recordedAt": "2026-10-04T05:28:32.258318+00:00",
+  "sourceHead": "14ce76077f251ce0b2a87a633be11446696b4b5f",
+  "workspaceConcurrency": 1,
+  "commands": {
+    "pnpm check:product": {
+      "exitCode": 0,
+      "packages": [
+        "contracts",
+        "backend",
+        "executor",
+        "web"
+      ]
+    },
+    "pnpm test:product": {
+      "exitCode": 1,
+      "suites": {
+        "contracts": {
+          "tests": 84,
+          "passed": 84,
+          "failed": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "durationMs": 1684.392316
+        },
+        "backend": {
+          "tests": 402,
+          "passed": 402,
+          "failed": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "durationMs": 8385.864998
+        },
+        "executor": {
+          "tests": 61,
+          "passed": 61,
+          "failed": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "durationMs": 15779.431389
+        },
+        "web": {
+          "tests": 86,
+          "passed": 65,
+          "failed": 21,
+          "cancelled": 0,
+          "skipped": 0,
+          "durationMs": 8072.670884
+        }
+      },
+      "pythonContracts": {
+        "tests": 39,
+        "failed": 0,
+        "durationSeconds": 0.585
+      }
+    }
+  },
+  "failedFiles": [
+    "product/web/src/material-api.test.ts",
+    "product/web/src/material-batch-api.test.ts",
+    "product/web/src/material-current-read.test.ts",
+    "product/web/src/material-save-api.test.ts"
+  ],
+  "boundary": "Supplemental engineering checks only; Web21 failures require diagnosis before later source approval/CI. No browser, device, queue or model run."
+}

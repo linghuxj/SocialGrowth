@@ -14,6 +14,8 @@
 | 产品单元与类型 | 主窗固定 `3e03cef493126db5eef698119262744caeb6f482` 完整回归通过：contracts TS80/Python39、backend395、executor61、Web86；四包类型检查通过 | 工程检查，不证明实际平台来源、原生/浏览器业务或整体验收；[有限结果](../../../../artifacts/acceptance/team-lead-20261004/integration3/engineering-checks-3e03cef.json) |
 | 完整迁移恢复补验 | `5d98831962d53f78a280d343b2911934e74673ed` 已获[精确源码批准](team-review-ops-full-schema-5d98831.md)，已集成 | 作者实际隔离PG/MinIO 1/1覆盖当时全部33迁移，新增9表schema/空行对照；[固定报告](team-ops-full-schema-20261004.md)。未来0034–36需最终组合再跑，不外推业务数据、真实fence或生产灾备 |
 | 批准配置首周期窗口 | `6cdebccea36adca8e04f975a61f3ea3ef01ec05a` 已获[精确源码批准](team-review-cycle-f74b614.md)，完整合入 `7ea5ea5` | 作者隔离PG方向套件21/21、backend单元400/400、周期单元5/5；主窗 `e3f485f` 四包类型检查通过。只覆盖首窗口持久接线，真实Web批准触发与持续下周期仍待验 |
+| 生命周期合并后工程回归 | 主窗固定 `14ce76077f251ce0b2a87a633be11446696b4b5f` 类型检查通过，完整顺序单元命令退出1 | contracts TS84/Python39、backend402、executor61均通过；Web65通过/21失败，集中在4个既有素材API测试文件。[有限结果](../../../../artifacts/acceptance/team-lead-20261004/integration3/engineering-checks-14ce760.json)。正在核对新增撤回契约与旧fixture差异，不放宽生产schema，不把补充单元当Web验收 |
+| 生命周期首次组合浏览器 | Web工作树 `8cb3418` 加当时未提交导航/runner/verifier，操作开始前TimeoutError | pageErrors为空、三个actions为空、pause/end POST均0、方向/模型阶段未执行；[固定失败](../../../../artifacts/acceptance/team-lead-20261004/integration3/lifecycle-run1-failure.json)。已清理自有服务/两容器/临时凭据；不是冻结head验收。发现region标签误用标题的选择器缺陷，修正并增加有限阶段后冻结 `fb005de39a4a2b29db09a06ddcf80b4bad2fdcd8`，尚待串行实际复验/精确审查 |
 
 有限安全结果：[反馈](../../../../artifacts/acceptance/team-lead-20261004/integration3/feedback-2c7910e.json)、[服务恢复](../../../../artifacts/acceptance/team-lead-20261004/integration3/runtime-restart-f7dce19.json)、[模型排期](../../../../artifacts/acceptance/team-lead-20261004/integration3/model-plan-80e871a.json)。测试输入为隔离工程输入；真实浏览器操作和真实模型响应不等于真实平台业务验收。清理前只读SQL是补充证据，未用于预置业务成功。
 
