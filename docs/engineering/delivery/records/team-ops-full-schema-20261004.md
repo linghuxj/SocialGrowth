@@ -90,10 +90,20 @@ pnpm --filter @socialgrowth/product-backend exec tsx --test --test-concurrency=1
 
 随后按依赖顺序执行 `pnpm --filter @socialgrowth/product-contracts build`（包含 `generate:check`）和 `pnpm --filter @socialgrowth/product-backend check`，均通过。真实生产数据/恢复、消费者停止、物理 fence、生产密钥与维护目录、容量和 RPO/RTO 仍未验证；许可状态仍保持 false/unknown。
 
-## 0037配置事实/actor-scoped命令回执表补验准备
+## 0037配置事实/actor-scoped命令回执表补验
 
 任务 `BE-OPS-CONFIG-SCHEMA` 由 `/root/ops` 原子认领成功（ledger rev510）；依赖 `INTEGRATE-3` 已 done。独立树基于已获审的 36 迁移/恢复候选，安全快进同步完整批准提交 `603ace4a9fd03007f23424366c839885f144ae80`，没有将 canonical 工作树里的用户未提交改动带入或改写。当前源迁移集合为 37 个编号 SQL 文件，0037 SHA-256：`b1d245302364d139e1df3786dd482817919fddcc92a6f9d5dc1dbd19d6cbeca1`。
 
 0037 新增事实表 `project_review_cycle_configs` 与配置模块的 actor/request-key-scoped command receipt 表 `project_review_cycle_config_commands`；后者保存不可变的 response JSON，与 lifecycle journal 不是同一数据源。现有 fixture 仅创建 project/operator，不创建 review-cycle、配置事实或配置命令，因此本次最窄断言将两表追加到既有恢复检查：要求两表均出现在同一备份 inventory，逐列对比 source/restore 定义，并对比精确行数。这个既有 fixture 预期两表均为 0 行；它不会构造成功配置、当前周期、配置版本、重复写或回放回执，也不能证明当前/history/config版本与 actor-scoped replay/read-command 的行级关系保持一致。那些关系保留为未验证边界，不据此给出业务恢复或生产结论。
 
-当前候选是基于 `603ace4a9fd03007f23424366c839885f144ae80` 的 source-only diff，已通过 `git diff --check`；受 UX 窗口占用，本节对应改动尚未运行构建、类型检查、PG/MinIO 或服务。待 lead 释放唯一窗口后，仅顺序运行现有隔离 PG/MinIO 恢复测试及必要最小检查，再记录确切候选 SHA 与实际结果。
+源码在 `947f58590774f6c0a3e089e7c66a17eb59b840a8` 冻结，并经 adversary source-only 精确批准（base `603ace4a9fd03007f23424366c839885f144ae80`）；源码范围之后未改变。lead 释放窗口后实际运行：
+
+```sh
+pnpm --filter @socialgrowth/product-backend exec tsx --test --test-concurrency=1 src/database-maintenance-recovery.pg-test.ts
+```
+
+结果 1 test、1 pass、0 fail、0 skipped；测试耗时 `24506.970721 ms`，runner 总耗时 `35633.514887 ms`。该次运行实际应用了当前 37 个迁移，capture metadata 与同一批读取/应用的迁移 bytes 使用相同名称和 SHA；0037 的两个表均包含在 inventory 中，列定义 source/restore 完全相同，source 与 restored 行数均为 0。PG inventory 总比较仍通过，权限门禁保持 false/unknown。
+
+最小 backend check 首次失败：独立树未构建 0037 workspace contracts dist，因而提示 8 个 project-cycle config contracts 导出缺失。随后顺序执行 `pnpm --filter @socialgrowth/product-contracts build`（其中 `generate:check` 通过），再执行 `pnpm --filter @socialgrowth/product-backend check`，退出码 0。上述初次 stale-dist 失败及临时构建修复保留为本任务工程证据；不把它扩展为全局阻断。
+
+fixture after-hook 清理通过：关闭自有 PG/S3 client/pool，按 exact temp directory/key 清除加密包并 rmdir，按 ID/name/image/label/loopback port/独占匿名卷归属再次核验本轮容器后停止，并断言容器 ID 已消失；随后只读筛查 `sg-maint-pg-`、`sg-maint-s3-` 无残留。本测试使用 `--rm` 和匿名卷，未触碰原 PG33、其他容器、USB/模拟器、队列或发布。测试仅证明 schema/inventory 及空表行数恢复：0037 两表没有配置事实或命令回执行，不能证明生产 current/history/config version 与 actor-scoped unknown/replay 回执关系、周期业务数据恢复、生产数据恢复、RPO/RTO 或 consumer/fence；不据此给业务通过结论。
