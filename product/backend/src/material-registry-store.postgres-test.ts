@@ -116,6 +116,24 @@ test("terminal material withdrawal remains visible but cannot re-enter current p
   } catch (error) { await c.query("ROLLBACK"); throw error; } finally { c.release(); }
   await assert.rejects(save(f, { ...f.input, metadata: meta(), expectedCurrentRevision: saved.currentRevision }), code("FACT_VERSION_STALE"));
 });
+test("a pending material on a newly created version-zero project can be withdrawn and replayed without rewriting history", async () => {
+  const f = await fixture();
+  const before = await save(f);
+  assert.equal(Number((await pool.query(`SELECT fact_version FROM ${s}.projects WHERE project_id=$1`, [f.input.projectId])).rows[0]!.fact_version), 0);
+  assert.equal(before.status, "pending_validation"); assert.equal(before.candidateAllowed, false);
+  const request = { metadata: meta(), expectedMaterialRevision: before.currentRevision };
+  const first = await lifecycle.withdrawMaterial(f.a.token, f.a.csrf, f.input.projectId, f.input.variantId, request);
+  assert.equal(first.changed, true); assert.equal(first.replayed, false); assert.equal(first.materialRevision, before.currentRevision);
+  const replay = await lifecycle.withdrawMaterial(f.a.token, f.a.csrf, f.input.projectId, f.input.variantId, request);
+  assert.deepEqual(replay, { ...first, changed: false, replayed: true });
+  const current = await store.read(f.a.token, f.input.projectId, f.input.variantId);
+  assert.equal(current.status, "pending_validation"); assert.equal(current.candidateAllowed, false);
+  assert.equal(current.eligibilityReason, "material_withdrawn"); assert.equal(current.publicationAllowed, false);
+  assert.equal(current.currentRevision, before.currentRevision); assert.deepEqual(current.revisions, before.revisions);
+  assert.deepEqual(current.withdrawal, { state: "withdrawn", materialRevision: before.currentRevision,
+    requestId: request.metadata.requestId, recordedAt: current.withdrawal?.recordedAt });
+  assert.equal(Number((await pool.query(`SELECT fact_version FROM ${s}.projects WHERE project_id=$1`, [f.input.projectId])).rows[0]!.fact_version), 0);
+});
 test("exact SHA already bound to another contentUnit keeps both current revisions pending; same unit language shares remain candidates", async () => {
   const first = await fixture(), firstScope = await approveDirection(first, "en-us", ["facebook_video"], ["en-us", "es"]), firstSaved = await save(first, withConfirmation(first.input, firstScope));
   assert.equal(firstSaved.candidateAllowed, true);
