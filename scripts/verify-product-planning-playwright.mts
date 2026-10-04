@@ -48,7 +48,7 @@ async function waitForSuccessorFromVisiblePage(target: Page, region: Locator, pr
   const previousCycle = previous.currentCycle;
   assert.ok(previousCycle, "a UI-created current cycle is required before waiting for its natural successor");
   const endMs = Date.parse(previousCycle.endsAt);
-  const deadline = endMs + 3 * 60_000;
+  const deadline = Math.max(Date.now(), endMs) + 3 * 60_000;
   let latest = previous;
   while (Date.now() < deadline) {
     latest = await readCycleFromVisiblePage(target, region);
@@ -277,7 +277,7 @@ try {
   assert.ok(Date.parse(currentRead.currentCycle.startsAt) <= Date.parse(currentRead.observedAt)
     && Date.parse(currentRead.observedAt) < Date.parse(currentRead.currentCycle.endsAt),
   "the current cycle must still be active at the UI read timestamp");
-  assert.ok(Date.parse(currentRead.currentCycle.endsAt) - Date.parse(currentRead.observedAt) > 90_000,
+  assert.ok(Date.parse(currentRead.currentCycle.endsAt) - Date.parse(currentRead.observedAt) > 4 * 60_000,
     "leave enough real active-cycle time to persist the operator-confirmed next configuration");
   await cycle.getByLabel("下周期业务时区", { exact: true }).selectOption("Asia/Tokyo");
   await cycle.getByLabel("下周期复盘间隔（天）", { exact: true }).fill("14");
@@ -403,7 +403,7 @@ try {
   await planner.getByRole("button", { name: "周期与观察", exact: true }).click();
   await cycle.getByRole("button", { name: "明确接续同一请求", exact: true }).waitFor();
   await cycle.getByRole("button", { name: "明确接续同一请求", exact: true }).click();
-  await cycle.getByText(/已核对原请求回执：运营已确认配置版本 \d+。该回执只证明配置确认/).waitFor();
+  await cycle.getByText(/运营已确认配置版本 \d+。此回执只证明配置确认/).waitFor();
   assert.equal(safeCycleFacts.length, 2); assert.equal(safeCycleFacts[0]?.bodySha256, safeCycleFacts[1]?.bodySha256);
   assert.equal(safeCycleFacts[0]?.idempotencyKeySha256, safeCycleFacts[1]?.idempotencyKeySha256);
   assert.equal(safeCycleFacts[0]?.outcome, "confirmed"); assert.equal(safeCycleFacts[0]?.replayed, false);
@@ -470,7 +470,12 @@ try {
   assert.equal(appliedCycle.nextConfiguration.businessTimeZone, "Asia/Tokyo");
   assert.equal(appliedCycle.nextConfiguration.reviewIntervalDays, 14);
   assert.equal(appliedCycle.nextConfiguration.trafficMinimumPerCycle, 2);
+  assert.equal(appliedCurrent.businessTimeZone, "Asia/Tokyo");
+  assert.equal(appliedCurrent.reviewIntervalDays, 14);
+  assert.equal(appliedCurrent.trafficMinimumPerCycle, 2);
   assert.equal(Date.parse(appliedCycle.nextConfiguration.effectiveStartsAt), Date.parse(baselineCycle.currentCycle.endsAt));
+  assert.equal(Date.parse(appliedCurrent.endsAt), Date.parse(appliedCycle.nextConfiguration.projectedEndsAt),
+    "the materialized successor end matches the confirmed projected boundary");
   assert.ok(Number.isFinite(Date.parse(appliedCurrent.recordedAt))
     && Date.parse(appliedCurrent.recordedAt) <= Date.parse(appliedCycle.observedAt));
   assert.equal(appliedCycle.nextCycle, null);
@@ -513,17 +518,25 @@ try {
   await writeFile(`${output}/cycle-config-safe-facts.json`, JSON.stringify({ firstPostStatus, lostResponse, commandReadsByDifferentOperator: commandReads,
     sameOriginalBodyAndKeyReplay: safeCycleFacts.length === 2 && safeCycleFacts[0]?.bodySha256 === safeCycleFacts[1]?.bodySha256
       && safeCycleFacts[0]?.idempotencyKeySha256 === safeCycleFacts[1]?.idempotencyKeySha256,
-    postFacts: safeCycleFacts, staleVersionRejectedInUi: true, originalPostReceiptStayedImmutable: true,
-    A: { projectName: name, configuredNext: { businessTimeZone: appliedCycle.nextConfiguration.businessTimeZone,
+    postFacts: safeCycleFacts, staleVersionRejectedInUi: true,
+    originalReplayObservedBeforeProgression: safeCycleFacts[1]?.outcome === "confirmed" && safeCycleFacts[1]?.replayed === true,
+    originalReceiptRecheckedAfterProgression: false,
+    A: { projectName: name, previousCycle: { cycleId: baselineCycle.currentCycle.cycleId,
+      startsAt: baselineCycle.currentCycle.startsAt, endsAt: baselineCycle.currentCycle.endsAt },
+      configuredNext: { businessTimeZone: appliedCycle.nextConfiguration.businessTimeZone,
       reviewIntervalDays: appliedCycle.nextConfiguration.reviewIntervalDays,
       trafficMinimumPerCycle: appliedCycle.nextConfiguration.trafficMinimumPerCycle,
       effectiveStartsAtMatchesPredecessorEnd: true, applicationState: appliedCycle.nextConfiguration.application.state,
       materializedCycleIdMatchesCurrent: appliedCycle.nextConfiguration.application.materializedCycleId === appliedCurrent.cycleId },
       currentCycleNumber: appliedCurrent.cycleNumber, currentCycleOrigin: appliedCurrent.origin.kind,
-      currentCycleRecordedAt: appliedCurrent.recordedAt, observedAt: appliedCycle.observedAt, nextCycle: null },
-    B: { projectName: carryProjectName, nextConfiguration: null, currentCycleNumber: carriedCurrent.cycleNumber,
+      currentCycle: { cycleId: appliedCurrent.cycleId, startsAt: appliedCurrent.startsAt, endsAt: appliedCurrent.endsAt,
+        recordedAt: appliedCurrent.recordedAt }, observedAt: appliedCycle.observedAt, nextCycle: null },
+    B: { projectName: carryProjectName, previousCycle: { cycleId: carryBaselineCycle!.currentCycle!.cycleId,
+      startsAt: carryBaselineCycle!.currentCycle!.startsAt, endsAt: carryBaselineCycle!.currentCycle!.endsAt },
+      nextConfiguration: null, currentCycleNumber: carriedCurrent.cycleNumber,
       currentCycleOrigin: carriedCurrent.origin.kind, predecessorCycleId: carryBaselineCycle!.currentCycle!.cycleId,
-      currentCycleRecordedAt: carriedCurrent.recordedAt, observedAt: carriedCycle.observedAt, nextCycle: null },
+      currentCycle: { cycleId: carriedCurrent.cycleId, startsAt: carriedCurrent.startsAt, endsAt: carriedCurrent.endsAt,
+        recordedAt: carriedCurrent.recordedAt }, observedAt: carriedCycle.observedAt, nextCycle: null },
     appliedConfigurationReadVerified, carryForwardReadVerified,
     executionAllowed: false, publicationAllowed: false }, null, 2), { mode: 0o600 });
 
@@ -556,7 +569,8 @@ try {
       exactOriginalBodyAndKeyReplay: safeCycleFacts.length === 2 && safeCycleFacts[0]?.bodySha256 === safeCycleFacts[1]?.bodySha256
         && safeCycleFacts[0]?.idempotencyKeySha256 === safeCycleFacts[1]?.idempotencyKeySha256,
       backendPageErrors: pageErrors, appliedConfigurationReadVerified, carryForwardReadVerified,
-      nextCycleMaterialized: true, execution: "not performed", publication: "not performed" }));
+      successorWindowsObserved: true, nextCycleAfterCurrent: null,
+      execution: "not performed", publication: "not performed" }));
   } else {
     console.log(JSON.stringify({ passed: true, scope: "real planning UI draft-only persistence and mobile readonly", actualModelAttempts: 0, cycleConfigAcceptanceExecuted: false,
       nextCycleConfiguration: "not requested", execution: "not performed", publication: "not performed" }));

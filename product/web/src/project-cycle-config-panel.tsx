@@ -29,6 +29,17 @@ const reasonText: Record<string, string> = {
   project_ended: "项目已结束，不再猜测新的周期窗口。",
   tail_window_unconfigured: "结束后的观察窗口尚无权威配置，服务未猜测新周期。",
 };
+const applicationReasonText: Record<string, string> = {
+  predecessor_missing: "缺少可核实的前序周期；已确认配置保留，未猜测后继窗口。",
+  source_missing: "缺少可核实的配置来源；已确认配置保留，未猜测后继窗口。",
+  configuration_already_consumed: "无法确认该配置是否可再次应用；已确认配置保留，未重复创建窗口。",
+  calendar_runtime_unavailable: "周期日历运行时不可用；已确认配置保留，后继窗口尚未核实。",
+  outside_verified_calendar_range: "目标日期超出已验证日历范围；已确认配置保留，后继窗口尚未核实。",
+  civil_boundary_ambiguous: "时区边界存在歧义；已确认配置保留，后继窗口尚未核实。",
+  window_preview_mismatch: "后继窗口与确认时预览不一致；已确认配置保留，服务未猜测窗口。",
+  project_ended: "项目已结束；已确认配置保留，未创建新的后继窗口。",
+  tail_window_unconfigured: "结束后的观察窗口尚无权威配置；已确认配置保留，未猜测后继窗口。",
+};
 
 function formatInstant(value: string | null | undefined): string {
   if (!value) return "未知";
@@ -332,7 +343,7 @@ export function ProjectCycleConfigPanel({ projectId, active, readOnly, onExpired
           <dt>确认事实</dt><dd>{next.confirmedAt} · 运营 {next.confirmedByOperatorId} · 请求 {next.requestId}</dd>
           <dt>配置应用状态</dt><dd>{next.application.state === "pending" ? "待后继周期消费" : next.application.state === "applied"
             ? `已由周期 ${next.application.materializedCycleId} 唯一消费（只证明窗口事实，不表示复盘已运行）`
-            : `未解决：${reasonText[next.application.reason ?? ""] ?? "周期来源或窗口无法确认，服务未猜测应用。"}`}</dd>
+            : `未解决：${applicationReasonText[next.application.reason ?? ""] ?? "周期来源或窗口无法确认；已确认配置保留，服务未猜测后继窗口。"}`}</dd>
         </dl> : <p>{current ? "尚无独立运营确认的下周期配置；后续窗口沿用当前周期配置。" : "尚无独立运营确认的下周期配置，且当前没有活动周期；不能推定存在可沿用的后继窗口。"}</p>}
         <p>{current ? "当前周期之后尚无已物化的下一个周期（nextCycle=null）。" : "当前没有活动周期，服务未返回后继周期窗口（nextCycle=null）。"}已物化窗口只代表周期边界和来源事实，不代表复盘、指标采集、策略、任务或发布已经运行。</p>
       </div>
