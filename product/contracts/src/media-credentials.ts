@@ -21,7 +21,7 @@ const command = z.strictObject({ metadata, credentialId: id, accountId: id, plat
 // protected request handling before enabling the controlled key provider.
 const sensitiveBytes = z.string().min(4).regex(/^(?:[A-Za-z0-9+/]{4}){0,2730}(?:[A-Za-z0-9+/][AQgw]==|[A-Za-z0-9+/]{2}[AEIMQUYcgkosw048]=)?$(?![\s\S])/);
 export const writeMediaCredentialRequestSchema = z.union([
-  command.extend({ operation: z.literal("put"), payloadBase64: sensitiveBytes }),
+  command.extend({ operation: z.literal("put"), loginIdentifier: z.string().min(1).max(320), payloadBase64: sensitiveBytes }),
   command.extend({ operation: z.literal("invalidate") }),
 ]);
 const response = z.strictObject({ contractVersion: contractVersionSchema, credential: mediaCredentialMetadataSchema });
