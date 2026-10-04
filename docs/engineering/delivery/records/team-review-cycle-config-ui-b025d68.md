@@ -92,3 +92,7 @@ SEC-CYCLE-CONFIG 的 backend 与 UX 精确源码审查均已有记录，审查�
 独立确认相对22b仅将停用的 dialog handler 移到 click 之前；同时检查脚本其他两个配置确认 handler 均在对应按钮动作之前。CYCLE-UI-DIALOG-06 闭合。NAV-05 的两处返回列表、原请求恢复与 actor/session 隔离、stale 消息、APIResponse、有限日志等已审修复全保留，生产及契约源未变，完整范围 diff-check 通过。旧291批准撤回、22b changes_requested及40b实际失败原值保留。
 
 作者报告新 head verifier strict TS/diff-check 通过；新候选未跑浏览器/模型，reviewer 本轮只读。批准允许继续主会话授权的必要真实验证，不承诺整流程一定通过；真实配置回执、同键恢复和不同 actor 场景仍待实际结果。后续根组合独立审查仍必需。
+
+## cbed0e5 文案校正 — approved
+
+Reviewer `/root/adversary`，精确完整 base `603ace4a9fd03007f23424366c839885f144ae80` → head `cbed0e5b78a1c1a08bb101e7f4037a64fb2811a4`，verdict **approved**，无新 findings。独立核对与5cda唯一差异：筹备草案提示从“没有实际运行周期”改为“此处只展示筹备草案，不能据此判断实际运行周期或批准范围”，避免以草案视图否认独立权威周期；所有逻辑、契约、恢复及验证器不变。完整 diff-check 通过；作者报告 Web check/单脚本strict TS通过。本批准仍仅完整七文件源码，真实 UI 未验证边界及后续根组合审查要求不变，未做运行操作。
