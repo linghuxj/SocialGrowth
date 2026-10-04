@@ -15,7 +15,7 @@ const id = "a0000000-0000-4000-8000-000000000001";
 const metadata = { contractVersion, requestId: "request-media-account", idempotencyKey: "media_account_intent_1" };
 const account = {
   accountId: id, platform: "facebook", displayName: "Company Facebook", loginIdentifier: "ops@example.invalid",
-  canonicalAccountRef: null, persona: null,
+  canonicalAccountRef: null, legacyDeclaredCanonicalAccountRef: null, persona: null,
   credential: { credentialId: id, revision: 1, state: "stored_unverified" },
   parentLoginVerification: "registered_unverified", publishingIdentities: [], reservation: null,
 };
@@ -26,12 +26,17 @@ test("R159 company account request requires login and password while allowing ca
   assert.ok(createMediaAccountRequestSchema.safeParse(request).success);
   assert.equal(createMediaAccountRequestSchema.safeParse({ ...request, password: "" }).success, false);
   assert.equal(createMediaAccountRequestSchema.safeParse({ ...request, loginIdentifier: "" }).success, false);
+  assert.equal(createMediaAccountRequestSchema.safeParse({ ...request, loginIdentifier: ` ${"a".repeat(310)} ` }).success, false);
+  assert.ok(createMediaAccountRequestSchema.safeParse({ ...request, loginIdentifier: "a".repeat(320) }).success);
+  assert.equal(createMediaAccountRequestSchema.safeParse({ ...request, loginIdentifier: "a\u0000b" }).success, false);
   assert.equal(createMediaAccountRequestSchema.safeParse({ ...request, canonicalAccountRef: "fake-parent-ref" }).success, false);
 });
 
 test("account list and profile response never admit secrets or client verification claims", () => {
   const response = { contractVersion, resourceVersion: 1, accounts: [account] };
   assert.ok(mediaAccountListResponseSchema.safeParse(response).success);
+  assert.ok(mediaAccountListResponseSchema.safeParse({ ...response, accounts: [{ ...account, loginIdentifier: null,
+    legacyDeclaredCanonicalAccountRef: "old_declared_ref", canonicalAccountRef: null, credential: null }] }).success);
   for (const extra of [{ password: "forbidden" }, { payloadBase64: "forbidden" }, { envelope: {} }, { verificationEvidence: "caller" }]) {
     assert.equal(mediaAccountListResponseSchema.safeParse({ ...response, accounts: [{ ...account, ...extra }] }).success, false);
   }

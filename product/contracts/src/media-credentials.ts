@@ -12,6 +12,7 @@ export const mediaCredentialMetadataSchema = z.strictObject({ credentialId: id, 
   state: z.enum(["stored_unverified", "invalidated"]), actionPermissionGranted: z.literal(false), acceptanceStarted: z.literal(false) });
 export const readMediaCredentialResponseSchema = z.strictObject({ contractVersion: contractVersionSchema, credential: mediaCredentialMetadataSchema.nullable() });
 const command = z.strictObject({ metadata, credentialId: id, accountId: id, platform, expectedRevision: z.int().min(0).max(Number.MAX_SAFE_INTEGER) });
+const loginIdentifier = z.string().min(1).max(320).refine(value => value.trim() === value && !value.includes("\u0000"));
 // Sensitive transport bytes, NOT encryption or a logging/screenshot safeguard.
 // Canonical base64 represents at most 8192 original UTF8 JSON bytes. Padding
 // bits are fixed, so TS/Python can validate identical ASCII without decoding a
@@ -21,7 +22,7 @@ const command = z.strictObject({ metadata, credentialId: id, accountId: id, plat
 // protected request handling before enabling the controlled key provider.
 const sensitiveBytes = z.string().min(4).regex(/^(?:[A-Za-z0-9+/]{4}){0,2730}(?:[A-Za-z0-9+/][AQgw]==|[A-Za-z0-9+/]{2}[AEIMQUYcgkosw048]=)?$(?![\s\S])/);
 export const writeMediaCredentialRequestSchema = z.union([
-  command.extend({ operation: z.literal("put"), loginIdentifier: z.string().min(1).max(320), payloadBase64: sensitiveBytes }),
+  command.extend({ credentialId: id.nullable(), operation: z.literal("put"), loginIdentifier, payloadBase64: sensitiveBytes }),
   command.extend({ operation: z.literal("invalidate") }),
 ]);
 const response = z.strictObject({ contractVersion: contractVersionSchema, credential: mediaCredentialMetadataSchema });
