@@ -76,11 +76,12 @@ export class BusinessPlanWorkflowStore {
     } finally { client.release(); }
   }
   private async event(client: PoolClient, id: string, scopeHash: string, key: string,
-    kind: "materialized" | "blocked" | "claimed" | "claim_expired" | "operation_started" | "observation_received" | "verification_completed", value: unknown) {
+    kind: "materialized" | "blocked" | "claimed" | "claim_expired" | "operation_started" | "observation_received" | "verification_completed", value: unknown, recordNew = true) {
     if (!eventPattern.test(key)) throw new BusinessPlanWorkflowError("INPUT_INVALID");
     const sum = digest(value);
     const old = (await client.query("SELECT payload_digest FROM " + schema + ".business_plan_workflow_events WHERE workflow_id=$1 AND event_key=$2", [id, key])).rows[0] as { payload_digest: Buffer } | undefined;
     if (old) { if (!old.payload_digest.equals(sum)) throw new BusinessPlanWorkflowError("EVENT_CONFLICT"); return; }
+    if (!recordNew) return;
     await client.query("INSERT INTO " + schema + ".business_plan_workflow_events(event_id,workflow_id,event_key,event_type,scope_fingerprint,payload_digest) VALUES($1,$2,$3,$4,$5,$6)",
       [randomUUID(), id, key, kind, Buffer.from(scopeHash, "hex"), sum]);
   }
@@ -260,7 +261,10 @@ export class BusinessPlanWorkflowStore {
         throw new BusinessPlanWorkflowError("EVENT_CONFLICT");
       }
       const nextBlockers = complete ? [] : blockers([...job.blockers, ...(result.blockers ?? [])]);
-      if (job.state === "submission_unknown" && !complete && JSON.stringify(nextBlockers) === JSON.stringify(job.blockers)) return job;
+      if (job.state === "submission_unknown" && !complete && JSON.stringify(nextBlockers) === JSON.stringify(job.blockers)) {
+        await this.event(client, job.workflowId, job.scopeFingerprint, "verify:" + result.verificationEventId, "verification_completed", result, false);
+        return job;
+      }
       await this.event(client, job.workflowId, job.scopeFingerprint, "verify:" + result.verificationEventId, "verification_completed", result);
       const state = result.decision === "prepared" ? "prepared" : result.decision === "verified_published" ? "verified" : result.decision === "verified_not_published" ? "not_published" : "submission_unknown";
       const submission = result.decision;

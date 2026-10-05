@@ -154,6 +154,11 @@ test("querying failed original check persists diagnostics without dispatch or su
   assert.equal(queried?.verifiedResultId, null);
   assert.equal(queried?.preparedAt, null);
   const eventCount = async () => (await pool.query("SELECT count(*)::int AS n FROM socialgrowth_product.business_plan_workflow_events WHERE workflow_id=$1", [queried!.workflowId])).rows[0].n;
+  const immutableProof = { verificationEventId: uuid(), payloadDigest: "a".repeat(64), decision: "unknown" as const,
+    resultId: null, verifiedAt: null, blockers: ["identity_audit_timeout", "preflight_failed"] };
+  await store.applyTrustedVerification(value.taskId, original!.operationId, immutableProof);
+  await assert.rejects(() => store.applyTrustedVerification(value.taskId, original!.operationId,
+    { ...immutableProof, payloadDigest: "b".repeat(64) }), /EVENT_CONFLICT/);
   const before = await eventCount();
   await consumer.queryOriginal(value.projectId, value.taskId);
   assert.equal(await eventCount(), before);
