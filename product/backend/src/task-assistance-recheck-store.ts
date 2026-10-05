@@ -162,7 +162,7 @@ export class TaskAssistanceRecheckStore {
       // fresh physical recovery idempotency key.
       const idempotencyKey = `assistance_recheck_${row.task_attempt_id.replaceAll("-", "")}`;
       const updated = reconcileOnly
-        ? await client.query(`UPDATE ${schema}.task_assistance_recheck_links SET lease_until=clock_timestamp()+($3::int * interval '1 millisecond'),updated_at=clock_timestamp()
+        ? await client.query(`UPDATE ${schema}.task_assistance_recheck_links SET status='claimed',lease_until=clock_timestamp()+($3::int * interval '1 millisecond'),updated_at=clock_timestamp()
           WHERE task_attempt_id=$1 AND version=$4 AND status IN ('claimed','unknown') AND claim_token=$2 RETURNING task_attempt_id`,
         [row.task_attempt_id, claimToken, leaseMs, version])
         : await client.query(`UPDATE ${schema}.task_assistance_recheck_links SET status='claimed',claim_token=$2,

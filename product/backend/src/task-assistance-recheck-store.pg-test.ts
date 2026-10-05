@@ -103,4 +103,6 @@ test("reported_processed queues one idempotent claim; concurrent consumers canno
   assert.equal(reconcileAgain.reconcileOnly, true);
   assert.equal(reconcileAgain.claimToken, reclaimed.claimToken);
   assert.equal(reconcileAgain.idempotencyKey, reclaimed.idempotencyKey);
+  await store.complete(reconcileAgain, { status: "still_blocked", blockers: ["original_operation_not_found"], checkedAt: new Date().toISOString() });
+  assert.deepEqual(await store.readDisposition(f.taskId, f.taskAttemptId), { status: "still_blocked", blockers: ["original_operation_not_found"] });
 });
