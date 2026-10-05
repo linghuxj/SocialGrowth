@@ -71,9 +71,14 @@ test("scope is matched to the persisted attempt; claims are single-winner and tr
   await assert.rejects(() => store.recordObservation(value.taskId, started!.operationId,
     { sourceEventId, payloadDigest: "f".repeat(64), reportedState: "failed" }), /EVENT_CONFLICT/);
   assert.equal((await store.readTask(value.taskId))?.state, "submission_unknown");
-  const verified = await store.applyTrustedVerification(value.taskId, started!.operationId, { verificationEventId: uuid(),
-    payloadDigest: "c".repeat(64), decision: "verified_published", resultId: "platform-record-1", verifiedAt: new Date().toISOString() });
+  const proof = { verificationEventId: uuid(), payloadDigest: "c".repeat(64), decision: "verified_published" as const,
+    resultId: "platform-record-1", verifiedAt: new Date().toISOString() };
+  const verified = await store.applyTrustedVerification(value.taskId, started!.operationId, proof);
   assert.equal(verified.state, "verified");
+  assert.equal((await store.applyTrustedVerification(value.taskId, started!.operationId, proof)).state,"verified");
+  await assert.rejects(() => store.applyTrustedVerification(value.taskId, started!.operationId,
+    { verificationEventId:uuid(),payloadDigest:"f".repeat(64),decision:"unknown",resultId:null,verifiedAt:null }),/EVENT_CONFLICT/);
+  assert.equal((await store.readTask(value.taskId))?.state,"verified");
   const mismatched={...value,reservedDeviceId:uuid()};
   await assert.rejects(() => store.materialize(mismatched,ready(mismatched)), /SCOPE_CHANGED/);
 });
@@ -83,6 +88,26 @@ test("ready ports carrying blockers cannot create a dispatchable queue row", asy
   const job=await store.materialize(value,{...ready(value),blockers:["material_missing"]});
   assert.equal(job.state,"blocked"); assert.ok(job.blockers.includes("material_missing"));
   assert.equal(await store.claim(value.taskId,"must-not-dispatch"),null);
+});
+
+test("a new readiness blocker before dispatch or per-action permit fails closed", async () => {
+  const beforeDispatch=scope(); await addTask(beforeDispatch); await store.materialize(beforeDispatch,ready(beforeDispatch));
+  let checks=0, dispatches=0;
+  const changedReadiness={assess:async(value:BusinessPlanWorkflowScope)=>++checks===1?ready(value):{...ready(value),blockers:["scope_changed"]}};
+  const consumer=new BusinessPlanWorkflowConsumer(store,{readiness:changedReadiness,actionGate:{authorizeAction:async()=>{dispatches++;return null;}},
+    executor:{execute:async()=>{dispatches++;return {sourceEventId:uuid(),payloadDigest:"1".repeat(64),reportedState:"unknown"};}},proofVerifier:null});
+  assert.equal((await consumer.runOnce(beforeDispatch,"worker-check"))?.state,"blocked"); assert.equal(dispatches,0);
+
+  const perAction=scope(); await addTask(perAction); await store.materialize(perAction,ready(perAction));
+  let actionChecks=0, permits=0, actions=0;
+  const actionConsumer=new BusinessPlanWorkflowConsumer(store,{readiness:{assess:async(value:BusinessPlanWorkflowScope)=>
+    ++actionChecks<=2?ready(value):{...ready(value),blockers:["permit_scope_changed"]}},
+    actionGate:{authorizeAction:async()=>{permits++;return {permitId:uuid(),scopeFingerprint:fingerprint(perAction),expiresAt:new Date(Date.now()+5000).toISOString()};}},
+    executor:{execute:async({authorizeAction})=>{if(await authorizeAction("submit")) actions++;
+      return {sourceEventId:uuid(),payloadDigest:"2".repeat(64),reportedState:"unknown"};}},
+    proofVerifier:{verifyOriginal:async()=>({verificationEventId:uuid(),payloadDigest:"3".repeat(64),decision:"unknown",resultId:null,verifiedAt:null})}});
+  assert.equal((await actionConsumer.runOnce(perAction,"worker-action"))?.state,"submission_unknown");
+  assert.equal(permits,0); assert.equal(actions,0);
 });
 
 test("an expired pre-operation claim is retained for read-only reconciliation and is never redispatched", async () => {

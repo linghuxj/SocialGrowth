@@ -235,12 +235,19 @@ export class BusinessPlanWorkflowStore {
     return this.tx(async client => {
       const job = await this.readOne(client, taskId, true);
       if (!job || job.operationId !== operationId) throw new BusinessPlanWorkflowError("CLAIM_STALE");
+      const terminal = job.state === "verified" || job.state === "not_published";
+      if (terminal) {
+        const sameOutcome = (job.state === "verified" && result.decision === "verified_published")
+          || (job.state === "not_published" && result.decision === "verified_not_published");
+        if (sameOutcome && job.verifiedResultId === result.resultId && job.verifiedAt === result.verifiedAt) return job;
+        throw new BusinessPlanWorkflowError("EVENT_CONFLICT");
+      }
       await this.event(client, job.workflowId, job.scopeFingerprint, "verify:" + result.verificationEventId, "verification_completed", result);
       const state = result.decision === "verified_published" ? "verified" : result.decision === "verified_not_published" ? "not_published" : "submission_unknown";
       const submission = result.decision === "verified_published" ? "verified_published" : result.decision === "verified_not_published" ? "verified_not_published" : "unknown";
       const operationState = result.decision === "verified_published" ? "verified" : result.decision === "verified_not_published" ? "not_published" : "submission_unknown";
       await client.query("UPDATE " + schema + ".business_plan_workflow_jobs SET state=$2,submission_state=$3,operation_state=$4,verified_result_id=$5,"
-        + "verified_at=$6,claim_id=NULL,claim_owner=NULL,lease_until=NULL,updated_at=clock_timestamp() WHERE workflow_id=$1 AND operation_id=$7",
+        + "verified_at=$6,claim_id=NULL,claim_owner=NULL,lease_until=NULL,updated_at=clock_timestamp() WHERE workflow_id=$1 AND operation_id=$7 AND state NOT IN ('verified','not_published')",
         [job.workflowId, state, submission, operationState, result.resultId, result.verifiedAt, operationId]);
       const updated = await this.readOne(client, taskId);
       if (!updated) throw unavailable();
@@ -321,7 +328,8 @@ export class BusinessPlanWorkflowConsumer implements BusinessPlanWorkflowPortSta
     }
     if (!ports.readiness || !ports.actionGate || !ports.executor || !ports.proofVerifier || job.state !== "queued") return job;
     const readiness = await ports.readiness.assess(scope);
-    if (readiness.adapterState !== "connected" || readiness.businessState !== "ready" || readiness.scopeFingerprint !== sum) {
+    if (!Array.isArray(readiness.blockers) || readiness.adapterState !== "connected" || readiness.businessState !== "ready"
+      || readiness.blockers.length !== 0 || readiness.scopeFingerprint !== sum) {
       return this.store.materialize(scope, { ...readiness, adapterState: "unconnected", blockers: [...readiness.blockers, "workflow_readiness_not_ready"] });
     }
     const claim = await this.store.claim(scope.taskId, workerId);
@@ -330,7 +338,8 @@ export class BusinessPlanWorkflowConsumer implements BusinessPlanWorkflowPortSta
     if (!started) return this.store.readProject(scope.projectId).then(rows => rows.find(row => row.taskId === scope.taskId) ?? null);
     const authorizeAction = async (stepId: string) => {
       const latest = await ports.readiness!.assess(scope);
-      if (latest.adapterState !== "connected" || latest.businessState !== "ready" || latest.scopeFingerprint !== sum) return null;
+      if (!Array.isArray(latest.blockers) || latest.adapterState !== "connected" || latest.businessState !== "ready"
+        || latest.blockers.length !== 0 || latest.scopeFingerprint !== sum) return null;
       const permit = await ports.actionGate!.authorizeAction({ scope, operationId: started.operationId, stepId, scopeFingerprint: sum });
       if (!permit || !permit.permitId || permit.scopeFingerprint !== sum || !Number.isFinite(Date.parse(permit.expiresAt))
         || Date.parse(permit.expiresAt) <= Date.now()) return null;
