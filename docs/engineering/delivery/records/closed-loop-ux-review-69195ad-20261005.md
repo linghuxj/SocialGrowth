@@ -12,3 +12,11 @@ The read-only panel otherwise preserves the distinction between logical reservat
 ## Re-review of 0c4e059
 
 Same base; head `0c4e059a06dcd31355979455b112e59843e5cba6`. Reviewed the complete follow-up delta and actual fifth CSS file. Accepted workflow rev3 and assistance-detail rev4 checked; all five scoped paths pass diff-check. The original GET-session/unmount and pending-wording findings are fixed. Verdict remains **changes_requested** for the write-session variant of UX-LOOP-SEC-01: `continueNote` reads a mutable `pendingSession.current` in its rejection handler, but another concurrent success clears it. While submission waits, the continuation button remains enabled because `loading` only covers reads. Two same-key submissions can therefore interleave first success, logout/relogin, then second old 401; the absent guard silently succeeds and `expiredRef` clears the new session. Capture an immutable guard per invocation and refuse a missing guard; guard callbacks after unmount. This is a source/control-flow finding, not a claimed runtime reproduction.
+
+## Final exact re-review
+
+Base `05f8cf587a9c8f482da92263d194c06250f088ed`; head `257da3764004bea4ffd467ab16b550a1fc4385d9`. Verdict: **approved** for this five-file source candidate only. Reviewer `/root/ops_fix_adversary`.
+
+Intermediate head `964c8b0fe52647b2206ab9f3ccbc2f637fae2890` fixed the immutable per-invocation session guard and mounted/active callback protection. It was not approved because overlapping continuation successes could still clear a later command's pending state. Final head adds synchronous single-flight occupancy before any await, released in finally; duplicate continuation calls return without issuing another request. Thus the old-session and pending-command replacement variants of UX-LOOP-SEC-01 are closed. UX-LOOP-SEC-02 wording remains corrected and agrees with accepted workflow rev3 / assistance-detail rev4 semantics.
+
+Reviewed every incremental code change and all five actual candidate files; final scoped diff-check passed. No reviewer build, browser, service, device or model execution was performed. Peer schema/route integration, real Web interaction and lead's eventual combined candidate remain separate review/validation obligations. Any subsequent code change invalidates this exact approval.
