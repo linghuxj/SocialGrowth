@@ -292,6 +292,8 @@ export function createRuntimeServer(options: ServerOptions) {
           result = onboarding.start(JSON.parse((await body(req, 4096)).toString()));
         else if (path === '/onboarding/stop' && req.method === 'POST')
           result = onboarding.stop(id.parse(JSON.parse((await body(req, 2048)).toString()).id));
+        else if (path === '/onboarding/end-stopped' && req.method === 'POST')
+          result = await onboarding.endStoppedVerification(id.parse(JSON.parse((await body(req, 2048)).toString()).id));
         else if (path === '/onboarding/screenshot' && req.method === 'GET') {
           res.setHeader('Content-Type', 'image/png');
           res.end(Buffer.from(onboarding.screenshot(id.parse(url.searchParams.get('id'))))); return;
