@@ -5,6 +5,16 @@ import { productErrorResponseSchema } from "@socialgrowth/product-contracts";
 import { DeviceAssistanceNotesController } from "./device-assistance-notes.controller.js";
 import type { DeviceAssistanceNotesService } from "./device-assistance-notes-service.js";
 const id = "abcdefab-0000-4000-8000-000000000001", token = "C".repeat(43), request = { headers: { cookie: `__Host-sg_operator_session=${token}` } };
+test("todo detail HTTP uses the current operator cookie and rejects malformed identities", async () => {
+  let calls = 0;
+  const value = { todo: { todoId: id }, recheck: { status: "not_requested", blockers: [], checkedAt: null } };
+  const controller = new DeviceAssistanceNotesController({ detail: async (t: string, todo: string) => {
+    calls++; assert.equal(t, token); assert.equal(todo, id); return value;
+  } } as unknown as DeviceAssistanceNotesService);
+  assert.deepEqual(await controller.detail(id, request), value);
+  await assert.rejects(controller.detail("bad", request), (e: unknown) => e instanceof HttpException && e.getStatus() === 400);
+  assert.equal(calls, 1);
+});
 test("notes HTTP requires strict todo/query and current operator cookie, never accepts caller actor", async () => {
   let calls = 0;
   const controller = new DeviceAssistanceNotesController({ list: async (t: string, todo: string, query: unknown) => { calls++; assert.equal(t, token); assert.equal(todo, id); assert.deepEqual(query, { afterNoteId: null, pageSize: 20 }); return "non-UI-test-only"; } } as unknown as DeviceAssistanceNotesService);

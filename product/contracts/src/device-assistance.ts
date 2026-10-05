@@ -59,6 +59,15 @@ export const listProviderDeviceAssistanceTodosResponseSchema = z.strictObject({ 
       || (v.nextAfterTodoId !== null && v.nextAfterTodoId.toLowerCase() !== v.todos.at(-1)?.todoId.toLowerCase())) ctx.addIssue({ code: "custom", message: "Assistance page cursor or identity is inconsistent" });
   });
 export const deviceAssistanceNoteViewSchema = z.strictObject({ noteId: uuidSchema, actorId: uuidSchema, kind: z.enum(["note", "reported_processed"]), text: projectLabelSchema, recordedAt: assistanceTimestampSchema });
+export const operatorAssistanceTodoDetailResponseSchema = z.strictObject({
+  todo: deviceAssistanceTodoSummarySchema,
+  recheck: z.strictObject({
+    status: z.enum(["not_requested", "pending", "verified_recovered", "still_blocked", "unknown"]),
+    blockers: z.array(z.string().min(1).max(120)).max(32),
+    checkedAt: assistanceTimestampSchema.nullable(),
+  }),
+});
+export type OperatorAssistanceTodoDetailResponse = z.infer<typeof operatorAssistanceTodoDetailResponseSchema>;
 export const listDeviceAssistanceNotesResponseSchema = z.strictObject({ todo: deviceAssistanceTodoSummarySchema, notes: z.array(deviceAssistanceNoteViewSchema).max(50), nextAfterNoteId: uuidSchema.nullable() })
   .superRefine((v, ctx) => {
     if (new Set(v.notes.map(n => n.noteId.toLowerCase())).size !== v.notes.length || v.notes.length > v.todo.noteCount

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { deviceAssistanceTodoSummarySchema, listDeviceAssistanceTodosResponseSchema, recordDeviceAssistanceNoteRequestSchema, recordDeviceAssistanceNoteResponseSchema, providerDeviceAssistanceTodoSummarySchema, listProviderDeviceAssistanceTodosResponseSchema, listDeviceAssistanceNotesResponseSchema, listDeviceAssistanceImpactsResponseSchema } from "./device-assistance.js";
+import { deviceAssistanceTodoSummarySchema, listDeviceAssistanceTodosResponseSchema, recordDeviceAssistanceNoteRequestSchema, recordDeviceAssistanceNoteResponseSchema, providerDeviceAssistanceTodoSummarySchema, listProviderDeviceAssistanceTodosResponseSchema, listDeviceAssistanceNotesResponseSchema, listDeviceAssistanceImpactsResponseSchema, operatorAssistanceTodoDetailResponseSchema } from "./device-assistance.js";
 import { contractVersion } from "./common.js";
 const id = "00000000-0000-4000-8000-00000000000a";
 const summary = { todoId: id, occurrenceId: id, providerId: id, initialResponsibleOperatorId: id, originScope: "unassigned_device", kind: "network_access_help", status: "awaiting_recheck", factVersion: 1,
@@ -49,6 +49,19 @@ test("operator notes page preserves bounded recorded notes and consistent curren
   const note = { noteId: id, actorId: id, kind: "reported_processed", text: "需要真实复核", recordedAt: summary.updatedAt }, value = { todo: summary, notes: [note], nextAfterNoteId: id };
   assert.deepEqual(listDeviceAssistanceNotesResponseSchema.parse(value), value);
   for (const patch of [{ notes: [note, { ...note, noteId: id.toUpperCase() }] }, { notes: [], nextAfterNoteId: id }, { notes: [{ ...note, kind: "verified" }] }, { notes: [{ ...note, permissionGranted: true }] }, { notes: [{ ...note, recordedAt: "0000-01-01T00:00:00Z" }] }, { notes: [{ ...note, recordedAt: "2026-09-29T23:59:59.999999999Z" }] }, { notes: [{ ...note, recordedAt: "2026-09-30T00:00:00.000000001Z" }] }, { notes: [note], todo: { ...summary, status: "open", noteCount: 0 } }]) assert.equal(listDeviceAssistanceNotesResponseSchema.safeParse({ ...value, ...patch }).success, false);
+});
+test("operator todo detail is read-only projection and only trusted result status can say recovered", () => {
+  const value = { todo: summary, recheck: { status: "verified_recovered", blockers: [], checkedAt: summary.updatedAt } };
+  assert.deepEqual(operatorAssistanceTodoDetailResponseSchema.parse(value), value);
+  for (const patch of [
+    { status: "resolved" },
+    { status: "verified_recovered", blockers: ["still_paused"] },
+    { status: "unknown", blockers: [] },
+    { status: "pending", blockers: [], permissionGranted: true },
+    { status: "pending", blockers: Array(33).fill("blocked") },
+    { status: "pending", blockers: ["x".repeat(121)] },
+  ]) assert.equal(operatorAssistanceTodoDetailResponseSchema.safeParse({ ...value, recheck: patch }).success, false);
+  assert.equal(operatorAssistanceTodoDetailResponseSchema.safeParse({ todo: summary, recheck: { status: "not_requested", blockers: [], checkedAt: null } }).success, true);
 });
 test("operator impact pages expose only historical facts in strict device cursor order", () => {
   const impact = { deviceId: id, recordedDeviceVersion: 9, recordedAt: summary.createdAt };

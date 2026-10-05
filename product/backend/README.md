@@ -33,6 +33,7 @@ WP-01 开始建立正式权威数据模型：
 - [`0016_connection_maintenance_budget.sql`](migrations/0016_connection_maintenance_budget.sql)：独立维护预算/命令；无任务生产者、HTTP或实际恢复消费者。
 - [`0017_joint_recovery_reservations.sql`](migrations/0017_joint_recovery_reservations.sql)：共同恢复关联不可重绑，同事务双方占位/结果未知不释放；不证明真实任务或物理调用结束。
 - [`0018_commission_income_journal.sql`](migrations/0018_commission_income_journal.sql)：内部稳定收入源/连续修订/冻结计算与命令，实际收款和承接producer缺省关闭；没有应付余额或支付。
+- [`0042_task_assistance_recheck.sql`](migrations/0042_task_assistance_recheck.sql)：保存由可信生产者显式建立的精确taskAttempt→assistanceTodo/device关联及复核投影；不按设备推断项目/任务，不自行授予恢复或发布许可。需在核心业务计划task/attempt迁移后应用。
 
 迁移当前是待后端迁移执行器消费的前向 SQL；未在真实 PostgreSQL 执行前，不得将其记为迁移或并发验收通过。
 
@@ -52,7 +53,7 @@ WP-24 `project-cycle-core`只消费未来可信日历生成器的冻结实际边
 
 `observation-window-core`只消费明确的项目默认/形式覆盖、已核验发布与可信来源日历，分别检查精确小时和完整平台日、首不足日、同定义/持续时长/年龄及实际快照覆盖/截止；未满或不足只阻该比较，不产生停发/重发/换主指标。ready/aligned仅进入真实证据充分性复核，不证明可比或授权；未接批准/日历/来源生产者、持久化、AI或页面，见[观察窗口任务卡](../../docs/engineering/delivery/records/WP-24-stage2.md)。
 
-WP-20 `GET /api/operator/assistance-todos`仅以当前Host运营会话读取无项目来源事项的全局摘要，`afterTodoId`及`pageSize`严格分页，默认20/上限50、no-store。初始联系人不隔离访问，originScope不是当前项目分配状态；不返回说明正文/秘密，见[认证分页任务卡](../../docs/engineering/delivery/records/WP-20-stage2.md)。新增`POST /api/operator/assistance-todos/:todoId/notes`需同会话＋CSRF、严格metadata/路径对象/版本CAS/kind/text；reported_processed仅等待复核，不关闭或恢复；同键返回当前摘要，已提交未知响应保留原键核实。摘要共同支持0001～9999年。没有故障创建、真实复核/恢复HTTP或实际事件/邮件/跨端UI接线，不能从测试入库或空页自报完整业务完成，见[说明命令与日历修复](../../docs/engineering/delivery/records/WP-20-stage3.md)。
+WP-20 `GET /api/operator/assistance-todos`仅以当前Host运营会话读取无项目来源事项的全局摘要，`afterTodoId`及`pageSize`严格分页，默认20/上限50、no-store。初始联系人不隔离访问，originScope不是当前项目分配状态；不返回说明正文/秘密，见[认证分页任务卡](../../docs/engineering/delivery/records/WP-20-stage2.md)。新增`POST /api/operator/assistance-todos/:todoId/notes`需同会话＋CSRF、严格metadata/路径对象/版本CAS/kind/text；reported_processed只是请求真实复核。新增只读`GET /api/operator/assistance-todos/:todoId`返回待办摘要及持久复核状态，说明和影响仍用原同事项分页端点读取。内部consumer缺可信verifier/dispatcher时必须保留unknown；不因人工说明、任务checkbox或预算可用而恢复/重发。精确task/attempt关联只由显式可信生产者写入0042，不按设备推断。当前不提供provider本人resume Web入口；跨端真实恢复和物理执行仍取决于lead安装的可信端口及设备现场证据。摘要共同支持0001～9999年。不能从详情页或隔离consumer单测自报业务闭环验收，见[说明命令与日历修复](../../docs/engineering/delivery/records/WP-20-stage3.md)。
 
 `GET /api/provider/assistance-todos`新增Provider Bearer本人分页投影，同todoID与当前进度、不返运营责任/内部说明/其他provider，owned微秒cursor不能跨人；事务认证与最后DB钟保护失效会话。只是后端接口，未实现Android待办UI、人工写入或真实恢复，见[本人待办任务卡](../../docs/engineering/delivery/records/WP-20-stage4.md)。
 

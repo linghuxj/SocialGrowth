@@ -11,6 +11,12 @@ const impactQuerySchema = z.strictObject({ afterDeviceId: uuidSchema.optional(),
 @Controller("api/operator/assistance-todos")
 export class DeviceAssistanceNotesController {
   constructor(@Inject(DeviceAssistanceNotesService) private readonly service: DeviceAssistanceNotesService) {}
+  @Get(":todoId") @Header("Cache-Control", "no-store")
+  async detail(@Param("todoId") todoId: string, @Req() request: Request) {
+    try {
+      return await this.service.detail(operatorSessionTokenFrom(request.headers.cookie), uuidSchema.parse(todoId));
+    } catch (error) { rethrowHttp(error, `request-${randomUUID()}`); }
+  }
   @Get(":todoId/notes") @Header("Cache-Control", "no-store")
   async list(@Param("todoId") todoId: string, @Query() query: unknown, @Req() request: Request) {
     try {
