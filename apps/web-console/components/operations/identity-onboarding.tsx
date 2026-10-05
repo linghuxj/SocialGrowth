@@ -56,7 +56,9 @@ export function OnboardingJobs({
                         : 'neutral'
               }
             >
-              {j.status} · {j.reason ?? 'Agent 执行中'}
+              {j.verificationClosure
+                ? '旧核验已结束 · 结果仍未知'
+                : `${j.status} · ${j.reason ?? 'Agent 执行中'}`}
             </StatusBadge>
           </div>
           
@@ -107,6 +109,18 @@ export function OnboardingJobs({
                 停止本次账号操作
               </Button>
             )}
+            {!j.verificationClosure && ['unknown', 'interrupted'].includes(j.status)
+              && (j.action === 'verify' || (j.action === 'initialize' && j.initializationMode === 'existing_only')) && (
+              <Button
+                className="op-button text-xs"
+                variant="destructive"
+                size="sm"
+                disabled={busy}
+                onClick={() => void action('/onboarding/end-stopped', j.id)}
+              >
+                结束这条已停止的核验
+              </Button>
+            )}
             {j.screenshotAvailable && j.status !== 'verified' && (
               <a
                 className="op-link text-xs"
@@ -141,10 +155,17 @@ export function OnboardingJobs({
 
           {['unknown', 'interrupted'].includes(j.status) && (
             <Notice>
-              {j.action === 'create' || (j.action === 'initialize' && j.initializationMode === 'create_if_missing')
+              {j.verificationClosure
+                ? '这条旧核验已结束，后续不会再次查询或重发；原结果仍未知，不代表核验成功，且未修改发布绑定。'
+                : j.action === 'create' || (j.action === 'initialize' && j.initializationMode === 'create_if_missing')
                 ? '创建结果未确认，不允许自动再次创建。请核对原设备与平台记录；已发现的身份请发起“核验已有”任务。'
                 : '身份核验未完成，未修改发布绑定。请查看阻断原因或现场截图，处理后重新核验。'}
             </Notice>
+          )}
+          {j.verificationClosure && (
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              结束记录：{date(j.verificationClosure.at)} · {j.verificationClosure.evidenceKind === 'supervision_stop_and_session_closed' ? '监督停止记录与会话关闭' : `原引擎终态：${j.verificationClosure.engineTraceStatus}`}
+            </p>
           )}
         </article>
       ))}

@@ -1,11 +1,14 @@
 import { randomUUID } from "node:crypto";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { join } from "node:path";
 import { z } from "zod";
 import { ArtemisMcp, type ArtemisPort } from "./artemis.ts";
 import { AdbDevice, artemisStructuredResult } from "./device-executor.ts";
 import { requireFact, RuntimeError } from "./contracts.ts";
 import type { RuntimeStore } from "./store.ts";
 import type { HumanAssistance } from "./human-assistance.ts";
-import type { VerificationConfig } from "./web-verification.ts";
+import { verificationConfigSchema, type VerificationConfig } from "./web-verification.ts";
 
 const inputSchema = z
   .object({
@@ -44,6 +47,19 @@ export type IdentityJob = Input & {
     managementVerified: true;
     identityCreated: boolean;
   };
+  verificationClosure?: {
+    actor: "operator";
+    at: string;
+    evidenceKind: "engine_trace_terminal" | "supervision_stop_and_session_closed";
+    engineTraceStatus: string | "unavailable";
+    originalStatus: "unknown" | "interrupted";
+    originalReason?: string;
+    originalTraceId: string;
+    originalFinishedAt: string;
+    controlSessionId?: string;
+    stoppedEventAt?: string;
+    stoppedReason?: string;
+  };
 };
 const permitsCreation = (input: Pick<Input, "action" | "initializationMode">) =>
   input.action === "create" ||
@@ -51,6 +67,7 @@ const permitsCreation = (input: Pick<Input, "action" | "initializationMode">) =>
 type Client = ArtemisPort & { connect(): Promise<void> };
 const validId = (platform: string, value: string) =>
   platform === "facebook" ? /^\d{5,30}$/.test(value) : /^UC[A-Za-z0-9_-]{22}$/.test(value);
+const execFileAsync = promisify(execFile);
 
 /** One Agent task, one scoped identity. Never schedules content or rotates accounts. */
 export class IdentityOnboarding {
@@ -436,6 +453,100 @@ After success, read complete platform ID and management evidence from native UI.
     for (const c of this.assistance.supervision.controls())
       if (c.taskId === id) this.assistance.supervision.stop(c.sessionId, "OPERATOR_CANCELLED");
     return { ok: true };
+  }
+  async endStoppedVerification(id: string, actor: "operator" = "operator") {
+    const original = this.list().find((job) => job.id === id);
+    requireFact(original, "TASK_NOT_FOUND");
+    if (original.verificationClosure) return original;
+    requireFact(original.status === "unknown" || original.status === "interrupted", "IDENTITY_JOB_NOT_UNCONFIRMED");
+    requireFact(Boolean(original.traceId && original.finishedAt), "IDENTITY_TRACE_EVIDENCE_REQUIRED");
+    requireFact(original.action === "verify" || (original.action === "initialize" && original.initializationMode === "existing_only"), "CREATION_RESULT_CANNOT_BE_CLOSED");
+    const cfg = verificationConfigSchema.parse(this.config);
+    requireFact(original.deviceId === cfg.deviceId && original.serial === cfg.serial, "IDENTITY_DEVICE_SCOPE_MISMATCH");
+    this.assertNoInFlight(original);
+
+    let engineTraceStatus: string | "unavailable" = "unavailable";
+    const client = new ArtemisMcp(cfg.artemisRoot);
+    try {
+      await client.connect();
+      const raw = await client.call("mobile_manage_task", { trace_id: original.traceId, action: "status" }, 10000);
+      const status = z.record(z.unknown()).safeParse(raw);
+      if (status.success) {
+        const value = status.data;
+        const name = typeof value.status === "string" ? value.status.toLowerCase() : "";
+        requireFact(!["pending", "running"].includes(name), "IDENTITY_TRACE_STILL_ACTIVE");
+        const traceId = value.trace_id ?? value.traceId;
+        const serial = value.device_serial ?? value.deviceSerial ?? value.serial;
+        if (["completed", "failed", "cancelled", "canceled"].includes(name)
+          && traceId === original.traceId && serial === original.serial) engineTraceStatus = name;
+      }
+    } catch (error) {
+      if (error instanceof RuntimeError && error.code === "IDENTITY_TRACE_STILL_ACTIVE") throw error;
+      // Missing/unreadable trace can only use the separately verified supervision-stop evidence below.
+    } finally {
+      await client.close().catch(() => undefined);
+    }
+
+    const stopped = engineTraceStatus === "unavailable" ? this.stoppedSessionEvidence(original) : null;
+    requireFact(engineTraceStatus !== "unavailable" || stopped, "IDENTITY_STOP_EVIDENCE_REQUIRED");
+    await this.assertNoEngineOwner(cfg);
+
+    this.store.db.exec("BEGIN IMMEDIATE");
+    try {
+      const latest = this.list().find((job) => job.id === id);
+      if (latest?.verificationClosure) {
+        this.store.db.exec("COMMIT");
+        return latest;
+      }
+      requireFact(latest && latest.status === original.status && latest.reason === original.reason
+        && latest.traceId === original.traceId && latest.finishedAt === original.finishedAt,
+      "IDENTITY_JOB_CHANGED_DURING_CLOSE");
+      this.assertNoInFlight(latest);
+      const at = new Date().toISOString();
+      const closed: IdentityJob = { ...latest, verificationClosure: {
+        actor, at,
+        evidenceKind: stopped ? "supervision_stop_and_session_closed" : "engine_trace_terminal",
+        engineTraceStatus,
+        originalStatus: latest.status as "unknown" | "interrupted",
+        originalReason: latest.reason,
+        originalTraceId: latest.traceId!,
+        originalFinishedAt: latest.finishedAt!,
+        ...(stopped ? { controlSessionId: stopped.sessionId, stoppedEventAt: stopped.at, stoppedReason: stopped.code } : {}),
+      } };
+      this.save(closed);
+      this.store.db.exec("COMMIT");
+      return closed;
+    } catch (error) {
+      this.store.db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+  private assertNoInFlight(job: IdentityJob) {
+    requireFact(![...this.active.keys()].some((activeId) => this.list().some((candidate) => candidate.id === activeId && candidate.deviceId === job.deviceId)), "IDENTITY_OPERATION_ACTIVE");
+    requireFact(!this.assistance.deviceBusy(job.deviceId), "ASSISTANCE_SESSION_ACTIVE");
+    requireFact(!this.assistance.supervision.controls().some((control) => control.deviceId === job.deviceId && !["stopped", "closed"].includes(control.state)), "SUPERVISION_CONTROL_ACTIVE");
+    requireFact(!this.assistance.list().some((challenge) => challenge.deviceId === job.deviceId && ["waiting", "submitted", "claimed"].includes(challenge.status)), "ASSISTANCE_REQUEST_ACTIVE");
+    requireFact(!this.store.db.prepare("SELECT 1 FROM device_holds WHERE device IN (?,?)").get(job.deviceId, job.serial), "DEVICE_HELD");
+    requireFact(!this.store.db.prepare("SELECT 1 FROM tasks WHERE device IN (?,?) AND status IN ('queued','running','unknown')").get(job.deviceId, job.serial), "DEVICE_HAS_UNRESOLVED_CONTENT_TASK");
+  }
+  private stoppedSessionEvidence(job: IdentityJob) {
+    requireFact(job.traceId && job.finishedAt, "IDENTITY_TRACE_EVIDENCE_REQUIRED");
+    const controls = this.assistance.supervision.controls();
+    const control = controls.find((entry) => entry.taskId === job.id && entry.deviceId === job.deviceId && entry.state === "stopped");
+    if (!control || !control.reason) return null;
+    const event = this.assistance.supervision.events().find((entry) => entry.taskId === job.id && entry.sessionId === control.sessionId
+      && entry.type === "stopped" && entry.code === control.reason && Date.parse(entry.at) <= Date.parse(job.finishedAt!));
+    if (!event) return null;
+    const sessions = this.assistance.list().filter((entry) => entry.taskId === job.id && entry.sessionId === control.sessionId);
+    if (sessions.some((entry) => entry.deviceId !== job.deviceId || entry.serial !== job.serial || ["waiting", "submitted", "claimed"].includes(entry.status))) return null;
+    return { sessionId: control.sessionId, at: event.at, code: event.code };
+  }
+  private async assertNoEngineOwner(cfg: VerificationConfig) {
+    const code = "import json,sys; from artemis.runtime.device_lock import DeviceExecutionLock; owner=DeviceExecutionLock.get_active_owner(sys.argv[1]); print(json.dumps({'activeOwner': owner is not None}))";
+    const python = join(cfg.artemisRoot, ".venv", "bin", "python");
+    const { stdout } = await execFileAsync(python, ["-c", code, cfg.serial], { cwd: cfg.artemisRoot, timeout: 5000, maxBuffer: 1024 });
+    const result = z.strictObject({ activeOwner: z.boolean() }).parse(JSON.parse(stdout.trim()));
+    requireFact(!result.activeOwner, "ARTEMIS_DEVICE_EXECUTION_ACTIVE");
   }
   async close() {
     for (const [id] of this.active) this.stop(id);
