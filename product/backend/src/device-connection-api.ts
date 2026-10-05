@@ -123,7 +123,8 @@ export class DeviceConnectionApi {
       const old = await this.connectionRow(client, scope.deviceId, true), epoch = randomUUID();
       const generation = BigInt(old?.source_generation ?? "0") + 1n;
       if (generation > BigInt(Number.MAX_SAFE_INTEGER)) throw stale();
-      const preservePairing = old?.pairing_state === "paired" && old.network_binding_digest.equals(targetDigest);
+      const preservePairing = old && old.installation_id === scope.installationId && old.network_binding_digest.equals(targetDigest)
+        && ["paired", "pairing", "unknown"].includes(old.pairing_state);
       const endpointRevision = Number(old?.endpoint_revision ?? 0) + 1;
       if (!Number.isSafeInteger(endpointRevision)) throw stale();
       if (old) {
@@ -133,8 +134,9 @@ export class DeviceConnectionApi {
           pairing_state=$11,pairing_expires_at=NULL,pairing_attempt_id=$12,connection_state=$13,connected_endpoint_revision=NULL,connected_at=NULL,
           blocker_code=$14,updated_at=clock_timestamp() WHERE device_id=$1`,
           [scope.deviceId, scope.providerId, scope.installationId, scope.associationId, network.mode, targetDigest, epoch, generation.toString(), request.requestId,
-            endpointRevision, preservePairing ? "paired" : "not_started", preservePairing ? old.pairing_attempt_id : null,
-            preservePairing ? "stale" : "not_connected", preservePairing ? "CONNECT_ENDPOINT_PENDING" : null]);
+            endpointRevision, preservePairing ? old.pairing_state === "paired" ? "paired" : "unknown" : "not_started", preservePairing ? old.pairing_attempt_id : null,
+            preservePairing ? old.pairing_state === "paired" ? "stale" : "unknown" : "not_connected",
+            preservePairing ? old.pairing_state === "paired" ? "CONNECT_ENDPOINT_PENDING" : "ADB_PAIR_RESULT_UNKNOWN" : null]);
       } else {
         await client.query(`INSERT INTO ${schema}.device_connection_states(device_id,provider_id,installation_id,association_id,authority_mode,network_binding_digest,
           source_epoch,source_generation,epoch_request_id,endpoint_revision) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
@@ -169,9 +171,8 @@ export class DeviceConnectionApi {
       const changed = state.connect_status !== request.connect.status || state.connect_port !== request.connect.port
         || state.pairing_status !== request.pairing.status || state.pairing_port !== request.pairing.port;
       const revision = Number(state.endpoint_revision) + (changed ? 1 : 0);
-      const changedPairing = state.pairing_status !== request.pairing.status || state.pairing_port !== request.pairing.port;
       const pairingState = state.pairing_state === "paired" ? "paired"
-        : !changedPairing && ["pairing", "unknown"].includes(state.pairing_state) ? state.pairing_state
+        : ["pairing", "unknown"].includes(state.pairing_state) ? state.pairing_state
           : request.pairing.status === "candidate" ? "awaiting_code" : "not_started";
       const connectionState = state.pairing_state === "paired" && request.connect.status === "candidate"
         ? changed || state.connection_state !== "connected" ? "stale" : "connected" : "not_connected";
@@ -182,7 +183,7 @@ export class DeviceConnectionApi {
         pairing_state=$12,pairing_expires_at=$13,connection_state=$14,connected_endpoint_revision=$15,connected_at=$16,
         blocker_code=$17,updated_at=clock_timestamp() WHERE device_id=$1`,
         [scope.deviceId, request.sequence, request.requestId, reportDigest, request.connect.status, request.connect.port,
-          request.pairing.status, request.pairing.port, new Date(Math.min(Date.parse(request.observedAt), received.getTime())), received, revision, pairingState,
+          request.pairing.status, request.pairing.port, new Date(Math.min(Date.parse(request.observedAt), received.getTime(), Date.now())), received, revision, pairingState,
           pairingState === "awaiting_code" ? new Date(received.getTime() + 60_000) : null,
           connectionState, connectedRevision, connectedAt, connectionState === "stale" ? "CONNECT_ENDPOINT_PENDING" : null]);
       return { duplicate: false, revision };
@@ -203,18 +204,21 @@ export class DeviceConnectionApi {
       if (!network) throw denied();
       const digestValue = bindingDigest(network);
       const state = await this.currentConnectionState(current.deviceId);
+      const existing = await this.pairAttempt(providerScope.providerId, request.idempotencyKey);
+      if (existing && (existing.device_id !== current.deviceId || existing.installation_id !== current.installationId
+        || existing.expected_fact_version !== current.factVersion || !existing.network_binding_digest.equals(digestValue))) throw stale();
+      if (existing) return this.pairResponse(request.requestId, providerScope.deviceId, existing, null, request.expectedFactVersion);
       if (!state || state.connect_status !== "candidate" || state.pairing_status !== "candidate"
         || !state.connect_port || !state.pairing_port || !freshTime(state.endpoint_observed_at)
         || !state.pairing_expires_at || state.pairing_expires_at.getTime() <= Date.now()
         || state.authority_mode !== network.mode || !state.network_binding_digest.equals(digestValue)) throw denied();
-      const existing = await this.pairAttempt(providerScope.providerId, request.idempotencyKey);
-      if (existing && (existing.device_id !== current.deviceId || existing.installation_id !== current.installationId
-        || existing.expected_fact_version !== current.factVersion || !existing.network_binding_digest.equals(digestValue))) throw stale();
-      if (existing) return this.pairResponse(request.requestId, providerScope.deviceId, existing, state, request.expectedFactVersion);
       if (state.pairing_state === "paired") {
         return this.pairResponse(request.requestId, providerScope.deviceId, null, await this.currentConnectionState(providerScope.deviceId), request.expectedFactVersion);
       }
       if (["pairing", "unknown"].includes(state.pairing_state)) throw denied();
+      if ((await this.pool.query(`SELECT attempt_id FROM ${schema}.device_connection_pair_attempts
+        WHERE device_id=$1 AND installation_id=$2 AND status IN ('processing','unknown') LIMIT 1`,
+        [current.deviceId,current.installationId])).rows.length) throw denied();
       if (!this.adb) throw denied();
       const attemptId = randomUUID();
       await transaction(this.pool, async client => {
@@ -284,7 +288,9 @@ export class DeviceConnectionApi {
   }
 
   private pairResponse(requestId: string, deviceId: string, attempt: PairAttemptRow | null, state: ConnectionRow | null, factVersion: number) {
-    const pairingState = state?.pairing_state ?? "unknown", connectionState = state?.connection_state ?? "unknown";
+    const pairingState = attempt ? ["paired", "connected"].includes(attempt.status) ? "paired" : attempt.status === "processing" ? "pairing" : "unknown"
+      : state?.pairing_state ?? "unknown";
+    const connectionState = attempt ? attempt.status === "connected" ? "connected" : "unknown" : state?.connection_state ?? "unknown";
     const blockerCode = attempt?.blocker_code ?? state?.blocker_code ?? null;
     return { protocolVersion: deviceConnectionProtocolVersion, requestId, deviceId, pairingState, connectionState, blockerCode,
       factVersion };
@@ -366,7 +372,7 @@ export class DeviceConnectionApi {
     const release = await this.lockDevice(deviceId);
     try {
       const state = await this.currentConnectionState(deviceId);
-      if (!state || state.pairing_state === "pairing" || state.pairing_state === "unknown" || state.connect_status !== "candidate" || !state.connect_port
+      if (!state || state.pairing_state === "pairing" || state.connect_status !== "candidate" || !state.connect_port
         || !freshTime(state.endpoint_observed_at)) return;
       const scope = await this.providerScopeByIdentity(state.provider_id, deviceId);
       if (!scope || scope.deviceState === "paused") return;
@@ -392,6 +398,9 @@ export class DeviceConnectionApi {
           pairing_state=CASE WHEN $2='connected' THEN 'paired' ELSE pairing_state END,verified_hardware_serial=$6,updated_at=clock_timestamp() WHERE device_id=$1`,
           [deviceId, isConnected ? "connected" : "unknown", isConnected ? Number(locked.endpoint_revision) : null, isConnected ? new Date() : null,
             isConnected ? null : "CENTER_ADB_UNAVAILABLE", result.state === "connected" ? result.hardwareSerial : null]);
+        if (isConnected) await client.query(`UPDATE ${schema}.device_connection_pair_attempts SET status='connected',blocker_code=NULL,updated_at=clock_timestamp()
+          WHERE device_id=$1 AND installation_id=$2 AND status IN ('processing','unknown','paired') AND network_binding_digest=$3`,
+          [deviceId,latestScope.installationId,state.network_binding_digest]);
       });
     } finally { await release(); }
   }
@@ -427,7 +436,8 @@ export class DeviceConnectionApi {
   private async lockDevice(deviceId: string): Promise<() => Promise<void>> {
     const client = await this.pool.connect();
     try {
-      await client.query("SELECT pg_advisory_lock(hashtextextended($1,0))", [`device-connection:${deviceId}`]);
+      const result = await client.query<{ locked: boolean }>("SELECT pg_try_advisory_lock(hashtextextended($1,0)) AS locked", [`device-connection:${deviceId}`]);
+      if (!result.rows[0]?.locked) throw unavailable();
       return async () => { try { await client.query("SELECT pg_advisory_unlock(hashtextextended($1,0))", [`device-connection:${deviceId}`]); } finally { client.release(); } };
     } catch { client.release(); throw unavailable(); }
   }

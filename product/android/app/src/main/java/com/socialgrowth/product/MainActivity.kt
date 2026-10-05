@@ -145,6 +145,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        PilotKeyClipboard.clearOwned(this)
         ++screenGeneration
         preparationPause?.invoke()
         preparationResume = null
@@ -441,6 +442,9 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }, matchHeight(54).apply { topMargin = dp(24) })
+        root.addView(secondaryButton("先准备网络与无线调试").apply {
+            setOnClickListener { showInstallationNetworkGuide(null) { showExecutionIntro() } }
+        }, matchHeight(50).apply { topMargin = dp(10) })
         setContentView(ScrollView(this).apply {
             isFillViewport = true
             addView(root, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
@@ -813,23 +817,29 @@ class MainActivity : ComponentActivity() {
         val facts = vertical(16).apply { background = rounded(Color.WHITE, 12) }
         facts.addView(detailRow("关联状态", DeviceFactPresentation.state(state.state)))
         facts.addView(divider(), matchHeight(1).apply { topMargin = dp(14); bottomMargin = dp(14) })
-        facts.addView(detailRow("连接确认", DeviceFactPresentation.CONNECTION_UNKNOWN))
+        val connectionFact = label("正在确认", 14f, ink, Typeface.BOLD)
+        facts.addView(detailRow("连接确认", connectionFact))
         facts.addView(divider(), matchHeight(1).apply { topMargin = dp(14); bottomMargin = dp(14) })
         facts.addView(detailRow("事实更新时间", formatFactTime(state.updatedAt)))
-        val networkFact = label("网络核验状态读取中", 14f, secondary)
+        val networkFact = label("正在检查业务网络", 14f, secondary)
         facts.addView(networkFact, matchWrap().apply { topMargin = dp(14) })
         val factScreen = screenGeneration
         runNetwork(action = {
             val identity = installationStore.load() ?: error("Missing installation")
             val token = identity.activeSessionToken() ?: error("Inactive installation")
-            val installation = UUID.fromString(identity.installationId)
-            NetworkAdmissionStateClient(api).state(token, installation, requireNotNull(identity.generation).toString()).also {
-                require(it.scope.deviceId == state.deviceId && it.scope.ownershipVersion == state.factVersion.toString())
+            DeviceConnectionApiClient(api).installationState(token, requireNotNull(state.deviceId)).also {
+                require(it.factVersion == state.factVersion)
             }
         }, success = { fact ->
-            if (factScreen == screenGeneration) networkFact.text = if (fact.verifierReady) "网络核验可用；当前接入许可仍待独立确认" else "网络核验尚未就绪"
+            if (factScreen == screenGeneration) {
+                connectionFact.text = if (fact.connected) "已连接" else "待确认"
+                networkFact.text = DeviceConnectionBoundary.message(fact)
+            }
         }, failure = {
-            if (factScreen == screenGeneration) networkFact.text = "网络核验状态暂时无法读取"
+            if (factScreen == screenGeneration) {
+                connectionFact.text = "暂时无法确认"
+                networkFact.text = "暂时联系不上平台，请检查网络后重试。"
+            }
         })
         root.addView(facts, matchWrap().apply { topMargin = dp(24) })
         val controlStatus = label("正在读取本机暂停进展…", 14f, secondary)
@@ -881,12 +891,13 @@ class MainActivity : ComponentActivity() {
         })
     }
 
-    private fun showInstallationNetworkGuide(state: InstallationSelfView) {
+    private fun showInstallationNetworkGuide(state: InstallationSelfView?, returnTo: (() -> Unit)? = null) {
         preparationPause?.invoke()
         val screen = ++screenGeneration
-        backAction = { showInstallationLoading() }
+        val goBack = returnTo ?: { showInstallationLoading() }
+        backAction = goBack
         val root = vertical(20).apply { setBackgroundColor(canvas) }
-        root.addView(backHeader("本机准备") { showInstallationLoading() }, matchWrap())
+        root.addView(backHeader("本机准备") { goBack() }, matchWrap())
         root.addView(label("让这台手机连接到平台", 27f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(18) })
         root.addView(label("按下面的步骤完成首次设置。每次从设置返回，我们会自动检查进度。", 15f, secondary), matchWrap().apply { topMargin = dp(8) })
         val progress = label("正在检查本机…", 15f, blue, Typeface.BOLD)
@@ -910,9 +921,14 @@ class MainActivity : ComponentActivity() {
         network.addView(label("首次入网：在 Tailscale 登录页右上角菜单选择“Use an auth key”，粘贴内测接入密钥，并确认系统的 VPN 连接请求。也可使用已获授权的 Tailscale 账号登录；已有连接可直接返回检查。", 14f, secondary), matchWrap().apply { topMargin = dp(10) })
 
         val copyKey = secondaryButton("获取并复制接入密钥")
+        copyKey.isEnabled = state?.deviceId != null
         network.addView(copyKey, matchHeight(50).apply { topMargin = dp(8) })
         val keyStatus = label("", 14f, secondary).apply { visibility = View.GONE }
         network.addView(keyStatus, matchWrap().apply { topMargin = dp(8) })
+        if (state?.deviceId == null) {
+            keyStatus.visibility = View.VISIBLE
+            keyStatus.text = "完成本机关联后可获取内测接入密钥。当前无法访问平台时，请使用运营已提供的密钥在 Tailscale 入网，再返回继续接入。"
+        }
         copyKey.setOnClickListener {
             copyKey.isEnabled = false
             runNetwork(action = {
@@ -926,15 +942,9 @@ class MainActivity : ComponentActivity() {
             }, success = { key ->
                 copyKey.isEnabled = true
                 if (screen != screenGeneration) return@runNetwork
-                val clipboard = getSystemService(android.content.ClipboardManager::class.java)
-                val clip = android.content.ClipData.newPlainText("SocialGrowth 接入密钥", key)
-                clip.description.extras = android.os.PersistableBundle().apply { putBoolean("android.content.extra.IS_SENSITIVE", true) }
-                clipboard.setPrimaryClip(clip)
-                mainHandler.postDelayed({
-                    if (clipboard.hasPrimaryClip() && clipboard.primaryClip?.getItemAt(0)?.text?.toString() == key) clipboard.clearPrimaryClip()
-                }, 60_000)
+                PilotKeyClipboard.copy(this, key)
                 keyStatus.visibility = View.VISIBLE
-                keyStatus.text = "密钥已复制，1 分钟后清除。请打开 Tailscale，在登录页菜单选择 Use an auth key 后粘贴。"
+                keyStatus.text = "密钥已复制，请及时粘贴。App 会尝试在 1 分钟后清除。请打开 Tailscale，在登录页菜单选择 Use an auth key 后粘贴。"
             }, failure = {
                 copyKey.isEnabled = true
                 if (screen == screenGeneration) {
@@ -963,6 +973,7 @@ class MainActivity : ComponentActivity() {
         pairing.addView(pairingStatus, matchWrap().apply { topMargin = dp(10) })
         pairing.addView(label("已有有效配对时会尝试恢复连接，无需重复输入配对码。手机重启或切换 Wi-Fi 后，如需重新开启设置，会在这里提示。", 14f, secondary), matchWrap().apply { topMargin = dp(8) })
         val keepConnected = primaryButton("开始连接检查")
+        keepConnected.isEnabled = state?.deviceId != null
         pairing.addView(keepConnected, matchHeight(52).apply { topMargin = dp(10) })
         keepConnected.setOnClickListener {
             if (Build.VERSION.SDK_INT < 34) {
@@ -978,6 +989,7 @@ class MainActivity : ComponentActivity() {
         }
         pairing.addView(label("先开始连接检查，再打开系统配对码。检查会在通知栏显示，最多保持一小时；你可以随时停止。", 14f, secondary), matchWrap().apply { topMargin = dp(8) })
         val serverStatus = label("正在检查平台连接…", 14f, secondary)
+        if (state?.deviceId == null) serverStatus.text = "系统设置完成后，请返回接入页面，完成本机关联，再确认平台连接。"
         root.addView(serverStatus, matchWrap().apply { topMargin = dp(18) })
         val retry = secondaryButton("重新检查")
         root.addView(retry, matchHeight(50).apply { topMargin = dp(10) })
@@ -993,6 +1005,7 @@ class MainActivity : ComponentActivity() {
         var busy = false
         var checkSequence = 0
         var remoteConnected = false
+        var networkVerified = false
         var lastServerCheck = 0L
         fun current() = screen == screenGeneration && !isDestroyed && !isFinishing
         fun updateLocal() {
@@ -1002,6 +1015,7 @@ class MainActivity : ComponentActivity() {
             wifi.visibility = if (checks.wifiConnected) View.GONE else View.VISIBLE
             openTailscale.text = if (checks.tailscaleInstalled) "打开 Tailscale" else "安装 Tailscale"
             networkStatus.text = when {
+                networkVerified -> "本机已接入业务网络。"
                 !checks.wifiConnected -> "请先连接 Wi-Fi。"
                 !checks.tailscaleInstalled -> "Wi-Fi 已连接，请安装配套 Tailscale。"
                 !checks.vpnPresent -> "Wi-Fi 已连接，请打开 Tailscale 并连接。"
@@ -1018,6 +1032,7 @@ class MainActivity : ComponentActivity() {
             }
             val found = discovery?.snapshot()?.connect?.status == EndpointObservationStatus.CANDIDATE
             pairingStatus.text = when {
+                remoteConnected -> "平台已连接到这台手机，无需再次配对。"
                 !checks.discoverySupported -> "当前手机暂不能自动完成连接检查。"
                 checks.wirelessDebugging == false -> "请先完成上一步。"
                 found -> "本机已准备好，等待平台确认。首次使用请在管理手机完成配对。"
@@ -1031,7 +1046,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         fun checkServer() {
-            if (!current() || !visible || busy) return
+            if (!current() || !visible || busy || state?.deviceId == null) return
             busy = true
             val sequence = ++checkSequence
             lastServerCheck = android.os.SystemClock.elapsedRealtime()
@@ -1043,6 +1058,7 @@ class MainActivity : ComponentActivity() {
                 busy = false
                 if (current() && visible && sequence == checkSequence) {
                     remoteConnected = fact.connected
+                    networkVerified = fact.networkState in setOf("admitted", "pilot_verified")
                     serverStatus.text = DeviceConnectionBoundary.message(fact)
                     updateLocal()
                 }
@@ -1240,6 +1256,9 @@ class MainActivity : ComponentActivity() {
         root.addView(label("暂时无法准备关联码", 24f, ink, Typeface.BOLD), wrapWrap().apply { topMargin = dp(120) })
         root.addView(label(message, 14f, danger).apply { gravity = Gravity.CENTER }, matchWrap().apply { topMargin = dp(14) })
         root.addView(primaryButton("重试").apply { setOnClickListener { showInstallationLoading() } }, matchHeight(54).apply { topMargin = dp(24) })
+        root.addView(secondaryButton("检查网络与无线调试").apply {
+            setOnClickListener { showInstallationNetworkGuide(null) { showInstallationLoading() } }
+        }, matchHeight(50).apply { topMargin = dp(10) })
         if (sessionRejected) {
             root.addView(label("本机会话已失效。可使用原本机安全身份重新验证；不会自动认领旧设备、解除暂停或恢复参与。", 14f, secondary), matchWrap().apply { topMargin = dp(16) })
             root.addView(secondaryButton("重新验证本机身份").apply {
@@ -2275,6 +2294,12 @@ class MainActivity : ComponentActivity() {
         orientation = LinearLayout.HORIZONTAL
         addView(label(key, 14f, secondary), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         addView(label(value, 14f, ink, Typeface.BOLD), wrapWrap())
+    }
+
+    private fun detailRow(key: String, value: TextView) = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        addView(label(key, 14f, secondary), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        addView(value, wrapWrap())
     }
 
     private fun explanationRow(number: String, value: String) = LinearLayout(this).apply {
