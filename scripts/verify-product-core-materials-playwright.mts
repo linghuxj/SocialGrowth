@@ -74,6 +74,28 @@ try {
     await page.getByText(/本项目已占用：/).waitFor();
     checks.push("Web 读取已移用资源，不重复迁移或新增账号");
   }
+  await page.reload();
+  await page.getByRole("button", { name: "媒体平台账号", exact: true }).click();
+  await page.getByLabel("筹备项目", { exact: true }).selectOption(projectId);
+  await page.getByText(/本项目已占用：/).waitFor();
+  checks.push("刷新后新项目仍占用原账号与手机");
+  await page.getByRole("button", { name: "项目", exact: true }).click();
+  await project.getByRole("row").filter({ has: page.getByText(projectName, { exact: true }) }).getByRole("button", { name: "打开项目", exact: true }).click();
+  await project.getByRole("button", { name: "素材", exact: true }).click();
+  await page.getByRole("region", { name: "已保存的文件上传记录", exact: true }).getByRole("listitem").filter({ hasText: objectId }).getByRole("button", { name: "继续填写此文件资料", exact: true }).click();
+  const persistedEditor = page.getByRole("region", { name: "素材资料详情", exact: true });
+  assert.ok(await persistedEditor.getByLabel("内容名称", { exact: true }).inputValue());
+  assert.ok(await persistedEditor.getByLabel("内容说明", { exact: true }).inputValue());
+  await persistedEditor.getByText("补充来源与关联资料（选填）", { exact: true }).click();
+  assert.equal(await persistedEditor.getByLabel("来源主体标识 UUID（选填）", { exact: true }).inputValue(), "");
+  assert.equal(await persistedEditor.getByRole("checkbox", { name: /已确认此成品此前未发布/ }).isChecked(), false);
+  await persistedEditor.getByText("补充来源与关联资料（选填）", { exact: true }).click();
+  await persistedEditor.screenshot({ path: resolve(output, "material-persisted-desktop.png") });
+  await page.setViewportSize({ width: 390, height: 1000 });
+  await page.getByText("手机端为只读模式", { exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1), true);
+  await page.screenshot({ path: resolve(output, "material-390.png"), fullPage: true });
+  checks.push("保存后的内容与未知来源状态可读取；390px只读、无整页横向溢出");
   assert.deepEqual(errors, []);
   await writeFile(resolve(output, "result.json"), JSON.stringify({ result: "passed", checks, projectId, objectId, modelAnalysis: analysis, publication: false }, null, 2));
   console.log(JSON.stringify({ passed: true, checks: checks.length, publication: false }));
