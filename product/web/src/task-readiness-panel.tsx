@@ -3,7 +3,6 @@ import type { BusinessPlanCurrentCheckBlocker } from "@socialgrowth/product-cont
 import { ArrowClockwise, ArrowSquareOut, ClipboardText } from "@phosphor-icons/react";
 import { readProjectCurrentChecks, type ProjectCurrentChecksView } from "./project-lifecycle-api.js";
 import { readFact } from "./operations-facts.js";
-import "./task-readiness-panel.css";
 
 type ProjectTab = "settings" | "materials" | "lifecycle";
 type ReadState = "loading" | "loaded" | "failed" | "unauthorized" | "stale";
