@@ -40,11 +40,16 @@ async function fixture(reported = false) {
 
 test("exact immutable task-attempt/todo/device link rejects inferred or conflicting scopes", async () => {
   const f = await fixture(true);
+  assert.deepEqual(await store.readDisposition(f.taskId, f.taskAttemptId), { status: "not_linked", blockers: [] });
   await store.linkExact({ taskAttemptId: f.taskAttemptId, taskId: f.taskId, todoId: f.todoId, deviceId: f.deviceId }).catch((error: unknown) => {
-    if (error instanceof TaskAssistanceRecheckStoreError) assert.fail(`link exact failed with ${error.databaseCode}:${error.databaseColumn}:${error.databaseMessage}`);
+    if (error instanceof TaskAssistanceRecheckStoreError) assert.fail(`link exact failed with ${error.code}:${error.databaseCode ?? "unknown"}`);
     throw error;
   });
   assert.deepEqual(await store.read(f.todoId), { status: "pending", blockers: [], checkedAt: null });
+  const queued = await store.claimNext(1_000);
+  assert.ok(queued);
+  assert.equal(queued.todoId, f.todoId);
+  await store.complete(queued, { status: "still_blocked", blockers: ["trusted_recheck_unavailable"], checkedAt: new Date().toISOString() });
   await store.linkExact({ taskAttemptId: f.taskAttemptId, taskId: f.taskId, todoId: f.todoId, deviceId: f.deviceId });
   await assert.rejects(store.linkExact({ taskAttemptId: f.taskAttemptId, taskId: f.taskId, todoId: f.todoId, deviceId: id() }), stale);
   const otherAttempt = await fixture();
@@ -59,7 +64,7 @@ test("reported_processed queues one idempotent claim; concurrent consumers canno
   const client = await pool.connect();
   try { await client.query("BEGIN"); await TaskAssistanceRecheckStore.requestForReportedNote(client, f.todoId, noteId); await client.query("COMMIT"); }
   finally { client.release(); }
-  const claims = await Promise.all([store.claimNext(), store.claimNext()]);
+  const claims = await Promise.all([store.claimNext(1_000), store.claimNext(1_000)]);
   const claim = claims.find(Boolean)!;
   assert.equal(claims.filter(Boolean).length, 1);
   assert.equal(claim.taskAttemptId, f.taskAttemptId);
@@ -70,8 +75,8 @@ test("reported_processed queues one idempotent claim; concurrent consumers canno
   const secondClient = await pool.connect();
   try { await secondClient.query("BEGIN"); await TaskAssistanceRecheckStore.requestForReportedNote(secondClient, f.todoId, overlappingNote); await secondClient.query("COMMIT"); }
   finally { secondClient.release(); }
-  await pool.query(`UPDATE socialgrowth_product.task_assistance_recheck_links SET lease_until=clock_timestamp()-interval '1 second' WHERE task_attempt_id=$1`, [f.taskAttemptId]);
-  const reclaimed = await store.claimNext();
+  await new Promise((resolve) => setTimeout(resolve, 1_100));
+  const reclaimed = await store.claimNext(1_000);
   assert.ok(reclaimed);
   assert.equal(reclaimed.reconcileOnly, true);
   assert.equal(reclaimed.claimToken, claim.claimToken);
@@ -81,4 +86,21 @@ test("reported_processed queues one idempotent claim; concurrent consumers canno
   assert.equal((await store.read(f.todoId)).status, "unknown");
   assert.deepEqual(await store.readDisposition(f.taskId, f.taskAttemptId), { status: "unknown", blockers: ["operation_still_unknown"] });
   assert.deepEqual(await store.readDisposition(id(), f.taskAttemptId), { status: "unknown", blockers: ["task_attempt_scope_mismatch"] });
+  const afterUnknownNote = id();
+  await pool.query("INSERT INTO socialgrowth_product.device_assistance_notes VALUES($1,$2,'reported_processed')", [afterUnknownNote, f.todoId]);
+  const thirdClient = await pool.connect();
+  try { await thirdClient.query("BEGIN"); await TaskAssistanceRecheckStore.requestForReportedNote(thirdClient, f.todoId, afterUnknownNote); await thirdClient.query("COMMIT"); }
+  finally { thirdClient.release(); }
+  const preserved = (await pool.query<{ claim_token: string; last_reported_note_id: string; version: string }>(
+    "SELECT claim_token,last_reported_note_id,version::text FROM socialgrowth_product.task_assistance_recheck_links WHERE task_attempt_id=$1", [f.taskAttemptId])).rows[0]!;
+  assert.equal(preserved.claim_token, reclaimed.claimToken);
+  assert.equal(preserved.last_reported_note_id, noteId);
+  assert.equal(Number(preserved.version), reclaimed.version);
+  assert.equal(await store.claimNext(1_000), null);
+  await new Promise((resolve) => setTimeout(resolve, 1_100));
+  const reconcileAgain = await store.claimNext(1_000);
+  assert.ok(reconcileAgain);
+  assert.equal(reconcileAgain.reconcileOnly, true);
+  assert.equal(reconcileAgain.claimToken, reclaimed.claimToken);
+  assert.equal(reconcileAgain.idempotencyKey, reclaimed.idempotencyKey);
 });

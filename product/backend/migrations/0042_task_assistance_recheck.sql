@@ -19,7 +19,8 @@ CREATE TABLE socialgrowth_product.task_assistance_recheck_links (
   lease_until timestamptz,
   created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
   updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
-  CHECK((status='claimed')=(claim_token IS NOT NULL AND lease_until IS NOT NULL)),
+  CHECK((status='claimed' OR (status='unknown' AND claim_token IS NOT NULL))=(claim_token IS NOT NULL AND lease_until IS NOT NULL)),
+  -- Expiry is allowed after creation; the consumer reconciles expired claims read-only.
   CHECK(lease_until IS NULL OR lease_until>created_at),
   CHECK(checked_at IS NULL OR checked_at>=created_at),
   CHECK(updated_at>=created_at)
