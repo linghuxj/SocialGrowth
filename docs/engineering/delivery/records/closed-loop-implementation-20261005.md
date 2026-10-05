@@ -109,3 +109,13 @@ USB Android `RFCW40MYYCV` 实测为 `device`；仅检查目标及当前前台元
 原内容暂停解除后，设备/账号/项目暂停仍因 6 条旧身份接入未知记录保留。5 条原 Artemis trace 已为 cancelled/failed；另 1 条缺原 trace 终态，但存在精确关联的原监督停止、安装失败和会话关闭记录。不能把这些记录标成身份或安装成功。现有“处理后重新核验”提示缺少历史核验结束入口，是本轮必须补齐的恢复问题；仅结束已停止的非创建核验，保留原原因和证据，之后由已有暂停核对规则重新审查，不直接抹除暂停。
 
 当前页面验证：`SG_WEB_TARGET=product SG_PRODUCT_WEB_SCOPE=core-execution SG_PRODUCT_CORE_PROJECT_NAME='获准原文件字节验收-1791208369573' SG_PRODUCT_CORE_OUTPUT=output/playwright/core-execution-20261006/ui-current pnpm test:playwright`，桌面/390px 两项通过，0 次启动与原尝试创建。明确显示“尚未检查”、准备检查会操作手机、公开发布未开启；正式发布条件与准备结果分开。当前没有开启公开发布或效果复盘。
+
+### 核心恢复入口与首次真实派发（2026-10-06）
+
+最小恢复候选 base `5a5c4c9` / head `44e932e` 源码复审通过，根分支集成至 `2cf3da2`。没有保留额外归档文件读取路径，直接复用 `mobile_manage_task(action=status)`；原工具诊断曾误用不存在的接口，已更正，不能把该诊断失败说成引擎无法读取旧任务。五条旧核验的精确 trace/serial 终态通过原接口确认；第六条终态未返回，依据原同 job/session/serial 监督停止及会话关闭记录撤销后续核验，仍保留原 unknown 和安装失败，不标成功、不改绑定。
+
+实际 Web 恢复：`SG_WEB_TARGET=demo SG_DEMO_WEB_SCOPE=core-recovery SG_RUNTIME_CORE_PROJECT_ID=project-1bdd610a-8505-489e-b7cd-dacc3925405f SG_RUNTIME_CORE_ACCOUNT_ID=account-4ee9e05f-77cd-44a3-8f7c-0f6b451ab145 pnpm test:playwright`。首轮从页面结束六条旧核验；其后复核入口定位失败，未提交暂停复核。通过现有任务中心入口与任务选择继续同一流程，0 次重复结束、1 次原任务复核，最终两项断言通过。只读 Runtime 状态确认 pauses/holds/在途任务/协助为空；绑定 ID 与原账号保留。失败定位证据与后续结果均在 `output/playwright/core-execution-20261006/identity-recovery/`。
+
+新流程真实请求暴露并修复 SQL 42702：任务表与预留表通过 ON 关联后，发布身份再用 USING 会因左侧 identity_id 重复而失败。只将该关联改成三字段显式 ON。同时把原记录 queued 文案改为“等待检查”，恢复启动原尝试按钮；claim/operation 防重与 unknown 只查询约束不变。候选 base `b603fc8` / head `cf8ce44` 独立源码复审通过，后端构建与 Web 类型检查通过。首个原尝试 `52296ff8-e64a-47bf-b4b9-6e4e48cc218b` 保留，SQL 失败尚未派发手机，未另建尝试。
+
+根目录标准 `SG_PRODUCT_BACKEND_PORT=44320 pnpm dev` 已实际启动新候选；原 4320 服务保留。标准 `pnpm runtime:start` 沿用私有执行配置，测试只覆盖回写端口为 44320。经真实新 Web 再发起一次，POST 201，随后故意中断浏览器响应；页面查询原操作，原 workflow 已 running，operation `0ef94113-c6de-4171-b873-fd0c2bf62b53` / Artemis audit trace `ff006725-3a68-470c-80b3-3b914d901505`。当前仍在核验 Page，尚无最终准备回执，不能宣称执行完成或发布成功。证据在 `output/playwright/core-execution-20261006/live-after-query-fix/`。
