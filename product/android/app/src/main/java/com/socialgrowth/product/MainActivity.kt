@@ -832,8 +832,8 @@ class MainActivity : ComponentActivity() {
             }
         }, success = { fact ->
             if (factScreen == screenGeneration) {
-                connectionFact.text = if (fact.connected) "已连接" else "待确认"
-                networkFact.text = DeviceConnectionBoundary.message(fact)
+                connectionFact.text = if (fact.connected) "上次检查已连接" else "待确认"
+                networkFact.text = if (fact.connected) "请在本机准备页查看持续连接状态。" else DeviceConnectionBoundary.message(fact)
             }
         }, failure = {
             if (factScreen == screenGeneration) {
@@ -1007,6 +1007,7 @@ class MainActivity : ComponentActivity() {
         var remoteConnected = false
         var networkVerified = false
         var lastServerCheck = 0L
+        var lastServerSuccess = 0L
         fun current() = screen == screenGeneration && !isDestroyed && !isFinishing
         fun updateLocal() {
             if (!current()) return
@@ -1057,6 +1058,7 @@ class MainActivity : ComponentActivity() {
             }, success = { fact ->
                 busy = false
                 if (current() && visible && sequence == checkSequence) {
+                    lastServerSuccess = android.os.SystemClock.elapsedRealtime()
                     remoteConnected = fact.connected
                     networkVerified = fact.networkState in setOf("admitted", "pilot_verified")
                     serverStatus.text = DeviceConnectionBoundary.message(fact)
@@ -1064,12 +1066,22 @@ class MainActivity : ComponentActivity() {
                 }
             }, failure = {
                 busy = false
-                if (current() && visible && sequence == checkSequence) serverStatus.text = "暂时联系不上平台。请检查网络后重试；已完成的系统设置无需重做。"
+                if (current() && visible && sequence == checkSequence) {
+                    remoteConnected = false
+                    networkVerified = false
+                    serverStatus.text = "暂时联系不上平台。请检查网络后重试；已完成的系统设置无需重做。"
+                    updateLocal()
+                }
             })
         }
         val tick = object : Runnable {
             override fun run() {
                 if (!current() || !visible) return
+                if ((remoteConnected || networkVerified) && android.os.SystemClock.elapsedRealtime() - lastServerSuccess >= 10_000) {
+                    remoteConnected = false
+                    networkVerified = false
+                    serverStatus.text = "正在重新确认平台连接…"
+                }
                 if (Build.VERSION.SDK_INT >= 34 && discovery?.snapshot()?.active != true) {
                     discovery?.close()
                     discovery = NativeEndpointDiscovery(this@MainActivity).also { it.start() }
@@ -1082,6 +1094,9 @@ class MainActivity : ComponentActivity() {
         val resume = {
             if (current()) {
                 visible = true
+                remoteConnected = false
+                networkVerified = false
+                if (state?.deviceId != null) serverStatus.text = "正在确认平台连接…"
                 mainHandler.removeCallbacks(tick)
                 tick.run()
                 checkServer()
