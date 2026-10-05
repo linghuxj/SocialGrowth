@@ -208,7 +208,7 @@ export function TaskReadinessPanel({ projectId, active, readOnly, onExpired, ref
           return <article className="task-readiness__row" key={task.taskId}>
             <div className="task-readiness__task">
               <strong>{task.platform === "facebook" ? "Facebook" : "YouTube"} · {formLabel[task.form] ?? "成品形式未知"}</strong>
-              <span>发布准备状态：{workflowLabel(workflowState)}</span>
+              <span>发布准备状态：{attempt ? workflowLabel(workflowState) : "尚未检查"}</span>
               <span>计划 v{task.planRevision} · 任务版本 v{task.taskRevision}</span>
               <span>计划时间：{time(task.scheduledAt)} · 素材版本：v{task.expectedMaterialRevision}</span>
               <details><summary>查看任务编号</summary><code>{task.taskId}</code></details>
@@ -263,9 +263,9 @@ export function TaskReadinessPanel({ projectId, active, readOnly, onExpired, ref
                 {workflowState === "prepared" && <strong role="status">发布准备已核对，尚未发布</strong>}
                 {workflowState === "submission_unknown" && <strong role="alert">原核查结果未知，已冻结；先查询原操作，不会重发。</strong>}
                 {workflowState === "response_unknown" && <strong role="alert">请求响应中断，原核查状态未知；请查询当前状态，不会重新发起。</strong>}
-                {workflowState === "blocked" && <span role="status">当前仍有条件未通过；请先按上方提示处理，再重新读取。</span>}
+                {attempt && workflowState === "blocked" && <span role="status">当前仍有条件未通过；请先按上方提示处理，再重新读取。</span>}
               </>}
-              <small>准备核对会读取已分配 Page、检查切片并停在最终发布前；不会创建另一次原尝试，也不会自动发布。</small>
+              <small>{attempt ? "准备核对会读取已分配 Page、检查切片并停在最终发布前；不会创建另一次原尝试，也不会自动发布。" : "首次检查会创建原检查记录，再核对当前条件；会停在最终发布前，不会自动发布。"}</small>
             </div>
           </article>;
         })}

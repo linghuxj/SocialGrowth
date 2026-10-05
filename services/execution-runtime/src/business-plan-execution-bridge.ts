@@ -191,7 +191,7 @@ export class BusinessPlanExecutionBridge {
       await (artemis as ArtemisPort & { connect?: () => Promise<void> }).connect?.();
       const runTask = (taskInput: Parameters<typeof executeDeviceTask>[0]) => executeDeviceTask(taskInput, { artemis, device: this.ports.device,
         download: async url => { requireFact(new URL(url).origin === new URL(this.config.runtimeUrl).origin, "MEDIA_ORIGIN_MISMATCH"); return bytes; },
-        authorizePrepare: async () => { await this.authorizeAction(record.operationId, "prepare_media", "navigate"); },
+        authorizePrepare: async () => { await this.authorizePrepare(record, assistanceToken); },
         trace: traceId => this.update({ ...record, traceId, updatedAt: new Date().toISOString() }), installMissing: false,
         archive: async (mime, body) => {
           const id = randomUUID(), digest = createHash("sha256").update(body).digest("hex");
@@ -203,6 +203,7 @@ export class BusinessPlanExecutionBridge {
         const auditTask = { ...task, directive: { ...task.directive, taskId: randomUUID() }, settings: { ...task.settings, identityAuditOnly: true } } as Parameters<typeof executeDeviceTask>[0];
         const audit = await runTask(auditTask);
         requireFact(audit.executionStatus === "completed" && audit.publishStatus === "not_submitted"
+          && audit.finalSubmitClicked === false && audit.mutationsPerformed === 0
           && audit.observedIdentityKind === "facebook_page" && audit.observedIdentityName === record.pageName
           && Boolean(audit.observedIdentityId && audit.observedIdentity && audit.parentIdentity === task.binding.platformIdentity)
           && audit.managementVerified === true && audit.evidenceRefs.length > 0, "PAGE_IDENTITY_AUDIT_INCOMPLETE");
@@ -223,7 +224,7 @@ export class BusinessPlanExecutionBridge {
       const contentTask = { ...task, directive: { ...task.directive, taskId: randomUUID() }, settings: {
         ...task.settings, expectedFacebookPageIdentity: { id: mapping.id, url: mapping.url } } } as Parameters<typeof executeDeviceTask>[0];
       const contentReceipt = await runTask(contentTask);
-      const receipt: ExecutionReceipt = { ...contentReceipt, evidenceRefs: [...new Set([...mapping.evidenceRefs, ...contentReceipt.evidenceRefs])],
+      const receipt: ExecutionReceipt = { ...contentReceipt,
         observedIdentityId: mapping.id, parentIdentity: mapping.parentIdentity, managementVerified: true };
       const state = receipt.executionStatus === "completed" && receipt.publishStatus === "not_submitted" ? "completed" : receipt.publishStatus === "unknown" ? "unknown" : "blocked";
       this.update({ ...record, state, receipt, updatedAt: new Date().toISOString(), blocker: state === "blocked" ? receipt.failureCode ?? "BUSINESS_PLAN_PREFLIGHT_NOT_CONFIRMED" : null });
@@ -250,5 +251,18 @@ export class BusinessPlanExecutionBridge {
     const result = z.strictObject({ allowed: z.boolean() }).parse(await response.json());
     requireFact(result.allowed, "BUSINESS_PLAN_ACTION_NOT_AUTHORIZED");
     return result;
+  }
+  private async authorizePrepare(record: BridgeRecord, assistanceToken: string) {
+    const session = this.assistance.session(assistanceToken);
+    const binding = this.runtimeBinding(record);
+    const assertLocalExecutionActive = () => {
+      const hold = this.store.db.prepare("SELECT actor FROM device_holds WHERE device=?").get(binding.deviceId) as { actor: string } | undefined;
+      requireFact(hold?.actor === record.operationId, "DEVICE_HOLD_NOT_OWNED");
+      requireFact(this.assistance.supervision.get(session.id).state === "active", "AGENT_ACTIONS_FROZEN");
+    };
+    assertLocalExecutionActive();
+    await this.authorizeAction(record.operationId, "prepare_media", "navigate");
+    assertLocalExecutionActive();
+    this.assistance.supervision.gate(session.id, { action: "prepare_media", category: "navigate" });
   }
 }

@@ -74,6 +74,9 @@ export interface ExecutionReceipt {
   observedIdentityId?: string;
   parentIdentity?: string;
   managementVerified?: boolean;
+  /** Present on identity-audit-only results to prove that no content was changed or submitted. */
+  finalSubmitClicked?: boolean;
+  mutationsPerformed?: number;
   publishedUrl?: string;
   publishedPostId?: string;
   failureCode?:

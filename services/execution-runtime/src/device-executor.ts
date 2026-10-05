@@ -295,6 +295,7 @@ Deadline ${d.expiresAt}. On login rejection leave error visible. Persist concise
         identityName: z.string().optional(),
         identityId: z.string().regex(/^[0-9]{5,32}$/).optional(), parentIdentity: z.string().optional(), managementVerified: z.boolean().optional(),
         managedPages: z.array(z.strictObject({ name: z.string(), id: z.string().regex(/^[0-9]{5,32}$/), url: z.string().url() })).max(100).optional(),
+        publishStatus: z.enum(["not_submitted", "in_progress", "unknown", "confirmed_not_published", "published"]),
         status: z.enum([
           "verified",
           "login_required",
@@ -354,10 +355,13 @@ Deadline ${d.expiresAt}. On login rejection leave error visible. Persist concise
       identityName: identity.identityName, parentIdentity: identity.parentIdentity, managementVerified: identity.managementVerified,
       managedPages: identity.managedPages, hierarchy: identityHierarchy });
     if (identityAuditOnly) {
+      requireFact(identity.publishStatus === "not_submitted" && identity.finalSubmitClicked === false
+        && identity.mutationsPerformed === 0, "PAGE_IDENTITY_AUDIT_MUTATED_OR_SUBMITTED");
       identityConclusive = true;
       return receipt({ executionStatus: "completed", publishStatus: "not_submitted", observedIdentity: identity.observedIdentity,
         observedIdentityKind: "facebook_page", observedIdentityName: identity.identityName, observedIdentityId: identity.identityId,
-        parentIdentity: identity.parentIdentity, managementVerified: true });
+        parentIdentity: identity.parentIdentity, managementVerified: true,
+        finalSubmitClicked: identity.finalSubmitClicked, mutationsPerformed: identity.mutationsPerformed });
     }
     workflowStarted = true;
     const outcome = outcomeSchema.parse(structured);
