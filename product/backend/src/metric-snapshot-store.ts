@@ -45,8 +45,7 @@ export class MetricSnapshotStore {
         `SELECT h.source_id,h.source_report_id,rh.current_revision::text,h.payload
            FROM ${s}.metric_snapshot_history h
            JOIN ${s}.metric_snapshot_report_heads rh USING(source_id,source_report_id)
-           JOIN ${s}.project_identity_reservations pir ON pir.identity_id=h.identity_id AND pir.project_id=h.project_id
-           JOIN ${s}.project_account_reservations par ON par.account_id=h.account_id AND par.project_id=h.project_id
+           JOIN ${s}.publishing_identities pi ON pi.identity_id=h.identity_id AND pi.account_id=h.account_id AND pi.platform=h.platform
           WHERE h.project_id=$1
           ORDER BY h.source_id,h.source_report_id,h.revision`, [projectId]);
       const histories = new Map<string, { currentRevision: number; payloads: unknown[] }>();

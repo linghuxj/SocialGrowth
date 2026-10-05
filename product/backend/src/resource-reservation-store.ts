@@ -179,7 +179,7 @@ export class ResourceReservationStore {
         UNION ALL SELECT 1 FROM ${schema}.media_registry_commands WHERE actor_id=$1 AND request_key=$2
         UNION ALL SELECT 1 FROM ${schema}.resource_handover_requests WHERE actor_id=$1 AND request_key=$2 LIMIT 1`, [actor, metadata.idempotencyKey]);
       if (collision.rowCount) throw new ProductTransactionError("IDEMPOTENCY_KEY_REUSED", "Resource request key belongs to another operation");
-      if (version !== r.expectedResourceVersion || r.sourceProjectId === r.targetProjectId) throw stale();
+      if (version !== r.expectedResourceVersion || version === Number.MAX_SAFE_INTEGER || r.sourceProjectId === r.targetProjectId) throw stale();
       const projects = (await c.query<{ project_id: string; phase: string }>(`SELECT project_id,phase FROM ${schema}.projects WHERE project_id=ANY($1::uuid[]) ORDER BY project_id FOR UPDATE`, [[r.sourceProjectId, r.targetProjectId]])).rows;
       if (projects.length !== 2 || projects.some(p => p.phase !== "preparing")) throw new ProductTransactionError("INPUT_INVALID", "只能复用尚未开始执行的筹备项目资源");
       const assignment = (await c.query<{ device_id: string; handover_requested: boolean }>(`SELECT device_id,handover_requested FROM ${schema}.project_media_account_assignments WHERE account_id=$1 AND project_id=$2 FOR UPDATE`, [r.accountId, r.sourceProjectId])).rows[0];
@@ -192,13 +192,13 @@ export class ResourceReservationStore {
         UNION ALL SELECT 1 FROM ${schema}.phone_control_journals WHERE device_id=$2 AND
           (record->>'disposition' IS DISTINCT FROM 'stopped' OR EXISTS(SELECT 1 FROM jsonb_array_elements(record->'calls') call WHERE call->>'status' IS DISTINCT FROM 'ended')) LIMIT 1`, [r.sourceProjectId, deviceId, r.accountId]);
       if (dispatched.rowCount) throw new ProductTransactionError("INPUT_INVALID", "旧项目已有执行尝试或手机操作未结束，请先核对原任务，不能移用资源");
-      const identities = (await c.query<{ identity_id: string; account_id: string; platform: string }>(`SELECT identity_id,account_id,platform FROM ${schema}.project_identity_reservations WHERE account_id=$1 AND project_id=$2 AND device_id=$3 FOR UPDATE`, [r.accountId, r.sourceProjectId, deviceId])).rows;
+      const identities = (await c.query<{ identity_id: string; account_id: string; platform: string; state: string }>(`SELECT identity_id,account_id,platform,state FROM ${schema}.project_identity_reservations WHERE account_id=$1 AND project_id=$2 AND device_id=$3 FOR UPDATE`, [r.accountId, r.sourceProjectId, deviceId])).rows;
       if ((await c.query(`SELECT 1 FROM ${schema}.project_identity_reservations WHERE device_id=$1 AND account_id<>$2`, [deviceId, r.accountId])).rowCount) throw stale();
       await c.query(`DELETE FROM ${schema}.project_identity_reservations WHERE account_id=$1 AND project_id=$2`, [r.accountId, r.sourceProjectId]);
       await c.query(`UPDATE ${schema}.project_account_reservations SET project_id=$2 WHERE account_id=$1 AND project_id=$3`, [r.accountId, r.targetProjectId, r.sourceProjectId]);
       await c.query(`UPDATE ${schema}.project_device_reservations SET project_id=$2 WHERE device_id=$1 AND project_id=$3`, [deviceId, r.targetProjectId, r.sourceProjectId]);
       await c.query(`UPDATE ${schema}.project_media_account_assignments SET project_id=$2 WHERE account_id=$1 AND project_id=$3`, [r.accountId, r.targetProjectId, r.sourceProjectId]);
-      for (const identity of identities) await c.query(`INSERT INTO ${schema}.project_identity_reservations(identity_id,account_id,platform,device_id,project_id,reserved_by_operator_id) VALUES($1,$2,$3,$4,$5,$6)`, [identity.identity_id, identity.account_id, identity.platform, deviceId, r.targetProjectId, actor]);
+      for (const identity of identities) await c.query(`INSERT INTO ${schema}.project_identity_reservations(identity_id,account_id,platform,device_id,project_id,reserved_by_operator_id,state) VALUES($1,$2,$3,$4,$5,$6,$7)`, [identity.identity_id, identity.account_id, identity.platform, deviceId, r.targetProjectId, actor, identity.state]);
       await c.query(`UPDATE ${schema}.projects SET fact_version=fact_version+1 WHERE project_id=ANY($1::uuid[])`, [[r.sourceProjectId, r.targetProjectId]]);
       await c.query(`UPDATE ${schema}.resource_reservation_guard SET version=version+1 WHERE singleton=true`);
       await c.query(`INSERT INTO ${schema}.resource_reservation_commands(actor_id,request_key,payload_digest,applied_version) VALUES($1,$2,$3,$4)`, [actor, metadata.idempotencyKey, digest, version+1]);

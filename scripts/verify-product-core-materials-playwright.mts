@@ -26,6 +26,8 @@ try {
   await page.getByRole("button", { name: "项目", exact: true }).click();
   const project = page.locator(".project-workspace");
   await project.getByRole("row").filter({ has: page.getByText(projectName, { exact: true }) }).getByRole("button", { name: "打开项目", exact: true }).click();
+  let analysis: unknown = null;
+  if (process.env.SG_PRODUCT_CORE_ONLY_REUSE !== "1") {
   await project.getByRole("button", { name: "素材", exact: true }).click();
   step = "original upload";
   const inventory = page.getByRole("region", { name: "已保存的文件上传记录", exact: true });
@@ -39,12 +41,13 @@ try {
   assert.equal(await editor.getByRole("button", { name: "保存素材资料", exact: true }).isEnabled(), false);
   const response = await analyzed;
   assert.equal(response.ok(), true, `analysis HTTP ${response.status()}`);
-  const analysis = await response.json();
-  assert.equal(analysis.projectId, projectId); assert.equal(analysis.objectId, objectId);
-  assert.match(analysis.sha256, /^[a-f0-9]{64}$/);
-  assert.ok(analysis.output.title && analysis.output.summary && analysis.output.limitations.length);
+  const result = await response.json();
+  analysis = result;
+  assert.equal(result.projectId, projectId); assert.equal(result.objectId, objectId);
+  assert.match(result.sha256, /^[a-f0-9]{64}$/);
+  assert.ok(result.output.title && result.output.summary && result.output.limitations.length);
   await editor.getByRole("button", { name: "应用到素材资料", exact: true }).click();
-  assert.equal(await editor.getByLabel("内容名称", { exact: true }).inputValue(), analysis.output.title.replace(/\s+/g, " ").trim());
+  assert.equal(await editor.getByLabel("内容名称", { exact: true }).inputValue(), result.output.title.replace(/\s+/g, " ").trim());
   assert.ok(await editor.getByLabel("语言标签", { exact: true }).inputValue());
   checks.push("真实原件抽帧及 Artemis 模型提取成功，点击应用后才填入表单；分析中禁止保存");
   step = "save material without invented source";
@@ -56,6 +59,7 @@ try {
   await project.getByText(/已保存 1 项，0 项仍需处理/).waitFor();
   checks.push("来源、来源证明和集序留空，保存内容资料；没有代填首次发布事实");
   await editor.screenshot({ path: resolve(output, "material-desktop.png") });
+  }
   step = "reuse existing resources";
   await page.getByRole("button", { name: "媒体平台账号", exact: true }).click();
   await page.getByLabel("筹备项目", { exact: true }).selectOption(projectId);
