@@ -165,7 +165,7 @@ export class BusinessPlanService {
       const record = (await c.query<{ canonical_identity_ref: string; account_id: string; caption: string }>(
         `SELECT i.canonical_identity_ref,r.account_id,t.caption FROM ${s}.business_plan_tasks t
          JOIN ${s}.project_identity_reservations r ON r.project_id=t.project_id AND r.identity_id=t.identity_id
-         JOIN ${s}.publishing_identities i USING(identity_id,account_id,platform)
+         JOIN ${s}.publishing_identities i ON i.identity_id=r.identity_id AND i.account_id=r.account_id AND i.platform=r.platform
          WHERE t.project_id=$1 AND t.task_id=$2`, [scope.projectId, scope.taskId])).rows[0];
       if (!record?.caption || !record.canonical_identity_ref) throw unavailable();
       const pageName = process.env.SG_PRODUCT_EXECUTION_PAGE_NAME ?? "";

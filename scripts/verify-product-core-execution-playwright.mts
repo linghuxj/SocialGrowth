@@ -47,6 +47,7 @@ try {
   await readiness.screenshot({ path: resolve(output, "readiness-390.png") });
   checks.push("390px 保持只读、隐藏启动动作且无整页横向溢出");
   await page.setViewportSize({ width: 1465, height: 1074 });
+  await page.getByText("手机端为只读模式", { exact: true }).waitFor({ state: "hidden" });
   if (execute) {
     step = "real phone preflight with lost HTTP response";
     const start = readiness.getByRole("button", { name: /创建原尝试并检查发布准备|检查 Page 与切片发布准备/, exact: false });

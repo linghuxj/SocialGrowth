@@ -51,7 +51,8 @@ function fact(value: string | number | boolean | null): string {
   return String(value);
 }
 function workflowLabel(state: string | undefined): string {
-  if (state === "queued" || state === "claimed" || state === "running") return "检查中";
+  if (state === "queued") return "等待检查";
+  if (state === "claimed" || state === "running") return "检查中";
   if (state === "submission_unknown" || state === "response_unknown") return "结果未知，只查询原检查，不重复启动";
   if (state === "prepared") return "发布准备已核对，尚未发布";
   if (state === "blocked" || state === "failed") return "需要处理";
@@ -257,7 +258,7 @@ export function TaskReadinessPanel({ projectId, active, readOnly, onExpired, ref
                 </details>
               </>}
               {task.platform === "facebook" && task.form === "facebook_video" && <>
-                {!readOnly && <button type="button" className="outline-button" disabled={!!preflightBusy || task.blockers.some(code => !["action_inspector_unavailable","network_not_admitted","stop_unconfirmed"].includes(code)) || ["queued","claimed","prepared","verified","not_published"].includes(workflowState ?? "")}
+                {!readOnly && <button type="button" className="outline-button" disabled={!!preflightBusy || task.blockers.some(code => !["action_inspector_unavailable","network_not_admitted","stop_unconfirmed"].includes(code)) || ["claimed","prepared","verified","not_published"].includes(workflowState ?? "")}
                   onClick={() => void startPreflight(task.taskId)}>{preflightBusy === task.taskId ? "正在连接手机核对…" : ["running","submission_unknown","response_unknown"].includes(workflowState ?? "") ? "查询原核查状态" : attempt ? "检查 Page 与切片发布准备" : "创建原尝试并检查发布准备"}</button>
                 }
                 {workflowState === "prepared" && <strong role="status">发布准备已核对，尚未发布</strong>}
