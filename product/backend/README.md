@@ -215,9 +215,9 @@ WP-10 新增内部 `endpoint-report-core` 只校验签名完整双用途快照�
 
 ## WP-14 内部初始资源预留（未开放真实分配）
 
-`ResourceReservationStore`尚无登记生产者/HTTP/UI/任务消费者。中央账号/发布身份来源引用不可变；组合FK、唯一约束与短事务guard保证账号/手机同期一项目、同机同平台一身份、同身份一当前手机。与项目负责人更新保持operators表元数据锁→actor/session→guard→project→device顺序（读取同样遵守），不与手机执行互斥混用。operator会话/CSRF及资源/project/device版本检查、同键当前读取、原子审计与最后锁后会话到期回滚；返回一律pending_initialization。
+`ResourceReservationStore` 的媒体引用声明登记与初始预留已由 `ResourcePreparationController` 注册至实际 AppModule（`GET /api/operator/resources/preparation`、`POST /api/operator/resources/identities`、`POST /api/operator/resources/reservations`）；登记为 `registered_unverified`，尚缺完整 Web 分配流程及真实初始化消费者。中央账号/发布身份来源引用不可变；组合FK、唯一约束与短事务guard保证账号/手机同期一项目、同机同平台一身份、同身份一当前手机。与项目负责人更新保持operators表元数据锁→actor/session→guard→project→device顺序（读取同样遵守），不与手机执行互斥混用。operator会话/CSRF及资源/project/device版本检查、同键当前读取、原子审计与最后锁后会话到期回滚；返回一律pending_initialization。
 
-不能将预留当作真实身份已核验、承接生效或动作许可，也没有释放/换机/跨项目转移。登记生产者须持同guard并提供正确canonical source ID，WP-13还须读取新鲜实际授权/连接/控制事实。SQL0009在0001～0008后消费，阶段证据与缺口见[资源任务卡](../../docs/engineering/delivery/records/WP-14-stage2.md)。
+不能将预留当作真实身份已核验、承接生效或动作许可，也没有释放/换机/跨项目转移。登记生产者持同 guard，所提交的 canonical 来源引用仍是运营声明，不能据此认定平台身份已核验；真实初始化还须读取新鲜实际授权/连接/控制事实。后续开发按 [R-159 账号交接](../../docs/engineering/delivery/records/media-accounts-web-handoff-20261004.md)落实账号独占与受控登录。SQL0009在0001～0008后消费，阶段证据与缺口见[资源任务卡](../../docs/engineering/delivery/records/WP-14-stage2.md)。
 
 ### 本机参与事实 API（2026-10-02）
 

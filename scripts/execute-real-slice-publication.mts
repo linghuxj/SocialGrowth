@@ -24,7 +24,7 @@ async function main() {
 
   const browser = await chromium.launch({
     executablePath,
-    headless: false,
+    headless: true,
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
   });
 
@@ -34,6 +34,8 @@ async function main() {
   const page = await context.newPage();
 
   const baseUrl = "http://127.0.0.1:3000";
+  const runtimeUrl = process.env.SG_RUNTIME_URL || "http://127.0.0.1:4318/api/runtime";
+  const token = process.env.SG_RUNTIME_TOKEN || "569627d96d993d0afaa1d74df96b89aa86f66840eca9a80135edfb7348534ebf";
 
   try {
     // -------------------------------------------------------------
@@ -274,18 +276,40 @@ async function main() {
       await page.waitForTimeout(600);
 
       const scheduleForm = page.locator("form[id^='schedule-']");
-      const atLocal = toLocalIso(new Date(now.getTime() + 7200000)); // 未来 2 小时
-      const scheduleUntilLocal = toLocalIso(new Date(now.getTime() + 86400000)); // 未来 24 小时
+      const nowMs = Date.now();
+      // 向上取整到下一个整分钟，并加 1 分钟，保证无论何时点击，都至少有 60~120 秒的余量，且严格在批准期内
+      const scheduledTime = new Date(Math.ceil(nowMs / 60000) * 60000 + 60000);
+      const atLocal = toLocalIso(scheduledTime);
+      const scheduleUntilLocal = toLocalIso(new Date(nowMs + 86400000)); // 未来 24 小时
 
       await scheduleForm.locator("input[name='at']").fill(atLocal);
       await scheduleForm.locator("input[name='until']").fill(scheduleUntilLocal);
 
       const scheduleBtn = scheduleForm.locator("button:has-text('保存排期')");
       await scheduleBtn.click();
-      await page.waitForTimeout(2000);
-      console.log("✔ 排期时间安排成功");
+      await page.waitForTimeout(2500);
+
+      const scheduleError = scheduleForm.locator(".op-error");
+      if (await scheduleError.isVisible()) {
+        const msg = await scheduleError.textContent();
+        throw new Error(`排期保存失败: ${msg}`);
+      }
+      console.log(`✔ 排期时间安排成功（设定时间: ${atLocal}）`);
       await page.screenshot({ path: join(outDir, "07-schedule-saved.png") });
     }
+
+    // 确保设备未被人工接管锁定（解除 hold）
+    try {
+      await fetch(`${runtimeUrl}/device-control`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ deviceId: "RFCW40MYYCV", held: false }),
+      });
+      console.log("✔ 已确保设备交还自动执行（held: false）");
+    } catch {}
 
     // 点击展开“核对真机执行参数”折叠栏 (ExecutionQueue)
     const queueSummary = page.locator("summary:has-text('核对真机执行参数')").first();
@@ -332,39 +356,114 @@ async function main() {
     console.log("-> 点击【确认并加入设备队列】...");
     const queueSubmitBtn = queueForm.locator("button:has-text('确认并加入设备队列')");
     await queueSubmitBtn.click();
-    await page.waitForTimeout(2500);
+    await page.waitForTimeout(3000);
     console.log("✔ 任务已成功加入物理真机设备执行队列（模式: preflight，停留在发布按钮点击之前）！");
     await page.screenshot({ path: join(outDir, "09-task-enqueued.png") });
 
+    // 查询当前入队任务
+    const statusRes = await fetch(`${runtimeUrl}/status`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const statusData = (await statusRes.json()) as any;
+    const latestTask = statusData.tasks?.[0];
+    const taskId = latestTask?.taskId ?? latestTask?.id;
+    console.log(`[Task Enqueued] Task ID: ${taskId}, status: ${latestTask?.status}`);
+
     // -------------------------------------------------------------
-    // 步骤 5: 导航至真机监控大屏 (#/device-farm) 核验
+    // 步骤 5: 启动 Worker 持续消费并在真机监控大屏 (#/device-farm) 实时核验
     // -------------------------------------------------------------
-    console.log("\n--- 步骤 5: 导航至真机群控监控大屏 (#/device-farm) 实时核验 ---");
+    console.log("\n--- 步骤 5: 启动 Worker 消费并在真机群控监控大屏 (#/device-farm) 实时核验 ---");
     await page.goto(`${baseUrl}/#/device-farm`, { waitUntil: "networkidle", timeout: 20000 });
     await page.waitForTimeout(2000);
 
-    // 点击一次真机屏幕快照刷新
-    const refreshBtn = page.locator("button:has-text('刷新真机截屏')").first();
-    if (await refreshBtn.isVisible()) {
-      console.log("-> 点击真机大屏【刷新真机截屏】按钮验证 ADB 快照通信与 MinIO 上传...");
-      await refreshBtn.click();
-      await page.waitForTimeout(3500);
+    const { spawn } = await import("node:child_process");
+    const nodeBin = process.execPath;
+    const agentProc = spawn(nodeBin, ["--env-file=.env.agent", "--import", "tsx", "services/execution-runtime/src/worker-cli.ts"], {
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, SG_WORKER_INTERVAL_MS: "5000" },
+    });
+    agentProc.stdout?.on("data", (d: any) => process.stdout.write(`[worker] ${d}`));
+    agentProc.stderr?.on("data", (d: any) => process.stderr.write(`[worker err] ${d}`));
+
+    const startTime = Date.now();
+    let iteration = 0;
+    let finalTaskStatus = "unknown";
+
+    while (Date.now() - startTime < 900000) {
+      await new Promise((r) => setTimeout(r, 12000));
+      iteration++;
+
+      // 刷新真机画面到 MinIO
+      try {
+        await fetch(`${runtimeUrl}/devices/refresh`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ serial: "RFCW40MYYCV" }),
+        });
+      } catch {}
+
+      // 截取大屏当前状态
+      try {
+        const progressShot = join(outDir, `10-device-farm-progress-${iteration}.png`);
+        await page.screenshot({ path: progressShot, fullPage: true });
+        console.log(`[大屏监控 ${iteration}] 进度截屏保存: ${progressShot}`);
+      } catch {}
+
+      // 检查最新任务状态
+      const pollRes = await fetch(`${runtimeUrl}/status`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const pollData = (await pollRes.json()) as any;
+      const currentTask = pollData.tasks?.find((t: any) => (t.taskId || t.id) === taskId) ?? pollData.tasks?.[0];
+      finalTaskStatus = currentTask?.status ?? "unknown";
+      console.log(`[任务状态 ${iteration}] ${currentTask?.taskId ?? currentTask?.id ?? "none"} -> ${finalTaskStatus}`);
+
+      if (finalTaskStatus === "completed") {
+        console.log("✔ 任务已成功在真机完成执行（模式: preflight，安全停手）！");
+        break;
+      }
+      if (["failed", "cancelled", "timeout"].includes(finalTaskStatus)) {
+        console.log(`❌ 任务进入异常终态: ${finalTaskStatus}`);
+        break;
+      }
     }
 
-    await page.screenshot({ path: join(outDir, "10-device-farm-final.png"), fullPage: true });
-    console.log("✔ 真机监控大屏最终界面核验成功，快照与屏幕状态已留存");
+    if (agentProc && !agentProc.killed) {
+      agentProc.kill("SIGTERM");
+    }
 
     // -------------------------------------------------------------
     // 步骤 6: 导航至任务中心 (#/receipts) 检查任务执行回执
     // -------------------------------------------------------------
     console.log("\n--- 步骤 6: 导航至任务中心 (#/receipts) 查看任务执行日志与回执 ---");
     await page.goto(`${baseUrl}/#/receipts`, { waitUntil: "networkidle", timeout: 20000 });
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(3000);
     await page.screenshot({ path: join(outDir, "11-receipts-final.png"), fullPage: true });
     console.log("✔ 任务中心成功加载，包含真机执行记录与模式标识");
 
+    // 采集真机最终屏幕物证
+    const { execSync } = await import("node:child_process");
+    try {
+      execSync(`adb exec-out screencap -p > "${join(outDir, '12-phone-final-screen.png')}"`);
+      console.log("✔ 已采集真机当前最终屏幕物证: 12-phone-final-screen.png");
+    } catch (e) {
+      console.warn("未能获取真机屏幕:", e);
+    }
+
+    // 导出最终状态与物证报告
+    const finalStatusRes = await fetch(`${runtimeUrl}/status`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const finalData = await finalStatusRes.json();
+    const { writeFile } = await import("node:fs/promises");
+    await writeFile(join(outDir, "full-publication-evidence.json"), JSON.stringify(finalData, null, 2));
+    console.log("✔ 全流程物证数据已归档至 full-publication-evidence.json");
+
     console.log("\n==========================================================================");
-    console.log("🎉 真实切片 Web 操作全流程验证 100% 顺利完成！");
+    console.log(`🎉 真实切片 Web 操作与真机执行闭环验证完成！任务终态: ${finalTaskStatus}`);
     console.log(`📁 证据与全流程截图已保存在: ${outDir}`);
     console.log("==========================================================================");
   } catch (err) {

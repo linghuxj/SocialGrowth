@@ -38,3 +38,9 @@ integrations/artemis/__pycache__/
 integrations/google-artemis/
 artifacts/acceptance/
 artifacts/design-qa/
+
+# Local agent-team coordination state
+/tasks.json
+/.tasks-*
+.codex/
+artifacts/review/

@@ -57,6 +57,21 @@ async function main(): Promise<void> {
   for (const value of [config.databasePassword, config.authPepper, config.developmentSmsToken, config.operatorPassword]) assert.match(value, /^[a-f0-9]{64}$/);
   const save = () => privateFile(resolve(dir, "config.json"), JSON.stringify(config, null, 2));
   await save();
+  const mediaKeyPath = resolve(dir, "media-credential-keys.json");
+  try {
+    const file = await lstat(mediaKeyPath);
+    assert.ok(file.isFile() && !file.isSymbolicLink());
+  } catch (error) {
+    if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error;
+    const encryptionKey = randomBytes(32), digestKey = randomBytes(32);
+    try {
+      await privateFile(mediaKeyPath, JSON.stringify({
+        encryption: { keyId: "local-live-encryption-v1", keyBase64: encryptionKey.toString("base64") },
+        currentDigestKeyId: "local-live-digest-v1",
+        digestKeys: [{ keyId: "local-live-digest-v1", keyBase64: digestKey.toString("base64") }],
+      }, null, 2));
+    } finally { encryptionKey.fill(0); digestKey.fill(0); }
+  }
   async function run(binary: string, args: string[], env?: NodeJS.ProcessEnv, input?: string): Promise<string> {
     const child = spawn(binary, args, { cwd: repo, env, stdio: ["pipe", "pipe", "pipe"] });
     let output = ""; child.stdout.on("data", bytes => output += String(bytes));
@@ -110,7 +125,8 @@ async function main(): Promise<void> {
   const env = { ...ambient, SG_PRODUCT_DATABASE_URL: databaseUrl, SG_PRODUCT_AUTH_PEPPER: config.authPepper,
     SG_PRODUCT_SMS_MODE: "development_capture", SG_PRODUCT_DEVELOPMENT_SMS_TOKEN: config.developmentSmsToken,
     SG_PRODUCT_BACKEND_HOST: "127.0.0.1", SG_PRODUCT_BACKEND_PORT: "4320", SG_PRODUCT_TRUST_PROXY_HOPS: "1",
-    SG_PRODUCT_MATERIAL_MODE: "unavailable", SG_PRODUCT_BUSINESS_MODEL_MODE: "unavailable" };
+    SG_PRODUCT_MATERIAL_MODE: "unavailable", SG_PRODUCT_BUSINESS_MODEL_MODE: "unavailable",
+    SG_PRODUCT_MEDIA_CREDENTIAL_KEY_FILE: mediaKeyPath };
   try {
     const actual = (await pool.query<{ database: string; cluster: string }>("SELECT current_database() AS database, system_identifier::text AS cluster FROM pg_control_system()")).rows[0]!;
     assert.equal(actual.database, database);
