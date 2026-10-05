@@ -7,6 +7,7 @@ import {
 } from "@socialgrowth/product-contracts";
 import {
   captureOperatorWriteSession,
+  hasCsrfToken,
   OperatorWriteSessionChangedError,
   ProductApiError,
   readOperatorResource,
@@ -35,6 +36,11 @@ export async function readProjectWorkflow(rawProjectId: string): Promise<Busines
     if (!sameId(response.projectId, projectId)) throw new WorkflowApiError("WORKFLOW_RESPONSE_INVALID");
     return response;
   } catch (error) {
+    if (error instanceof ProductApiError && error.status === 401) {
+      try { sameSession(); } catch { if (hasCsrfToken()) throw new OperatorWriteSessionChangedError(); }
+      throw error;
+    }
+    try { sameSession(); } catch { throw new OperatorWriteSessionChangedError(); }
     if (error instanceof WorkflowApiError || error instanceof ProductApiError || error instanceof OperatorWriteSessionChangedError) throw error;
     throw new WorkflowApiError("WORKFLOW_UNAVAILABLE");
   }
@@ -55,6 +61,11 @@ export async function readAssistanceTodoDetail(rawTodoId: string): Promise<Opera
     if (!sameId(response.todo.todoId, todoId)) throw new WorkflowApiError("WORKFLOW_RESPONSE_INVALID");
     return response;
   } catch (error) {
+    if (error instanceof ProductApiError && error.status === 401) {
+      try { sameSession(); } catch { if (hasCsrfToken()) throw new OperatorWriteSessionChangedError(); }
+      throw error;
+    }
+    try { sameSession(); } catch { throw new OperatorWriteSessionChangedError(); }
     if (error instanceof WorkflowApiError || error instanceof ProductApiError || error instanceof OperatorWriteSessionChangedError) throw error;
     throw new WorkflowApiError("WORKFLOW_UNAVAILABLE");
   }

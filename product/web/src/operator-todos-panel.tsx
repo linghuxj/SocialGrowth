@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { listInvitations, listOperators, ProductApiError } from "./operator-api.js";
+import { captureOperatorWriteSession, hasCsrfToken, listInvitations, listOperators, OperatorWriteSessionChangedError, ProductApiError } from "./operator-api.js";
 import { isDefinitiveAssistanceRejection, listAssistanceImpacts, listAssistanceNotes, listAssistanceTodos, prepareAssistanceNote, type AssistanceImpactsPage, type AssistanceNote, type AssistanceTodo, type PreparedAssistanceNote } from "./device-assistance-api.js";
 import { readAssistanceTodoDetail } from "./workflow-api.js";
 import type { InvitationView, OperatorAssistanceTodoDetailResponse, OperatorView } from "@socialgrowth/product-contracts";
+import { readFact } from "./operations-facts.js";
 
 interface Props { active: boolean; readOnly: boolean; onExpired(error: unknown): void; entry?: { todoId: string; revision: number } | null }
 type NoteState = { todo: AssistanceTodo; recheck: OperatorAssistanceTodoDetailResponse["recheck"]; notes: AssistanceNote[]; nextAfterNoteId: string | null; impacts: AssistanceImpactsPage["impacts"]; nextAfterDeviceId: string | null };
@@ -22,8 +23,8 @@ function time(value: string): string {
 function kindLabel(kind: AssistanceNote["kind"]): string { return kind === "reported_processed" ? "本人报告已处理，待复核" : "协助说明"; }
 function statusLabel(status: AssistanceTodo["status"]): string { return status === "awaiting_recheck" ? "等待复核" : "待处理"; }
 function recheckLabel(status: OperatorAssistanceTodoDetailResponse["recheck"]["status"]): string {
-  return status === "not_requested" ? "尚未请求复核" : status === "pending" ? "系统正在复核" : status === "verified_recovered"
-    ? "系统复核通过；请核对原任务状态是否已经接续" : status === "still_blocked" ? "系统复核后仍有阻断" : "复核结果未知";
+  return status === "not_requested" ? "尚未请求复核" : status === "pending" ? "复核请求已排队或认领；尚未证明系统开始执行" : status === "verified_recovered"
+    ? "可信端已核验并接续原任务" : status === "still_blocked" ? "系统复核后仍有阻断" : "复核结果未知";
 }
 
 export function OperatorTodosPanel({ active, readOnly, onExpired, entry = null }: Props) {
@@ -41,43 +42,52 @@ export function OperatorTodosPanel({ active, readOnly, onExpired, entry = null }
   const [kind, setKind] = useState<"note" | "reported_processed">("note");
   const [pending, setPending] = useState<PreparedAssistanceNote | null>(null);
   const pendingCommand = useRef<PreparedAssistanceNote | null>(null);
+  const pendingSession = useRef<(() => void) | null>(null);
   const activeView = useRef(active);
   activeView.current = active;
+  const expiredRef = useRef(onExpired);
+  expiredRef.current = onExpired;
   const readSequence = useRef(0);
   const detailSequence = useRef(0);
   const impactSequence = useRef(0);
   const selectedTodoId = useRef<string | null>(null);
+  const notifyCurrentExpired = (error: unknown) => { if (activeView.current) expiredRef.current(error); };
 
   async function refresh(append = false): Promise<void> {
     const sequence = ++readSequence.current;
     const detailTarget = selectedTodoId.current;
     setLoading(true); setError("");
     try {
-      const [page, contacts] = await Promise.all([
-        listAssistanceTodos(append ? nextTodo ?? undefined : undefined),
-        Promise.allSettled([listOperators(), listInvitations()] as const),
+      const [page, operatorsFact, invitationsFact] = await Promise.all([
+        readFact(() => listAssistanceTodos(append ? nextTodo ?? undefined : undefined), notifyCurrentExpired),
+        readFact(listOperators, notifyCurrentExpired),
+        readFact(listInvitations, notifyCurrentExpired),
       ]);
       if (sequence !== readSequence.current) return;
-      const contactError = contacts.find(result => result.status === "rejected" && result.reason instanceof ProductApiError && result.reason.status === 401);
-      if (contactError?.status === "rejected") { onExpired(contactError.reason); return; }
-      const nextOperators = contacts[0].status === "fulfilled" ? contacts[0].value : [];
-      const nextInvitations = contacts[1].status === "fulfilled" ? contacts[1].value : [];
+      if (page.status !== "loaded") throw new Error("Assistance list facts are unknown");
+      const nextOperators = operatorsFact.status === "loaded" ? operatorsFact.value : [];
+      const nextInvitations = invitationsFact.status === "loaded" ? invitationsFact.value : [];
       setTodos(current => {
-        const next = append ? [...current, ...page.todos.filter(item => !current.some(old => old.todoId === item.todoId))] : [...page.todos];
+        const next = append ? [...current, ...page.value.todos.filter(item => !current.some(old => old.todoId === item.todoId))] : [...page.value.todos];
         const selectedId = selectedTodoId.current;
         const selectedCached = selectedId ? current.find(item => item.todoId.toLowerCase() === selectedId) : undefined;
         if (selectedCached && !next.some(item => item.todoId.toLowerCase() === selectedCached.todoId.toLowerCase())) next.push(selectedCached);
         return next;
       });
-      setNextTodo(page.nextAfterTodoId); setOperators(nextOperators); setInvitations(nextInvitations);
+      setNextTodo(page.value.nextAfterTodoId); setOperators(nextOperators); setInvitations(nextInvitations);
       if (detailTarget && !append && selectedTodoId.current === detailTarget) {
         const detailRequest = ++detailSequence.current;
         ++impactSequence.current; setImpactLoading(false);
-        const [details, impacts, assistance] = await Promise.all([listAssistanceNotes(detailTarget), listAssistanceImpacts(detailTarget), readAssistanceTodoDetail(detailTarget)]);
-        if (sequence !== readSequence.current || detailRequest !== detailSequence.current || selectedTodoId.current !== detailTarget || impacts.todoId.toLowerCase() !== detailTarget.toLowerCase()) return;
-        if (assistance.todo.todoId.toLowerCase() !== detailTarget.toLowerCase() || assistance.todo.factVersion !== details.todo.factVersion) throw new Error("Assistance detail response is stale or mismatched");
-        setTodos(items => items.map(item => item.todoId.toLowerCase() === details.todo.todoId.toLowerCase() ? details.todo : item));
-        setSelected({ todo: details.todo, recheck: assistance.recheck, notes: details.notes, nextAfterNoteId: details.nextAfterNoteId, impacts: impacts.impacts, nextAfterDeviceId: impacts.nextAfterDeviceId });
+        const [details, impacts, assistance] = await Promise.all([
+          readFact(() => listAssistanceNotes(detailTarget), notifyCurrentExpired),
+          readFact(() => listAssistanceImpacts(detailTarget), notifyCurrentExpired),
+          readFact(() => readAssistanceTodoDetail(detailTarget), notifyCurrentExpired),
+        ]);
+        if (sequence !== readSequence.current || detailRequest !== detailSequence.current || selectedTodoId.current !== detailTarget) return;
+        if (details.status !== "loaded" || impacts.status !== "loaded" || assistance.status !== "loaded") throw new Error("Assistance records are unknown");
+        if (impacts.value.todoId.toLowerCase() !== detailTarget.toLowerCase() || assistance.value.todo.todoId.toLowerCase() !== detailTarget.toLowerCase() || assistance.value.todo.factVersion !== details.value.todo.factVersion) throw new Error("Assistance detail response is stale or mismatched");
+        setTodos(items => items.map(item => item.todoId.toLowerCase() === details.value.todo.todoId.toLowerCase() ? details.value.todo : item));
+        setSelected({ todo: details.value.todo, recheck: assistance.value.recheck, notes: details.value.notes, nextAfterNoteId: details.value.nextAfterNoteId, impacts: impacts.value.impacts, nextAfterDeviceId: impacts.value.nextAfterDeviceId });
       }
     } catch (cause) {
       if (sequence !== readSequence.current) return;
@@ -96,12 +106,16 @@ export function OperatorTodosPanel({ active, readOnly, onExpired, entry = null }
     if (switching) { setDraft(""); setKind("note"); }
     setSelected(null); setDetailLoading(true); setError(""); setMessage("");
     try {
-      const [response, impacts, assistance] = await Promise.all([listAssistanceNotes(todo.todoId), listAssistanceImpacts(todo.todoId),
-        knownDetail ? Promise.resolve(knownDetail) : readAssistanceTodoDetail(todo.todoId)]);
+      const [response, impacts, assistance] = await Promise.all([
+        readFact(() => listAssistanceNotes(todo.todoId), notifyCurrentExpired),
+        readFact(() => listAssistanceImpacts(todo.todoId), notifyCurrentExpired),
+        knownDetail ? Promise.resolve({ status: "loaded", value: knownDetail } as const) : readFact(() => readAssistanceTodoDetail(todo.todoId), notifyCurrentExpired),
+      ]);
       if (request !== detailSequence.current || selectedTodoId.current !== todo.todoId) return;
-      if (impacts.todoId.toLowerCase() !== todo.todoId.toLowerCase()) throw new Error("Assistance impact response target mismatch");
-      if (assistance.todo.todoId.toLowerCase() !== todo.todoId.toLowerCase() || assistance.todo.factVersion !== response.todo.factVersion) throw new Error("Assistance detail response is stale or mismatched");
-      setSelected({ todo: response.todo, recheck: assistance.recheck, notes: response.notes, nextAfterNoteId: response.nextAfterNoteId, impacts: impacts.impacts, nextAfterDeviceId: impacts.nextAfterDeviceId });
+      if (response.status !== "loaded" || impacts.status !== "loaded" || assistance.status !== "loaded") throw new Error("Assistance records are unknown");
+      if (impacts.value.todoId.toLowerCase() !== todo.todoId.toLowerCase()) throw new Error("Assistance impact response target mismatch");
+      if (assistance.value.todo.todoId.toLowerCase() !== todo.todoId.toLowerCase() || assistance.value.todo.factVersion !== response.value.todo.factVersion) throw new Error("Assistance detail response is stale or mismatched");
+      setSelected({ todo: response.value.todo, recheck: assistance.value.recheck, notes: response.value.notes, nextAfterNoteId: response.value.nextAfterNoteId, impacts: impacts.value.impacts, nextAfterDeviceId: impacts.value.nextAfterDeviceId });
     } catch (cause) {
       if (request !== detailSequence.current || selectedTodoId.current !== todo.todoId) return;
       if (cause instanceof ProductApiError && cause.status === 401) onExpired(cause);
@@ -115,8 +129,10 @@ export function OperatorTodosPanel({ active, readOnly, onExpired, entry = null }
     const request = ++detailSequence.current;
     setDetailLoading(true);
     try {
-      const response = await listAssistanceNotes(todoId, cursor);
+      const result = await readFact(() => listAssistanceNotes(todoId, cursor), notifyCurrentExpired);
       if (request !== detailSequence.current || selectedTodoId.current !== todoId) return;
+      if (result.status !== "loaded") throw new Error("Assistance note page is unknown");
+      const response = result.value;
       if (response.todo.factVersion !== selected.todo.factVersion) { setError("待办事实版本已变化；已读取的说明未与新复核状态拼接，请刷新后继续查看。"); return; }
       setSelected(current => current ? { ...current, todo: response.todo,
         notes: [...current.notes, ...response.notes], nextAfterNoteId: response.nextAfterNoteId } : current);
@@ -133,8 +149,10 @@ export function OperatorTodosPanel({ active, readOnly, onExpired, entry = null }
     const request = ++impactSequence.current;
     setImpactLoading(true);
     try {
-      const response = await listAssistanceImpacts(todoId, cursor);
+      const result = await readFact(() => listAssistanceImpacts(todoId, cursor), notifyCurrentExpired);
       if (request !== impactSequence.current || selectedTodoId.current !== todoId) return;
+      if (result.status !== "loaded") throw new Error("Assistance impact page is unknown");
+      const response = result.value;
       if (response.todoId.toLowerCase() !== todoId.toLowerCase()) throw new Error("Assistance impact response target mismatch");
       setSelected(current => current?.todo.todoId === todoId ? { ...current,
         impacts: [...current.impacts, ...response.impacts], nextAfterDeviceId: response.nextAfterDeviceId } : current);
@@ -147,9 +165,13 @@ export function OperatorTodosPanel({ active, readOnly, onExpired, entry = null }
 
   async function sendNote(): Promise<void> {
     if (!selected || readOnly || pendingCommand.current) return;
+    let sessionGuard: () => void;
+    try { sessionGuard = captureOperatorWriteSession(); }
+    catch { setError("登录状态已失效，请重新登录后再记录说明。"); return; }
     let command: PreparedAssistanceNote;
     try { command = prepareAssistanceNote(selected.todo, kind, draft); }
     catch { setError("说明内容需为 1–150 字且不能包含首尾空白或换行。"); return; }
+    pendingSession.current = sessionGuard;
     pendingCommand.current = command; setPending(command);
     await continueNote(command);
   }
@@ -158,14 +180,25 @@ export function OperatorTodosPanel({ active, readOnly, onExpired, entry = null }
     if (!command) return;
     setError(""); setMessage("");
     try {
+      pendingSession.current?.();
       await command.submit(); pendingCommand.current = null; setPending(null); setDraft(""); setKind("note");
+      pendingSession.current = null;
       setMessage("说明已记录。待办仍需基于新的设备事实复核，不代表权限恢复或事项已解决。");
       if (!activeView.current) return;
       await refresh();
     } catch (cause) {
-      if (cause instanceof ProductApiError && cause.status === 401) { onExpired(cause); return; }
+      if (cause instanceof ProductApiError && cause.status === 401) {
+        if (hasCsrfToken()) {
+          try { pendingSession.current?.(); }
+          catch { pendingCommand.current = command; setPending(command); setError("登录会话已变化，原请求仍未确认；请勿在新会话重发或切换待办。"); return; }
+        }
+        expiredRef.current(cause); return;
+      }
+      if (cause instanceof OperatorWriteSessionChangedError) {
+        pendingCommand.current = command; setPending(command); setError("该说明请求绑定原登录会话；会话已变化，结果仍未确认，不能在新会话重发。"); return;
+      }
       if (isDefinitiveAssistanceRejection(cause)) {
-        pendingCommand.current = null; setPending(null);
+        pendingCommand.current = null; pendingSession.current = null; setPending(null);
         if (cause instanceof ProductApiError && cause.response.error.code === "FACT_VERSION_STALE") {
           setError("待办事实版本已变化。请刷新并重新核对后，再决定是否提交说明。"); await refresh();
         } else setError("说明不符合要求，没有提交；请检查后重填。");
@@ -177,18 +210,22 @@ export function OperatorTodosPanel({ active, readOnly, onExpired, entry = null }
   }
 
   useEffect(() => {
-    if (!active) { readSequence.current += 1; detailSequence.current += 1; impactSequence.current += 1; return; }
-    if (!entry) { void refresh(); return; }
+    const cancelReads = () => { readSequence.current += 1; detailSequence.current += 1; impactSequence.current += 1; };
+    if (!active) return cancelReads;
+    if (!entry) { void refresh(); return cancelReads; }
     const target = entry.todoId.toLowerCase();
     if (pendingCommand.current && selectedTodoId.current !== target) {
       setError("当前有一条结果未确认的原请求；先在当前待办接续该请求，暂不切换到新待办。");
-      return;
+      return cancelReads;
     }
-    if (selectedTodoId.current === target && selected) { void refresh(); return; }
+    if (selectedTodoId.current === target && selected) { void refresh(); return cancelReads; }
     const request = ++detailSequence.current;
     setDetailLoading(true); setError(""); setMessage("");
-    void readAssistanceTodoDetail(target).then(async assistance => {
+    const readRequest = readFact(() => readAssistanceTodoDetail(target), notifyCurrentExpired);
+    void readRequest.then(async fact => {
       if (request !== detailSequence.current || selectedTodoId.current === target && pendingCommand.current) return;
+      if (fact.status !== "loaded") throw new Error("Assistance detail unavailable or stale");
+      const assistance = fact.value;
       if (assistance.todo.todoId.toLowerCase() !== target) throw new Error("Assistance entry target mismatch");
       setTodos(items => items.some(item => item.todoId.toLowerCase() === target) ? items : [assistance.todo, ...items]);
       await openTodo(assistance.todo, assistance);
@@ -199,6 +236,7 @@ export function OperatorTodosPanel({ active, readOnly, onExpired, entry = null }
     }).finally(() => { if (request === detailSequence.current) setDetailLoading(false); });
     // Entry changes are the only deep-link trigger. Stable refs/sequences inside this panel prevent stale results from changing selection.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    return cancelReads;
   }, [active, entry?.todoId, entry?.revision]);
   if (!active) return null;
   return <section className="operator-todos" aria-labelledby="operator-todos-title">
