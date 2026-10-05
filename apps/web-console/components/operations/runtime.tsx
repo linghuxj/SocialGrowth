@@ -572,7 +572,7 @@ export function RuntimeReceipts({
                         { id: 'published', name: '已公开' },
                         {
                           id: 'confirmed_not_published',
-                          name: '平台明确拒绝且排除在途 / 已发布',
+                          name: '已核验本次未发布且没有在途操作',
                         },
                       ],
               },

@@ -227,7 +227,7 @@ async function main(): Promise<void> {
     if (operators === 0) await run("pnpm", ["--filter", "@socialgrowth/product-backend", "operator:admin", "initialize", "--login-name", "device-live-local",
       "--display-name", "本机真机联调运营", "--request-id", `initialize-${randomUUID()}`], env, config.operatorPassword);
     await privateFile(resolve(dir, "ready.json"), JSON.stringify({ checkedAt: new Date().toISOString(), database, clusterId: config.clusterId,
-      containerId: config.containerId, smsMode: "development_capture", phoneFactsSeeded: false, executorConfigured: "SG_PRODUCT_EXECUTION_RUNTIME_URL" in env && "SG_PRODUCT_EXECUTION_RUNTIME_TOKEN" in env && "SG_PRODUCT_EXECUTION_DEVICE_ID" in env,
+      containerId: config.containerId, smsMode: "development_capture", phoneFactsSeeded: false, executorConfigured: ["SG_PRODUCT_EXECUTION_RUNTIME_URL", "SG_PRODUCT_EXECUTION_RUNTIME_TOKEN", "SG_PRODUCT_EXECUTION_DEVICE_ID", "SG_PRODUCT_EXECUTION_IDENTITY_ID", "SG_PRODUCT_EXECUTION_ACCOUNT_ID", "SG_PRODUCT_EXECUTION_RUNTIME_ACCOUNT_ID", "SG_PRODUCT_EXECUTION_CANONICAL_REF", "SG_PRODUCT_EXECUTION_PAGE_NAME"].every(key => key in env),
       materialMode: env.SG_PRODUCT_MATERIAL_MODE,
       web: "http://127.0.0.1:3100", backend: `http://127.0.0.1:${backendPort}` }, null, 2));
   } finally { await pool.end(); }
