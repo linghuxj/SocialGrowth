@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { listInvitations, listOperators, ProductApiError } from "./operator-api.js";
 import { isDefinitiveAssistanceRejection, listAssistanceImpacts, listAssistanceNotes, listAssistanceTodos, prepareAssistanceNote, type AssistanceImpactsPage, type AssistanceNote, type AssistanceTodo, type PreparedAssistanceNote } from "./device-assistance-api.js";
-import type { InvitationView, OperatorView } from "@socialgrowth/product-contracts";
+import { readAssistanceTodoDetail } from "./workflow-api.js";
+import type { InvitationView, OperatorAssistanceTodoDetailResponse, OperatorView } from "@socialgrowth/product-contracts";
 
-interface Props { active: boolean; readOnly: boolean; onExpired(error: unknown): void }
-type NoteState = { todo: AssistanceTodo; notes: AssistanceNote[]; nextAfterNoteId: string | null; impacts: AssistanceImpactsPage["impacts"]; nextAfterDeviceId: string | null };
+interface Props { active: boolean; readOnly: boolean; onExpired(error: unknown): void; entry?: { todoId: string; revision: number } | null }
+type NoteState = { todo: AssistanceTodo; recheck: OperatorAssistanceTodoDetailResponse["recheck"]; notes: AssistanceNote[]; nextAfterNoteId: string | null; impacts: AssistanceImpactsPage["impacts"]; nextAfterDeviceId: string | null };
 
 function contactName(id: string, operators: OperatorView[], invitations: InvitationView[]): string {
   const operator = operators.find(item => item.operatorId.toLowerCase() === id.toLowerCase());
@@ -20,8 +21,12 @@ function time(value: string): string {
 }
 function kindLabel(kind: AssistanceNote["kind"]): string { return kind === "reported_processed" ? "本人报告已处理，待复核" : "协助说明"; }
 function statusLabel(status: AssistanceTodo["status"]): string { return status === "awaiting_recheck" ? "等待复核" : "待处理"; }
+function recheckLabel(status: OperatorAssistanceTodoDetailResponse["recheck"]["status"]): string {
+  return status === "not_requested" ? "尚未请求复核" : status === "pending" ? "系统正在复核" : status === "verified_recovered"
+    ? "系统复核通过；请核对原任务状态是否已经接续" : status === "still_blocked" ? "系统复核后仍有阻断" : "复核结果未知";
+}
 
-export function OperatorTodosPanel({ active, readOnly, onExpired }: Props) {
+export function OperatorTodosPanel({ active, readOnly, onExpired, entry = null }: Props) {
   const [todos, setTodos] = useState<AssistanceTodo[]>([]);
   const [nextTodo, setNextTodo] = useState<string | null>(null);
   const [selected, setSelected] = useState<NoteState | null>(null);
@@ -57,14 +62,22 @@ export function OperatorTodosPanel({ active, readOnly, onExpired }: Props) {
       if (contactError?.status === "rejected") { onExpired(contactError.reason); return; }
       const nextOperators = contacts[0].status === "fulfilled" ? contacts[0].value : [];
       const nextInvitations = contacts[1].status === "fulfilled" ? contacts[1].value : [];
-      setTodos(current => append ? [...current, ...page.todos.filter(item => !current.some(old => old.todoId === item.todoId))] : page.todos);
+      setTodos(current => {
+        const next = append ? [...current, ...page.todos.filter(item => !current.some(old => old.todoId === item.todoId))] : [...page.todos];
+        const selectedId = selectedTodoId.current;
+        const selectedCached = selectedId ? current.find(item => item.todoId.toLowerCase() === selectedId) : undefined;
+        if (selectedCached && !next.some(item => item.todoId.toLowerCase() === selectedCached.todoId.toLowerCase())) next.push(selectedCached);
+        return next;
+      });
       setNextTodo(page.nextAfterTodoId); setOperators(nextOperators); setInvitations(nextInvitations);
       if (detailTarget && !append && selectedTodoId.current === detailTarget) {
         const detailRequest = ++detailSequence.current;
         ++impactSequence.current; setImpactLoading(false);
-        const [details, impacts] = await Promise.all([listAssistanceNotes(detailTarget), listAssistanceImpacts(detailTarget)]);
+        const [details, impacts, assistance] = await Promise.all([listAssistanceNotes(detailTarget), listAssistanceImpacts(detailTarget), readAssistanceTodoDetail(detailTarget)]);
         if (sequence !== readSequence.current || detailRequest !== detailSequence.current || selectedTodoId.current !== detailTarget || impacts.todoId.toLowerCase() !== detailTarget.toLowerCase()) return;
-        setSelected({ todo: details.todo, notes: details.notes, nextAfterNoteId: details.nextAfterNoteId, impacts: impacts.impacts, nextAfterDeviceId: impacts.nextAfterDeviceId });
+        if (assistance.todo.todoId.toLowerCase() !== detailTarget.toLowerCase() || assistance.todo.factVersion !== details.todo.factVersion) throw new Error("Assistance detail response is stale or mismatched");
+        setTodos(items => items.map(item => item.todoId.toLowerCase() === details.todo.todoId.toLowerCase() ? details.todo : item));
+        setSelected({ todo: details.todo, recheck: assistance.recheck, notes: details.notes, nextAfterNoteId: details.nextAfterNoteId, impacts: impacts.impacts, nextAfterDeviceId: impacts.nextAfterDeviceId });
       }
     } catch (cause) {
       if (sequence !== readSequence.current) return;
@@ -73,7 +86,7 @@ export function OperatorTodosPanel({ active, readOnly, onExpired }: Props) {
     } finally { if (sequence === readSequence.current) setLoading(false); }
   }
 
-  async function openTodo(todo: AssistanceTodo): Promise<void> {
+  async function openTodo(todo: AssistanceTodo, knownDetail?: OperatorAssistanceTodoDetailResponse): Promise<void> {
     if (pendingCommand.current) return;
     const switching = selectedTodoId.current !== todo.todoId;
     selectedTodoId.current = todo.todoId;
@@ -83,10 +96,12 @@ export function OperatorTodosPanel({ active, readOnly, onExpired }: Props) {
     if (switching) { setDraft(""); setKind("note"); }
     setSelected(null); setDetailLoading(true); setError(""); setMessage("");
     try {
-      const [response, impacts] = await Promise.all([listAssistanceNotes(todo.todoId), listAssistanceImpacts(todo.todoId)]);
+      const [response, impacts, assistance] = await Promise.all([listAssistanceNotes(todo.todoId), listAssistanceImpacts(todo.todoId),
+        knownDetail ? Promise.resolve(knownDetail) : readAssistanceTodoDetail(todo.todoId)]);
       if (request !== detailSequence.current || selectedTodoId.current !== todo.todoId) return;
       if (impacts.todoId.toLowerCase() !== todo.todoId.toLowerCase()) throw new Error("Assistance impact response target mismatch");
-      setSelected({ todo: response.todo, notes: response.notes, nextAfterNoteId: response.nextAfterNoteId, impacts: impacts.impacts, nextAfterDeviceId: impacts.nextAfterDeviceId });
+      if (assistance.todo.todoId.toLowerCase() !== todo.todoId.toLowerCase() || assistance.todo.factVersion !== response.todo.factVersion) throw new Error("Assistance detail response is stale or mismatched");
+      setSelected({ todo: response.todo, recheck: assistance.recheck, notes: response.notes, nextAfterNoteId: response.nextAfterNoteId, impacts: impacts.impacts, nextAfterDeviceId: impacts.nextAfterDeviceId });
     } catch (cause) {
       if (request !== detailSequence.current || selectedTodoId.current !== todo.todoId) return;
       if (cause instanceof ProductApiError && cause.status === 401) onExpired(cause);
@@ -102,6 +117,7 @@ export function OperatorTodosPanel({ active, readOnly, onExpired }: Props) {
     try {
       const response = await listAssistanceNotes(todoId, cursor);
       if (request !== detailSequence.current || selectedTodoId.current !== todoId) return;
+      if (response.todo.factVersion !== selected.todo.factVersion) { setError("待办事实版本已变化；已读取的说明未与新复核状态拼接，请刷新后继续查看。"); return; }
       setSelected(current => current ? { ...current, todo: response.todo,
         notes: [...current.notes, ...response.notes], nextAfterNoteId: response.nextAfterNoteId } : current);
     } catch (cause) {
@@ -160,7 +176,30 @@ export function OperatorTodosPanel({ active, readOnly, onExpired }: Props) {
     }
   }
 
-  useEffect(() => { if (active) void refresh(); else { readSequence.current += 1; detailSequence.current += 1; impactSequence.current += 1; } }, [active]);
+  useEffect(() => {
+    if (!active) { readSequence.current += 1; detailSequence.current += 1; impactSequence.current += 1; return; }
+    if (!entry) { void refresh(); return; }
+    const target = entry.todoId.toLowerCase();
+    if (pendingCommand.current && selectedTodoId.current !== target) {
+      setError("当前有一条结果未确认的原请求；先在当前待办接续该请求，暂不切换到新待办。");
+      return;
+    }
+    if (selectedTodoId.current === target && selected) { void refresh(); return; }
+    const request = ++detailSequence.current;
+    setDetailLoading(true); setError(""); setMessage("");
+    void readAssistanceTodoDetail(target).then(async assistance => {
+      if (request !== detailSequence.current || selectedTodoId.current === target && pendingCommand.current) return;
+      if (assistance.todo.todoId.toLowerCase() !== target) throw new Error("Assistance entry target mismatch");
+      setTodos(items => items.some(item => item.todoId.toLowerCase() === target) ? items : [assistance.todo, ...items]);
+      await openTodo(assistance.todo, assistance);
+    }).catch(cause => {
+      if (request !== detailSequence.current) return;
+      if (cause instanceof ProductApiError && cause.status === 401) onExpired(cause);
+      else setError("目标待办详情暂时不可用；没有切换到其他待办。请重试或从列表选择。");
+    }).finally(() => { if (request === detailSequence.current) setDetailLoading(false); });
+    // Entry changes are the only deep-link trigger. Stable refs/sequences inside this panel prevent stale results from changing selection.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, entry?.todoId, entry?.revision]);
   if (!active) return null;
   return <section className="operator-todos" aria-labelledby="operator-todos-title">
     <header className="operator-todos__header"><div><p className="operator-todos__eyebrow">设备协助 · 运营待办</p><h2 id="operator-todos-title">设备接入待办</h2><p>只展示已记录的未分配设备协助事项。说明和“报告已处理”都不会批准恢复、验证设备或关闭事项。</p></div><button type="button" className="outline-button" onClick={() => void refresh()} disabled={loading}>{loading ? "读取中…" : "刷新"}</button></header>
@@ -183,6 +222,10 @@ export function OperatorTodosPanel({ active, readOnly, onExpired }: Props) {
         {!selected && !detailLoading ? <div className="operator-todos__empty"><h3>选择一条待办</h3><p>页面将显示负责人、提供者、当前接口可提供的历史说明和事实版本。</p></div> : null}
         {selected && <>
           <div className="operator-todos__detail-head"><div><span className={`operator-todos__status ${selected.todo.status}`}>{statusLabel(selected.todo.status)}</span><h3>协助事项记录</h3><p>来源：未分配设备 · 网络接入协助</p></div><code>事实版本 {selected.todo.factVersion}</code></div>
+          <section className="operator-todos__recheck" aria-label="系统复核进度"><strong>{recheckLabel(selected.recheck.status)}</strong>
+            {selected.recheck.blockers.length > 0 && <p>仍需处理：{selected.recheck.blockers.join("、")}</p>}
+            <small>复核时间：{selected.recheck.checkedAt ? time(selected.recheck.checkedAt) : "尚无复核记录"}。该状态来自服务端复核，不由人工说明设置。</small>
+          </section>
           <dl className="operator-todos__facts"><div><dt>提供者</dt><dd>{contactName(selected.todo.providerId, operators, invitations)}</dd></div><div><dt>初始负责人</dt><dd>{contactName(selected.todo.initialResponsibleOperatorId, operators, invitations)}</dd></div><div><dt>创建时间</dt><dd>{time(selected.todo.createdAt)}</dd></div><div><dt>影响设备</dt><dd>{selected.todo.impactCount} 台历史影响；下方仅显示已记录的事件时事实</dd></div><div><dt>通知</dt><dd>未配置；没有发送记录</dd></div></dl>
           <div className="operator-todos__history"><div className="operator-todos__list-head"><h4>历史影响设备</h4><span>{selected.impacts.length} 条已载入 / {selected.todo.impactCount} 台聚合影响</span></div>
             {selected.impacts.length ? <ul className="operator-todos__impacts">{selected.impacts.map(impact => <li key={impact.deviceId}><code>{impact.deviceId}</code><span>记录版本 {impact.recordedDeviceVersion} · {time(impact.recordedAt)}</span></li>)}</ul> : <p className="operator-todos__empty-inline">当前没有读取到设备级历史记录。</p>}
