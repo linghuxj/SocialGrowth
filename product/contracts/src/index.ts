@@ -27,6 +27,7 @@ export * from "./project-cycle-next-config.js";
 export * from "./project-direction.js";
 export * from "./business-plan-task.js";
 export * from "./business-plan-current-checks.js";
+export * from "./business-plan-workflow.js";
 export * from "./artemis-preflight.js";
 export * from "./execution-library.js";
 export * from "./account-preparation.js";
