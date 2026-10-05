@@ -19,3 +19,11 @@ Head: 97e522e048958519d209e91b93e38e3483b17029
 Verdict: approved
 
 Independently read full 72aef21..97e522e delta. Readiness reads now reuse the reviewed readFact session fence, with stale-login state distinct from current 401. Old-session 401 does not expire a replacement login. Project and request sequence checks remain. No new findings; git diff --check 22f0bad..97e522e passed. Previous source/runtime evidence boundaries remain.
+
+## Re-review 18c1529
+
+Base: 22f0bada5d49e75c63c07926fcec0ea743f5d0df
+Head: 18c15292bbaf8d8f5ad922d291bb5d5505e6d1a0
+Verdict: approved
+
+Only incremental change is removing direct CSS import from TaskReadinessPanel for Node test compatibility. No behavior/security logic changes. Lead integration must import the CSS from application main. Independent diff check passed.
