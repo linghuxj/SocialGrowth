@@ -103,11 +103,11 @@ export function BusinessPlanPanel({ projectId, active, readOnly, onExpired, refr
       </section>
       <section className="business-plan__tasks" aria-label="计划任务"><div className="business-plan__section-heading"><div><ClipboardText size={20} /><h3>待核查任务</h3></div><span>{rows.length} 项</span></div>
         {!rows.length ? <p className="business-plan__empty">当前没有任务记录；只有服务端完成安排后才会显示任务。</p> : <div className="table-wrap"><table><thead><tr><th>平台／形式</th><th>语言</th><th>素材版本</th><th>计划时间</th><th>当前状态</th></tr></thead><tbody>{rows.map(task => <tr key={task.taskId}><td>{platformLabel(task.platform)} · {formLabel(task.form)}</td><td>{task.languageTag}</td><td>{task.variantId.slice(0, 8)}… v{task.materialRevision}</td><td>{new Date(task.scheduledAt).toLocaleString("zh-CN")}</td><td>待核查当前条件</td></tr>)}</tbody></table></div>}
-        <p className="business-plan__guard">服务端返回的任务仍为 pending_current_checks；当前界面未提供执行或发布动作。排期和任务都不表示实际已运行。</p>
+        <p className="business-plan__guard">可检查已分配 Page 与切片的发布准备；公开发布未开启。排期和任务不表示已经发布。</p>
       </section>
-      <section className="business-plan__permissions" aria-label="权限状态"><span>执行许可：关闭</span><span>发布许可：关闭</span><span>手机任务派发：未接入</span></section>
+      <section className="business-plan__permissions" aria-label="权限状态"><span>发布准备检查：可用</span><span>公开发布：关闭</span></section>
     </>}
-    <TaskReadinessPanel projectId={projectId} active={active} onExpired={onExpired} refreshVersion={refreshVersion + checksRefreshVersion}
+    <TaskReadinessPanel projectId={projectId} active={active} readOnly={readOnly} onExpired={onExpired} refreshVersion={refreshVersion + checksRefreshVersion}
       onNavigate={onNavigate} onOpenMediaAccounts={onOpenMediaAccounts} onOpenDevices={onOpenDevices} />
   </section>;
 }

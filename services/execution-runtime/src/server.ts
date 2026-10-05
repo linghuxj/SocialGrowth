@@ -19,6 +19,7 @@ import {
 import { ScreenshotStore } from "./storage/screenshot-store.ts";
 import { globalStepEventBus, stepEventSchema } from "./events/step-event-bus.ts";
 import { listAdbDevices, captureDeviceScreen } from "./device-detector.ts";
+import { BusinessPlanExecutionBridge } from "./business-plan-execution-bridge.ts";
 import type { WebSocket } from "ws";
 
 export interface ServerOptions {
@@ -30,6 +31,10 @@ export interface ServerOptions {
   mediaBaseUrl?: string;
   allowedOrigins?: string[];
   verification?: VerificationConfig;
+  businessPlanExecution?: {
+    artemisRoot: string; runtimeUrl: string; token: string; deviceId: string;
+    serial: string; bindingId: string; productDeviceId: string; callbackUrl: string;
+  };
 }
 const safeEqual = (a: string, b: string) =>
   a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
@@ -65,6 +70,9 @@ export function createRuntimeServer(options: ServerOptions) {
   mkdirSync(assetsDir, { recursive: true, mode: 0o700 });
   const store = new RuntimeStore(join(options.dataDir, "runtime.sqlite"));
   const assistance = new HumanAssistance(store);
+  const executionBridge = options.businessPlanExecution
+    ? new BusinessPlanExecutionBridge(store, assistance, { dataDir: options.dataDir, ...options.businessPlanExecution })
+    : null;
   const apps = new AppProvisioner({
     catalogPath: process.env.SG_APP_CATALOG,
     buildTools: process.env.SG_ANDROID_BUILD_TOOLS,
@@ -159,11 +167,11 @@ export function createRuntimeServer(options: ServerOptions) {
             ...session.scope,
             control: assistance.supervision.get(session.id),
           };
-        else if (path === "/assistance/agent/gate" && req.method === "POST")
-          value = assistance.supervision.gate(
-            session.id,
-            JSON.parse((await body(req, 2048)).toString()),
-          );
+        else if (path === "/assistance/agent/gate" && req.method === "POST") {
+          const input = z.object({ action: z.string().max(80), category: z.enum(["read","navigate","login_submit","recovery","install","publish","create_identity","correct_account","unmanaged"]) }).strict().parse(JSON.parse((await body(req, 2048)).toString()));
+          if (session.scope.mode === "execution" && executionBridge) await executionBridge.authorizeAction(session.scope.taskId, input.action, input.category);
+          value = assistance.supervision.gate(session.id, input);
+        }
         else if (path === "/assistance/agent/finish-observation" && req.method === "POST")
           value = assistance.supervision.finishObservation(session.id);
         else if (path === "/assistance/agent/ensure-app" && req.method === "POST")
@@ -272,7 +280,13 @@ export function createRuntimeServer(options: ServerOptions) {
         };
       } else {
         requireFact(operator, "OPERATOR_REQUIRED");
-        if (path === '/onboarding' && req.method === 'POST')
+        if (path === "/business-plan-executions" && req.method === "POST") {
+          requireFact(executionBridge, "BUSINESS_PLAN_EXECUTOR_UNAVAILABLE");
+          result = await executionBridge.start(JSON.parse((await body(req, 1024 * 1024)).toString()));
+        } else if ((path === "/business-plan-executions" || path.startsWith("/business-plan-executions/")) && req.method === "GET") {
+          requireFact(executionBridge, "BUSINESS_PLAN_EXECUTOR_UNAVAILABLE");
+          result = path === "/business-plan-executions" ? executionBridge.list() : executionBridge.read(path.split("/").at(-1)!);
+        } else if (path === '/onboarding' && req.method === 'POST')
           result = onboarding.start(JSON.parse((await body(req, 4096)).toString()));
         else if (path === '/onboarding/stop' && req.method === 'POST')
           result = onboarding.stop(id.parse(JSON.parse((await body(req, 2048)).toString()).id));
@@ -739,6 +753,7 @@ export function createRuntimeServer(options: ServerOptions) {
     runtime,
     store,
     assistance,
+    executionBridge,
     async close() {
       await verification.close();
       await onboarding.close();
@@ -766,6 +781,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     deviceTokens: JSON.parse(process.env.SG_DEVICE_TOKENS ?? "{}"),
     mediaBaseUrl: process.env.SG_MEDIA_BASE_URL,
     allowedOrigins: process.env.SG_ALLOWED_ORIGINS?.split(","),
+    businessPlanExecution: process.env.SG_PRODUCT_EXECUTION_RUNTIME_TOKEN && process.env.SG_PRODUCT_EXECUTION_RUNTIME_BINDING_ID
+      ? { artemisRoot: process.env.SG_ARTEMIS_ROOT ?? "", runtimeUrl: `http://127.0.0.1:${port}`,
+          token: process.env.SG_PRODUCT_EXECUTION_RUNTIME_TOKEN, deviceId: process.env.SG_PRODUCT_EXECUTION_SERIAL ?? "",
+          serial: process.env.SG_PRODUCT_EXECUTION_SERIAL ?? "", bindingId: process.env.SG_PRODUCT_EXECUTION_RUNTIME_BINDING_ID,
+          productDeviceId: process.env.SG_PRODUCT_EXECUTION_DEVICE_ID ?? "",
+          callbackUrl: process.env.SG_PRODUCT_EXECUTION_CALLBACK_URL ?? "http://127.0.0.1:4320" }
+      : undefined,
     verification: process.env.SG_WEB_VERIFICATION_MEDIA
       ? {
           artemisRoot: process.env.SG_ARTEMIS_ROOT ?? "",

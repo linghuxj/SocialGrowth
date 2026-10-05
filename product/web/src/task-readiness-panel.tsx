@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import type { BusinessPlanCurrentCheckBlocker } from "@socialgrowth/product-contracts";
 import { ArrowClockwise, ArrowSquareOut, ClipboardText } from "@phosphor-icons/react";
 import { readProjectCurrentChecks, type ProjectCurrentChecksView } from "./project-lifecycle-api.js";
+import { createBusinessPlanTaskAttempt, queryBusinessPlanPreflight, readBusinessPlanWorkflow, startBusinessPlanPreflight } from "./business-plan-api.js";
 import { readFact } from "./operations-facts.js";
+import { ProductApiError } from "./operator-api.js";
 
 type ProjectTab = "settings" | "materials" | "lifecycle";
 type ReadState = "loading" | "loaded" | "failed" | "unauthorized" | "stale";
@@ -48,6 +50,14 @@ function fact(value: string | number | boolean | null): string {
   if (typeof value === "boolean") return value ? "是" : "否";
   return String(value);
 }
+function workflowLabel(state: string | undefined): string {
+  if (state === "queued" || state === "claimed" || state === "running") return "检查中";
+  if (state === "submission_unknown" || state === "response_unknown") return "结果未知，只查询原检查，不重复启动";
+  if (state === "prepared") return "发布准备已核对，尚未发布";
+  if (state === "blocked" || state === "failed") return "需要处理";
+  if (state === "verified" || state === "not_published") return "已有结果，需查看原记录";
+  return "尚未检查";
+}
 
 function blockerAction(destination: BlockerInfo["destination"], navigate?: (tab: ProjectTab) => void,
   openMediaAccounts?: () => void, openDevices?: () => void) {
@@ -56,11 +66,12 @@ function blockerAction(destination: BlockerInfo["destination"], navigate?: (tab:
   return destination && navigate ? () => navigate(destination) : undefined;
 }
 
-export function TaskReadinessPanel({ projectId, active, onExpired, refreshVersion = 0,
+export function TaskReadinessPanel({ projectId, active, readOnly, onExpired, refreshVersion = 0,
   onNavigate, onOpenMediaAccounts, onOpenDevices,
 }: {
   projectId: string;
   active: boolean;
+  readOnly: boolean;
   onExpired: (error: unknown) => void;
   refreshVersion?: number;
   onNavigate?: (tab: ProjectTab) => void;
@@ -70,6 +81,8 @@ export function TaskReadinessPanel({ projectId, active, onExpired, refreshVersio
   const [state, setState] = useState<ReadState>("loading");
   const [checks, setChecks] = useState<ProjectCurrentChecksView | null>(null);
   const [loadedProjectId, setLoadedProjectId] = useState<string | null>(null);
+  const [workflowStates, setWorkflowStates] = useState<Record<string, string>>({});
+  const [preflightBusy, setPreflightBusy] = useState<string | null>(null);
   const sequence = useRef(0);
   const expiredRef = useRef(onExpired);
   expiredRef.current = onExpired;
@@ -77,6 +90,7 @@ export function TaskReadinessPanel({ projectId, active, onExpired, refreshVersio
   async function refresh() {
     const current = ++sequence.current;
     setState("loading");
+    setWorkflowStates({});
     const result = await readFact(() => readProjectCurrentChecks(projectId), error => {
       if (current === sequence.current) expiredRef.current(error);
     });
@@ -92,6 +106,49 @@ export function TaskReadinessPanel({ projectId, active, onExpired, refreshVersio
     }
     setChecks(result.value);
     setState("loaded");
+    void readBusinessPlanWorkflow(projectId).then(workflow => {
+      if (current === sequence.current) setWorkflowStates(Object.fromEntries(workflow.tasks.map(task => [task.taskId.toLowerCase(), task.workflow.state])));
+    }).catch(error => {
+      if (current === sequence.current && error instanceof Error && "status" in error && (error as { status?: number }).status === 401) expiredRef.current(error);
+      else if (current === sequence.current) setWorkflowStates(Object.fromEntries(result.value.tasks.map(task => [task.taskId.toLowerCase(), "response_unknown"])));
+    });
+  }
+
+  async function startPreflight(taskId: string) {
+    if (preflightBusy || !current) return;
+    const currentTask = current.tasks.find(task => task.taskId.toLowerCase() === taskId.toLowerCase());
+    if (!currentTask) return;
+    const stateNow = workflowStates[taskId.toLowerCase()];
+    setPreflightBusy(taskId);
+    try {
+      if (["running", "submission_unknown", "response_unknown"].includes(stateNow ?? "")) {
+        const workflow = stateNow === "response_unknown" ? await readBusinessPlanWorkflow(projectId) : await queryBusinessPlanPreflight(projectId, taskId);
+        setWorkflowStates(Object.fromEntries(workflow.tasks.map(task => [task.taskId.toLowerCase(), task.workflow.state])));
+        await refresh();
+        return;
+      }
+      if (!currentTask.attempt) {
+        const planRevision = current.plan?.revision;
+        if (!planRevision) { setWorkflowStates(value => ({ ...value, [taskId.toLowerCase()]: "blocked" })); return; }
+        const attemptRequest = createBusinessPlanTaskAttempt(projectId, taskId, planRevision, currentTask.taskRevision);
+        const attempt = await attemptRequest();
+        if (attempt.outcome === "blocked" || attempt.attempt === null) {
+          setWorkflowStates(value => ({ ...value, [taskId.toLowerCase()]: "blocked" }));
+          void refresh();
+          return;
+        }
+        await refresh();
+      }
+      const request = startBusinessPlanPreflight(projectId, taskId);
+      const response = await request();
+      setWorkflowStates(value => ({ ...value, [taskId.toLowerCase()]: response.state }));
+      void refresh();
+    } catch (error) {
+      if (error instanceof Error && "status" in error && (error as { status?: number }).status === 401) expiredRef.current(error);
+      else if (error instanceof ProductApiError && error.status >= 400 && error.status < 500 && error.status !== 408) {
+        setWorkflowStates(value => ({ ...value, [taskId.toLowerCase()]: "blocked" }));
+      } else setWorkflowStates(value => ({ ...value, [taskId.toLowerCase()]: "response_unknown" }));
+    } finally { setPreflightBusy(null); }
   }
 
   useEffect(() => {
@@ -102,10 +159,21 @@ export function TaskReadinessPanel({ projectId, active, onExpired, refreshVersio
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, projectId, refreshVersion]);
 
+  useEffect(() => {
+    if (!active || !Object.values(workflowStates).some(value => ["queued", "claimed", "running", "submission_unknown"].includes(value))) return;
+    const timer = setTimeout(() => {
+      void readBusinessPlanWorkflow(projectId).then(workflow => setWorkflowStates(Object.fromEntries(workflow.tasks.map(task => [task.taskId.toLowerCase(), task.workflow.state])))).catch(error => {
+        if (error instanceof Error && "status" in error && (error as { status?: number }).status === 401) expiredRef.current(error);
+        else setWorkflowStates(value => Object.fromEntries(Object.keys(value).map(taskId => [taskId, "response_unknown"])));
+      });
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [active, projectId, workflowStates]);
+
   const current = loadedProjectId === projectId.toLowerCase() && checks?.projectId.toLowerCase() === projectId.toLowerCase() ? checks : null;
   return <section className="task-readiness" aria-label="计划任务当前条件" hidden={!active}>
     <div className="task-readiness__heading">
-      <div><h3>任务当前条件</h3><p>逐项显示本次读取时的条件、阻断原因与可前往的处理页面。页面只读取核验，不会启动手机或发布内容。</p></div>
+      <div><h3>任务当前条件</h3><p>逐项显示当前条件。仅已分配的 Facebook 视频任务可启动 Page 与切片发布准备核对；核对会操作手机并停在最终发布前。</p></div>
       <button type="button" className="outline-button" onClick={() => void refresh()} disabled={state === "loading"}>
         <ArrowClockwise size={17} />{state === "loading" ? "读取中…" : "重新读取条件"}
       </button>
@@ -136,11 +204,14 @@ export function TaskReadinessPanel({ projectId, active, onExpired, refreshVersio
           const mismatch = current.plan !== null && (task.planId.toLowerCase() !== current.plan.planId.toLowerCase()
             || task.planRevision !== current.plan.revision);
           const blockerEntries = task.blockers.map(code => ({ code, ...blockerInfo[code] }));
+          const workflowState = workflowStates[task.taskId.toLowerCase()];
           return <article className="task-readiness__row" key={task.taskId}>
             <div className="task-readiness__task">
               <strong>{task.platform === "facebook" ? "Facebook" : "YouTube"} · {formLabel[task.form] ?? "成品形式未知"}</strong>
-              <span>任务 {task.taskId} · 计划 v{task.planRevision} · 任务版本 v{task.taskRevision}</span>
+              <span>发布准备状态：{workflowLabel(workflowState)}</span>
+              <span>计划 v{task.planRevision} · 任务版本 v{task.taskRevision}</span>
               <span>计划时间：{time(task.scheduledAt)} · 素材版本：v{task.expectedMaterialRevision}</span>
+              <details><summary>查看任务编号</summary><code>{task.taskId}</code></details>
             </div>
             <div className="task-readiness__conditions">
               {mismatch && <p className="task-readiness__stale">任务引用的计划与本次读取的当前计划版本不一致；请先核对最新计划。</p>}
@@ -177,11 +248,22 @@ export function TaskReadinessPanel({ projectId, active, onExpired, refreshVersio
               <strong>{attempt ? "原尝试记录" : "尚无原尝试"}</strong>
               <span>{assignment}</span>
               {attempt && <>
-                <span>尝试 {attempt.taskAttemptId} · {attempt.state === "pending_current_checks" ? "待当前条件核验" : attempt.state}</span>
-                <span>startedAt：{attempt.startedAt === null ? "无（尚未开始）" : attempt.startedAt}</span>
-                <span>创建预留设备：{attempt.reservedDeviceIdAtCreation}</span>
+                <details><summary>查看原尝试编号与状态码</summary>
+                  <span>{attempt.taskAttemptId} · {attempt.state}</span>
+                  <span>startedAt：{attempt.startedAt === null ? "无（尚未开始）" : attempt.startedAt}</span>
+                  <span>创建预留设备：{attempt.reservedDeviceIdAtCreation}</span>
+                </details>
               </>}
-              <small>本检查不创建新尝试，不派发设备任务。所有任务的执行与发布许可仍关闭。</small>
+              {task.platform === "facebook" && task.form === "facebook_video" && <>
+                {!readOnly && <button type="button" className="outline-button" disabled={!!preflightBusy || task.blockers.some(code => !["action_inspector_unavailable","network_not_admitted","stop_unconfirmed"].includes(code)) || ["queued","claimed","prepared","verified","not_published"].includes(workflowState ?? "")}
+                  onClick={() => void startPreflight(task.taskId)}>{preflightBusy === task.taskId ? "正在连接手机核对…" : ["running","submission_unknown","response_unknown"].includes(workflowState ?? "") ? "查询原核查状态" : attempt ? "检查 Page 与切片发布准备" : "创建原尝试并检查发布准备"}</button>
+                }
+                {workflowState === "prepared" && <strong role="status">发布准备已核对，尚未发布</strong>}
+                {workflowState === "submission_unknown" && <strong role="alert">原核查结果未知，已冻结；先查询原操作，不会重发。</strong>}
+                {workflowState === "response_unknown" && <strong role="alert">请求响应中断，原核查状态未知；请查询当前状态，不会重新发起。</strong>}
+                {workflowState === "blocked" && <span role="status">当前仍有条件未通过；请先按上方提示处理，再重新读取。</span>}
+              </>}
+              <small>准备核对会读取已分配 Page、检查切片并停在最终发布前；不会创建另一次原尝试，也不会自动发布。</small>
             </div>
           </article>;
         })}

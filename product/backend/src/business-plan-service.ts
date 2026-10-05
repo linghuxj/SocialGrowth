@@ -16,6 +16,8 @@ import { createBusinessPlanTaskAttemptRequestSchema, createBusinessPlanTaskAttem
 import { parsePhoneControlRecord } from "./action-permission-core.js";
 import { businessPlanWorkflowResponseSchema, type BusinessPlanWorkflowResponse } from "@socialgrowth/product-contracts";
 import type { BusinessPlanWorkflowPortStatusReader } from "./business-plan-workflow-store.js";
+import type { BusinessPlanWorkflowScope } from "@socialgrowth/product-contracts";
+import type { WorkflowReadiness } from "./business-plan-workflow-store.js";
 
 const s = "socialgrowth_product";
 const unavailable = () => new ProductTransactionError("INTERNAL_ERROR", "Business planning is unavailable", true);
@@ -143,6 +145,82 @@ export class BusinessPlanService {
     return this.tx(token, null, c => this.currentChecksInTransaction(c, project.data.toLowerCase()));
   }
 
+  /** Internal server-to-server task lookup. It reuses current business checks and
+   * does not expose a caller-controlled Page URL or asset path. */
+  async executionFacts(scope: BusinessPlanWorkflowScope) {
+    const c = await this.pool.connect();
+    try {
+      await c.query("BEGIN"); await c.query("SET LOCAL statement_timeout='12s'");
+      const checks = await this.currentChecksInTransaction(c, scope.projectId);
+      const task = checks.tasks.find(row => row.taskId.toLowerCase() === scope.taskId.toLowerCase());
+      const valid = Boolean(task && checks.plan && task.attempt
+        && task.taskRevision === scope.taskRevision && checks.plan.planId.toLowerCase() === scope.planId.toLowerCase()
+        && checks.plan.revision === scope.planRevision && checks.plan.projectVersion === scope.projectVersion
+        && checks.plan.approvalId.toLowerCase() === scope.approvalId.toLowerCase()
+        && task.identityId.toLowerCase() === scope.identityId.toLowerCase() && task.current.reservedDeviceId?.toLowerCase() === scope.reservedDeviceId.toLowerCase()
+        && task.attempt.taskAttemptId.toLowerCase() === scope.taskAttemptId.toLowerCase()
+        && task.expectedMaterialRevision === scope.materialRevision && task.variantId.toLowerCase() === scope.variantId.toLowerCase()
+        && JSON.stringify(task.expectedFiles) === JSON.stringify(scope.expectedFiles));
+      if (!valid || !task) throw new ProductTransactionError("FACT_VERSION_STALE", "Task scope changed; read the current task and retry explicitly");
+      const record = (await c.query<{ canonical_identity_ref: string; caption: string }>(
+        `SELECT i.canonical_identity_ref,t.caption FROM ${s}.business_plan_tasks t
+         JOIN ${s}.project_identity_reservations r ON r.project_id=t.project_id AND r.identity_id=t.identity_id
+         JOIN ${s}.publishing_identities i USING(identity_id,account_id,platform)
+         WHERE t.project_id=$1 AND t.task_id=$2`, [scope.projectId, scope.taskId])).rows[0];
+      if (!record?.caption || !record.canonical_identity_ref) throw unavailable();
+      const pageName = process.env.SG_PRODUCT_EXECUTION_PAGE_NAME ?? "";
+      const currentBlockers = [...task.blockers.filter(value => !["action_inspector_unavailable", "network_not_admitted", "stop_unconfirmed"].includes(value)),
+        ...(!pageName ? ["page_identity_name_missing"] : [])];
+      return { facts: { canonicalIdentityRef: record.canonical_identity_ref, pageName, captionText: record.caption },
+        readiness: { adapterState: "connected" as const, businessState: currentBlockers.length ? "blocked" as const : "ready" as const,
+          scopeFingerprint: createHash("sha256").update(canonicalMaterial(scope)).digest("hex"), blockers: currentBlockers } };
+    } finally { await c.query("ROLLBACK").catch(() => undefined); c.release(); }
+  }
+  async executionReadiness(scope: BusinessPlanWorkflowScope): Promise<WorkflowReadiness> {
+    return (await this.executionFacts(scope)).readiness;
+  }
+  async authorizeExecutionAction(input: { scope: BusinessPlanWorkflowScope; operationId: string; stepId: string; scopeFingerprint: string }) {
+    const readiness = await this.executionReadiness(input.scope);
+    if (readiness.businessState !== "ready" || readiness.blockers.length || readiness.scopeFingerprint !== input.scopeFingerprint
+      || !/^(read|navigate|login_submit|recovery):/.test(input.stepId)) return null;
+    return { permitId: `current-scope:${randomUUID()}`, scopeFingerprint: input.scopeFingerprint, expiresAt: new Date(Date.now() + 5_000).toISOString() };
+  }
+
+  async startPreflight(token: string, csrf: string, projectInput: string, taskInput: string) {
+    const project = uuidSchema.safeParse(projectInput), taskId = uuidSchema.safeParse(taskInput);
+    if (!project.success || !taskId.success) throw new ProductTransactionError("INPUT_INVALID", "Invalid task identity");
+    const scope = await this.tx(token, csrf, async c => {
+      const checks = await this.currentChecksInTransaction(c, project.data.toLowerCase());
+      const task = checks.tasks.find(row => row.taskId.toLowerCase() === taskId.data.toLowerCase());
+      if (!task || !checks.plan || !task.attempt) throw new ProductTransactionError("FACT_VERSION_STALE", "Create and check the original task attempt first");
+      if (task.platform !== "facebook" || task.form !== "facebook_video" || task.expectedFiles.length !== 1
+        || task.expectedFiles[0]?.contentType !== "video/mp4") throw new ProductTransactionError("INPUT_INVALID", "This preflight currently supports Facebook video tasks only");
+      const blockers = task.blockers.filter(value => value !== "action_inspector_unavailable");
+      if (blockers.length) throw new ProductTransactionError("FACT_VERSION_STALE", `Task is blocked: ${blockers.join(",")}`);
+      return { projectId: project.data.toLowerCase(), taskId: task.taskId, taskRevision: task.taskRevision, planId: checks.plan.planId,
+        planRevision: checks.plan.revision, projectVersion: checks.plan.projectVersion, approvalId: checks.plan.approvalId,
+        contentUnitId: (await this.view(c, project.data.toLowerCase())).tasks.find(item => item.taskId === task.taskId)!.contentUnitId,
+        variantId: task.variantId, materialRevision: task.expectedMaterialRevision, expectedFiles: task.expectedFiles,
+        taskAttemptId: task.attempt.taskAttemptId, identityId: task.identityId, reservedDeviceId: task.current.reservedDeviceId!,
+        platform: task.platform, form: task.form, scheduledAt: task.scheduledAt };
+    });
+    if (!this.workflowPortStatus?.start) throw unavailable();
+    return this.workflowPortStatus.start(scope, `operator-preflight:${randomUUID()}`);
+  }
+
+  async queryPreflight(token: string, projectInput: string, taskInput: string): Promise<BusinessPlanWorkflowResponse> {
+    const project = uuidSchema.safeParse(projectInput), taskId = uuidSchema.safeParse(taskInput);
+    if (!project.success || !taskId.success) throw new ProductTransactionError("INPUT_INVALID", "Invalid task identity");
+    const projectId = project.data.toLowerCase(), task = taskId.data.toLowerCase();
+    await this.tx(token, null, async c => {
+      const checks = await this.currentChecksInTransaction(c, projectId);
+      if (!checks.tasks.some(row => row.taskId.toLowerCase() === task)) throw new ProductTransactionError("FACT_VERSION_STALE", "Task is no longer in the current project");
+      return undefined;
+    });
+    await this.workflowPortStatus?.queryOriginal?.(projectId, task);
+    return this.workflow(token, projectId);
+  }
+
   async workflow(token: string, projectInput: string): Promise<BusinessPlanWorkflowResponse> {
     const project = uuidSchema.safeParse(projectInput);
     if (!project.success) throw new ProductTransactionError("INPUT_INVALID", "Invalid project identifier");
@@ -153,8 +231,8 @@ export class BusinessPlanService {
       if (checks.projectId.toLowerCase() !== projectId || view.tasks.length !== checks.tasks.length) throw unavailable();
       const jobs = (await c.query<{
         task_id: string; task_attempt_id: string | null; state: string; submission_state: string; operation_id: string | null; operation_state: string | null;
-        claim_id: string | null; lease_until: Date | null; blockers: unknown; verified_result_id: string | null; verified_at: Date | null;
-      }>(`SELECT task_id,task_attempt_id,state,submission_state,operation_id,operation_state,claim_id,lease_until,blockers,verified_result_id,verified_at
+        claim_id: string | null; lease_until: Date | null; blockers: unknown; verified_result_id: string | null; verified_at: Date | null; prepared_at: Date | null;
+      }>(`SELECT task_id,task_attempt_id,state,submission_state,operation_id,operation_state,claim_id,lease_until,blockers,verified_result_id,verified_at,prepared_at
           FROM ${s}.business_plan_workflow_jobs WHERE project_id=$1`, [projectId])).rows;
       const jobsByTask = new Map(jobs.map(row => [row.task_id, row]));
       const recheckLinksPresent = (await c.query<{ present: boolean }>(
@@ -195,11 +273,12 @@ export class BusinessPlanService {
           scheduledAt: checked.scheduledAt,
           attempt: checked.attempt ? { taskAttemptId: checked.attempt.taskAttemptId, attemptNumber: 1 as const, state: "pending_current_checks" as const } : null,
           operation: job?.operation_id && job.operation_state ? { operationId: job.operation_id,
-            state: job.operation_state as "queued" | "claimed" | "running" | "submission_unknown" | "verified" | "not_published" | "failed" } : null,
+            state: job.operation_state as "queued" | "claimed" | "running" | "submission_unknown" | "prepared" | "verified" | "not_published" | "failed" } : null,
           workflow: { state, claimId: job?.claim_id ?? null, leaseUntil: job?.lease_until?.toISOString() ?? null,
             blockers: [...blockers], submissionState: job?.submission_state ?? "not_started",
             verifiedResult: job?.verified_result_id && job.verified_at
-              ? { resultId: job.verified_result_id, verifiedAt: job.verified_at.toISOString() } : null },
+              ? { resultId: job.verified_result_id, verifiedAt: job.verified_at.toISOString() } : null,
+            preparedAt: job?.prepared_at?.toISOString() ?? null },
           assistanceTodoId: recheck && recheck.task_id.toLowerCase() === checked.taskId.toLowerCase() ? recheck.todo_id : null,
           recheckStatus, recheckBlockers,
         };

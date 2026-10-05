@@ -6,9 +6,9 @@ const version = z.int().min(1).max(Number.MAX_SAFE_INTEGER);
 const objectBytes = z.int().min(1).max(128 * 1024 * 1024);
 const sha256 = z.string().regex(/^[a-f0-9]{64}$/);
 const file = z.strictObject({ objectId: uuidSchema, sha256, bytes: objectBytes, contentType: materialUploadContentTypeSchema });
-const taskWorkflowState = z.enum(["blocked", "queued", "claimed", "running", "submission_unknown", "verified", "not_published", "failed"]);
-const operationState = z.enum(["queued", "claimed", "running", "submission_unknown", "verified", "not_published", "failed"]);
-const submissionState = z.enum(["not_started", "in_progress", "unknown", "verified_published", "verified_not_published"]);
+const taskWorkflowState = z.enum(["blocked", "queued", "claimed", "running", "submission_unknown", "prepared", "verified", "not_published", "failed"]);
+const operationState = z.enum(["queued", "claimed", "running", "submission_unknown", "prepared", "verified", "not_published", "failed"]);
+const submissionState = z.enum(["not_started", "in_progress", "unknown", "prepared", "verified_published", "verified_not_published"]);
 const recheckStatus = z.enum(["not_requested", "pending", "verified_recovered", "still_blocked", "unknown"]);
 const blocker = z.string().min(1).max(120).refine(value => value.trim() === value);
 
@@ -54,6 +54,7 @@ export const businessPlanWorkflowTaskSchema = z.strictObject({
     blockers: z.array(blocker).max(64),
     submissionState,
     verifiedResult: z.strictObject({ resultId: z.string().min(1).max(200), verifiedAt: timestampSchema }).nullable(),
+    preparedAt: timestampSchema.nullable().default(null),
   }),
   assistanceTodoId: uuidSchema.nullable(),
   recheckStatus,
@@ -75,8 +76,11 @@ export const businessPlanWorkflowTaskSchema = z.strictObject({
   if (workflow.state === "submission_unknown" && task.operation?.state !== "submission_unknown") {
     ctx.addIssue({ code: "custom", path: ["operation", "state"], message: "Unknown submission must remain bound to its original unknown operation" });
   }
-  if ((workflow.state === "verified" || workflow.state === "not_published") && task.operation === null) {
+  if ((workflow.state === "prepared" || workflow.state === "verified" || workflow.state === "not_published") && task.operation === null) {
     ctx.addIssue({ code: "custom", path: ["operation"], message: "Verified state requires an original operation" });
+  }
+  if (workflow.state === "prepared" && (task.operation?.state !== "prepared" || workflow.submissionState !== "prepared" || workflow.preparedAt === null || workflow.verifiedResult !== null)) {
+    ctx.addIssue({ code: "custom", path: ["workflow"], message: "Preflight completion must remain distinct from publication verification" });
   }
   if (workflow.state === "verified" && (task.operation?.state !== "verified" || workflow.submissionState !== "verified_published" || workflow.verifiedResult === null)) {
     ctx.addIssue({ code: "custom", path: ["workflow"], message: "Published verification fields must agree" });
@@ -93,7 +97,11 @@ export const businessPlanWorkflowTaskSchema = z.strictObject({
   if (workflow.state !== "verified" && workflow.state !== "not_published" && workflow.verifiedResult !== null) {
     ctx.addIssue({ code: "custom", path: ["workflow", "verifiedResult"], message: "A result requires a terminal trusted verification" });
   }
-  if ((workflow.state === "verified") !== (workflow.submissionState === "verified_published")
+  if (workflow.state !== "prepared" && workflow.preparedAt !== null) {
+    ctx.addIssue({ code: "custom", path: ["workflow", "preparedAt"], message: "Prepared timestamp requires the prepared state" });
+  }
+  if ((workflow.state === "prepared") !== (workflow.submissionState === "prepared")
+    || (workflow.state === "verified") !== (workflow.submissionState === "verified_published")
     || (workflow.state === "not_published") !== (workflow.submissionState === "verified_not_published")) {
     ctx.addIssue({ code: "custom", path: ["workflow", "submissionState"], message: "Terminal state and submission state must agree" });
   }

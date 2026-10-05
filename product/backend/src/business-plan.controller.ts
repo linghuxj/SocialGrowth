@@ -29,6 +29,19 @@ export class BusinessPlanController {
     catch (error) { rethrowHttp(error, `request-${randomUUID()}`); }
   }
 
+  @Post("tasks/:taskId/preflight") @Header("Cache-Control", "no-store")
+  async startPreflight(@Param("projectId") projectInput: string, @Param("taskId") taskInput: string,
+    @Req() request: Request, @Headers("x-csrf-token") csrf: string | undefined) {
+    try { return await this.service.startPreflight(operatorSessionTokenFrom(request.headers.cookie), csrf ?? "", projectInput, taskInput); }
+    catch (error) { rethrowHttp(error, `request-${randomUUID()}`); }
+  }
+
+  @Get("tasks/:taskId/preflight") @Header("Cache-Control", "no-store")
+  async queryPreflight(@Param("projectId") projectInput: string, @Param("taskId") taskInput: string, @Req() request: Request) {
+    try { return await this.service.queryPreflight(operatorSessionTokenFrom(request.headers.cookie), projectInput, taskInput); }
+    catch (error) { rethrowHttp(error, `request-${randomUUID()}`); }
+  }
+
   @Post("tasks/:taskId/attempts") @Header("Cache-Control", "no-store")
   async createTaskAttempt(@Param("projectId") projectInput: string, @Param("taskId") taskInput: string, @Body() body: unknown,
     @Req() request: Request, @Headers("x-csrf-token") csrf: string | undefined) {
