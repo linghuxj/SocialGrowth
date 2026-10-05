@@ -28,6 +28,7 @@
     "test:media-credentials-api-postgres": "tsx --test --test-concurrency=1 src/media-credentials-api.pg-test.ts",
     "test:media-key-custodian-postgres": "tsx --test --test-concurrency=1 src/media-credential-key-custodian.pg-test.ts",
     "test:task-recheck-redis": "tsx --test --test-concurrency=1 src/task-recheck-queue.redis-test.ts",
+    "test:task-assistance-recheck-pg": "tsx --test --test-concurrency=1 src/task-assistance-recheck-store.pg-test.ts",
     "test:task-recheck-outbox": "tsx --test --test-concurrency=1 src/task-recheck-journal.pg-redis-test.ts",
     "test:database-backup": "tsx --test --test-concurrency=1 src/database-backup.pg-test.ts",
     "test:database-inventory": "tsx --test --test-concurrency=1 src/database-restore-inventory.pg-test.ts"

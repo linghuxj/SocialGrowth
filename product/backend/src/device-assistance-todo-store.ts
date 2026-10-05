@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { uuidSchema } from "@socialgrowth/product-contracts";
 import { assistanceEventSchema, assistanceNoteRequestSchema, assistanceTodoViewSchema, type AssistanceTodoView } from "./device-assistance-todo.js";
+import { TaskAssistanceRecheckStore } from "./task-assistance-recheck-store.js";
 import { OperatorAuthService } from "./operator-auth-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
 const schema = "socialgrowth_product";
@@ -109,7 +110,9 @@ export class DeviceAssistanceTodoStore {
       }
       const current = await this.load(client, r.todoId);
       if (current.factVersion !== r.expectedFactVersion || current.factVersion === Number.MAX_SAFE_INTEGER) throw stale();
-      await client.query(`INSERT INTO ${schema}.device_assistance_notes(note_id,todo_id,actor_id,kind,text) VALUES($1,$2,$3,$4,$5)`, [randomUUID(), r.todoId, actor, r.kind, r.text]);
+      const noteId = randomUUID();
+      await client.query(`INSERT INTO ${schema}.device_assistance_notes(note_id,todo_id,actor_id,kind,text) VALUES($1,$2,$3,$4,$5)`, [noteId, r.todoId, actor, r.kind, r.text]);
+      if (r.kind === "reported_processed") await TaskAssistanceRecheckStore.requestForReportedNote(client, r.todoId, noteId);
       await client.query(`UPDATE ${schema}.device_assistance_todos SET status=$2,fact_version=fact_version+1,updated_at=clock_timestamp() WHERE todo_id=$1`, [r.todoId, r.kind === "reported_processed" ? "awaiting_recheck" : current.status]);
       await this.audit(client, r.todoId, actor, "todo.note_recorded", r.metadata.requestId, current.factVersion + 1);
       await client.query(`INSERT INTO ${schema}.device_assistance_commands(actor_id,request_key,payload_digest,todo_id) VALUES($1,$2,$3,$4)`, [actor, metadata.idempotencyKey, hash, r.todoId]);
