@@ -99,7 +99,7 @@ export const resourceCommandLookupResponseSchema = z.union([
   z.strictObject({
     contractVersion: contractVersionSchema,
     state: z.literal("applied"),
-    commandKind: z.enum(["account_assignment", "handover_request"]),
+    commandKind: z.enum(["account_assignment", "handover_request", "preparing_resource_reuse"]),
     accountId: id.nullable(),
     resourceVersion: version,
   }),

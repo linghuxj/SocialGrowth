@@ -14,7 +14,7 @@ export class MaterialRegistryError extends Error {
 // It must use protected registered location/config + full byte integrity, not
 // merely echo IDs. No media eligibility, copyright or execution grant implied.
 export interface MaterialObjectVerifier { verify(input: { projectId: string; objectIds: string[] }, signal: AbortSignal): Promise<unknown> }
-interface UnitRow { content_unit_id: string; project_id: string; source_id: string; source_record_id: string; identity: unknown }
+interface UnitRow { content_unit_id: string; project_id: string; source_id: string | null; source_record_id: string | null; identity: unknown }
 interface VariantRow { variant_id: string; content_unit_id: string; project_id: string; language_tag: string; current_revision: string }
 interface RevisionRow { revision: string; declaration: unknown; object_references: unknown; status: string; recorded_by_operator_id: string; recorded_at: string }
 const invalid = (): never => { throw new MaterialRegistryError("CORRUPT_HISTORY"); };
@@ -60,7 +60,7 @@ export class MaterialRegistryStore {
   }
   private async eligibilityReason(c: PoolClient, unit: UnitRow, languageTag: string, declaration: z.infer<typeof materialDeclarationSchema>, sha256s: string[]) {
     const sourceRows = await c.query(`SELECT count(*)::int n FROM ${s}.material_content_units WHERE source_id=$1 AND source_record_id=$2`, [unit.source_id, unit.source_record_id]);
-    if (sourceRows.rows[0]?.n !== 1) return "source_record_conflict" as const;
+    if (unit.source_id !== null && unit.source_record_id !== null && sourceRows.rows[0]?.n !== 1) return "source_record_conflict" as const;
     const ctx = (await c.query<{ fact_version: string; phase: string; draft_version: string | null; inputs: unknown; approval: unknown }>(`SELECT p.fact_version::text,p.phase,d.draft_version::text,d.inputs,a.record approval
       FROM ${s}.projects p LEFT JOIN ${s}.project_planning_drafts d ON d.project_id=p.project_id
       LEFT JOIN ${s}.project_direction_approvals a ON a.project_id=p.project_id WHERE p.project_id=$1 FOR SHARE OF p`, [unit.project_id])).rows[0];
@@ -92,7 +92,7 @@ export class MaterialRegistryStore {
     const v = (await c.query<VariantRow>(`SELECT *,current_revision::text FROM ${s}.material_variants WHERE variant_id=$1`, [variantId])).rows[0];
     if (!v) return null;
     const u = (await c.query<UnitRow>(`SELECT * FROM ${s}.material_content_units WHERE content_unit_id=$1`, [v.content_unit_id])).rows[0];
-    if (!u || u.project_id !== v.project_id || !uuidSchema.safeParse(u.source_id).success || !uuidSchema.safeParse(u.source_record_id).success
+    if (!u || u.project_id !== v.project_id || !uuidSchema.nullable().safeParse(u.source_id).success || !uuidSchema.nullable().safeParse(u.source_record_id).success
       || !z.string().regex(/^[a-z]{2,8}(?:-[a-z0-9]{1,8})*$/).max(100).safeParse(v.language_tag).success) return invalid();
     const identity = materialIdentitySchema.parse(u.identity);
     const rows = (await c.query<RevisionRow>(`SELECT revision::text,declaration,object_references,status,recorded_by_operator_id,recorded_at

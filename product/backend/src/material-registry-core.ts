@@ -6,7 +6,7 @@ export const materialDeclarationSchema = materialHumanDeclarationSchema.transfor
   expectedApprovedDirectionId: v.expectedApprovedDirectionId?.toLowerCase() ?? null, expectedApprovedProjectVersion: v.expectedApprovedProjectVersion ?? null,
   contentRulesReviewed: v.contentRulesReviewed ?? false }));
 export const materialSaveSchema = saveMaterialDeclarationRequestSchema.transform(v => ({ ...v, projectId: v.projectId.toLowerCase(), contentUnitId: v.contentUnitId.toLowerCase(),
-  sourceId: v.sourceId.toLowerCase(), sourceRecordId: v.sourceRecordId.toLowerCase(), variantId: v.variantId.toLowerCase(), languageTag: v.languageTag.toLowerCase(),
+  sourceId: v.sourceId?.toLowerCase() ?? null, sourceRecordId: v.sourceRecordId?.toLowerCase() ?? null, variantId: v.variantId.toLowerCase(), languageTag: v.languageTag.toLowerCase(),
   identity: materialIdentitySchema.parse(v.identity), declaration: materialDeclarationSchema.parse(v.declaration), objectIds: v.objectIds.map(id => id.toLowerCase()) }));
 export const materialObjectReferenceSchema = z.strictObject({ storageLocationId: id, storageBindingDigest: z.string().regex(/^[a-f0-9]{64}$/), projectId: id, objectId: id,
   key: z.string().regex(/^projects\/[a-f0-9-]{36}\/objects\/[a-f0-9-]{36}$/), sha256: z.string().regex(/^[a-f0-9]{64}$/), bytes: z.int().min(1).max(128 * 1024 * 1024),

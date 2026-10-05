@@ -3,6 +3,14 @@ import test from "node:test";
 import { contractVersion } from "./common.js";
 import { saveMaterialDeclarationRequestSchema, materialCurrentViewSchema, saveMaterialDeclarationResponseSchema, batchMaterialDeclarationsRequestSchema, batchMaterialDeclarationsResponseSchema, materialHistoryResponseSchema, materialHistoryQuerySchema, materialLibraryQuerySchema, materialLibraryResponseSchema } from "./material-registry.js";
 const id = "a0000000-0000-4000-8000-000000000001";
+test("missing clip source and prior publication stay unknown without invented proof", () => {
+  const parsed = saveMaterialDeclarationRequestSchema.parse({ ...input, sourceId: null, sourceRecordId: null,
+    declaration: { ...input.declaration, sourceStatement: "", sourceEvidenceIds: [], firstUseDeclaration: "unknown" } });
+  assert.equal(parsed.sourceId, null); assert.equal(parsed.sourceRecordId, null);
+  assert.deepEqual(parsed.declaration.sourceEvidenceIds, []);
+  assert.equal(parsed.declaration.firstUseDeclaration, "unknown");
+  assert.equal(saveMaterialDeclarationRequestSchema.safeParse({ ...parsed, publicationAllowed: true }).success, false);
+});
 const input = { metadata: { contractVersion, requestId: "request-material", idempotencyKey: "idempotency-material" }, projectId: id, contentUnitId: id,
   sourceId: id, sourceRecordId: id, variantId: id, languageTag: "en-US", expectedCurrentRevision: 0,
   identity: { mediaKind: "video", businessKind: "product", businessEntityId: id, seriesId: null, episodeNumber: null },

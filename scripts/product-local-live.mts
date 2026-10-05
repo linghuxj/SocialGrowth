@@ -6,6 +6,7 @@ import { createRequire } from "node:module";
 import { createServer } from "node:net";
 import { chmod, lstat, mkdir, readFile, readdir, realpath, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { parseEnv } from "node:util";
 import { stopOwnedProcessGroups } from "./product-local-process-lifecycle.js";
 import { parseMaterialStorageConfig } from "../product/backend/src/material-object-storage.js";
 
@@ -123,11 +124,20 @@ async function main(): Promise<void> {
   const databaseUrl = `postgresql://socialgrowth:${config.databasePassword}@127.0.0.1:55432/${database}`;
   const pool = new Pool({ connectionString: databaseUrl, max: 2 });
   const ambient = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(SG_|AWS_|ARTEMIS_|OPENAI_)/.test(key)));
+  const backendPort = process.env.SG_PRODUCT_BACKEND_PORT ?? "4320";
+  assert.match(backendPort, /^[0-9]{4,5}$/); assert.ok(Number(backendPort) <= 65535);
   const env = { ...ambient, SG_PRODUCT_DATABASE_URL: databaseUrl, SG_PRODUCT_AUTH_PEPPER: config.authPepper,
     SG_PRODUCT_SMS_MODE: "development_capture", SG_PRODUCT_DEVELOPMENT_SMS_TOKEN: config.developmentSmsToken,
-    SG_PRODUCT_BACKEND_HOST: "127.0.0.1", SG_PRODUCT_BACKEND_PORT: "4320", SG_PRODUCT_TRUST_PROXY_HOPS: "1",
+    SG_PRODUCT_BACKEND_HOST: "127.0.0.1", SG_PRODUCT_BACKEND_PORT: backendPort, SG_PRODUCT_TRUST_PROXY_HOPS: "1",
     SG_PRODUCT_MATERIAL_MODE: "unavailable", SG_PRODUCT_BUSINESS_MODEL_MODE: "unavailable",
     SG_PRODUCT_MEDIA_CREDENTIAL_KEY_FILE: mediaKeyPath };
+  // Explicit opt-in for the small Android pilot; values are file/binary paths,
+  // never Auth Key contents. Other ambient SG configuration remains excluded.
+  for (const name of ["SG_PRODUCT_TAILNET_PILOT_CONFIG", "SG_PRODUCT_TAILNET_PILOT_AUTH_KEY_FILE",
+    "SG_PRODUCT_TAILSCALE_CLI", "SG_PRODUCT_CENTER_ADB", "SG_PRODUCT_CENTER_ADB_USER_HOME"]) {
+    const value = process.env[name];
+    if (value) Object.assign(env, { [name]: value });
+  }
   // Optional, explicitly installed local configuration. Never discover an
   // existing bucket, invent business proof, or fall back to ambient AWS keys.
   const materialConfigPath = resolve(dir, "material-storage.json");
@@ -149,6 +159,35 @@ async function main(): Promise<void> {
   } catch (error) {
     // A present-but-invalid file is a configuration failure, never silently
     // ignored as an unconfigured service.
+    if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error;
+  }
+  // Existing repository Artemis installation is the explicit local model and
+  // execution configuration. Its secrets remain in its private dotenv file.
+  const artemisRoot = resolve(repo, "integrations/google-artemis");
+  try {
+    await lstat(resolve(artemisRoot, ".venv/bin/python"));
+    await lstat(resolve(artemisRoot, ".env"));
+    Object.assign(env, { SG_PRODUCT_BUSINESS_MODEL_MODE: "artemis_configured", SG_PRODUCT_ARTEMIS_ROOT: artemisRoot });
+  } catch (error) {
+    if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error;
+  }
+  try {
+    const runtime = parseEnv(await readFile(resolve(repo, ".env.runtime"), "utf8"));
+    if (runtime.SG_RUNTIME_URL && runtime.SG_RUNTIME_TOKEN) Object.assign(env, {
+      SG_PRODUCT_EXECUTION_RUNTIME_URL: runtime.SG_RUNTIME_URL, SG_PRODUCT_EXECUTION_RUNTIME_TOKEN: runtime.SG_RUNTIME_TOKEN,
+    });
+  } catch (error) {
+    if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error;
+  }
+  try {
+    const path = resolve(dir, "execution-binding.json"), file = await lstat(path);
+    assert.ok(file.isFile() && !file.isSymbolicLink() && (file.mode & 0o077) === 0);
+    const binding = JSON.parse(await readFile(path, "utf8")) as { deviceId: string; serial: string; runtimeBindingId: string };
+    assert.match(binding.deviceId, /^[a-f0-9-]{36}$/); assert.match(binding.serial, /^[A-Za-z0-9_-]{1,100}$/);
+    assert.match(binding.runtimeBindingId, /^[A-Za-z0-9_-]{1,150}$/);
+    Object.assign(env, { SG_PRODUCT_EXECUTION_DEVICE_ID: binding.deviceId, SG_PRODUCT_EXECUTION_SERIAL: binding.serial,
+      SG_PRODUCT_EXECUTION_RUNTIME_BINDING_ID: binding.runtimeBindingId });
+  } catch (error) {
     if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error;
   }
   try {
@@ -184,7 +223,7 @@ async function main(): Promise<void> {
   } finally { await pool.end(); }
   console.log("[product-local] persistent owned database prepared; no device facts seeded; executor disabled");
   if (mode === "serve") {
-    await free(3100); await free(4320);
+    await free(3100); await free(Number(backendPort));
     const children: ReturnType<typeof spawn>[] = [];
     let stopping = false;
     const stop = () => { if (stopping) return; stopping = true; stopOwnedProcessGroups(children); };
@@ -204,10 +243,10 @@ async function main(): Promise<void> {
     }
     try {
       const backend = serve("backend", ["--filter", "@socialgrowth/product-backend", "start"]);
-      await ready("http://127.0.0.1:4320/health/live");
+      await ready(`http://127.0.0.1:${backendPort}/health/live`);
       const web = serve("web", ["--filter", "@socialgrowth/product-web", "exec", "vite", "--host", "127.0.0.1", "--port", "3100", "--strictPort"]);
       await ready("http://127.0.0.1:3100");
-      console.log("[product-local] Web 3100 / backend 4320 ready; Ctrl+C stops owned services, database retained");
+      console.log(`[product-local] Web 3100 / backend ${backendPort} ready; Ctrl+C stops owned services, database retained`);
       await Promise.all([backend, web]);
     } finally { stop(); }
   }

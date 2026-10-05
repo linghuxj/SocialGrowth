@@ -44,6 +44,14 @@ export class ResourcePreparationController {
     try { requireSupportedContract(body); return await this.store.assignAccounts(operatorSessionTokenFrom(request.headers.cookie), csrf ?? "", body); }
     catch (error) { preparationError(error, requestIdFrom(body)); }
   }
+  @Post("reuse-preparing-resources") @Header("Cache-Control", "no-store")
+  async reusePreparingResources(@Body() body: unknown, @Req() request: Request, @Headers("x-csrf-token") csrf: string | undefined) {
+    try {
+      requireSupportedContract(body);
+      const result = await this.store.reusePreparingResources(operatorSessionTokenFrom(request.headers.cookie), csrf ?? "", body);
+      return resourcePreparationResponseSchema.parse({ contractVersion, ...result, actionPermissionGranted: false, acceptanceStarted: false });
+    } catch (error) { preparationError(error, requestIdFrom(body)); }
+  }
   @Post("account-assignments/handover") @Header("Cache-Control", "no-store")
   async handover(@Body() body: unknown, @Req() request: Request, @Headers("x-csrf-token") csrf: string | undefined) {
     try { requireSupportedContract(body); return await this.store.requestHandover(operatorSessionTokenFrom(request.headers.cookie), csrf ?? "", body); }

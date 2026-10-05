@@ -36,6 +36,9 @@ export const reserveResourcePreparationRequestSchema = z.strictObject({ metadata
   expectedResourceVersion: version, expectedProjectVersion: version, expectedDeviceVersion: version,
   reservation: z.strictObject({ projectId: id, deviceId: id, identityIds: z.array(id).min(1).max(2) }),
 });
+export const reusePreparingResourcesRequestSchema = z.strictObject({ metadata,
+  expectedResourceVersion: version, sourceProjectId: id, targetProjectId: id, accountId: id,
+});
 export const resourcePreparationResponseSchema = z.strictObject({ contractVersion: contractVersionSchema,
   version, replayed: z.boolean(), ...closed,
   snapshot: z.strictObject({ accounts: z.array(account), identities: z.array(identity),

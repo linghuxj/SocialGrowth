@@ -2261,7 +2261,8 @@
               "type": "string",
               "enum": [
                 "account_assignment",
-                "handover_request"
+                "handover_request",
+                "preparing_resource_reuse"
               ]
             },
             "accountId": {
@@ -8709,14 +8710,28 @@
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
               },
               "sourceId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               },
               "sourceRecordId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               },
               "identity": {
                 "type": "object",
@@ -8808,12 +8823,19 @@
                     "maxLength": 5000
                   },
                   "sourceStatement": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 5000
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 5000
+                      },
+                      {
+                        "type": "string",
+                        "const": ""
+                      }
+                    ]
                   },
                   "sourceEvidenceIds": {
-                    "minItems": 1,
                     "maxItems": 20,
                     "type": "array",
                     "items": {
@@ -8824,7 +8846,10 @@
                   },
                   "firstUseDeclaration": {
                     "type": "string",
-                    "const": "declared_not_previously_published"
+                    "enum": [
+                      "declared_not_previously_published",
+                      "unknown"
+                    ]
                   },
                   "expectedApprovedDirectionId": {
                     "anyOf": [
@@ -9136,14 +9161,28 @@
                         "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                       },
                       "sourceId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       },
                       "sourceRecordId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       },
                       "identity": {
                         "type": "object",
@@ -9235,12 +9274,19 @@
                             "maxLength": 5000
                           },
                           "sourceStatement": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 5000
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 5000
+                              },
+                              {
+                                "type": "string",
+                                "const": ""
+                              }
+                            ]
                           },
                           "sourceEvidenceIds": {
-                            "minItems": 1,
                             "maxItems": 20,
                             "type": "array",
                             "items": {
@@ -9251,7 +9297,10 @@
                           },
                           "firstUseDeclaration": {
                             "type": "string",
-                            "const": "declared_not_previously_published"
+                            "enum": [
+                              "declared_not_previously_published",
+                              "unknown"
+                            ]
                           },
                           "expectedApprovedDirectionId": {
                             "anyOf": [
@@ -9600,14 +9649,28 @@
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
             },
             "sourceId": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "sourceRecordId": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "identity": {
               "type": "object",
@@ -9699,12 +9762,19 @@
                   "maxLength": 5000
                 },
                 "sourceStatement": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 5000
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 5000
+                    },
+                    {
+                      "type": "string",
+                      "const": ""
+                    }
+                  ]
                 },
                 "sourceEvidenceIds": {
-                  "minItems": 1,
                   "maxItems": 20,
                   "type": "array",
                   "items": {
@@ -9715,7 +9785,10 @@
                 },
                 "firstUseDeclaration": {
                   "type": "string",
-                  "const": "declared_not_previously_published"
+                  "enum": [
+                    "declared_not_previously_published",
+                    "unknown"
+                  ]
                 },
                 "expectedApprovedDirectionId": {
                   "anyOf": [
@@ -9953,12 +10026,19 @@
                     "maxLength": 5000
                   },
                   "sourceStatement": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 5000
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 5000
+                      },
+                      {
+                        "type": "string",
+                        "const": ""
+                      }
+                    ]
                   },
                   "sourceEvidenceIds": {
-                    "minItems": 1,
                     "maxItems": 20,
                     "type": "array",
                     "items": {
@@ -9969,7 +10049,10 @@
                   },
                   "firstUseDeclaration": {
                     "type": "string",
-                    "const": "declared_not_previously_published"
+                    "enum": [
+                      "declared_not_previously_published",
+                      "unknown"
+                    ]
                   },
                   "expectedApprovedDirectionId": {
                     "anyOf": [
@@ -10133,14 +10216,28 @@
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         },
         "sourceId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "sourceRecordId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "identity": {
           "type": "object",
@@ -10232,12 +10329,19 @@
               "maxLength": 5000
             },
             "sourceStatement": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 5000
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 5000
+                },
+                {
+                  "type": "string",
+                  "const": ""
+                }
+              ]
             },
             "sourceEvidenceIds": {
-              "minItems": 1,
               "maxItems": 20,
               "type": "array",
               "items": {
@@ -10248,7 +10352,10 @@
             },
             "firstUseDeclaration": {
               "type": "string",
-              "const": "declared_not_previously_published"
+              "enum": [
+                "declared_not_previously_published",
+                "unknown"
+              ]
             },
             "expectedApprovedDirectionId": {
               "anyOf": [
@@ -10329,14 +10436,28 @@
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         },
         "sourceId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "sourceRecordId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "identity": {
           "type": "object",
@@ -10428,12 +10549,19 @@
               "maxLength": 5000
             },
             "sourceStatement": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 5000
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 5000
+                },
+                {
+                  "type": "string",
+                  "const": ""
+                }
+              ]
             },
             "sourceEvidenceIds": {
-              "minItems": 1,
               "maxItems": 20,
               "type": "array",
               "items": {
@@ -10444,7 +10572,10 @@
             },
             "firstUseDeclaration": {
               "type": "string",
-              "const": "declared_not_previously_published"
+              "enum": [
+                "declared_not_previously_published",
+                "unknown"
+              ]
             },
             "expectedApprovedDirectionId": {
               "anyOf": [
@@ -10667,14 +10798,28 @@
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         },
         "sourceId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "sourceRecordId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "identity": {
           "type": "object",
@@ -10766,12 +10911,19 @@
               "maxLength": 5000
             },
             "sourceStatement": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 5000
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 5000
+                },
+                {
+                  "type": "string",
+                  "const": ""
+                }
+              ]
             },
             "sourceEvidenceIds": {
-              "minItems": 1,
               "maxItems": 20,
               "type": "array",
               "items": {
@@ -10782,7 +10934,10 @@
             },
             "firstUseDeclaration": {
               "type": "string",
-              "const": "declared_not_previously_published"
+              "enum": [
+                "declared_not_previously_published",
+                "unknown"
+              ]
             },
             "expectedApprovedDirectionId": {
               "anyOf": [

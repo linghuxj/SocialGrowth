@@ -3,7 +3,7 @@ import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import { contractVersion, registerMediaIdentityRequestSchema, registerMediaIdentityResponseSchema, requestMetadataSchema,
   accountAssignmentRequestSchema, accountAssignmentResponseSchema, accountAssignmentListResponseSchema,
-  resourceCommandLookupResponseSchema, resourceHandoverRequestSchema, resourceHandoverResponseSchema } from "@socialgrowth/product-contracts";
+  resourceCommandLookupResponseSchema, resourceHandoverRequestSchema, resourceHandoverResponseSchema, reusePreparingResourcesRequestSchema } from "@socialgrowth/product-contracts";
 import { OperatorAuthService } from "./operator-auth-service.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
 import { initialReservationSchema, parseResourceReservations, reserveInitialResources, ResourceReservationError,
@@ -163,11 +163,57 @@ export class ResourceReservationStore {
       return accountAssignmentResponseSchema.parse({ contractVersion, resourceVersion: appliedVersion, assignments: assignments.rows, changed, replayed: false, actionPermissionGranted: false, publicationAllowed: false });
     });
   }
+  async reusePreparingResources(token: string, csrf: string, input: unknown): Promise<ResourceReservationResult> {
+    const r = reusePreparingResourcesRequestSchema.parse(input);
+    const { requestId: _requestId, ...metadata } = r.metadata;
+    const digest = createHash("sha256").update(JSON.stringify({ operation: "reuse_preparing_resources", ...r, metadata })).digest();
+    return this.transaction(token, csrf, async (c, actor) => {
+      const version = await this.version(c);
+      const old = (await c.query<{ payload_digest: Buffer }>(`SELECT payload_digest FROM ${schema}.resource_reservation_commands WHERE actor_id=$1 AND request_key=$2`, [actor, metadata.idempotencyKey])).rows[0];
+      if (old) {
+        if (!old.payload_digest.equals(digest)) throw new ProductTransactionError("IDEMPOTENCY_KEY_REUSED", "Resource request key belongs to other inputs");
+        return { version, snapshot: await load(c), replayed: true };
+      }
+      const collision = await c.query(`SELECT 1 FROM ${schema}.resource_account_assignment_commands WHERE actor_id=$1 AND request_key=$2
+        UNION ALL SELECT 1 FROM ${schema}.media_account_commands WHERE actor_id=$1 AND request_key=$2
+        UNION ALL SELECT 1 FROM ${schema}.media_registry_commands WHERE actor_id=$1 AND request_key=$2
+        UNION ALL SELECT 1 FROM ${schema}.resource_handover_requests WHERE actor_id=$1 AND request_key=$2 LIMIT 1`, [actor, metadata.idempotencyKey]);
+      if (collision.rowCount) throw new ProductTransactionError("IDEMPOTENCY_KEY_REUSED", "Resource request key belongs to another operation");
+      if (version !== r.expectedResourceVersion || r.sourceProjectId === r.targetProjectId) throw stale();
+      const projects = (await c.query<{ project_id: string; phase: string }>(`SELECT project_id,phase FROM ${schema}.projects WHERE project_id=ANY($1::uuid[]) ORDER BY project_id FOR UPDATE`, [[r.sourceProjectId, r.targetProjectId]])).rows;
+      if (projects.length !== 2 || projects.some(p => p.phase !== "preparing")) throw new ProductTransactionError("INPUT_INVALID", "只能复用尚未开始执行的筹备项目资源");
+      const assignment = (await c.query<{ device_id: string; handover_requested: boolean }>(`SELECT device_id,handover_requested FROM ${schema}.project_media_account_assignments WHERE account_id=$1 AND project_id=$2 FOR UPDATE`, [r.accountId, r.sourceProjectId])).rows[0];
+      if (!assignment || assignment.handover_requested) throw stale();
+      const deviceId = assignment.device_id;
+      await c.query(`SELECT device_id FROM ${schema}.devices WHERE device_id=$1 FOR UPDATE`, [deviceId]);
+      const dispatched = await c.query(`SELECT 1 FROM ${schema}.business_plan_task_attempts WHERE project_id=$1
+        UNION ALL SELECT 1 FROM ${schema}.artemis_preparation_intents a JOIN ${schema}.account_preparation_tasks t USING(task_id) WHERE t.project_id=$1
+        UNION ALL SELECT 1 FROM ${schema}.project_media_account_assignments WHERE device_id=$2 AND account_id<>$3
+        UNION ALL SELECT 1 FROM ${schema}.phone_control_journals WHERE device_id=$2 AND
+          (record->>'disposition' IS DISTINCT FROM 'stopped' OR EXISTS(SELECT 1 FROM jsonb_array_elements(record->'calls') call WHERE call->>'status' IS DISTINCT FROM 'ended')) LIMIT 1`, [r.sourceProjectId, deviceId, r.accountId]);
+      if (dispatched.rowCount) throw new ProductTransactionError("INPUT_INVALID", "旧项目已有执行尝试或手机操作未结束，请先核对原任务，不能移用资源");
+      const identities = (await c.query<{ identity_id: string; account_id: string; platform: string }>(`SELECT identity_id,account_id,platform FROM ${schema}.project_identity_reservations WHERE account_id=$1 AND project_id=$2 AND device_id=$3 FOR UPDATE`, [r.accountId, r.sourceProjectId, deviceId])).rows;
+      if ((await c.query(`SELECT 1 FROM ${schema}.project_identity_reservations WHERE device_id=$1 AND account_id<>$2`, [deviceId, r.accountId])).rowCount) throw stale();
+      await c.query(`DELETE FROM ${schema}.project_identity_reservations WHERE account_id=$1 AND project_id=$2`, [r.accountId, r.sourceProjectId]);
+      await c.query(`UPDATE ${schema}.project_account_reservations SET project_id=$2 WHERE account_id=$1 AND project_id=$3`, [r.accountId, r.targetProjectId, r.sourceProjectId]);
+      await c.query(`UPDATE ${schema}.project_device_reservations SET project_id=$2 WHERE device_id=$1 AND project_id=$3`, [deviceId, r.targetProjectId, r.sourceProjectId]);
+      await c.query(`UPDATE ${schema}.project_media_account_assignments SET project_id=$2 WHERE account_id=$1 AND project_id=$3`, [r.accountId, r.targetProjectId, r.sourceProjectId]);
+      for (const identity of identities) await c.query(`INSERT INTO ${schema}.project_identity_reservations(identity_id,account_id,platform,device_id,project_id,reserved_by_operator_id) VALUES($1,$2,$3,$4,$5,$6)`, [identity.identity_id, identity.account_id, identity.platform, deviceId, r.targetProjectId, actor]);
+      await c.query(`UPDATE ${schema}.projects SET fact_version=fact_version+1 WHERE project_id=ANY($1::uuid[])`, [[r.sourceProjectId, r.targetProjectId]]);
+      await c.query(`UPDATE ${schema}.resource_reservation_guard SET version=version+1 WHERE singleton=true`);
+      await c.query(`INSERT INTO ${schema}.resource_reservation_commands(actor_id,request_key,payload_digest,applied_version) VALUES($1,$2,$3,$4)`, [actor, metadata.idempotencyKey, digest, version+1]);
+      await c.query(`INSERT INTO ${schema}.audit_records(audit_record_id,actor_type,actor_id,action,object_type,object_id,request_id,facts) VALUES($1,'operator',$2,'resource.preparing_resources_reused','media_account',$3,$4,$5)`, [randomUUID(), actor, r.accountId, r.metadata.requestId, { idempotencyKey: metadata.idempotencyKey, sourceProjectId: r.sourceProjectId, targetProjectId: r.targetProjectId, deviceId, identityIds: identities.map(i => i.identity_id) }]);
+      return { version: version+1, snapshot: await load(c), replayed: false };
+    });
+  }
   async lookupResourceCommand(token: string, rawKey: unknown) {
     const key = z.string().regex(/^[A-Za-z0-9_-]{16,128}$(?![\s\S])/).safeParse(rawKey); if (!key.success) throw new ProductTransactionError("INPUT_INVALID", "Invalid command key");
     return this.transaction(token, null, async (client, actor) => {
       const assignment = (await client.query<{ account_id: string }>(`SELECT account_id FROM ${schema}.resource_account_assignment_commands WHERE actor_id=$1 AND request_key=$2`, [actor, key.data])).rows[0];
       if (assignment) return resourceCommandLookupResponseSchema.parse({ contractVersion, state: "applied", commandKind: "account_assignment", accountId: assignment.account_id, resourceVersion: await this.version(client) });
+      const reuse = (await client.query<{ object_id: string }>(`SELECT object_id FROM ${schema}.audit_records WHERE actor_id=$1 AND action='resource.preparing_resources_reused'
+        AND facts->>'idempotencyKey'=$2 AND EXISTS(SELECT 1 FROM ${schema}.resource_reservation_commands c WHERE c.actor_id=$1 AND c.request_key=$2) LIMIT 1`, [actor, key.data])).rows[0];
+      if (reuse) return resourceCommandLookupResponseSchema.parse({ contractVersion, state: "applied", commandKind: "preparing_resource_reuse", accountId: reuse.object_id, resourceVersion: await this.version(client) });
       const handover = (await client.query<{ handover_id: string; account_ids: string[]; source_project_id: string; source_device_id: string; target_project_id: string; target_device_id: string; reason: string }>(
         `SELECT handover_id,account_ids,source_project_id,source_device_id,target_project_id,target_device_id,reason FROM ${schema}.resource_handover_requests WHERE actor_id=$1 AND request_key=$2`, [actor, key.data])).rows[0];
       return handover ? resourceCommandLookupResponseSchema.parse({ contractVersion, state: "applied", commandKind: "handover_request", accountId: handover.account_ids[0] ?? null, resourceVersion: await this.version(client) })

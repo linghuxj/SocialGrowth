@@ -12,6 +12,8 @@ import {
   updateMediaAccountRequestSchema,
   updateMediaAccountResponseSchema,
   uuidSchema,
+  reusePreparingResourcesRequestSchema,
+  resourcePreparationResponseSchema,
   writeMediaCredentialRequestSchema,
   writeMediaCredentialResponseSchema,
   type AccountAssignmentRequest,
@@ -219,6 +221,11 @@ export class PreparedAccountAssignment {
 
 export function prepareAccountAssignment(input: Omit<AccountAssignmentRequest, "metadata">) {
   return new PreparedAccountAssignment({ metadata: newMediaMetadata(), ...input });
+}
+export function preparePreparingResourceReuse(input: { expectedResourceVersion: number; sourceProjectId: string; targetProjectId: string; accountId: string }) {
+  const request = reusePreparingResourcesRequestSchema.parse({ metadata: newMediaMetadata(), ...input });
+  return { idempotencyKey: request.metadata.idempotencyKey,
+    send: prepareOperatorPost("/api/operator/resources/reuse-preparing-resources", JSON.stringify(request), resourcePreparationResponseSchema) };
 }
 
 export async function readMediaAccountCommand(key: string): Promise<MediaAccountCommandLookup> {

@@ -8,6 +8,8 @@ import { MaterialRuntime } from "./material-runtime.js";
 import { operatorSessionTokenFrom } from "./operator-session-cookie.js";
 import { MaterialUploadError } from "./material-upload-core.js";
 import { ProductTransactionError } from "./product-transaction-error.js";
+import { ArtemisBusinessModel } from "./artemis-business-model.js";
+import { analyzeMaterial } from "./material-analysis.js";
 import { requestIdFrom, requireSupportedContract, rethrowHttp } from "./product-http.js";
 interface Request { headers: Record<string, string | string[] | undefined> }
 function token(request: Request): string {
@@ -36,7 +38,14 @@ function fail(error: unknown, requestId: string): never {
 }
 @Controller("api/operator/projects/:projectId/material-uploads")
 export class MaterialUploadController {
-  constructor(@Inject(MaterialRuntime) private readonly runtime: MaterialRuntime) {}
+  constructor(@Inject(MaterialRuntime) private readonly runtime: MaterialRuntime,
+    @Inject(ArtemisBusinessModel) private readonly model: ArtemisBusinessModel | null = null) {}
+  @Post(":objectId/analyze") @Header("Cache-Control", "no-store")
+  async analyze(@Param("projectId") projectId: string, @Param("objectId") objectId: string,
+    @Req() request: Request, @Headers("x-csrf-token") csrf: string | undefined) {
+    try { return await analyzeMaterial(this.runtime, this.model, token(request), csrf ?? "", projectId, objectId); }
+    catch (error) { fail(error, `request-${randomUUID()}`); }
+  }
   @Get() @Header("Cache-Control", "no-store")
   async list(@Param("projectId") projectId: string, @Query() query: unknown, @Req() request: Request) {
     try {

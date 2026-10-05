@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import { z } from "zod";
-import { initialDirectionOutputSchema } from "@socialgrowth/product-contracts";
+import { initialDirectionOutputSchema, materialAnalysisOutputSchema } from "@socialgrowth/product-contracts";
 import { businessSuggestionSchema } from "./business-suggestion-core.js";
 import type { BusinessModelPort } from "./business-model-coordinator.js";
 const description = z.strictObject({ configured: z.literal(true), providerKey: z.string().min(1).max(100), modelKey: z.string().min(1).max(150) });
@@ -65,6 +65,11 @@ export class ArtemisBusinessModel implements BusinessModelPort, InitialDirection
       throw new Error("BUSINESS_MODEL_SCHEMA_INVALID");
     }
     return { ...response, output: output.data };
+  }
+  async analyzeMaterial(input: { durationSeconds: number; frames: string[] }, signal: AbortSignal) {
+    const response = returned.parse(await this.invoke([], { operation: "material_analysis", input,
+      outputSchema: z.toJSONSchema(materialAnalysisOutputSchema, { io: "input" }) }, signal));
+    return materialAnalysisOutputSchema.parse(JSON.parse(response.outputText));
   }
   async generate(request: Parameters<BusinessModelPort["generate"]>[0], signal: AbortSignal) {
     const response = returned.parse(await this.invoke([], { operation: "business_suggestion", input: request.input,

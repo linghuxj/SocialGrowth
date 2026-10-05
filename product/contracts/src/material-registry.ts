@@ -8,21 +8,21 @@ const uniqueIds = (ids: string[]) => new Set(ids.map(id => id.toLowerCase())).si
 export const materialHumanIdentitySchema = z.strictObject({ mediaKind: z.enum(["video", "image_text"]), businessKind: z.enum(["product", "drama"]),
   businessEntityId: uuidSchema, seriesId: uuidSchema.nullable(), episodeNumber: z.int().min(1).nullable() }).refine(v =>
   (v.seriesId === null) === (v.episodeNumber === null) && (v.seriesId === null || (v.mediaKind === "video" && v.businessKind === "drama")), "Invalid explicit episode identity");
-const humanDeclarationFields = { name: text(150), description: text(5000), businessFacts: text(5000), sourceStatement: text(5000),
-  sourceEvidenceIds: z.array(uuidSchema).min(1).max(20), firstUseDeclaration: z.literal("declared_not_previously_published") };
+const humanDeclarationFields = { name: text(150), description: text(5000), businessFacts: text(5000), sourceStatement: z.union([text(5000), z.literal("")]),
+  sourceEvidenceIds: z.array(uuidSchema).max(20), firstUseDeclaration: z.enum(["declared_not_previously_published", "unknown"]) };
 export const materialHumanDeclarationSchema = z.strictObject({ ...humanDeclarationFields, expectedApprovedDirectionId: uuidSchema.nullable().optional(),
   expectedApprovedProjectVersion: z.int().min(0).nullable().optional(), contentRulesReviewed: z.boolean().optional() })
   .refine(v => uniqueIds(v.sourceEvidenceIds), "Duplicate evidence identity");
 export const materialHumanDeclarationViewSchema = z.strictObject({ ...humanDeclarationFields, expectedApprovedDirectionId: uuidSchema.nullable(),
   expectedApprovedProjectVersion: z.int().min(0).nullable(), contentRulesReviewed: z.boolean() }).refine(v => uniqueIds(v.sourceEvidenceIds), "Duplicate evidence identity");
 export const saveMaterialDeclarationRequestSchema = z.strictObject({ metadata: requestMetadataSchema, projectId: uuidSchema, contentUnitId: uuidSchema,
-  sourceId: uuidSchema, sourceRecordId: uuidSchema, identity: materialHumanIdentitySchema, variantId: uuidSchema,
+  sourceId: uuidSchema.nullable(), sourceRecordId: uuidSchema.nullable(), identity: materialHumanIdentitySchema, variantId: uuidSchema,
   languageTag: z.string().regex(/^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/).max(100), expectedCurrentRevision: z.int().min(0).max(1000),
   declaration: materialHumanDeclarationSchema, objectIds: z.array(uuidSchema).min(1).max(20) }).refine(v => uniqueIds(v.objectIds) && (v.identity.mediaKind !== "video" || v.objectIds.length === 1), "Invalid explicit object list");
 const objectView = z.strictObject({ objectId: uuidSchema, sha256: z.string().regex(/^[a-f0-9]{64}$/), bytes: z.int().min(1).max(128 * 1024 * 1024), contentType: materialUploadContentTypeSchema });
 export const materialEligibilityReasonSchema = z.enum(["direction_not_approved", "approved_direction_stale", "language_not_targeted", "no_approved_content_form",
   "scope_confirmation_missing", "scope_confirmation_stale", "content_rules_need_human_check", "source_record_conflict", "exact_sha_collision", "material_withdrawn"]);
-const fields = { projectId: uuidSchema, contentUnitId: uuidSchema, sourceId: uuidSchema, sourceRecordId: uuidSchema, identity: materialHumanIdentitySchema,
+const fields = { projectId: uuidSchema, contentUnitId: uuidSchema, sourceId: uuidSchema.nullable(), sourceRecordId: uuidSchema.nullable(), identity: materialHumanIdentitySchema,
   variantId: uuidSchema, languageTag: z.string().regex(/^[a-z]{2,8}(?:-[a-z0-9]{1,8})*$/).max(100), currentRevision: z.int().min(1).max(1000),
   declaration: materialHumanDeclarationViewSchema, objects: z.array(objectView).min(1).max(20),
   recordedAt: timestampSchema.refine(v => !v.startsWith("0000-"), "Invalid recorded year"), status: z.enum(["pending_validation", "candidate"]),

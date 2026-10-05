@@ -69,6 +69,19 @@ export class MaterialUploadStore {
     if (!uuidSchema.safeParse(projectId).success || !uuidSchema.safeParse(objectId).success) throw new ProductTransactionError("INPUT_INVALID", "Invalid upload locator");
     return this.tx(token, null, async c => { await this.project(c, projectId.toLowerCase()); const saved = await this.load(c, objectId.toLowerCase()); if (!saved || saved.projectId !== projectId.toLowerCase()) throw stale(); return saved; });
   }
+  async readAnalysisBytes(token: string, csrf: string, projectId: string, objectId: string) {
+    if (!uuidSchema.safeParse(projectId).success || !uuidSchema.safeParse(objectId).success) throw new ProductTransactionError("INPUT_INVALID", "Invalid material locator");
+    const ticket = await this.tx(token, csrf, async c => {
+      await this.project(c, projectId.toLowerCase());
+      const saved = await this.load(c, objectId.toLowerCase());
+      if (!saved || saved.projectId !== projectId.toLowerCase() || saved.status !== "verified_bytes" || saved.descriptor.contentType !== "video/mp4") throw stale();
+      return saved;
+    });
+    const bytes = await this.configured().readVerified(ticket.descriptor);
+    // Recheck the authenticated object after IO; never return a cross-project object.
+    await this.read(token, projectId, objectId);
+    return { bytes, sha256: ticket.descriptor.sha256 };
+  }
   async list(token: string, projectId: string, input: unknown) {
     const p = materialUploadInventoryQuerySchema.safeParse(input);
     if (!uuidSchema.safeParse(projectId).success || !p.success) throw new ProductTransactionError("INPUT_INVALID", "Invalid upload inventory locator");

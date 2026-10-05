@@ -4,6 +4,7 @@ import { isDefinitiveProjectRejection, listProjects, ProductApiError, currentOpe
 import {
   prepareAccountAssignment, prepareCredentialInvalidate, prepareCredentialPut,
   prepareMediaAccountCreate, prepareMediaAccountProfile, readAccountAssignments, readMediaAccountCommand,
+  preparePreparingResourceReuse,
   readMediaAccounts, readResourceCommand,
 } from "./media-accounts-api.js";
 
@@ -214,6 +215,23 @@ export function MediaAccountsPanel({ active, refreshVersion, readOnly, onExpired
       await refresh();
     } catch (e) { handleWriteFailure(e); } finally { setBusy(false); }
   }
+  async function reuse(account: MediaAccount) {
+    if (readOnly || busy || pendingKey || !projectId || !account.reservation || !assignment) return;
+    const prepared = preparePreparingResourceReuse({ expectedResourceVersion: assignment.resourceVersion,
+      sourceProjectId: account.reservation.projectId, targetProjectId: projectId, accountId: account.accountId });
+    const owner = currentOperatorSessionContext()?.operatorId;
+    if (!owner) return;
+    rememberPending({ key: prepared.idempotencyKey, kind: "assignment", operatorId: owner, send: prepared.send, lookup: () => readResourceCommand(prepared.idempotencyKey) });
+    setBusy(true); setError(""); setNotice("");
+    try {
+      await prepared.send(); clearPending();
+      setNotice("已有账号、手机和发布身份已移用到当前项目；原账号资料与历史记录保留。");
+      await refresh();
+    } catch (cause) {
+      if (cause instanceof ProductApiError && isDefinitiveNoWrite(cause)) { clearPending(); setError(cause.response.error.message); }
+      else handleWriteFailure(cause);
+    } finally { setBusy(false); }
+  }
 
   if (!active) return null;
   const reserved = assignment?.assignments ?? [];
@@ -252,6 +270,11 @@ export function MediaAccountsPanel({ active, refreshVersion, readOnly, onExpired
     <section className="panel" aria-labelledby="account-assignment-title"><div className="section-heading"><div><h2 id="account-assignment-title">项目账号与手机分配</h2><p className="muted">选择不会自动绑定。提交后服务端持久占用并检查唯一性。</p></div></div>
       <label>项目<select aria-label="筹备项目" value={projectId} onChange={e => setProjectId(e.target.value)}><option value="">选择项目</option>{projects.map(p => <option key={p.projectId} value={p.projectId}>{p.name}（筹备中）</option>)}</select></label>
       {projectId && <>{assignment?.assignments.length ? <p className="info-note">本项目已占用：{assignment.assignments.map(a => `${a.platform} · ${a.accountId.slice(0,8)} → ${a.deviceId.slice(0,8)}`).join("；")}</p> : <p>本项目尚无账号与手机分配。</p>}
+        {!readOnly && accounts.filter(a => a.reservation && a.reservation.projectId !== projectId).map(account => <div key={account.accountId} className="info-note">
+          <p>已有账号：{account.displayName} · {account.platform}，当前属于“{projects.find(p => p.projectId === account.reservation!.projectId)?.name ?? "其他项目"}”。</p>
+          <p>可将尚未派发执行的账号、手机和 Page／频道一起移用到所选项目；旧项目已有执行尝试时会保留占用。</p>
+          <button className="outline-button" disabled={busy || Boolean(pendingKey) || !assignment} onClick={() => void reuse(account)}>移用已有账号到所选项目</button>
+        </div>)}
         {assignment && assignment.eligibleDevices.length === 0 ? <p className="info-note">当前没有可分配手机。需要先通过产品支持的真实设备接入流程建立资源；此处不会创建或伪造手机记录。</p> : assignment && !readOnly && <form onSubmit={e => void assign(e)}>
           <label>可用手机<select name="deviceId" required><option value="">选择实际可用手机</option>{assignment.eligibleDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.deviceId} · {d.state}</option>)}</select></label>
           <fieldset><legend>选择媒体账号（最多 2 个）</legend>{accounts.filter(a => !a.reservation).map(a => <label key={a.accountId}><input type="checkbox" name="accountId" value={a.accountId} />{a.displayName} · {a.platform}</label>)}</fieldset>

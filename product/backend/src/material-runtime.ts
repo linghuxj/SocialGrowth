@@ -4,6 +4,7 @@ import { MaterialObjectStorage, MaterialStorageError, parseMaterialStorageConfig
 import { MaterialUploadStore } from "./material-upload-store.js";
 import { MaterialRegistryStore } from "./material-registry-store.js";
 import type { OperatorAuthService } from "./operator-auth-service.js";
+import { materialObjectReferenceSchema } from "./material-registry-core.js";
 const fields = ["LOCATION_ID", "ENDPOINT", "REGION", "BUCKET", "FORCE_PATH_STYLE", "ACCESS_KEY", "SECRET_KEY", "SESSION_TOKEN", "MAX_OBJECT_BYTES", "REQUEST_TIMEOUT_MS"] as const;
 // Explicit trusted server environment only. Never a request body, ambient AWS
 // profile/metadata, existing bucket discovery or auto-provisioning path.
@@ -23,12 +24,23 @@ export function readMaterialRuntimeConfig(environment: NodeJS.ProcessEnv = proce
 }
 export class MaterialRuntime implements OnApplicationShutdown {
   #storage: MaterialObjectStorage | null; #uploads: MaterialUploadStore; #registry: MaterialRegistryStore;
-  constructor(pool: Pool, auth: OperatorAuthService, config: MaterialStorageConfig | null) {
+  constructor(private readonly pool: Pool, auth: OperatorAuthService, config: MaterialStorageConfig | null) {
     this.#storage = config ? new MaterialObjectStorage(config) : null;
     this.#uploads = new MaterialUploadStore(pool, auth, this.#storage);
     this.#registry = new MaterialRegistryStore(pool, auth, this.#storage ? this.#uploads.objectVerifier() : null);
   }
   uploads() { return this.#uploads; }
   registry() { return this.#registry; }
+  // Internal executor only, after current task scope/action authorization.
+  // Exact manifest facts must match; no URL/path/body-owned storage access.
+  async readWorkflowFile(projectId: string, file: { objectId: string; sha256: string; bytes: number; contentType: string }): Promise<Buffer> {
+    if (!this.#storage) throw new MaterialStorageError("CONFIGURATION_REQUIRED");
+    const row = (await this.pool.query<{ reference: unknown }>(`SELECT m.reference FROM socialgrowth_product.material_object_manifests m
+      JOIN socialgrowth_product.material_upload_tickets t USING(object_id,project_id)
+      WHERE m.project_id=$1 AND m.object_id=$2 AND t.status='verified_bytes'`, [projectId, file.objectId])).rows[0];
+    const ref = materialObjectReferenceSchema.parse(row?.reference);
+    if (ref.projectId !== projectId || ref.objectId !== file.objectId || ref.sha256 !== file.sha256 || ref.bytes !== file.bytes || ref.contentType !== file.contentType) throw new MaterialStorageError("OBJECT_INTEGRITY_FAILED");
+    return this.#storage.readVerified(ref);
+  }
   onApplicationShutdown() { this.#storage?.close(); }
 }

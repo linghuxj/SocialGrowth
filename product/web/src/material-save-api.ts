@@ -5,7 +5,7 @@ type SaveInput = ReturnType<typeof saveMaterialDeclarationRequestSchema.parse>;
 export class MaterialWriteError extends Error {
   constructor(readonly code: "MATERIAL_WRITE_INVALID" | "MATERIAL_WRITE_PROTOCOL_INVALID" | "MATERIAL_WRITE_UNAVAILABLE") { super(code); }
 }
-const sameId = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+const sameId = (a: string | null, b: string | null) => a?.toLowerCase() === b?.toLowerCase();
 function identityMatches(input: SaveInput, value: MaterialSaveResult): boolean {
   return sameId(input.projectId, value.projectId) && sameId(input.contentUnitId, value.contentUnitId)
     && sameId(input.sourceId, value.sourceId) && sameId(input.sourceRecordId, value.sourceRecordId) && sameId(input.variantId, value.variantId)
