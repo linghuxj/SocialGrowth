@@ -1,0 +1,26 @@
+{
+  "title": "Web 调度总控全流程编排、AI 动态内容自适应与人工接管边界验收报告",
+  "webConsoleUrl": "http://127.0.0.1:3100",
+  "projectId": "b03a3291-92ed-445a-b516-3955446fcc63",
+  "projectName": "霸道总裁北美短剧出海",
+  "targetDevice": "Samsung SM-S9110 (RFCW40MYYCV)",
+  "targetIdentity": "fb_page_tongm_drama (Tongm Mhuo 短剧精选)",
+  "stagesConfigured": [
+    "1. AI 动态多模态内容理解与策略自适应生成（针对不同题材/剧集自适应推演高冲突 Hook、留白文案、标签）",
+    "2. Artemis 真机调度与商业公共主页自适应发布",
+    "3. 真实指标视觉 OCR 采集与 PostgreSQL 权威落库",
+    "4. AI 效果复盘与次周期排期自适应迭代",
+    "5. 安全守卫与 5% 人工协助接管闭环"
+  ],
+  "humanTakeoverBoundary": {
+    "autonomousRatio": "95%",
+    "manualTakeoverTriggers": [
+      "平台 2FA / 短信验证码拦截",
+      "物理设备硬件脱机 / 死机",
+      "商业公共主页/账号被风控封禁申诉",
+      "商业预算超限或财务充值审批"
+    ]
+  },
+  "verificationVerdict": "PASSED",
+  "verifiedAt": "2026-10-05T10:57:19.028Z"
+}

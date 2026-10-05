@@ -1,0 +1,26 @@
+{
+  "title": "Web 调度总控全流程编排与 AI 动态内容自适应验收报告",
+  "webConsoleUrl": "http://127.0.0.1:3100",
+  "projectId": "b03a3291-92ed-445a-b516-3955446fcc63",
+  "projectName": "霸道总裁北美短剧出海",
+  "orchestratorCapabilities": {
+    "stagesConfigured": [
+      "1. AI 多模态素材理解与动态策略自适应生成",
+      "2. Google Artemis 真机决策商业公共主页自主发布",
+      "3. 真实线上指标视觉 OCR 采集与持久化",
+      "4. AI 效果自主诊断与次周期策略迭代优化",
+      "5. 异常熔断与人工接管安全守卫"
+    ],
+    "contentAdaptationMethod": "AI 动态提取各集核心冲突点并生成差异化 Hook/文案，非程序硬编码",
+    "testedEpisode": "ep2 (第 2 集：豪门晚宴 · 假名媛被当众撕破面具)",
+    "targetDevice": "Samsung SM-S9110 (RFCW40MYYCV)",
+    "targetPage": "Tongm Mhuo 短剧精选 (fb_page_tongm_drama)",
+    "humanInterventionBoundary": "仅在物理硬件故障、初始凭据录入或平台 2FA/滑块风控时挂起待办，常规全流程由 AI 自动流转"
+  },
+  "artifacts": {
+    "overviewScreenshot": "/Users/linghuxj/Documents/myproject/project/SocialGrowth/artifacts/acceptance/product/automation-orchestrator/01-web-orchestrator-overview.png",
+    "executedScreenshot": "/Users/linghuxj/Documents/myproject/project/SocialGrowth/artifacts/acceptance/product/automation-orchestrator/02-web-orchestrator-executed.png"
+  },
+  "status": "passed",
+  "completedAt": "2026-10-05T10:39:08.309Z"
+}

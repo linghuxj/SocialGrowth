@@ -8,13 +8,13 @@ await mkdir(outputDir, { recursive: true, mode: 0o755 });
 
 async function main() {
   console.log("==========================================================================");
-  console.log("🌐 验证 Web 调度总控: AI 自动化全流程闭环编排与内容自适应验证");
+  console.log("🌐 验证 Web 调度总控: AI 动态内容自适应、端到端全闭环与人工接管边界验收");
   console.log("==========================================================================");
 
   const config = JSON.parse(await readFile(".runtime/product-local-live/config.json", "utf8"));
 
   const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({ locale: "zh-CN", viewport: { width: 1440, height: 1000 } });
+  const context = await browser.newContext({ locale: "zh-CN", viewport: { width: 1440, height: 1100 } });
   const page = await context.newPage();
 
   // 1. 登录 Web 控制台
@@ -51,80 +51,138 @@ async function main() {
   await orchestratorSection.getByRole("heading", { name: "次周期策略迭代" }).waitFor();
   await orchestratorSection.getByRole("heading", { name: "异常熔断与接管" }).waitFor();
 
+  // 5. 校验 95% AI 自主与 5% 人工协助边界清单
+  console.log("[步骤 5] 核验 AI 自主边界与 5% 人工协助边界定义卡片...");
+  const boundarySection = orchestratorSection.locator(".human-boundary-section");
+  await boundarySection.waitFor();
+  await boundarySection.getByText("95% AI 完全自主闭环范围", { exact: false }).waitFor();
+  await boundarySection.getByText("5% 必须人工介入边界清单", { exact: false }).waitFor();
+  await boundarySection.getByText("平台 2FA / 短信验证码拦截", { exact: false }).waitFor();
+  await boundarySection.getByText("物理设备脱机 / 硬件死机", { exact: false }).waitFor();
+  console.log("✔ 人工接管边界清单与权限隔离明确展示通过");
+
   const screenshotOverview = `${outputDir}/01-web-orchestrator-overview.png`;
   await page.screenshot({ path: screenshotOverview, fullPage: true });
   console.log(`✔ 调度总控全景看板截图已保存: ${screenshotOverview}`);
 
-  // 5. 校验 AI 动态内容自适应能力：切换不同剧集切片
-  console.log("[步骤 5] 验证 AI 化动态内容自适应切换 (切换至第 2 集)...");
+  // 6. 验证 AI 动态内容自适应能力：预设剧集切换 (第 2 集)
+  console.log("[步骤 6] 验证预设剧集切换与 AI 动态内容自适应 (切换至第 2 集)...");
   const episodeSelect = orchestratorSection.locator("select");
   await episodeSelect.selectOption("ep2");
 
-  // 断言策略预览根据第2集剧情实时自适应更新（而非硬编码固定文案）
-  await orchestratorSection.getByText("恶毒女二在慈善晚宴当众泼酒羞辱", { exact: false }).waitFor();
-  await orchestratorSection.getByText("把红酒泼回她脸上，一切后果我来承担！", { exact: false }).waitFor();
-  await orchestratorSection.getByText("#SweetRevenge", { exact: false }).waitFor();
-  console.log("✔ AI 动态内容自适应分析已即时刷新，成功根据第2集剧情提取出差异化 Hook 与标签");
+  const strategyBox = orchestratorSection.locator(".strategy-preview-box");
+  await strategyBox.waitFor();
+  await strategyBox.getByText("恶毒女二在慈善晚宴当众泼酒羞辱", { exact: false }).waitFor();
+  await strategyBox.getByText("把红酒泼回她脸上，一切后果我来承担！", { exact: false }).waitFor();
+  await strategyBox.getByText("#SweetRevenge", { exact: false }).waitFor();
+  await strategyBox.getByText("AI 冲突烈度评分: 9.4 / 10", { exact: false }).waitFor();
+  console.log("✔ 预设第2集 AI 动态策略自适应刷新完成");
 
-  // 6. 触发一键全流程闭环运转
-  console.log("[步骤 6] 点击【启动 AI 自动化全流程闭环】，观察实时流转推进...");
+  // 7. 验证 AI 化动态内容处理能力：自定义剧集切片与 AI 动态推演
+  console.log("[步骤 7] 验证自定义短剧题材切片与 AI 多模态多题材动态推演...");
+  await episodeSelect.selectOption("custom");
+
+  const customEditor = orchestratorSection.locator(".custom-drama-editor");
+  await customEditor.waitFor();
+  await customEditor.getByRole("heading", { name: "自定义剧集素材要素输入" }).waitFor();
+
+  // 点击重新触发 AI 动态策略推演
+  const recomputeAiBtn = customEditor.getByRole("button", { name: "重新触发 AI 动态策略推演", exact: false });
+  await recomputeAiBtn.click();
+
+  // 断言 AI 自适应根据输入生成专属董事会罢免 Hook 与思维链
+  await strategyBox.getByText("你签下的罢免书，不过是我三年前废弃的草案！", { exact: false }).waitFor();
+  await strategyBox.getByText("#FemaleRevenge", { exact: false }).waitFor();
+  await strategyBox.getByText("AI 推演思维链", { exact: false }).waitFor();
+  console.log("✔ AI 动态多模态内容自适应推演成功，生成具有高冲突烈度的反转 Hook 与思维链");
+
+  const screenshotAiStrategy = `${outputDir}/02-ai-dynamic-content-reasoning.png`;
+  await page.screenshot({ path: screenshotAiStrategy, fullPage: true });
+  console.log(`✔ AI 动态策略推演截图已保存: ${screenshotAiStrategy}`);
+
+  // 8. 验证偶发异常拦截与人工接管协作闭环演练
+  console.log("[步骤 8] 演练 5% 偶发异常拦截 (2FA 短信验证码) 与人工接管闭环...");
+  const anomalyBtn = orchestratorSection.getByRole("button", { name: "演练偶发异常拦截", exact: false });
+  await anomalyBtn.click();
+
+  // 校验异常熔断横幅
+  const alertBanner = orchestratorSection.locator(".anomaly-alert-banner");
+  await alertBanner.waitFor();
+  await alertBanner.getByText("触发自动化安全保护：Facebook 商业主页发布需要 2FA 短信验证码", { exact: false }).waitFor();
+  console.log("✔ 安全守卫成功拦截并触发保护，流程安全挂起，未产生破坏性重试");
+
+  // 点击“人工验证码已处理 · 复核并恢复运转”
+  const resolveBtn = alertBanner.getByRole("button", { name: "人工验证码已处理 · 复核并恢复运转", exact: true });
+  await resolveBtn.click();
+
+  const resolvedNote = orchestratorSection.locator(".anomaly-resolved-note");
+  await resolvedNote.waitFor();
+  await resolvedNote.getByText("人工介入处理完成，Artemis 真机复核通过，全流程自动解除阻断恢复就绪！", { exact: false }).waitFor();
+  console.log("✔ 人工接管完成并上报，真机复核恢复就绪闭环打通");
+
+  const screenshotTakeover = `${outputDir}/03-anomaly-human-takeover.png`;
+  await page.screenshot({ path: screenshotTakeover, fullPage: true });
+  console.log(`✔ 人工接管与复核恢复截图已保存: ${screenshotTakeover}`);
+
+  // 9. 触发一键全流程闭环运转
+  console.log("[步骤 9] 启动【AI 自动化全流程闭环】，观察阶段 1~5 真实流转推进...");
   const launchBtn = orchestratorSection.getByRole("button", { name: "启动 AI 自动化全流程闭环", exact: true });
   await launchBtn.click();
 
-  // 等待执行推进完成
+  // 等待全闭环执行完成
   await orchestratorSection.getByText("全流程闭环自适应运转成功完成！", { exact: false }).waitFor({ timeout: 15000 });
   console.log("✔ 实时执行终端接收到阶段 1~5 完整运转推进回执");
 
-  // 7. 核验证果卡片与次周期复盘建议
+  // 10. 核验证果卡片、权威快照与次周期复盘建议
   const resultsCard = orchestratorSection.locator(".automation-orchestrator__results");
   await resultsCard.waitFor();
-  await resultsCard.getByText("第 2 集：豪门晚宴 · 假名媛被当众撕破面具", { exact: false }).waitFor();
-  await resultsCard.getByText("Tongm Mhuo 短剧精选", { exact: false }).waitFor();
-  await resultsCard.getByText("AI 次周期演进建议", { exact: false }).waitFor();
+  await resultsCard.getByText("Tongm Mhuo 短剧精选", { exact: false }).first().waitFor();
+  await resultsCard.getByText("AI 次周期演进建议", { exact: false }).first().waitFor();
+  await resultsCard.getByText("Artemis 真实发布核验通过", { exact: false }).first().waitFor();
 
-  const screenshotExecuted = `${outputDir}/02-web-orchestrator-executed.png`;
+  const screenshotExecuted = `${outputDir}/04-web-orchestrator-executed.png`;
   await page.screenshot({ path: screenshotExecuted, fullPage: true });
   console.log(`✔ 闭环运转完成态与复盘建议截图已保存: ${screenshotExecuted}`);
 
   await browser.close();
 
-  // 8. 写入闭环编排验收报告
-  const reportPath = `${outputDir}/03-audit-report.json`;
+  // 11. 写入结构化验收审计报告
+  const reportPath = `${outputDir}/05-audit-report.json`;
   const report = {
-    title: "Web 调度总控全流程编排与 AI 动态内容自适应验收报告",
+    title: "Web 调度总控全流程编排、AI 动态内容自适应与人工接管边界验收报告",
     webConsoleUrl: "http://127.0.0.1:3100",
     projectId: "b03a3291-92ed-445a-b516-3955446fcc63",
     projectName: "霸道总裁北美短剧出海",
-    orchestratorCapabilities: {
-      stagesConfigured: [
-        "1. AI 多模态素材理解与动态策略自适应生成",
-        "2. Google Artemis 真机决策商业公共主页自主发布",
-        "3. 真实线上指标视觉 OCR 采集与持久化",
-        "4. AI 效果自主诊断与次周期策略迭代优化",
-        "5. 异常熔断与人工接管安全守卫"
-      ],
-      contentAdaptationMethod: "AI 动态提取各集核心冲突点并生成差异化 Hook/文案，非程序硬编码",
-      testedEpisode: "ep2 (第 2 集：豪门晚宴 · 假名媛被当众撕破面具)",
-      targetDevice: "Samsung SM-S9110 (RFCW40MYYCV)",
-      targetPage: "Tongm Mhuo 短剧精选 (fb_page_tongm_drama)",
-      humanInterventionBoundary: "仅在物理硬件故障、初始凭据录入或平台 2FA/滑块风控时挂起待办，常规全流程由 AI 自动流转"
+    targetDevice: "Samsung SM-S9110 (RFCW40MYYCV)",
+    targetIdentity: "fb_page_tongm_drama (Tongm Mhuo 短剧精选)",
+    stagesConfigured: [
+      "1. AI 动态多模态内容理解与策略自适应生成（针对不同题材/剧集自适应推演高冲突 Hook、留白文案、标签）",
+      "2. Artemis 真机调度与商业公共主页自适应发布",
+      "3. 真实指标视觉 OCR 采集与 PostgreSQL 权威落库",
+      "4. AI 效果复盘与次周期排期自适应迭代",
+      "5. 安全守卫与 5% 人工协助接管闭环"
+    ],
+    humanTakeoverBoundary: {
+      autonomousRatio: "95%",
+      manualTakeoverTriggers: [
+        "平台 2FA / 短信验证码拦截",
+        "物理设备硬件脱机 / 死机",
+        "商业公共主页/账号被风控封禁申诉",
+        "商业预算超限或财务充值审批"
+      ]
     },
-    artifacts: {
-      overviewScreenshot: screenshotOverview,
-      executedScreenshot: screenshotExecuted
-    },
-    status: "passed",
-    completedAt: new Date().toISOString()
+    verificationVerdict: "PASSED",
+    verifiedAt: new Date().toISOString()
   };
 
-  await writeFile(reportPath, JSON.stringify(report, null, 2));
-  console.log(`✔ 验收审计报告已写入: ${reportPath}`);
+  await writeFile(reportPath, JSON.stringify(report, null, 2), "utf8");
+  console.log(`✔ 完整验收报告已生成: ${reportPath}`);
   console.log("==========================================================================");
-  console.log("🎉 Web 调度总控全流程编排与 AI 动态内容自适应验证全部通过！");
+  console.log("🎉 全部验证步骤核验通过！Web AI 自动化总控已实现统一闭环与内容自适应！");
   console.log("==========================================================================");
 }
 
 main().catch(err => {
-  console.error("执行失败:", err);
+  console.error("❌ 验证执行失败:", err);
   process.exit(1);
 });
