@@ -5,6 +5,7 @@ import "./business-plan.css";
 import "./operator-todos.css";
 import "./project-feedback-panel.css";
 import "./project-lifecycle-panel.css";
+import "./automation-orchestrator.css";
 import "./style.css";
 
 const root = document.getElementById("root");
