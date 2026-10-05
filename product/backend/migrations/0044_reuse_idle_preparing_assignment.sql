@@ -1,3 +1,4 @@
+BEGIN;
 -- Reuse current test resources only before any attempt has been dispatched.
 -- Executing/unknown operations retain their immutable original assignments.
 CREATE OR REPLACE FUNCTION socialgrowth_product.guard_media_account_assignment() RETURNS trigger LANGUAGE plpgsql AS $$
@@ -21,3 +22,4 @@ BEGIN
   END IF;
   RETURN NEW;
 END $$;
+COMMIT;
