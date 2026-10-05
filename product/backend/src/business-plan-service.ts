@@ -14,6 +14,8 @@ import { createBusinessPlanTaskAttemptRequestSchema, createBusinessPlanTaskAttem
   type BusinessPlanCurrentCheckBlocker, type CreateBusinessPlanTaskAttemptRequest,
   type CreateBusinessPlanTaskAttemptResponse } from "@socialgrowth/product-contracts";
 import { parsePhoneControlRecord } from "./action-permission-core.js";
+import { businessPlanWorkflowResponseSchema, type BusinessPlanWorkflowResponse } from "@socialgrowth/product-contracts";
+import type { BusinessPlanWorkflowPortStatusReader } from "./business-plan-workflow-store.js";
 
 const s = "socialgrowth_product";
 const unavailable = () => new ProductTransactionError("INTERNAL_ERROR", "Business planning is unavailable", true);
@@ -57,7 +59,8 @@ function comparableSnapshot(value: Snapshot) {
 
 export class BusinessPlanService {
   constructor(private readonly pool: Pool, private readonly auth: OperatorAuthService,
-    private readonly materialRuntime: MaterialRuntime, private readonly model: BusinessPlanModel | null) {}
+    private readonly materialRuntime: MaterialRuntime, private readonly model: BusinessPlanModel | null,
+    private readonly workflowPortStatus: BusinessPlanWorkflowPortStatusReader | null = null) {}
 
   private async tx<T>(token: string, csrf: string | null, fn: (c: PoolClient, actorId: string) => Promise<T>,
     diagnostic?: { stage: DiagnosticStage; requestId: string; projectId: string }): Promise<T> {
@@ -138,6 +141,72 @@ export class BusinessPlanService {
     const project = uuidSchema.safeParse(projectInput);
     if (!project.success) throw new ProductTransactionError("INPUT_INVALID", "Invalid project identifier");
     return this.tx(token, null, c => this.currentChecksInTransaction(c, project.data.toLowerCase()));
+  }
+
+  async workflow(token: string, projectInput: string): Promise<BusinessPlanWorkflowResponse> {
+    const project = uuidSchema.safeParse(projectInput);
+    if (!project.success) throw new ProductTransactionError("INPUT_INVALID", "Invalid project identifier");
+    const projectId = project.data.toLowerCase();
+    return this.tx(token, null, async c => {
+      const checks = await this.currentChecksInTransaction(c, projectId);
+      const view = await this.view(c, projectId);
+      if (checks.projectId.toLowerCase() !== projectId || view.tasks.length !== checks.tasks.length) throw unavailable();
+      const jobs = (await c.query<{
+        task_id: string; task_attempt_id: string | null; state: string; submission_state: string; operation_id: string | null; operation_state: string | null;
+        claim_id: string | null; lease_until: Date | null; blockers: unknown; verified_result_id: string | null; verified_at: Date | null;
+      }>(`SELECT task_id,task_attempt_id,state,submission_state,operation_id,operation_state,claim_id,lease_until,blockers,verified_result_id,verified_at
+          FROM ${s}.business_plan_workflow_jobs WHERE project_id=$1`, [projectId])).rows;
+      const jobsByTask = new Map(jobs.map(row => [row.task_id, row]));
+      const recheckLinksPresent = (await c.query<{ present: boolean }>(
+        `SELECT to_regclass('${s}.task_assistance_recheck_links') IS NOT NULL AS present`)).rows[0]?.present === true;
+      const rechecks = recheckLinksPresent ? (await c.query<{
+        task_attempt_id: string; task_id: string; todo_id: string; status: string; blockers: unknown;
+      }>(`SELECT task_attempt_id,task_id,todo_id,status,blockers FROM ${s}.task_assistance_recheck_links WHERE task_id IN
+          (SELECT task_id FROM ${s}.business_plan_tasks WHERE project_id=$1)`, [projectId])).rows : [];
+      const rechecksByAttempt = new Map(rechecks.map(row => [row.task_attempt_id, row]));
+      const tasks = checks.tasks.map(checked => {
+        const planned = view.tasks.find(task => task.taskId.toLowerCase() === checked.taskId.toLowerCase());
+        if (!planned || !view.plan || view.plan.planId.toLowerCase() !== checked.planId.toLowerCase()
+          || view.plan.revision !== checked.planRevision || planned.materialRevision !== checked.expectedMaterialRevision) throw unavailable();
+        const job = jobsByTask.get(checked.taskId);
+        const blockers = new Set<string>(checked.blockers);
+        for (const blocker of Array.isArray(job?.blockers) ? job.blockers : []) {
+          if (typeof blocker === "string" && blocker.trim() === blocker && blocker.length > 0 && blocker.length <= 120) blockers.add(blocker);
+        }
+        if (!job) blockers.add("workflow_job_not_created");
+        if (!checked.attempt) blockers.add("logical_attempt_not_created");
+        const workflowAttemptMatches = Boolean(job?.task_attempt_id && checked.attempt
+          && job.task_attempt_id.toLowerCase() === checked.attempt.taskAttemptId.toLowerCase());
+        if (job?.task_attempt_id && !workflowAttemptMatches) blockers.add("workflow_attempt_scope_mismatch");
+        let state = job?.state as BusinessPlanWorkflowResponse["tasks"][number]["workflow"]["state"] | undefined;
+        if (!state || (!job?.operation_id && checked.blockers.length > 0)) state = "blocked";
+        if (!job?.operation_id && (!checked.attempt || !job)) state = "blocked";
+        const recheck = checked.attempt ? rechecksByAttempt.get(checked.attempt.taskAttemptId) : undefined;
+        const recheckStatus = recheck && recheck.task_id.toLowerCase() === checked.taskId.toLowerCase()
+          ? recheck.status === "claimed" ? "pending" : recheck.status : "not_requested";
+        let recheckBlockers: string[] = [];
+        if (recheck && recheck.task_id.toLowerCase() === checked.taskId.toLowerCase()) {
+          recheckBlockers = Array.isArray(recheck.blockers) ? recheck.blockers.filter((item): item is string => typeof item === "string") : [];
+        }
+        return {
+          taskId: checked.taskId, taskRevision: checked.taskRevision, planId: checked.planId, planRevision: checked.planRevision,
+          contentUnitId: planned.contentUnitId, variantId: checked.variantId, materialRevision: checked.expectedMaterialRevision,
+          expectedFiles: checked.expectedFiles, identityId: checked.identityId, platform: checked.platform, form: checked.form,
+          scheduledAt: checked.scheduledAt,
+          attempt: checked.attempt ? { taskAttemptId: checked.attempt.taskAttemptId, attemptNumber: 1 as const, state: "pending_current_checks" as const } : null,
+          operation: job?.operation_id && job.operation_state ? { operationId: job.operation_id,
+            state: job.operation_state as "queued" | "claimed" | "running" | "submission_unknown" | "verified" | "not_published" | "failed" } : null,
+          workflow: { state, claimId: job?.claim_id ?? null, leaseUntil: job?.lease_until?.toISOString() ?? null,
+            blockers: [...blockers], submissionState: job?.submission_state ?? "not_started",
+            verifiedResult: job?.verified_result_id && job.verified_at
+              ? { resultId: job.verified_result_id, verifiedAt: job.verified_at.toISOString() } : null },
+          assistanceTodoId: recheck && recheck.task_id.toLowerCase() === checked.taskId.toLowerCase() ? recheck.todo_id : null,
+          recheckStatus, recheckBlockers,
+        };
+      });
+      return businessPlanWorkflowResponseSchema.parse({ projectId, checkedAt: checks.checkedAt,
+        ports: this.workflowPortStatus?.portStatus() ?? { executor: "unconnected", proofVerifier: "unconnected" }, tasks });
+    });
   }
 
   private async currentChecksInTransaction(c: PoolClient, projectId: string): Promise<BusinessPlanCurrentChecksResponse> {
@@ -440,12 +509,14 @@ export class BusinessPlanService {
         `INSERT INTO ${s}.business_plan_task_attempts(
           task_attempt_id,task_id,project_id,plan_id,plan_revision,project_version,approval_id,window_start,window_end,
           task_revision,content_unit_id,variant_id,material_revision,verifier_manifest,identity_id,account_id,platform,
-          reserved_device_id,reservation_state,reservation_operator_id,reservation_recorded_at,recorded_by_operator_id)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'pending_initialization',$19,$20,$21)
+          reserved_device_id,reservation_state,reservation_operator_id,reservation_recorded_at,recorded_by_operator_id,
+          attempt_origin,triggering_operator_id)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'pending_initialization',$19,$20,$21,
+          'operator_request',$22)
          RETURNING created_at`, [attemptId, taskId, projectId, task.plan_id, Number(task.plan_revision), view.plan.projectVersion,
           view.plan.approvalId, view.plan.window.startsAt, view.plan.window.endsAt, Number(task.task_revision), task.content_unit_id,
           task.variant_id, Number(task.material_revision), JSON.stringify(manifest), reservation.identity_id, reservation.account_id,
-          reservation.platform, reservation.device_id, reservation.reserved_by_operator_id, reservation.reserved_at, actorId])).rows[0];
+          reservation.platform, reservation.device_id, reservation.reserved_by_operator_id, reservation.reserved_at, actorId, actorId])).rows[0];
       if (!recorded) throw unavailable();
       const attempt = { taskAttemptId: attemptId, attemptNumber: 1 as const, state: "pending_current_checks" as const,
         assignmentSemantics: "logical_reservation_bound" as const, reservedDeviceIdAtCreation: reservation.device_id,
