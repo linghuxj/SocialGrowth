@@ -260,6 +260,7 @@ export class BusinessPlanExecutionBridge {
       const contentTask = { ...task, directive: { ...task.directive, taskId: randomUUID() }, settings: {
         ...task.settings, expectedFacebookPageIdentity: { id: mapping.id, url: mapping.url } } } as Parameters<typeof executeDeviceTask>[0];
       phase = "content_preflight";
+      phaseReceipt = null;
       const contentReceipt = await runTask(contentTask, phase);
       phaseReceipt = contentReceipt;
       const receipt: ExecutionReceipt = { ...contentReceipt,
