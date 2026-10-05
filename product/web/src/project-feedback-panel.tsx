@@ -48,24 +48,35 @@ function metricStatus(metric: MetricSnapshot): string {
 
 function MetricCard({ metric }: { metric: MetricSnapshot }) {
   const subject = metric.subject.kind === "account" ? "账号级汇总" : "已关联的发布内容";
+  const definition = metric.metricDefinition;
+  const displayValue = metric.value === null
+    ? "来源未提供数值"
+    : definition?.unit ? `${metric.value} ${definition.unit}` : metric.value;
   return <article className="project-feedback__metric">
     <div className="project-feedback__metric-heading">
-      <div><h3>报告指标（名称与单位未提供）</h3><p>{metric.platform === "facebook" ? "Facebook" : "YouTube"} · {subject}</p></div>
+      <div><h3>{definition?.name ?? "指标名称未提供"}</h3><p>{metric.platform === "facebook" ? "Facebook" : "YouTube"} · {subject}</p></div>
       <span className={`project-feedback__badge project-feedback__badge--${metric.availability}`}>
         {metric.availability === "available" ? "已读取" : metric.availability === "delayed" ? "延迟" : "缺失"}
       </span>
     </div>
     <dl className="project-feedback__facts">
-      <div><dt>报告数值</dt><dd>{metric.value === null ? "来源未提供数值" : metric.value}</dd></div>
+      <div><dt>报告数值</dt><dd>{displayValue}</dd></div>
+      <div><dt>单位</dt><dd>{definition?.unit ?? "来源未提供单位"}</dd></div>
+      <div><dt>指标说明</dt><dd>{definition?.description ?? "来源未提供指标定义，暂不能解释该数值的含义。"}</dd></div>
+      <div><dt>来源口径</dt><dd>{definition?.sourceDefinition ?? "来源未提供计算或统计口径。"}</dd></div>
       <div><dt>数据状态</dt><dd>{metricStatus(metric)}</dd></div>
       <div><dt>统计口径</dt><dd>{metric.measurement === "cumulative" ? "累计快照（不可与历史值相加）" : "区间值"}</dd></div>
       <div><dt>覆盖范围</dt><dd>{metric.coverage ? `${timestamp(metric.coverage.startsAt)} – ${timestamp(metric.coverage.endsAt)}` : "来源未提供覆盖范围"}</dd></div>
       <div><dt>统计截止</dt><dd>{timestamp(metric.statisticsCutoffAt)}</dd></div>
       <div><dt>采集时间</dt><dd>{timestamp(metric.collectedAt)}</dd></div>
     </dl>
-    <p className="form-note">来源尚未提供指标名称、定义与单位，暂不能将数值解释为播放、互动或收入，也不能用于效果比较。</p>
+    <p className="form-note">{!definition
+      ? "来源尚未提供指标名称、定义与单位，暂不能将数值解释为播放、互动或收入，也不能用于效果比较。"
+      : !definition.unit
+        ? "来源提供了指标定义，但没有提供单位；此原始数值暂不能用于效果比较。"
+        : "指标名称、定义和单位来自可信来源报告；不同定义、统计范围或截止时间的快照不可直接比较。"}</p>
     <details><summary>查看报告来源与记录编号</summary>
-      <p>指标定义 {metric.definitionId} · 发布身份 {metric.identityId}</p>
+      <p>定义编号 {metric.definitionId} · 发布身份 {metric.identityId}</p>
       <p>来源报告 {metric.sourceReportId} · 修订 v{metric.revision}{metric.replacesSnapshotId ? ` · 更正 ${metric.replacesSnapshotId}` : " · 初始修订"}</p>
       <p>快照 {metric.snapshotId} · 来源 {metric.sourceId} · 来源时区 {metric.sourceTimeZone ?? "未知"}</p>
       {metric.subject.kind !== "account" && <p>任务 {metric.subject.taskId} · 内容 {metric.subject.contentUnitId} · 变体 {metric.subject.variantId} · 发布 {metric.subject.publicationId}</p>}
