@@ -85,7 +85,11 @@ export class BusinessPlanExecutionBridge {
     requireFact(uuid.safeParse(operationId).success, "INPUT_INVALID");
     const record = this.rows().find(row => row.operationId === operationId) ?? null;
     if (!record) return null;
-    if (!record.receipt) return record.state === "unknown" ? { ...record, diagnostic: this.legacyDiagnostic(record) } : record;
+    if (!record.receipt) {
+      if (record.state !== "unknown" || record.diagnostic) return record;
+      const diagnostic = this.legacyDiagnostic(record);
+      return diagnostic ? { ...record, diagnostic } : record;
+    }
     const refs = record.receipt.evidenceRefs;
     const archived = refs.length > 0 && refs.every(ref => this.store.db.prepare("SELECT 1 FROM evidence WHERE id=? AND task=?").get(ref, operationId));
     const mapping = this.store.db.prepare("SELECT identity_id,canonical_ref,account_id,runtime_account_id,binding_id,audit_operation_id,parent_identity,page_id,page_url,page_name,evidence_refs FROM business_plan_page_identity_mappings WHERE identity_id=?")
@@ -115,8 +119,7 @@ export class BusinessPlanExecutionBridge {
       && (value.stage === "device_work_started" || value.stage === "before_device_work")
       && typeof value.reason === "string" && diagnosticReasons.has(value.reason));
     if (failures.length !== 1) return undefined;
-    const hasMapping = Boolean(this.store.db.prepare("SELECT 1 FROM business_plan_page_identity_mappings WHERE identity_id=?").get(record.scope.identityId));
-    return { phase: hasMapping ? "content_preflight" : "identity_audit", reason: failures[0]!.reason as string };
+    return { phase: record.executionPhase ?? "unknown", reason: failures[0]!.reason as string };
   }
   ownsOperation(operationId: string) { return this.read(operationId) !== null; }
   list() { return this.rows().map(row => this.read(row.operationId)); }
