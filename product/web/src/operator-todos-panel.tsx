@@ -45,13 +45,14 @@ export function OperatorTodosPanel({ active, readOnly, onExpired, entry = null }
   const pendingSession = useRef<(() => void) | null>(null);
   const activeView = useRef(active);
   activeView.current = active;
+  const mounted = useRef(true);
   const expiredRef = useRef(onExpired);
   expiredRef.current = onExpired;
   const readSequence = useRef(0);
   const detailSequence = useRef(0);
   const impactSequence = useRef(0);
   const selectedTodoId = useRef<string | null>(null);
-  const notifyCurrentExpired = (error: unknown) => { if (activeView.current) expiredRef.current(error); };
+  const notifyCurrentExpired = (error: unknown) => { if (mounted.current && activeView.current) expiredRef.current(error); };
 
   async function refresh(append = false): Promise<void> {
     const sequence = ++readSequence.current;
@@ -91,7 +92,7 @@ export function OperatorTodosPanel({ active, readOnly, onExpired, entry = null }
       }
     } catch (cause) {
       if (sequence !== readSequence.current) return;
-      if (cause instanceof ProductApiError && cause.status === 401) onExpired(cause);
+      if (cause instanceof ProductApiError && cause.status === 401) notifyCurrentExpired(cause);
       else setError(cause instanceof Error ? cause.message : "暂时无法读取待办，请稍后刷新");
     } finally { if (sequence === readSequence.current) setLoading(false); }
   }
@@ -118,7 +119,7 @@ export function OperatorTodosPanel({ active, readOnly, onExpired, entry = null }
       setSelected({ todo: response.value.todo, recheck: assistance.value.recheck, notes: response.value.notes, nextAfterNoteId: response.value.nextAfterNoteId, impacts: impacts.value.impacts, nextAfterDeviceId: impacts.value.nextAfterDeviceId });
     } catch (cause) {
       if (request !== detailSequence.current || selectedTodoId.current !== todo.todoId) return;
-      if (cause instanceof ProductApiError && cause.status === 401) onExpired(cause);
+      if (cause instanceof ProductApiError && cause.status === 401) notifyCurrentExpired(cause);
       else setError("待办详情暂时不可用；没有改变服务端数据，请稍后重试。");
     } finally { if (request === detailSequence.current && selectedTodoId.current === todo.todoId) setDetailLoading(false); }
   }
@@ -138,7 +139,7 @@ export function OperatorTodosPanel({ active, readOnly, onExpired, entry = null }
         notes: [...current.notes, ...response.notes], nextAfterNoteId: response.nextAfterNoteId } : current);
     } catch (cause) {
       if (request !== detailSequence.current || selectedTodoId.current !== todoId) return;
-      if (cause instanceof ProductApiError && cause.status === 401) onExpired(cause);
+      if (cause instanceof ProductApiError && cause.status === 401) notifyCurrentExpired(cause);
       else setError("历史说明读取失败；已显示部分不会被覆盖。");
     } finally { if (request === detailSequence.current && selectedTodoId.current === todoId) setDetailLoading(false); }
   }
@@ -158,7 +159,7 @@ export function OperatorTodosPanel({ active, readOnly, onExpired, entry = null }
         impacts: [...current.impacts, ...response.impacts], nextAfterDeviceId: response.nextAfterDeviceId } : current);
     } catch (cause) {
       if (request !== impactSequence.current || selectedTodoId.current !== todoId) return;
-      if (cause instanceof ProductApiError && cause.status === 401) onExpired(cause);
+      if (cause instanceof ProductApiError && cause.status === 401) notifyCurrentExpired(cause);
       else setError("历史影响记录读取失败；已显示部分不会被覆盖。");
     } finally { if (request === impactSequence.current && selectedTodoId.current === todoId) setImpactLoading(false); }
   }
@@ -178,21 +179,23 @@ export function OperatorTodosPanel({ active, readOnly, onExpired, entry = null }
 
   async function continueNote(command = pending): Promise<void> {
     if (!command) return;
+    const sessionGuard = pendingSession.current;
+    if (!sessionGuard) { setError("原请求缺少会话绑定，结果仍未确认；请勿重发或切换待办。"); return; }
     setError(""); setMessage("");
     try {
-      pendingSession.current?.();
+      sessionGuard();
       await command.submit(); pendingCommand.current = null; setPending(null); setDraft(""); setKind("note");
-      pendingSession.current = null;
+      if (pendingSession.current === sessionGuard) pendingSession.current = null;
       setMessage("说明已记录。待办仍需基于新的设备事实复核，不代表权限恢复或事项已解决。");
       if (!activeView.current) return;
       await refresh();
     } catch (cause) {
       if (cause instanceof ProductApiError && cause.status === 401) {
         if (hasCsrfToken()) {
-          try { pendingSession.current?.(); }
+          try { sessionGuard(); }
           catch { pendingCommand.current = command; setPending(command); setError("登录会话已变化，原请求仍未确认；请勿在新会话重发或切换待办。"); return; }
         }
-        expiredRef.current(cause); return;
+        notifyCurrentExpired(cause); return;
       }
       if (cause instanceof OperatorWriteSessionChangedError) {
         pendingCommand.current = command; setPending(command); setError("该说明请求绑定原登录会话；会话已变化，结果仍未确认，不能在新会话重发。"); return;
@@ -208,6 +211,11 @@ export function OperatorTodosPanel({ active, readOnly, onExpired, entry = null }
       setError("提交结果尚未确认。原内容和请求键已保留；刷新记录后，只有选择接续原请求才会用相同请求键核对。");
     }
   }
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   useEffect(() => {
     const cancelReads = () => { readSequence.current += 1; detailSequence.current += 1; impactSequence.current += 1; };
@@ -231,7 +239,7 @@ export function OperatorTodosPanel({ active, readOnly, onExpired, entry = null }
       await openTodo(assistance.todo, assistance);
     }).catch(cause => {
       if (request !== detailSequence.current) return;
-      if (cause instanceof ProductApiError && cause.status === 401) onExpired(cause);
+      if (cause instanceof ProductApiError && cause.status === 401) notifyCurrentExpired(cause);
       else setError("目标待办详情暂时不可用；没有切换到其他待办。请重试或从列表选择。");
     }).finally(() => { if (request === detailSequence.current) setDetailLoading(false); });
     // Entry changes are the only deep-link trigger. Stable refs/sequences inside this panel prevent stale results from changing selection.
