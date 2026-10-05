@@ -89,8 +89,9 @@ try {
   await feedback.getByRole("heading", { name: "效果快照", exact: true }).waitFor();
   const metricCards = feedback.locator(".project-feedback__metric");
   for (let i = 0; i < await metricCards.count(); i++) {
-    await metricCards.nth(i).getByRole("heading", { name: "报告指标（名称与单位未提供）", exact: true }).waitFor();
-    assert.equal(await metricCards.nth(i).getByText(/指标定义/).isVisible(), false, "记录编号应位于可展开详情中");
+    await metricCards.nth(i).getByRole("heading", { name: "指标名称未提供", exact: true }).waitFor();
+    await metricCards.nth(i).getByText("来源未提供单位", { exact: true }).waitFor();
+    assert.equal(await metricCards.nth(i).getByText(/定义编号/).isVisible(), false, "记录编号应位于可展开详情中");
   }
   await page.screenshot({ path: resolve(outputDir, "07-feedback.png"), fullPage: true });
   await workspace.getByRole("button", { name: "项目生命周期", exact: true }).click();

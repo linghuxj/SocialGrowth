@@ -12,8 +12,11 @@ try {
   await page.goto(base, { waitUntil: "networkidle" });
   await page.getByLabel("登录名").fill(required("SG_PRODUCT_TEST_LOGIN_NAME")); await page.getByLabel("密码").fill(required("SG_PRODUCT_TEST_PASSWORD"));
   await page.getByRole("button", { name: "登录", exact: true }).click(); await page.getByRole("button", { name: "项目", exact: true }).click();
-  const panel = page.locator(".project-workspace"), row = panel.getByRole("row").filter({ hasText: "运营A待保存版本" }); await row.waitFor();
-  await row.getByRole("button", { name: "打开项目", exact: true }).click(); await panel.getByRole("heading", { name: "打开项目", exact: true }).waitFor();
+  const panel = page.locator(".project-workspace");
+  const row = process.env.SG_PRODUCT_PROJECT_NAME ? panel.getByRole("row").filter({ hasText: process.env.SG_PRODUCT_PROJECT_NAME })
+    : panel.getByRole("row").filter({ has: page.getByRole("button", { name: "打开项目", exact: true }) }).first();
+  await row.waitFor();
+  await row.getByRole("button", { name: "打开项目", exact: true }).click(); await panel.getByRole("heading", { name: "项目当前事实与下一步", exact: true }).waitFor();
   await page.screenshot({ path: `${output}/readiness-desktop.png` }); await page.screenshot({ path: `${output}/readiness-full.png`, fullPage: true });
   for (const width of [980, 700, 390]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -21,7 +24,9 @@ try {
     if (width <= 700) {
       await page.getByText("手机端为只读模式", { exact: true }).waitFor();
       assert.equal(await panel.getByRole("button", { name: "保存基本信息" }).count(), 0);
-      const box = await panel.getByRole("cell", { name: /缺阶段目标及批准边界，不启动发布/ }).boundingBox();
+      const permissionFact = panel.getByText("执行与公开发布许可关闭；不能启动手机发布", { exact: true });
+      await permissionFact.waitFor();
+      const box = await permissionFact.boundingBox();
       assert.ok(box && box.x >= 0 && box.x + box.width <= width, "Mobile must expose impact text without horizontal table scrolling");
     }
     await page.screenshot({ path: `${output}/readiness-${width}.png`, fullPage: true });

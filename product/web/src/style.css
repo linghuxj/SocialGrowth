@@ -96,8 +96,7 @@
   .project-workspace td:first-child { background: #f5f8fc; font-weight: 600; }
   .project-workspace td::before { display: block; color: #526176; font-size: 12px; margin-bottom: 4px; }
   .project-readiness td:nth-child(2)::before { content: "当前事实"; }
-  .project-readiness td:nth-child(3)::before { content: "缺什么 / 影响范围"; }
-  .project-readiness td:nth-child(4)::before { content: "处理入口"; }
+  .project-readiness td:nth-child(3)::before { content: "处理入口"; }
   .project-list-panel td:nth-child(2)::before { content: "类型 / 客户"; }
   .project-list-panel td:nth-child(3)::before { content: "当前事实"; }
   .project-list-panel td:nth-child(4)::before { content: "负责人"; }

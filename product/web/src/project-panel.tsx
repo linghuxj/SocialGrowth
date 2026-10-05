@@ -22,8 +22,8 @@ const failures = (error: unknown) => error instanceof ProductApiError && error.r
   : error instanceof ProductApiError && error.response.error.code === "IDEMPOTENCY_KEY_REUSED" ? "请求标识已用于不同输入，请先核对原操作的实际结果。"
   : "服务暂时不可用，输入已保留，请重试。";
 
-export function ProjectPanel({ active, refreshVersion, operators, readOnly, onExpired, entry, onOpenTodos, onOpenMediaAccounts }: {
-  entry?: { projectId: string; revision: number } | null; onOpenTodos: () => void; onOpenMediaAccounts: () => void;
+export function ProjectPanel({ active, refreshVersion, operators, readOnly, onExpired, entry, onOpenTodos, onOpenMediaAccounts, onOpenDevices }: {
+  entry?: { projectId: string; revision: number } | null; onOpenTodos: () => void; onOpenMediaAccounts: () => void; onOpenDevices: () => void;
   active: boolean; refreshVersion: number; operators: OperatorView[]; readOnly: boolean; onExpired: (error: unknown) => void;
 }) {
   const [projects, setProjects] = useState<ProjectView[] | null>(null);
@@ -162,8 +162,8 @@ export function ProjectPanel({ active, refreshVersion, operators, readOnly, onEx
     </>}
     {materialProjects.map(id => <MaterialWorkspace key={id} projectId={id} active={active && selected === id && tab === "materials"} readOnly={readOnly} onExpired={onExpired} />)}
     {planningProjects.map(id => <ProjectPlanningPanel key={id} projectId={id} active={active && selected === id && tab === "settings"} readOnly={readOnly} onExpired={onExpired} onFactsChanged={() => setPlanningRefresh(v => v + 1)} />)}
-    {planningProjects.map(id => <AccountPreparationPanel key={id} projectId={id} active={active && selected === id && tab === "settings"} readOnly={readOnly} onExpired={onExpired} />)}
-    {businessPlanProjects.map(id => <BusinessPlanPanel key={id} projectId={id} active={active && selected === id && tab === "business-plan"} readOnly={readOnly} onExpired={onExpired} />)}
+    {planningProjects.map(id => <AccountPreparationPanel key={id} projectId={id} active={active && selected === id && tab === "settings"} readOnly={readOnly} onExpired={onExpired} onFactsChanged={() => setPlanningRefresh(v => v + 1)} onOpenMediaAccounts={onOpenMediaAccounts} onOpenDevices={onOpenDevices} />)}
+    {businessPlanProjects.map(id => <BusinessPlanPanel key={id} projectId={id} active={active && selected === id && tab === "business-plan"} readOnly={readOnly} onExpired={onExpired} refreshVersion={refreshVersion + planningRefresh} onNavigate={navigate} onOpenMediaAccounts={onOpenMediaAccounts} onOpenDevices={onOpenDevices} />)}
     {feedbackProjects.map(id => <ProjectFeedbackPanel key={id} projectId={id} active={active && selected === id && tab === "feedback"} readOnly={readOnly} onExpired={onExpired} />)}
     {lifecycleProjects.map(id => <ProjectLifecyclePanel key={id} projectId={id} active={active && selected === id && tab === "lifecycle"} readOnly={readOnly} onExpired={onExpired} onFactsChanged={() => setPlanningRefresh(v => v + 1)} />)}
     {automationProjects.map(id => <AutomationOrchestratorPanel onNavigate={navigate} onOpenTodos={onOpenTodos} refreshVersion={refreshVersion + planningRefresh} key={id} projectId={id} active={active && selected === id && tab === "automation"} readOnly={readOnly} onExpired={onExpired} />)}

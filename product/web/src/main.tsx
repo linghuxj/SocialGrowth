@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./app.js";
 import "./business-plan.css";
+import "./task-readiness-panel.css";
 import "./operator-todos.css";
 import "./project-feedback-panel.css";
 import "./project-lifecycle-panel.css";

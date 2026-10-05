@@ -249,7 +249,7 @@ export function App() {
       {message && <p className="feedback workspace-feedback" role="status">{message}</p>}
       {mobileReadOnly && <div className="mobile-readonly-note" role="note"><DeviceMobile size={20} /><span><strong>手机端为只读模式</strong>可查看项目筹备、邀请、注册和设备事实；创建、撤销及资料修改请转到电脑完成。</span></div>}
       <OperationsWorkbenchPanel active={view === "workbench"} refreshVersion={workbenchRefreshVersion} readOnly={mobileReadOnly} onExpired={handleFailure} onOpenProject={projectId => { setProjectEntry(previous => ({ projectId, revision: (previous?.revision ?? 0) + 1 })); selectView("projects"); }} onOpenTodos={() => selectView("todos")} onOpenDevices={() => selectView("devices")} />
-      <ProjectPanel entry={projectEntry} onOpenTodos={() => selectView("todos")} onOpenMediaAccounts={() => selectView("media-accounts")} active={view === "projects"} refreshVersion={projectRefreshVersion} operators={operators ?? []} readOnly={mobileReadOnly} onExpired={handleFailure} />
+      <ProjectPanel entry={projectEntry} onOpenTodos={() => selectView("todos")} onOpenMediaAccounts={() => selectView("media-accounts")} onOpenDevices={() => selectView("devices")} active={view === "projects"} refreshVersion={projectRefreshVersion} operators={operators ?? []} readOnly={mobileReadOnly} onExpired={handleFailure} />
       <OperatorTodosPanel active={view === "todos"} readOnly={mobileReadOnly} onExpired={handleFailure} />
       <MediaAccountsPanel active={view === "media-accounts"} refreshVersion={mediaAccountsRefreshVersion} readOnly={mobileReadOnly} onExpired={handleFailure} />
       {(view === "accounts" || view === "devices") && <div className="resource-tabs" role="tablist" aria-label="账号与设备分类">
