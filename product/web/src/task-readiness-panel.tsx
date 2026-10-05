@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import type { BusinessPlanCurrentCheckBlocker } from "@socialgrowth/product-contracts";
 import { ArrowClockwise, ArrowSquareOut, ClipboardText } from "@phosphor-icons/react";
 import { readProjectCurrentChecks, type ProjectCurrentChecksView } from "./project-lifecycle-api.js";
-import { ProductApiError } from "./operator-api.js";
+import { readFact } from "./operations-facts.js";
 import "./task-readiness-panel.css";
 
 type ProjectTab = "settings" | "materials" | "lifecycle";
-type ReadState = "loading" | "loaded" | "failed" | "unauthorized";
+type ReadState = "loading" | "loaded" | "failed" | "unauthorized" | "stale";
 type BlockerInfo = { label: string; next: string; destination?: ProjectTab | "media-accounts" | "devices" };
 
 const formLabel: Record<string, string> = {
@@ -78,21 +78,21 @@ export function TaskReadinessPanel({ projectId, active, onExpired, refreshVersio
   async function refresh() {
     const current = ++sequence.current;
     setState("loading");
-    try {
-      const next = await readProjectCurrentChecks(projectId);
-      if (current !== sequence.current) return;
-      if (next.projectId.toLowerCase() !== projectId.toLowerCase()) throw new Error("project-scope-mismatch");
-      setChecks(next);
-      setLoadedProjectId(projectId.toLowerCase());
-      setState("loaded");
-    } catch (error) {
-      if (current !== sequence.current) return;
-      setLoadedProjectId(projectId.toLowerCase());
-      if (error instanceof ProductApiError && error.status === 401) {
-        setState("unauthorized");
-        expiredRef.current(error);
-      } else setState("failed");
+    const result = await readFact(() => readProjectCurrentChecks(projectId), error => {
+      if (current === sequence.current) expiredRef.current(error);
+    });
+    if (current !== sequence.current) return;
+    setLoadedProjectId(projectId.toLowerCase());
+    if (result.status === "unknown") {
+      setState(result.reason === "unauthorized" ? "unauthorized" : result.reason === "stale" ? "stale" : "failed");
+      return;
     }
+    if (result.value.projectId.toLowerCase() !== projectId.toLowerCase()) {
+      setState("failed");
+      return;
+    }
+    setChecks(result.value);
+    setState("loaded");
   }
 
   useEffect(() => {
@@ -117,6 +117,7 @@ export function TaskReadinessPanel({ projectId, active, onExpired, refreshVersio
       <button type="button" className="outline-button" onClick={() => void refresh()}>重试读取</button>
     </div>}
     {state === "unauthorized" && <p className="task-readiness__state task-readiness__state--error" role="alert">登录状态已失效，当前条件未读取。请重新登录后查看。</p>}
+    {state === "stale" && <p className="task-readiness__state task-readiness__state--error" role="alert">读取期间登录会话已变化，本次响应没有用于更新当前状态。请重新读取。</p>}
     {current && <>
       {state !== "loaded" && <p className="task-readiness__stale" role="status">以下是历史检查结果（检查于 {time(current.checkedAt)}），当前条件未知；请读取成功后再判断。</p>}
       <div className="task-readiness__summary">
