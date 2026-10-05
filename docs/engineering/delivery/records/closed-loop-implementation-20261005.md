@@ -72,3 +72,20 @@ USB Android `RFCW40MYYCV` 实测为 `device`；仅检查目标及当前前台元
 本次没有新增非核心功能、通用调度或执行适配器。用户允许按大概情况编写的内容保留为明确标注的测试草稿，未转为正式来源、身份或授权。
 
 本轮自有 Web 3100、候选后端 44320 和对象存储容器均已关闭；原后端 4320（PID 2285）与既有 PostgreSQL 保留。已上传文件、数据库备份和私有存储配置保留。
+
+## 2026-10-06：核心接线前的真实素材、资源及计划验证
+
+限定当前本地切片、新测试项目与既有 Facebook 账号、手机、Page；用户允许按大概情况编写测试目标。本轮测试范围明确不公开发布，来源与集序保持未知，效果复盘延期。
+
+- 实际切片分析：从本项目已校验原件读取字节，ffprobe 获取时长/尺寸，ffmpeg 均匀抽取 6 帧，沿用 Artemis 现有模型配置生成语言、剧情摘要、标题和配文草稿。UI 明示未分析音频、抽样不覆盖完整剧情；点击应用与保存是分别的操作。真实请求发现模型 JSON 围栏、语言大小写问题，已最小兼容，仍做严格字段校验。
+- 已通过真实 Web：原 object `443193fb-5c6f-4346-bac2-6e03edc2842d` 提取、应用、保存（来源 NULL、首次发布 unknown）；账号 `7587ac3f-9a9d-4e16-b8aa-ddb57c075d8b`、手机 `0fef3177-636c-4b82-8209-1af38134e00f`、Page identity `3bde76d2-76b4-42df-9b26-d7ed73a1ac09` 移用到项目 `55fa34ae-71e8-4079-b870-985c88635382`。没有另建账号，移用只适用于未派发的筹备资源，在途和未知操作保留阻断。
+- 发现并修复实际数据库冲突：历史效果记录不能引用唯一的当前资源占用；0047 将其保留为不可变账号/身份/原项目实体关系。旧项目的 3 条 history 和 6 个 report heads 原归属保留，写入依然校验当前精确绑定。
+- 真实模型方向与范围确认、素材按范围核对以及排期通过 Web 完成，产生 task `7b049382-749e-4f05-961d-616997b5e40a`，准备候选 material rev2。测试假设 US/zh-hans、1 日窗口、每日上界 1；规则明确只检查准备，不点击最终发布。排期不等于执行。
+- UI：来源、证明及关联编号收起为选填；桌面与 390px 截图已检查，窄屏只读且无整页横向溢出。刷新后仍可读取保存素材和原账号占用。机械 UI 检查未报问题。
+- 补充检查：隔离目录后端构建、contracts 构建及生成检查、Web 类型检查通过；素材/上传/指标核心测试 17/17。独立源码复审 base `96242bb` / head `3920696` 通过，范围仅本轮素材和资源改动，不覆盖尚未集成执行桥。
+
+可复现命令：`SG_WEB_TARGET=product SG_PRODUCT_WEB_SCOPE=core-materials ... pnpm test:playwright`（项目/原件参数见脚本）；`SG_WEB_TARGET=product SG_PRODUCT_WEB_SCOPE=core-preparation ... pnpm test:playwright`。环境为项目 Node 24.16.0、Web 3100 / 隔离后端 44320，复用原本地 PostgreSQL 和对象存储。证据保存在 `output/playwright/core-materials-20261006/`（首失败和后续验证均保留）及 `output/playwright/core-preparation-20261006/`。
+
+执行桥、当前 Page 真实核验及原操作恢复仍在本轮实现中；上述结果不能冒充手机执行或公开发布已完成。原 Artemis 创建 Page 和 Page 发帖既有证据继续有效，详见 `artifacts/acceptance/product/page-preparation/06-item1-page-audit-report.json` 与 `artifacts/acceptance/product/ai-strategy/03-page-publish-report.json`；本轮未读取其他 Chat。
+
+非核心项仅记录：全量音频/对白分析；来源资料后补的编辑方式；进一步压缩重复的资格/状态说明；推广与效果数据来源接入。当前不开发这些扩展。

@@ -80,6 +80,13 @@ try {
   await page.getByText(/本项目已占用：/).waitFor();
   checks.push("刷新后新项目仍占用原账号与手机");
   await page.getByRole("button", { name: "项目", exact: true }).click();
+  if (process.env.SG_PRODUCT_CORE_OLD_PROJECT_NAME) {
+    await project.getByRole("row").filter({ has: page.getByText(process.env.SG_PRODUCT_CORE_OLD_PROJECT_NAME, { exact: true }) }).getByRole("button", { name: "打开项目", exact: true }).click();
+    await project.getByRole("button", { name: "AI 自动化总控", exact: true }).click();
+    await page.getByRole("region", { name: "AI 自动化总控", exact: true }).getByText("已读取 3 行报告快照；请核对指标名称、覆盖时间与内容归因后判断效果。", { exact: true }).waitFor();
+    checks.push("资源移用后，旧项目原有三行效果快照仍可从真实Web读取");
+    await project.getByRole("button", { name: "返回项目列表", exact: true }).click();
+  }
   await project.getByRole("row").filter({ has: page.getByText(projectName, { exact: true }) }).getByRole("button", { name: "打开项目", exact: true }).click();
   await project.getByRole("button", { name: "素材", exact: true }).click();
   await page.getByRole("region", { name: "已保存的文件上传记录", exact: true }).getByRole("listitem").filter({ hasText: objectId }).getByRole("button", { name: "继续填写此文件资料", exact: true }).click();
