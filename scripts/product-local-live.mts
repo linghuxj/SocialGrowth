@@ -182,12 +182,18 @@ async function main(): Promise<void> {
   try {
     const path = resolve(dir, "execution-binding.json"), file = await lstat(path);
     assert.ok(file.isFile() && !file.isSymbolicLink() && (file.mode & 0o077) === 0);
-    const binding = JSON.parse(await readFile(path, "utf8")) as { deviceId: string; serial: string; runtimeBindingId: string; pageName?: string };
+    const binding = JSON.parse(await readFile(path, "utf8")) as { deviceId: string; serial: string; runtimeBindingId: string; pageName?: string; identityId?: string; canonicalIdentityRef?: string; accountId?: string };
     assert.match(binding.deviceId, /^[a-f0-9-]{36}$/); assert.match(binding.serial, /^[A-Za-z0-9_-]{1,100}$/);
     assert.match(binding.runtimeBindingId, /^[A-Za-z0-9_-]{1,150}$/);
     if (binding.pageName !== undefined) assert.ok(typeof binding.pageName === "string" && binding.pageName.trim() === binding.pageName && binding.pageName.length > 0 && binding.pageName.length <= 150 && !/[\r\n]/.test(binding.pageName));
+    if (binding.identityId !== undefined) assert.match(binding.identityId, /^[a-f0-9-]{36}$/);
+    if (binding.accountId !== undefined) assert.match(binding.accountId, /^[a-f0-9-]{36}$/);
+    if (binding.canonicalIdentityRef !== undefined) assert.ok(typeof binding.canonicalIdentityRef === "string" && binding.canonicalIdentityRef.trim() === binding.canonicalIdentityRef && binding.canonicalIdentityRef.length > 0 && binding.canonicalIdentityRef.length <= 512 && !/[\r\n]/.test(binding.canonicalIdentityRef));
     Object.assign(env, { SG_PRODUCT_EXECUTION_DEVICE_ID: binding.deviceId, SG_PRODUCT_EXECUTION_SERIAL: binding.serial,
       SG_PRODUCT_EXECUTION_RUNTIME_BINDING_ID: binding.runtimeBindingId,
+      ...(binding.identityId ? { SG_PRODUCT_EXECUTION_IDENTITY_ID: binding.identityId } : {}),
+      ...(binding.accountId ? { SG_PRODUCT_EXECUTION_ACCOUNT_ID: binding.accountId } : {}),
+      ...(binding.canonicalIdentityRef ? { SG_PRODUCT_EXECUTION_CANONICAL_REF: binding.canonicalIdentityRef } : {}),
       ...(binding.pageName ? { SG_PRODUCT_EXECUTION_PAGE_NAME: binding.pageName } : {}) });
   } catch (error) {
     if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error;

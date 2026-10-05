@@ -89,3 +89,11 @@ USB Android `RFCW40MYYCV` 实测为 `device`；仅检查目标及当前前台元
 执行桥、当前 Page 真实核验及原操作恢复仍在本轮实现中；上述结果不能冒充手机执行或公开发布已完成。原 Artemis 创建 Page 和 Page 发帖既有证据继续有效，详见 `artifacts/acceptance/product/page-preparation/06-item1-page-audit-report.json` 与 `artifacts/acceptance/product/ai-strategy/03-page-publish-report.json`；本轮未读取其他 Chat。
 
 非核心项仅记录：全量音频/对白分析；来源资料后补的编辑方式；进一步压缩重复的资格/状态说明；推广与效果数据来源接入。当前不开发这些扩展。
+
+### 同步运营界面检查（2026-10-06）
+
+本轮按用户确认，页面改动同时检查运营人员是否能理解状态与下一步操作。真实 Playwright 进入现有项目的排期与任务页，桌面和 390px 验证通过（`SG_PRODUCT_WEB_SCOPE=core-execution`，未开启手机动作）。任务/原尝试编号收在详情中；窄屏隐藏启动动作并保持只读，无整页横向溢出。页面明确准备检查会操作手机并停在最终发布前。截图：`output/playwright/core-execution-20261006/ui-retry/`。
+
+发现并收敛处理：准备按钮与“执行许可关闭”、正式发布阻断提示混杂，必须区分准备检查和公开发布条件。只修当前流程的文案与状态，不重做布局。首个执行桥候选 `f12e334` 独立审查为 changes_requested：精确 Page 身份绑定、媒体推送前复核、与旧执行会话分流三项；在修正前未启用该桥进行手机业务执行。
+
+已有 Runtime 的旧排期 `schedule-60c3e7f1-443c-4f56-81ab-805bb1c6a5f6` 通过原 Web 取消。请求后服务短暂不可用，首次最终提示断言未完成，保留失败证据；服务恢复后实际 Web 显示原 task `f985bf20-260d-414a-a2dd-cd49f0ac43b9` 为 cancelled、排期“已取消”，只读状态补充核对一致。历史 unknown `d634e4c6-4266-4cc7-a784-3a31a1737cac` 保留，未重发、未删除。
