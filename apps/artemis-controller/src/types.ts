@@ -67,6 +67,10 @@ export interface ExecutionReceipt {
   executionStatus: ExecutionStatus;
   publishStatus: ReceiptPublishStatus;
   evidenceRefs: string[];
+  /** Identity observed on-device during a Page-only preflight; never inferred from a configured binding. */
+  observedIdentity?: string;
+  observedIdentityKind?: "facebook_page" | "facebook_profile" | "youtube_channel" | "unknown";
+  observedIdentityName?: string;
   publishedUrl?: string;
   publishedPostId?: string;
   failureCode?:

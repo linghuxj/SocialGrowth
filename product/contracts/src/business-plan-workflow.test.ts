@@ -10,7 +10,7 @@ const blocked = (): Task => ({
   contentUnitId: "44444444-4444-4444-8444-444444444444", variantId: "55555555-5555-4555-8555-555555555555",
   materialRevision: 1, expectedFiles: [], identityId: "66666666-6666-4666-8666-666666666666", platform: "facebook",
   form: "facebook_video", scheduledAt: "2026-10-05T00:00:00Z", attempt: null, operation: null,
-  workflow: { state: "blocked", claimId: null, leaseUntil: null, blockers: ["executor_unconnected"], submissionState: "not_started", verifiedResult: null },
+  workflow: { state: "blocked", claimId: null, leaseUntil: null, blockers: ["executor_unconnected"], submissionState: "not_started", verifiedResult: null, preparedAt: null },
   assistanceTodoId: null, recheckStatus: "not_requested", recheckBlockers: [],
 });
 const response = (task: Task = blocked()): BusinessPlanWorkflowResponse => ({ projectId, checkedAt: "2026-10-05T00:00:00Z",
@@ -40,8 +40,16 @@ test("rejects success-shaped projections without operation, proof result, and ma
 test("accepts only internally consistent trusted terminal result projections", () => {
   const task = { ...blocked(), operation: { operationId: "op-123", state: "verified" as const },
     workflow: { state: "verified" as const, claimId: null, leaseUntil: null, blockers: [], submissionState: "verified_published" as const,
-      verifiedResult: { resultId: "trusted-report-123", verifiedAt: "2026-10-05T00:00:00Z" } } };
+      verifiedResult: { resultId: "trusted-report-123", verifiedAt: "2026-10-05T00:00:00Z" }, preparedAt: null } };
   assert.equal(businessPlanWorkflowResponseSchema.parse(response(task)).tasks[0]?.workflow.state, "verified");
+});
+
+test("prepared means the supervised preflight finished without publishing", () => {
+  const task = { ...blocked(), operation: { operationId: "op-preflight", state: "prepared" as const },
+    workflow: { ...blocked().workflow, state: "prepared" as const, blockers: [], submissionState: "prepared" as const,
+      verifiedResult: null, preparedAt: "2026-10-05T00:00:00Z" } };
+  assert.equal(businessPlanWorkflowResponseSchema.parse(response(task)).tasks[0]?.workflow.state, "prepared");
+  assert.equal(businessPlanWorkflowResponseSchema.safeParse(response({ ...task, workflow: { ...task.workflow, verifiedResult: { resultId: "not-a-publication", verifiedAt: "2026-10-05T00:00:00Z" } } })).success, false);
 });
 
 test("rejects duplicate task identities in one project projection", () => {

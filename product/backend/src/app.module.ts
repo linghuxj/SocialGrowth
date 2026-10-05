@@ -56,6 +56,8 @@ import { ArtemisBusinessModel, readInitialDirectionModel } from "./artemis-busin
 import { BusinessPlanController } from "./business-plan.controller.js";
 import { BusinessPlanService } from "./business-plan-service.js";
 import { BusinessPlanWorkflowStore, BusinessPlanWorkflowConsumer } from "./business-plan-workflow-store.js";
+import { BusinessPlanWorkflowInternalController } from "./business-plan-workflow-internal.controller.js";
+import { BusinessPlanExecutionRuntime } from "./business-plan-execution-runtime.js";
 import { AccountPreparationService } from "./account-preparation-service.js";
 import { AccountPreparationController } from "./account-preparation.controller.js";
 import { DeviceAssistanceFeedService } from "./device-assistance-feed-service.js";
@@ -184,6 +186,7 @@ const providerAuthProvider = {
     ProjectPlanningController,
     ProjectDirectionController,
     BusinessPlanController,
+    BusinessPlanWorkflowInternalController,
     AccountPreparationController,
     DeviceAssistanceFeedController,
     ProviderAssistanceFeedController,
@@ -273,6 +276,22 @@ const providerAuthProvider = {
       new BusinessPlanWorkflowConsumer(store, { readiness: null, actionGate: null, executor: null, proofVerifier: null }) },
     { provide: BusinessPlanService, inject: [Pool, OperatorAuthService, MaterialRuntime, ArtemisBusinessModel, BusinessPlanWorkflowConsumer],
       useFactory: (pool: Pool, auth: OperatorAuthService, materials: MaterialRuntime, model: ArtemisBusinessModel | null, workflow: BusinessPlanWorkflowConsumer) => new BusinessPlanService(pool, auth, materials, model, workflow) },
+    { provide: BusinessPlanExecutionRuntime, inject: [BusinessPlanService, MaterialRuntime], useFactory: (service: BusinessPlanService, materials: MaterialRuntime) => {
+      const url = process.env.SG_PRODUCT_EXECUTION_RUNTIME_URL, token = process.env.SG_PRODUCT_EXECUTION_RUNTIME_TOKEN;
+      const bindingId = process.env.SG_PRODUCT_EXECUTION_RUNTIME_BINDING_ID, deviceId = process.env.SG_PRODUCT_EXECUTION_SERIAL, serial = process.env.SG_PRODUCT_EXECUTION_SERIAL, productDeviceId = process.env.SG_PRODUCT_EXECUTION_DEVICE_ID;
+      if (!url || !token || !bindingId || !deviceId || !serial || !productDeviceId) return null;
+      const reader = materials as MaterialRuntime & { readWorkflowFile?: (projectId: string, file: { objectId: string; sha256: string; bytes: number; contentType: string }) => Promise<Buffer> };
+      if (!reader.readWorkflowFile) return null;
+      return new BusinessPlanExecutionRuntime({ url, token, bindingId, deviceId, serial, productDeviceId },
+        async scope => (await service.executionFacts(scope)).facts,
+        scope => service.executionReadiness(scope),
+        input => service.authorizeExecutionAction(input),
+        (scope, file) => reader.readWorkflowFile!(scope.projectId, file));
+    } },
+    { provide: "BUSINESS_PLAN_EXECUTION_PORTS", inject: [BusinessPlanWorkflowConsumer, BusinessPlanExecutionRuntime], useFactory: (workflow: BusinessPlanWorkflowConsumer, runtime: BusinessPlanExecutionRuntime | null) => {
+      if (runtime) workflow.installPorts(runtime.ports());
+      return true;
+    } },
     { provide: DeviceAssistanceFeedService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new DeviceAssistanceFeedService(pool, auth) },
     { provide: ProviderAssistanceFeedService, inject: [Pool, ProviderAuthService], useFactory: (pool: Pool, auth: ProviderAuthService) => new ProviderAssistanceFeedService(pool, auth) },
     { provide: ProviderCommissionFeedService, inject: [Pool, ProviderAuthService], useFactory: (pool: Pool, auth: ProviderAuthService) => new ProviderCommissionFeedService(pool, auth) },

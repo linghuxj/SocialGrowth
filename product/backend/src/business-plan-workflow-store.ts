@@ -9,7 +9,7 @@ export class BusinessPlanWorkflowError extends Error {
   constructor(readonly code: "INPUT_INVALID" | "SCOPE_CHANGED" | "CLAIM_STALE" | "EVENT_CONFLICT" | "WORKFLOW_UNAVAILABLE") { super(code); }
 }
 export type WorkflowReadiness = { adapterState: "connected" | "unconnected"; businessState: "ready" | "blocked" | "unknown"; scopeFingerprint: string; blockers: string[] };
-export interface TaskWorkflowReadinessPort { assess(scope: BusinessPlanWorkflowScope): Promise<WorkflowReadiness> }
+export interface TaskWorkflowReadinessPort { assess(scope: BusinessPlanWorkflowScope, ownOperationId?: string): Promise<WorkflowReadiness> }
 export type WorkflowActionPermit = { permitId: string; scopeFingerprint: string; expiresAt: string };
 export interface TaskWorkflowActionGatePort {
   authorizeAction(input: { scope: BusinessPlanWorkflowScope; operationId: string; stepId: string; scopeFingerprint: string }): Promise<WorkflowActionPermit | null>
@@ -20,7 +20,7 @@ export interface TaskWorkflowExecutorPort {
     authorizeAction(stepId: string): Promise<WorkflowActionPermit | null> }): Promise<WorkflowReportedObservation>
 }
 export type TrustedWorkflowVerification = { verificationEventId: string; payloadDigest: string;
-  decision: "verified_published" | "verified_not_published" | "unknown"; resultId: string | null; verifiedAt: string | null };
+  decision: "prepared" | "verified_published" | "verified_not_published" | "unknown"; resultId: string | null; verifiedAt: string | null };
 export interface TrustedPublicationVerifierPort {
   verifyOriginal(input: { scope: BusinessPlanWorkflowScope; operationId: string;
     observation: WorkflowReportedObservation | null }): Promise<TrustedWorkflowVerification>
@@ -35,11 +35,14 @@ export type BusinessPlanWorkflowPorts = { readiness: TaskWorkflowReadinessPort |
   executor: TaskWorkflowExecutorPort | null; proofVerifier: TrustedPublicationVerifierPort | null; originalAttemptReconciler?: OriginalAttemptReconcilerPort | null };
 export interface BusinessPlanWorkflowPortStatusReader {
   portStatus(): { executor: "connected" | "unconnected"; proofVerifier: "connected" | "unconnected" };
+  refresh?(scope: unknown): Promise<WorkflowJob>;
+  start?(scope: unknown, workerId: string): Promise<WorkflowJob>;
+  queryOriginal?(projectId: string, taskId: string): Promise<WorkflowJob | null>;
 }
 export type WorkflowJob = { workflowId: string; projectId: string; taskId: string; taskAttemptId: string;
   scopeFingerprint: string; state: string; submissionState: string; operationId: string | null; operationState: string | null;
   claimId: string | null; originalClaimId: string | null; leaseUntil: string | null; blockers: string[]; verifiedResultId: string | null;
-  verifiedAt: string | null; scope: BusinessPlanWorkflowScope };
+  verifiedAt: string | null; preparedAt: string | null; preparedResultId: string | null; scope: BusinessPlanWorkflowScope };
 
 function stable(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
@@ -176,6 +179,15 @@ export class BusinessPlanWorkflowStore {
       return this.readOne(client, taskId);
     });
   }
+  async renewLease(taskId: string, operationId: string, claimId: string, leaseMs = 120_000): Promise<WorkflowJob | null> {
+    return this.tx(async client => {
+      const job = await this.readOne(client, taskId, true);
+      if (!job || job.state !== "running" || job.operationId !== operationId || job.claimId !== claimId) return null;
+      const changed = await client.query("UPDATE " + schema + ".business_plan_workflow_jobs SET lease_until=clock_timestamp()+($4::int*interval '1 millisecond'),updated_at=clock_timestamp() WHERE workflow_id=$1 AND operation_id=$2 AND claim_id=$3 AND state='running'",
+        [job.workflowId, operationId, claimId, leaseMs]);
+      return changed.rowCount === 1 ? this.readOne(client, taskId) : null;
+    });
+  }
   async startOperation(taskId: string, claimId: string, currentScopeHash: string): Promise<{ job: WorkflowJob; operationId: string } | null> {
     if (!hashPattern.test(currentScopeHash)) throw new BusinessPlanWorkflowError("INPUT_INVALID");
     return this.tx(async client => {
@@ -227,7 +239,7 @@ export class BusinessPlanWorkflowStore {
   async applyTrustedVerification(taskId: string, operationId: string, result: TrustedWorkflowVerification): Promise<WorkflowJob> {
     if (!/^[0-9a-f-]{36}$/i.test(taskId) || !operationId || operationId.length > 200
       || !/^[0-9a-f-]{36}$/i.test(result.verificationEventId) || !hashPattern.test(result.payloadDigest)
-      || !["verified_published", "verified_not_published", "unknown"].includes(result.decision)
+      || !["prepared", "verified_published", "verified_not_published", "unknown"].includes(result.decision)
       || (result.resultId !== null && (result.resultId.length < 1 || result.resultId.length > 200))
       || (result.verifiedAt !== null && !Number.isFinite(Date.parse(result.verifiedAt)))) throw new BusinessPlanWorkflowError("INPUT_INVALID");
     const complete = result.decision !== "unknown";
@@ -235,23 +247,23 @@ export class BusinessPlanWorkflowStore {
     return this.tx(async client => {
       const job = await this.readOne(client, taskId, true);
       if (!job || job.operationId !== operationId) throw new BusinessPlanWorkflowError("CLAIM_STALE");
-      const terminal = job.state === "verified" || job.state === "not_published";
+      const terminal = job.state === "prepared" || job.state === "verified" || job.state === "not_published";
       if (terminal) {
         await this.event(client, job.workflowId, job.scopeFingerprint, "verify:" + result.verificationEventId, "verification_completed", result);
         const sameOutcome = (job.state === "verified" && result.decision === "verified_published")
-          || (job.state === "not_published" && result.decision === "verified_not_published");
+          || (job.state === "not_published" && result.decision === "verified_not_published")
+          || (job.state === "prepared" && result.decision === "prepared");
         const sameTime = job.verifiedAt !== null && result.verifiedAt !== null
           && Date.parse(job.verifiedAt) === Date.parse(result.verifiedAt);
-        if (sameOutcome && job.verifiedResultId === result.resultId && sameTime) return job;
+        if (sameOutcome && (job.state === "prepared" ? job.preparedResultId === result.resultId : job.verifiedResultId === result.resultId) && sameTime) return job;
         throw new BusinessPlanWorkflowError("EVENT_CONFLICT");
       }
       await this.event(client, job.workflowId, job.scopeFingerprint, "verify:" + result.verificationEventId, "verification_completed", result);
-      const state = result.decision === "verified_published" ? "verified" : result.decision === "verified_not_published" ? "not_published" : "submission_unknown";
-      const submission = result.decision === "verified_published" ? "verified_published" : result.decision === "verified_not_published" ? "verified_not_published" : "unknown";
-      const operationState = result.decision === "verified_published" ? "verified" : result.decision === "verified_not_published" ? "not_published" : "submission_unknown";
-      await client.query("UPDATE " + schema + ".business_plan_workflow_jobs SET state=$2,submission_state=$3,operation_state=$4,verified_result_id=$5,"
-        + "verified_at=$6,claim_id=NULL,claim_owner=NULL,lease_until=NULL,updated_at=clock_timestamp() WHERE workflow_id=$1 AND operation_id=$7 AND state NOT IN ('verified','not_published')",
-        [job.workflowId, state, submission, operationState, result.resultId, result.verifiedAt, operationId]);
+      const state = result.decision === "prepared" ? "prepared" : result.decision === "verified_published" ? "verified" : result.decision === "verified_not_published" ? "not_published" : "submission_unknown";
+      const submission = result.decision;
+      const operationState = result.decision === "prepared" ? "prepared" : result.decision === "verified_published" ? "verified" : result.decision === "verified_not_published" ? "not_published" : "submission_unknown";
+      await client.query("UPDATE " + schema + ".business_plan_workflow_jobs SET state=$2,submission_state=$3,operation_state=$4,verified_result_id=$5,verified_at=$6,prepared_at=CASE WHEN $2='prepared' THEN $6 ELSE NULL END,prepared_result_id=CASE WHEN $2='prepared' THEN $7 ELSE NULL END,claim_id=NULL,claim_owner=NULL,lease_until=NULL,updated_at=clock_timestamp() WHERE workflow_id=$1 AND operation_id=$8 AND state NOT IN ('prepared','verified','not_published')",
+        [job.workflowId, state, submission, operationState, result.decision === "prepared" ? null : result.resultId, result.verifiedAt, result.decision === "prepared" ? result.resultId : null, operationId]);
       const updated = await this.readOne(client, taskId);
       if (!updated) throw unavailable();
       return updated;
@@ -267,11 +279,11 @@ export class BusinessPlanWorkflowStore {
   }
   private async readOne(client: PoolClient, taskId: string, lock = false): Promise<WorkflowJob | null> {
     const row = (await client.query("SELECT workflow_id,project_id,task_id,task_attempt_id,scope_snapshot,scope_fingerprint,state,submission_state,"
-      + "operation_id,operation_state,claim_id,original_claim_id,lease_until,blockers,verified_result_id,verified_at FROM " + schema
+      + "operation_id,operation_state,claim_id,original_claim_id,lease_until,blockers,verified_result_id,verified_at,prepared_at,prepared_result_id FROM " + schema
       + ".business_plan_workflow_jobs WHERE task_id=$1 " + (lock ? "FOR UPDATE" : ""), [taskId])).rows[0] as {
         workflow_id: string; project_id: string; task_id: string; task_attempt_id: string; scope_snapshot: unknown; scope_fingerprint: Buffer;
         state: string; submission_state: string; operation_id: string | null; operation_state: string | null; claim_id: string | null; original_claim_id: string | null;
-        lease_until: Date | null; blockers: unknown; verified_result_id: string | null; verified_at: Date | null } | undefined;
+        lease_until: Date | null; blockers: unknown; verified_result_id: string | null; verified_at: Date | null; prepared_at: Date | null; prepared_result_id: string | null } | undefined;
     if (!row) return null;
     const scope = businessPlanWorkflowScopeSchema.safeParse(row.scope_snapshot);
     if (!scope.success || scope.data.taskId.toLowerCase() !== row.task_id.toLowerCase()
@@ -282,15 +294,27 @@ export class BusinessPlanWorkflowStore {
       scopeFingerprint: row.scope_fingerprint.toString("hex"), state: row.state, submissionState: row.submission_state,
       operationId: row.operation_id, operationState: row.operation_state, claimId: row.claim_id, originalClaimId: row.original_claim_id,
       leaseUntil: row.lease_until?.toISOString() ?? null,
-      blockers: blockers(values), verifiedResultId: row.verified_result_id, verifiedAt: row.verified_at?.toISOString() ?? null, scope: scope.data };
+      blockers: blockers(values), verifiedResultId: row.verified_result_id, verifiedAt: row.verified_at?.toISOString() ?? null, preparedAt: row.prepared_at?.toISOString() ?? null, preparedResultId: row.prepared_result_id, scope: scope.data };
   }
 }
 
 /** Internal consumer: there is deliberately no HTTP entry point for any write method. */
 export class BusinessPlanWorkflowConsumer implements BusinessPlanWorkflowPortStatusReader {
-  constructor(private readonly store: BusinessPlanWorkflowStore, private readonly ports: BusinessPlanWorkflowPorts) {}
+  constructor(private readonly store: BusinessPlanWorkflowStore, private ports: BusinessPlanWorkflowPorts) {}
+  installPorts(ports: BusinessPlanWorkflowPorts) { this.ports = ports; }
   portStatus() { return { executor: this.ports.actionGate && this.ports.executor ? "connected" as const : "unconnected" as const,
     proofVerifier: this.ports.proofVerifier ? "connected" as const : "unconnected" as const }; }
+  async authorizeCurrentAction(input: { scope: BusinessPlanWorkflowScope; operationId: string; claimId: string; scopeFingerprint: string; stepId: string }) {
+    const job = await this.store.renewLease(input.scope.taskId, input.operationId, input.claimId);
+    if (!job || job.operationId !== input.operationId || job.claimId !== input.claimId || job.scopeFingerprint !== input.scopeFingerprint
+      || stable(job.scope) !== stable(input.scope) || job.state !== "running" || !this.ports.readiness || !this.ports.actionGate) return null;
+    const ready = await this.ports.readiness.assess(job.scope, input.operationId);
+    if (ready.adapterState !== "connected" || ready.businessState !== "ready" || ready.blockers.length || ready.scopeFingerprint !== input.scopeFingerprint) return null;
+    const permit = await this.ports.actionGate.authorizeAction({ scope: job.scope, operationId: input.operationId,
+      scopeFingerprint: input.scopeFingerprint, stepId: input.stepId });
+    if (!permit || permit.scopeFingerprint !== input.scopeFingerprint || Date.parse(permit.expiresAt) <= Date.now()) return null;
+    return permit;
+  }
   async refresh(scopeInput: unknown): Promise<WorkflowJob> {
     const scope = businessPlanWorkflowScopeSchema.parse(scopeInput), sum = fingerprint(scope);
     const raw = this.ports.readiness ? await this.ports.readiness.assess(scope) : {
@@ -301,6 +325,20 @@ export class BusinessPlanWorkflowConsumer implements BusinessPlanWorkflowPortSta
     return this.store.materialize(scope, { ...raw, adapterState: connected ? "connected" : "unconnected",
       blockers: [...raw.blockers, ...(status.executor === "unconnected" ? ["executor_unconnected"] : []),
         ...(status.proofVerifier === "unconnected" ? ["proof_verifier_unconnected"] : [])] });
+  }
+  async queryOriginal(projectId: string, taskId: string): Promise<WorkflowJob | null> {
+    const job = (await this.store.readProject(projectId)).find(item => item.taskId.toLowerCase() === taskId.toLowerCase()) ?? null;
+    if (!job || !job.operationId || !["running", "submission_unknown"].includes(job.state) || !this.ports.proofVerifier) return job;
+    const result = await this.ports.proofVerifier.verifyOriginal({ scope: job.scope, operationId: job.operationId, observation: null });
+    // This is a GET-only reconciliation of the same operation. Unknown or still-running
+    // responses stay frozen and are never converted into another dispatch.
+    if (result.decision !== "prepared") return job;
+    return this.store.applyTrustedVerification(job.taskId, job.operationId, result);
+  }
+  async start(scopeInput: unknown, workerId: string) {
+    const job = await this.refresh(scopeInput);
+    if (job.state === "queued") void this.runOnce(scopeInput, workerId).catch(() => undefined);
+    return job;
   }
   async runOnce(scopeInput: unknown, workerId: string): Promise<WorkflowJob | null> {
     const scope = businessPlanWorkflowScopeSchema.parse(scopeInput), ports = this.ports, sum = fingerprint(scope);
@@ -335,12 +373,12 @@ export class BusinessPlanWorkflowConsumer implements BusinessPlanWorkflowPortSta
       || readiness.blockers.length !== 0 || readiness.scopeFingerprint !== sum) {
       return this.store.materialize(scope, { ...readiness, adapterState: "unconnected", blockers: [...readiness.blockers, "workflow_readiness_not_ready"] });
     }
-    const claim = await this.store.claim(scope.taskId, workerId);
+    const claim = await this.store.claim(scope.taskId, workerId, 120_000);
     if (!claim?.claimId) return claim;
     const started = await this.store.startOperation(scope.taskId, claim.claimId, sum);
     if (!started) return this.store.readProject(scope.projectId).then(rows => rows.find(row => row.taskId === scope.taskId) ?? null);
     const authorizeAction = async (stepId: string) => {
-      const latest = await ports.readiness!.assess(scope);
+      const latest = await ports.readiness!.assess(scope, started.operationId);
       if (!Array.isArray(latest.blockers) || latest.adapterState !== "connected" || latest.businessState !== "ready"
         || latest.blockers.length !== 0 || latest.scopeFingerprint !== sum) return null;
       const permit = await ports.actionGate!.authorizeAction({ scope, operationId: started.operationId, stepId, scopeFingerprint: sum });
