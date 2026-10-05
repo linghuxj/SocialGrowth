@@ -43,6 +43,7 @@ export function OperatorTodosPanel({ active, readOnly, onExpired, entry = null }
   const [pending, setPending] = useState<PreparedAssistanceNote | null>(null);
   const pendingCommand = useRef<PreparedAssistanceNote | null>(null);
   const pendingSession = useRef<(() => void) | null>(null);
+  const noteInFlight = useRef(false);
   const activeView = useRef(active);
   activeView.current = active;
   const mounted = useRef(true);
@@ -179,8 +180,10 @@ export function OperatorTodosPanel({ active, readOnly, onExpired, entry = null }
 
   async function continueNote(command = pending): Promise<void> {
     if (!command) return;
+    if (noteInFlight.current) return;
     const sessionGuard = pendingSession.current;
     if (!sessionGuard) { setError("原请求缺少会话绑定，结果仍未确认；请勿重发或切换待办。"); return; }
+    noteInFlight.current = true;
     setError(""); setMessage("");
     try {
       sessionGuard();
@@ -209,6 +212,8 @@ export function OperatorTodosPanel({ active, readOnly, onExpired, entry = null }
       }
       pendingCommand.current = command; setPending(command);
       setError("提交结果尚未确认。原内容和请求键已保留；刷新记录后，只有选择接续原请求才会用相同请求键核对。");
+    } finally {
+      noteInFlight.current = false;
     }
   }
 
