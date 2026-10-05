@@ -4,6 +4,10 @@
 
 本文件适用于整个仓库。执行任务前须阅读并遵守 [CLAUDE.md](CLAUDE.md) 中的工程规范与业务边界。
 
+## 开发方式：不要过度设计
+
+2026-10-05 用户确认：后续采用[简化开发与验证规范](CLAUDE.md#简化开发与验证2026-10-05-用户确认)。一次解决一个实际问题，优先复用现有实现，采用最小改动；小改动默认单负责人，验证范围与影响范围匹配，满足验收条件后收尾。不为未来假设增加框架、抽象、迁移或协作流程。涉及权限、未知提交、敏感信息和真实业务结果的必要约束仍须遵守。
+
 ## 安装与启动
 
 - 统一使用 pnpm 8.14.0，项目 `.npmrc` 自动下载并选择 Node.js 24.16.0（首次需要联网），不修改全局 Node。从根目录执行 `pnpm install --frozen-lockfile`；依赖以 `pnpm-workspace.yaml` 与唯一的 `pnpm-lock.yaml` 管理，不生成 npm / Yarn 锁文件。`pnpm env:check` 输出实际 Node 路径及 SQLite 检查结果，不用裸 `node -v` 代替项目运行环境证据。
@@ -27,7 +31,7 @@
 
 ## Autonomous agent teams
 
-- Delegate independent, authorized subtasks to ux, backend, and adversary teammates. The lead uses gpt-6.1-sol/high; ux and backend use gpt-6-luna/medium; adversary uses gpt-6-astra/high.
+- Default to one owner for small fixes. Delegate only when independent, authorized subtasks benefit from parallel work or the change warrants specialist review; choose the needed roles instead of requiring a full team for every change. When teams are used, the lead uses gpt-6.1-sol/high; ux and backend use gpt-6-luna/medium; adversary uses gpt-6-astra/high. The rules below apply to delegated teamwork.
 - Each live teammate owns a distinct worktree and branch. Initial assignments are in the canonical tasks.json. Additional instances must reserve their own workspace entry and create a unique codex/team-<role>-<agent-id> branch/worktree before editing. Never share a worker checkout or edit the lead checkout. Worktrees isolate file writes; integration can still require conflict resolution.
 - The canonical task ledger is tasks.json beside the shared Git common directory. Run scripts/team-tasks.py from the canonical repository; all worktrees use the same persistent Git-directory lock. Do not edit tasks.json directly, delete the lock, or commit mutable ledger state.
 - Read with `python3 /Users/linghuxj/Documents/myproject/project/SocialGrowth/scripts/team-tasks.py read`. Claim with `claim --task <id> --actor <runtime-agent-id>`. For other updates, send a complete updated JSON snapshot on stdin to `replace --revision <observed-revision>`; on conflict reread, merge your intended change, and retry.
