@@ -25,7 +25,7 @@ function fixture() {
     installationId: authority.installationId, enrollmentGeneration: "1", evidenceId: randomUUID(), policyRevision: 1, networkRevision: 1,
     checkedAt: new Date().toISOString(), independentVerifierReachable: true, adbDenied: true, otherPhonesDenied: true,
     operatorServicesDenied: true, businessEgressDenied: true, additiveRulesChecked: true }, new Date().toISOString());
-  const state: AuthenticatedAdmissionState = { scope: { deviceId: authority.deviceId, installationId: authority.installationId,
+  const state: AuthenticatedAdmissionState = { scope: { deviceId: authority.deviceId, providerId: randomUUID(), installationId: authority.installationId,
     installationGeneration: "1", ownershipVersion: "1" }, record };
   return { server, socket, transports, state, handle: transports.transportFor(socket)! };
 }
@@ -83,7 +83,8 @@ test("main business API keeps state read-only and begin closed without a trusted
   assert.equal(read.status, 200);
   assert.deepEqual(read.body, {
     protocolVersion: "2026-09-30.admission-v1",
-    scope: f.state.scope,
+    scope: { deviceId: f.state.scope.deviceId, installationId: f.state.scope.installationId,
+      installationGeneration: f.state.scope.installationGeneration, ownershipVersion: f.state.scope.ownershipVersion },
     enrollment: { enrollmentId: f.state.record!.enrollmentId, enrollmentGeneration: "1", version: f.state.record!.version,
       phase: "restricted", expiresAt: f.state.record!.expiresAt },
     verifierReady: false,

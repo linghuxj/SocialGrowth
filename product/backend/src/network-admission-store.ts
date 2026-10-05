@@ -70,7 +70,7 @@ async function transact<T>(pool: Pool, operation: (client: PoolClient) => Promis
 
 interface InstallationRequest { context: AuthenticatedInstallation; auth: InstallationAuthService; token: string }
 export interface AuthenticatedAdmissionState {
-  scope: { deviceId: string; installationId: string; installationGeneration: string; ownershipVersion: string };
+  scope: { deviceId: string; providerId: string; installationId: string; installationGeneration: string; ownershipVersion: string };
   record: AdmissionRecord | null;
 }
 async function requireSession(client: PoolClient, request: InstallationRequest): Promise<void> {
@@ -194,7 +194,7 @@ export class NetworkAdmissionStore {
       if (row && record) requireCurrent(row, record, current);
       await requireSession(client, request);
       return { scope: { deviceId: current.device_id, installationId: context.installationId,
-        installationGeneration: current.generation, ownershipVersion: current.fact_version }, record };
+        providerId: current.provider_id, installationGeneration: current.generation, ownershipVersion: current.fact_version }, record };
     });
   }
   async beginAuthenticated(auth: InstallationAuthService, token: string, publicKeySpki: string, requestKey: string) {
