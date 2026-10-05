@@ -119,3 +119,21 @@ USB Android `RFCW40MYYCV` 实测为 `device`；仅检查目标及当前前台元
 新流程真实请求暴露并修复 SQL 42702：任务表与预留表通过 ON 关联后，发布身份再用 USING 会因左侧 identity_id 重复而失败。只将该关联改成三字段显式 ON。同时把原记录 queued 文案改为“等待检查”，恢复启动原尝试按钮；claim/operation 防重与 unknown 只查询约束不变。候选 base `b603fc8` / head `cf8ce44` 独立源码复审通过，后端构建与 Web 类型检查通过。首个原尝试 `52296ff8-e64a-47bf-b4b9-6e4e48cc218b` 保留，SQL 失败尚未派发手机，未另建尝试。
 
 根目录标准 `SG_PRODUCT_BACKEND_PORT=44320 pnpm dev` 已实际启动新候选；原 4320 服务保留。标准 `pnpm runtime:start` 沿用私有执行配置，测试只覆盖回写端口为 44320。经真实新 Web 再发起一次，POST 201，随后故意中断浏览器响应；页面查询原操作，原 workflow 已 running，operation `0ef94113-c6de-4171-b873-fd0c2bf62b53` / Artemis audit trace `ff006725-3a68-470c-80b3-3b914d901505`。当前仍在核验 Page，尚无最终准备回执，不能宣称执行完成或发布成功。证据在 `output/playwright/core-execution-20261006/live-after-query-fix/`。
+
+### 原核验超时与运营反馈收尾（2026-10-06）
+
+本节更新上文“正在核验”的最终事实：原 operation `0ef94113-c6de-4171-b873-fd0c2bf62b53` 的身份 audit trace `ff006725-3a68-470c-80b3-3b914d901505` 运行到 15 分钟限时，失败原因 `EXECUTION_TIMEOUT`。原 Artemis 查询确认同 USB `RFCW40MYYCV` 的 trace 已 cancelled，设备执行锁无 owner；最终真实 PNG 显示已进入“Tongm Mhuo 短剧精选”Page。Artemis 原备注记载管理入口可见，但个人身份及 Page 详情加载超时，精确 Page ID／网址未确认。模型请求返回 200，不属于模型凭据缺失。备注及截图不能替代完整身份核验，因此发布准备验收仍失败，未进行新公开发布。原结果和设备占用继续保留为 unknown，未重发。
+
+实际失败暴露并修复两处核心问题：bridge 在 audit 非成功时丢弃了失败回执，现保留原失败回执、trace 与证据引用；结果写回 SQL 的 `$6` 同时被推断为 text 和 timestamptz，现显式使用 timestamptz。对本次已经丢失回执的原操作，只读校验同 operation 的证据摘要、trace、attempt、task 与 serial 后提供安全超时诊断，不补造成功回执，不释放未知占用。旧记录缺少持久阶段字段时，诊断阶段保持 unknown，不用当前身份映射倒推历史。
+
+运营界面沿用已有任务页与状态：失败原因和下一步就近可见；未知时只显示“查询原核查状态”，查询中显示“正在查询原检查”，不会误称启动手机。任务编号继续收起，正式发布条件与准备结果分别说明，390px 保持只读。重复的 Facebook 标签、复核详情中的长编号及进一步合并说明仅记入后续改善，不在本轮扩展布局或功能。
+
+- 已通过：自有临时隔离 PostgreSQL 的工作流补充测试 5/5。覆盖原操作查询只写入诊断、仍 unknown、0 次派发、无新 claim、不因重复查询增长事件，以及同 verificationEventId 改摘要必须 EVENT_CONFLICT；测试数据库已删除，未重置业务库。fixture 应用已有 0046 迁移，没有新增迁移。
+- 已通过：根后端构建、Web 类型检查、标准启动的 Node 24.16.0／SQLite、contracts 构建和生成校验。bridge 作者 Runtime 类型构建通过。
+- 已通过：生产失败反馈源码候选 base `f13479cfa4d2520d15c04cbbde869e8bbbde81ce` / head `defd8d2afc9c93aacb6adfcb2771597b378de2d9` 独立复审；bridge base `44e932efae8502205fafdc06c27791a8542626e3` / head `c76f4f76ac65e4a209d2381768ccb9ceeca7372d` 独立复审。分别关闭事件摘要冲突检查及历史阶段推断问题。根集成至 `67c62e5`，后续仅修查询忙碌文案和测试的刷新导航，提交 `2c4b57c`。
+- 已通过真实 Web：`SG_WEB_TARGET=product SG_PRODUCT_WEB_SCOPE=core-execution SG_PRODUCT_CORE_PROJECT_NAME='获准原文件字节验收-1791208369573' SG_PRODUCT_CORE_OUTPUT=output/playwright/core-execution-20261006/original-timeout-feedback-final SG_PRODUCT_CORE_EXPECT_UNKNOWN=1 pnpm test:playwright`。3 项断言通过；从真实页面查询原操作、刷新后重新打开同项目，超时提示仍在；桌面/390px 已查看截图，0 次新尝试、0 次启动 POST、没有整页横向溢出。测试没有直接业务 API 写入、数据库预置或 Mock 结果。
+- 失败保留：`live-after-query-fix/` 的真实准备等待失败；`original-timeout-startup-failure/` 在 Web 尚未监听时失败；`original-timeout-locator-failure/` 查询成功后，脚本错误假设刷新保留打开项目而定位失败。修正脚本按真实入口重新打开同项目。首次通过截图发现查询忙碌文案不准确，修正后的最终结果在 `original-timeout-feedback-final/`，不覆盖此前失败记录。
+
+**未完成／阻断：** 本次 Page 精确身份核验未通过，因此后续切片准备及其可信 prepared 回写未获得实际业务通过；原 unknown 的可信最终恢复也未通过，不以工程接线或旧任务恢复代替。下一步是恢复既有 Facebook 身份详情的可读条件并核对原操作，仍沿用现有账号和 Page，不需要另找账号；尚未出现新验证码、密码或其他人工协助请求。效果观察继续按用户决定延期。没有新增恢复框架或非核心功能。
+
+本轮自有产品 Web 3100／后端 44320、Runtime 4318、旧 Web 3000 与对象存储测试容器已关闭；原 4320（PID 19852）、PostgreSQL、原件、原未知操作／设备占用及全部证据保留。独立验证 worktree 的输出已合并保留，移除本轮自有 Artemis 链接后请求归档；没有删除原 Artemis 安装。当前结论是“核心配置已连接、失败反馈可用，真实发布准备仍阻断”，不是完整 AI 业务闭环通过。
