@@ -71,7 +71,9 @@ export class ArtemisBusinessModel implements BusinessModelPort, InitialDirection
       outputSchema: z.toJSONSchema(materialAnalysisOutputSchema, { io: "input" }) }, signal));
     const text = response.outputText.trim();
     const fenced = /^```(?:json)?\s*\n([\s\S]*)\n```$/.exec(text);
-    return materialAnalysisOutputSchema.parse(JSON.parse(fenced ? fenced[1]! : text));
+    const output: unknown = JSON.parse(fenced ? fenced[1]! : text);
+    if (output && typeof output === "object" && "languageTag" in output && typeof output.languageTag === "string") output.languageTag = output.languageTag.toLowerCase();
+    return materialAnalysisOutputSchema.parse(output);
   }
   async generate(request: Parameters<BusinessModelPort["generate"]>[0], signal: AbortSignal) {
     const response = returned.parse(await this.invoke([], { operation: "business_suggestion", input: request.input,
