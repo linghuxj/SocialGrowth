@@ -107,6 +107,7 @@ try {
     process.env.SG_DEMO_REQUIRE_CENTER_CONNECTION === "authorized" ? "REQUIRE_CENTER_CONNECTION: 恢复已有授权，检查本机准备并启动连接检查，必须看到平台已连接到这台手机；不读取密钥、不重新配对、不发布。" : process.env.SG_DEMO_ROTATE_WIRELESS_PORT === "authorized" ? "ROTATE_WIRELESS_PORT_ONCE: 恢复现有 Tailscale，切换无线调试一次并回到已关联 App；不配对、不发布。" : "恢复现有授权 Tailscale 和无线调试，返回自有 App 检查本机准备三步引导；连接检查按勾选授权执行；不读取密钥或配对码、不配对、不发布。");
   if (mode === "connectivity_test") {
     const goal = panel.getByLabel("任务目标（禁止凭证）", { exact: true });
+    if (process.env.SG_DEMO_VERIFY_CONNECTED_GUIDE_ONLY === "authorized") await goal.fill("VERIFY_CONNECTED_GUIDE_ONLY REQUIRE_CENTER_CONNECTION: 仅在已关联的自有客户端核验本机准备与真实平台连接；不打开其他设置、不取密钥、不配对、不发布。");
     if (process.env.SG_DEMO_ROTATE_WIRELESS_PORT === "authorized") await goal.fill(`ROTATE_WIRELESS_PORT_ONCE: ${await goal.inputValue()}`);
     if (process.env.SG_DEMO_CHECK_PILOT_KEY_COPY === "authorized") await goal.fill(`CHECK_PILOT_KEY_COPY: 仅通过App按钮取用并复制密钥，检查成功提示；禁止读取、输出、粘贴密钥。 ${await goal.inputValue()}`);
   }
