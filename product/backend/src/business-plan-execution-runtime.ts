@@ -2,10 +2,11 @@ import { createHash, randomUUID } from "node:crypto";
 import type { BusinessPlanWorkflowScope } from "@socialgrowth/product-contracts";
 import type { BusinessPlanWorkflowPorts, WorkflowReadiness } from "./business-plan-workflow-store.js";
 
-type ExecutionFacts = { canonicalIdentityRef: string; pageName: string; captionText: string };
+type ExecutionFacts = { canonicalIdentityRef: string; accountId: string; pageName: string; captionText: string };
 type RuntimeResult = { operationId: string; claimId: string; scopeFingerprint: string; state: "running" | "completed" | "unknown" | "blocked";
-  scope: BusinessPlanWorkflowScope; evidenceVerified?: boolean;
-  receipt: null | { publishStatus: string; executionStatus: string; observedIdentity?: string; observedIdentityKind?: string; observedIdentityName?: string; evidenceRefs: string[] } };
+  scope: BusinessPlanWorkflowScope; evidenceVerified?: boolean; identityMappingVerified?: boolean;
+  receipt: null | { publishStatus: string; executionStatus: string; observedIdentity?: string; observedIdentityKind?: string; observedIdentityName?: string;
+    observedIdentityId?: string; parentIdentity?: string; managementVerified?: boolean; evidenceRefs: string[] } };
 function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
@@ -16,7 +17,8 @@ function canonicalJson(value: unknown): string {
 /** Adapter for the one supported workflow slice: Facebook video preflight through
  * the existing supervised Artemis runtime. It never presses the final publish control. */
 export class BusinessPlanExecutionRuntime {
-  constructor(private readonly config: { url: string; token: string; bindingId: string; deviceId: string; serial: string; productDeviceId: string },
+  constructor(private readonly config: { url: string; token: string; bindingId: string; deviceId: string; serial: string; productDeviceId: string;
+    productIdentityId: string; canonicalIdentityRef: string; accountId: string },
     private readonly facts: (scope: BusinessPlanWorkflowScope) => Promise<ExecutionFacts>,
     private readonly readiness: (scope: BusinessPlanWorkflowScope) => Promise<WorkflowReadiness>,
     private readonly authorize: (input: { scope: BusinessPlanWorkflowScope; operationId: string; stepId: string; scopeFingerprint: string }) => Promise<{ permitId: string; scopeFingerprint: string; expiresAt: string } | null>,
@@ -31,7 +33,11 @@ export class BusinessPlanExecutionRuntime {
     };
     const assess = async (scope: BusinessPlanWorkflowScope, ownOperationId?: string): Promise<WorkflowReadiness> => {
       const business = await this.readiness(scope);
-      if (business.businessState !== "ready" || business.blockers.length) return business;
+      const localPreflightExceptions = new Set(["network_not_admitted", "stop_unconfirmed", "action_inspector_unavailable"]);
+      const businessBlockers = business.blockers.filter(blocker => !localPreflightExceptions.has(blocker));
+      if (businessBlockers.length || (business.businessState !== "ready" && !(business.businessState === "blocked" && business.blockers.length > 0))) {
+        return business;
+      }
       try {
         const [statusRaw, deviceRaw] = await Promise.all([request("/api/runtime/status"), request("/api/runtime/devices/states")]);
         const status = statusRaw as { bindings?: Array<{ id: string; deviceId: string; serial: string; platform: string; validUntil: string }>;
@@ -52,8 +58,7 @@ export class BusinessPlanExecutionRuntime {
         const activeRequest = status.supervision?.requests?.some(item => item.deviceId === this.config.deviceId && item.taskId !== ownOperationId && ["waiting", "claimed"].includes(item.status));
         const paused = status.pauses?.some(item => item.scope === `device:${this.config.deviceId}` || item.scope === `device:${this.config.serial}`);
         const localInspectorReady = Boolean(binding && device && !activeTask && !held && !activeControl && !activeRequest);
-        const localOnlyBlockers = new Set(["network_not_admitted", "stop_unconfirmed", "action_inspector_unavailable"]);
-        const nonLocalBlockers = business.blockers.filter(blocker => !localOnlyBlockers.has(blocker));
+        const nonLocalBlockers = businessBlockers;
         const blockers = [...nonLocalBlockers, ...(!binding ? ["runtime_binding_unavailable"] : []), ...(!device ? ["physical_device_offline"] : []),
           ...(activeTask ? ["runtime_device_task_active"] : []), ...(held ? ["runtime_device_held"] : []),
           ...(activeControl ? ["runtime_supervision_active"] : []), ...(activeRequest ? ["runtime_assistance_request_active"] : []),
@@ -76,6 +81,8 @@ export class BusinessPlanExecutionRuntime {
       executor: { execute: async ({ scope, operationId, claimId }) => {
         if (scope.platform !== "facebook" || scope.form !== "facebook_video" || scope.expectedFiles.length !== 1) throw new Error("UNSUPPORTED_EXECUTION_SCOPE");
         const file = scope.expectedFiles[0]!, facts = await this.facts(scope), content = await this.bytes(scope, file);
+        if (scope.identityId !== this.config.productIdentityId || facts.canonicalIdentityRef !== this.config.canonicalIdentityRef
+          || facts.accountId !== this.config.accountId || !facts.pageName.trim()) throw new Error("EXECUTION_IDENTITY_CONFIGURATION_MISMATCH");
         if (content.length !== file.bytes || createHash("sha256").update(content).digest("hex") !== file.sha256) throw new Error("VERIFIED_ASSET_MISMATCH");
         await request("/api/runtime/assets", { method: "POST", headers: { "content-type": "application/octet-stream", "x-content-sha256": file.sha256 }, body: new Uint8Array(content) });
         const scopeFingerprint = createHash("sha256").update(canonicalJson(scope)).digest("hex");
@@ -95,8 +102,10 @@ export class BusinessPlanExecutionRuntime {
       proofVerifier: { verifyOriginal: async ({ scope, operationId }) => {
         const result = await request(`/api/runtime/business-plan-executions/${operationId}`) as RuntimeResult;
         const facts = await this.facts(scope);
-        const identityValid = result.receipt?.observedIdentityKind === "facebook_page" && Boolean(result.receipt.observedIdentity)
-          && result.receipt.observedIdentityName === facts.pageName && result.receipt.publishStatus === "not_submitted";
+        const identityValid = result.identityMappingVerified === true && result.receipt?.observedIdentityKind === "facebook_page"
+          && Boolean(result.receipt.observedIdentity && result.receipt.observedIdentityId && result.receipt.parentIdentity)
+          && result.receipt.managementVerified === true && result.receipt.observedIdentityName === facts.pageName
+          && result.receipt.publishStatus === "not_submitted";
         const expectedFingerprint = createHash("sha256").update(canonicalJson(scope)).digest("hex");
         const sameOperation = result.operationId === operationId && result.scopeFingerprint === expectedFingerprint && canonicalJson(result.scope) === canonicalJson(scope);
         const prepared = sameOperation && result.evidenceVerified === true && result.state === "completed"

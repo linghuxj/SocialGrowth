@@ -71,6 +71,9 @@ export interface ExecutionReceipt {
   observedIdentity?: string;
   observedIdentityKind?: "facebook_page" | "facebook_profile" | "youtube_channel" | "unknown";
   observedIdentityName?: string;
+  observedIdentityId?: string;
+  parentIdentity?: string;
+  managementVerified?: boolean;
   publishedUrl?: string;
   publishedPostId?: string;
   failureCode?:

@@ -191,7 +191,7 @@ export function TaskReadinessPanel({ projectId, active, readOnly, onExpired, ref
         <span>检查时间：{time(current.checkedAt)}（当时）</span>
         <span>排期：{current.plan ? `v${current.plan.revision}` : "未读取到当前排期"}</span>
         <span>任务：{current.tasks.length} 项</span>
-        <strong>执行许可：关闭 · 发布许可：关闭</strong>
+        <strong>公开发布：未开启</strong>
       </div>
       {!current.tasks.length ? <div className="task-readiness__empty">
         <ClipboardText size={20} /><p>{current.plan ? "当前排期没有任务记录。" : "当前没有排期与任务记录。"}没有任务可核验，也不代表项目已就绪。</p>
@@ -215,7 +215,9 @@ export function TaskReadinessPanel({ projectId, active, readOnly, onExpired, ref
             </div>
             <div className="task-readiness__conditions">
               {mismatch && <p className="task-readiness__stale">任务引用的计划与本次读取的当前计划版本不一致；请先核对最新计划。</p>}
-              <strong>{task.blockers.length ? `${task.blockers.length} 项条件未通过或未知` : "当前检查没有返回阻断项"}</strong>
+              <strong>{task.blockers.length ? `正式发布条件：${task.blockers.length} 项待核对` : "正式发布条件：尚无待核对项"}</strong>
+              {task.blockers.some(code => ["action_inspector_unavailable", "network_not_admitted", "stop_unconfirmed"].includes(code))
+                && <p>可先检查发布准备；准备通过也不代表可以公开发布。正式发布条件仍需逐项核对。</p>}
               {blockerEntries.map(({ code, label, next, destination }) => {
                 const action = blockerAction(destination, onNavigate, onOpenMediaAccounts, onOpenDevices);
                 return <div className="task-readiness__blocker" key={code}>

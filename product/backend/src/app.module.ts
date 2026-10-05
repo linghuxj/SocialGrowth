@@ -279,10 +279,12 @@ const providerAuthProvider = {
     { provide: BusinessPlanExecutionRuntime, inject: [BusinessPlanService, MaterialRuntime], useFactory: (service: BusinessPlanService, materials: MaterialRuntime) => {
       const url = process.env.SG_PRODUCT_EXECUTION_RUNTIME_URL, token = process.env.SG_PRODUCT_EXECUTION_RUNTIME_TOKEN;
       const bindingId = process.env.SG_PRODUCT_EXECUTION_RUNTIME_BINDING_ID, deviceId = process.env.SG_PRODUCT_EXECUTION_SERIAL, serial = process.env.SG_PRODUCT_EXECUTION_SERIAL, productDeviceId = process.env.SG_PRODUCT_EXECUTION_DEVICE_ID;
-      if (!url || !token || !bindingId || !deviceId || !serial || !productDeviceId) return null;
+      const productIdentityId = process.env.SG_PRODUCT_EXECUTION_IDENTITY_ID, canonicalIdentityRef = process.env.SG_PRODUCT_EXECUTION_CANONICAL_REF;
+      const accountId = process.env.SG_PRODUCT_EXECUTION_ACCOUNT_ID, pageName = process.env.SG_PRODUCT_EXECUTION_PAGE_NAME;
+      if (!url || !token || !bindingId || !deviceId || !serial || !productDeviceId || !productIdentityId || !canonicalIdentityRef || !accountId || !pageName) return null;
       const reader = materials as MaterialRuntime & { readWorkflowFile?: (projectId: string, file: { objectId: string; sha256: string; bytes: number; contentType: string }) => Promise<Buffer> };
       if (!reader.readWorkflowFile) return null;
-      return new BusinessPlanExecutionRuntime({ url, token, bindingId, deviceId, serial, productDeviceId },
+      return new BusinessPlanExecutionRuntime({ url, token, bindingId, deviceId, serial, productDeviceId, productIdentityId, canonicalIdentityRef, accountId },
         async scope => (await service.executionFacts(scope)).facts,
         scope => service.executionReadiness(scope),
         input => service.authorizeExecutionAction(input),
