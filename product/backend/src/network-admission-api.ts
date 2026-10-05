@@ -22,7 +22,10 @@ export interface NetworkAdmissionRuntime {
 export type AdmissionRoute = "state" | "begin" | "challenge" | "proof";
 export interface AdmissionHttpResult { status: number; body: unknown }
 function snapshot(state: AuthenticatedAdmissionState, ready: boolean, record = state.record): AdmissionSnapshot {
-  return admissionSnapshotSchema.parse({ protocolVersion: admissionProtocolVersion, scope: state.scope,
+  return admissionSnapshotSchema.parse({ protocolVersion: admissionProtocolVersion, scope: {
+    deviceId: state.scope.deviceId, installationId: state.scope.installationId,
+    installationGeneration: state.scope.installationGeneration, ownershipVersion: state.scope.ownershipVersion,
+  },
     enrollment: record ? { enrollmentId: record.enrollmentId, enrollmentGeneration: record.authority.enrollmentGeneration,
       version: record.version, phase: record.phase, expiresAt: record.expiresAt } : null,
     verifierReady: ready, networkAdmissionGranted: false, actionPermissionGranted: false });
