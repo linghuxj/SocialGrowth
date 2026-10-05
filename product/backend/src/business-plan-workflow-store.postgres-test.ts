@@ -72,10 +72,13 @@ test("scope is matched to the persisted attempt; claims are single-winner and tr
     { sourceEventId, payloadDigest: "f".repeat(64), reportedState: "failed" }), /EVENT_CONFLICT/);
   assert.equal((await store.readTask(value.taskId))?.state, "submission_unknown");
   const proof = { verificationEventId: uuid(), payloadDigest: "c".repeat(64), decision: "verified_published" as const,
-    resultId: "platform-record-1", verifiedAt: new Date().toISOString() };
+    resultId: "platform-record-1", verifiedAt: "2090-01-01T00:00:00+00:00" };
   const verified = await store.applyTrustedVerification(value.taskId, started!.operationId, proof);
   assert.equal(verified.state, "verified");
   assert.equal((await store.applyTrustedVerification(value.taskId, started!.operationId, proof)).state,"verified");
+  await assert.rejects(() => store.applyTrustedVerification(value.taskId, started!.operationId,{...proof,payloadDigest:"d".repeat(64)}),/EVENT_CONFLICT/);
+  assert.equal((await store.applyTrustedVerification(value.taskId, started!.operationId,{...proof,verificationEventId:uuid(),
+    verifiedAt:"2090-01-01T01:00:00+01:00"})).state,"verified");
   await assert.rejects(() => store.applyTrustedVerification(value.taskId, started!.operationId,
     { verificationEventId:uuid(),payloadDigest:"f".repeat(64),decision:"unknown",resultId:null,verifiedAt:null }),/EVENT_CONFLICT/);
   assert.equal((await store.readTask(value.taskId))?.state,"verified");
@@ -94,9 +97,10 @@ test("a new readiness blocker before dispatch or per-action permit fails closed"
   const beforeDispatch=scope(); await addTask(beforeDispatch); await store.materialize(beforeDispatch,ready(beforeDispatch));
   let checks=0, dispatches=0;
   const changedReadiness={assess:async(value:BusinessPlanWorkflowScope)=>++checks===1?ready(value):{...ready(value),blockers:["scope_changed"]}};
-  const consumer=new BusinessPlanWorkflowConsumer(store,{readiness:changedReadiness,actionGate:{authorizeAction:async()=>{dispatches++;return null;}},
-    executor:{execute:async()=>{dispatches++;return {sourceEventId:uuid(),payloadDigest:"1".repeat(64),reportedState:"unknown"};}},proofVerifier:null});
-  assert.equal((await consumer.runOnce(beforeDispatch,"worker-check"))?.state,"blocked"); assert.equal(dispatches,0);
+  const checkConsumer=new BusinessPlanWorkflowConsumer(store,{readiness:changedReadiness,actionGate:{authorizeAction:async()=>{dispatches++;return null;}},
+    executor:{execute:async()=>{dispatches++;return {sourceEventId:uuid(),payloadDigest:"1".repeat(64),reportedState:"unknown"};}},
+    proofVerifier:{verifyOriginal:async()=>({verificationEventId:uuid(),payloadDigest:"4".repeat(64),decision:"unknown",resultId:null,verifiedAt:null})}});
+  assert.equal((await checkConsumer.runOnce(beforeDispatch,"worker-check"))?.state,"blocked"); assert.equal(checks,2); assert.equal(dispatches,0);
 
   const perAction=scope(); await addTask(perAction); await store.materialize(perAction,ready(perAction));
   let actionChecks=0, permits=0, actions=0;
