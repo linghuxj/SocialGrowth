@@ -162,8 +162,8 @@ export class BusinessPlanService {
         && task.expectedMaterialRevision === scope.materialRevision && task.variantId.toLowerCase() === scope.variantId.toLowerCase()
         && JSON.stringify(task.expectedFiles) === JSON.stringify(scope.expectedFiles));
       if (!valid || !task) throw new ProductTransactionError("FACT_VERSION_STALE", "Task scope changed; read the current task and retry explicitly");
-      const record = (await c.query<{ canonical_identity_ref: string; caption: string }>(
-        `SELECT i.canonical_identity_ref,t.caption FROM ${s}.business_plan_tasks t
+      const record = (await c.query<{ canonical_identity_ref: string; account_id: string; caption: string }>(
+        `SELECT i.canonical_identity_ref,r.account_id,t.caption FROM ${s}.business_plan_tasks t
          JOIN ${s}.project_identity_reservations r ON r.project_id=t.project_id AND r.identity_id=t.identity_id
          JOIN ${s}.publishing_identities i USING(identity_id,account_id,platform)
          WHERE t.project_id=$1 AND t.task_id=$2`, [scope.projectId, scope.taskId])).rows[0];
@@ -171,7 +171,7 @@ export class BusinessPlanService {
       const pageName = process.env.SG_PRODUCT_EXECUTION_PAGE_NAME ?? "";
       const currentBlockers = [...task.blockers.filter(value => !["action_inspector_unavailable", "network_not_admitted", "stop_unconfirmed"].includes(value)),
         ...(!pageName ? ["page_identity_name_missing"] : [])];
-      return { facts: { canonicalIdentityRef: record.canonical_identity_ref, pageName, captionText: record.caption },
+      return { facts: { canonicalIdentityRef: record.canonical_identity_ref, accountId: record.account_id, pageName, captionText: record.caption },
         readiness: { adapterState: "connected" as const, businessState: currentBlockers.length ? "blocked" as const : "ready" as const,
           scopeFingerprint: createHash("sha256").update(canonicalMaterial(scope)).digest("hex"), blockers: currentBlockers } };
     } finally { await c.query("ROLLBACK").catch(() => undefined); c.release(); }
@@ -195,7 +195,8 @@ export class BusinessPlanService {
       if (!task || !checks.plan || !task.attempt) throw new ProductTransactionError("FACT_VERSION_STALE", "Create and check the original task attempt first");
       if (task.platform !== "facebook" || task.form !== "facebook_video" || task.expectedFiles.length !== 1
         || task.expectedFiles[0]?.contentType !== "video/mp4") throw new ProductTransactionError("INPUT_INVALID", "This preflight currently supports Facebook video tasks only");
-      const blockers = task.blockers.filter(value => value !== "action_inspector_unavailable");
+      const localPreflightExceptions = new Set(["action_inspector_unavailable", "network_not_admitted", "stop_unconfirmed"]);
+      const blockers = task.blockers.filter(value => !localPreflightExceptions.has(value));
       if (blockers.length) throw new ProductTransactionError("FACT_VERSION_STALE", `Task is blocked: ${blockers.join(",")}`);
       return { projectId: project.data.toLowerCase(), taskId: task.taskId, taskRevision: task.taskRevision, planId: checks.plan.planId,
         planRevision: checks.plan.revision, projectVersion: checks.plan.projectVersion, approvalId: checks.plan.approvalId,

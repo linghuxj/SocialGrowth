@@ -21,7 +21,7 @@ const scopeSchema = z.strictObject({
 });
 const startSchema = z.strictObject({
   operationId: uuid, claimId: uuid, scopeFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
-  scope: scopeSchema, canonicalIdentityRef: z.string().trim().min(1).max(512),
+  scope: scopeSchema, canonicalIdentityRef: z.string().trim().min(1).max(512), accountId: uuid,
   pageName: z.string().trim().min(1).max(200), captionText: z.string().trim().min(1).max(5000),
   assetSha256: z.string().regex(/^[a-f0-9]{64}$/),
 });
@@ -46,6 +46,11 @@ export interface BusinessPlanExecutionBridgeConfig {
   serial: string;
   bindingId: string;
   productDeviceId: string;
+  productIdentityId: string;
+  canonicalIdentityRef: string;
+  accountId: string;
+  runtimeAccountId: string;
+  pageName: string;
   callbackUrl: string;
 }
 
@@ -59,6 +64,7 @@ export class BusinessPlanExecutionBridge {
       device: DevicePort } = { artemis: (root, scope) => new ArtemisMcp(root, scope), device: new AdbDevice() }) {
     store.db.exec("CREATE TABLE IF NOT EXISTS business_plan_executions (operation_id TEXT PRIMARY KEY, body TEXT NOT NULL, request_digest TEXT NOT NULL)");
     store.db.exec("CREATE TABLE IF NOT EXISTS business_plan_identity_audits (operation_id TEXT PRIMARY KEY, binding_id TEXT NOT NULL, previous_identity TEXT NOT NULL, previous_binding_json TEXT NOT NULL, observed_page_url TEXT NOT NULL, page_name TEXT NOT NULL, evidence_refs TEXT NOT NULL, verified_at TEXT NOT NULL)");
+    store.db.exec("CREATE TABLE IF NOT EXISTS business_plan_page_identity_mappings (identity_id TEXT PRIMARY KEY, canonical_ref TEXT NOT NULL, account_id TEXT NOT NULL, runtime_account_id TEXT NOT NULL, binding_id TEXT NOT NULL, audit_operation_id TEXT NOT NULL, parent_identity TEXT NOT NULL, page_id TEXT NOT NULL, page_url TEXT NOT NULL, page_name TEXT NOT NULL, evidence_refs TEXT NOT NULL, verified_at TEXT NOT NULL)");
     for (const row of this.rows()) if (row.state === "running") this.update({ ...row, state: "unknown", blocker: "runtime_restarted_original_attempt_held", updatedAt: new Date().toISOString() });
   }
   private rows(): BridgeRecord[] { return this.store.db.prepare("SELECT body FROM business_plan_executions ORDER BY rowid DESC").all().map(row => JSON.parse(row.body as string)); }
@@ -75,8 +81,18 @@ export class BusinessPlanExecutionBridge {
     if (!record?.receipt) return record;
     const refs = record.receipt.evidenceRefs;
     const archived = refs.length > 0 && refs.every(ref => this.store.db.prepare("SELECT 1 FROM evidence WHERE id=? AND task=?").get(ref, operationId));
-    return { ...record, evidenceVerified: Boolean(archived) };
+    const mapping = this.store.db.prepare("SELECT identity_id,canonical_ref,account_id,runtime_account_id,binding_id,audit_operation_id,parent_identity,page_id,page_url,page_name,evidence_refs FROM business_plan_page_identity_mappings WHERE identity_id=?")
+      .get(record.scope.identityId) as { identity_id: string; canonical_ref: string; account_id: string; binding_id: string; parent_identity: string;
+        runtime_account_id: string; audit_operation_id: string; page_id: string; page_url: string; page_name: string; evidence_refs: string } | undefined;
+    const identityMappingVerified = Boolean(mapping && mapping.identity_id === record.scope.identityId && mapping.canonical_ref === record.canonicalIdentityRef
+      && mapping.account_id === record.accountId && mapping.runtime_account_id === this.config.runtimeAccountId
+      && mapping.binding_id === this.config.bindingId && mapping.parent_identity
+      && mapping.page_id === record.receipt.observedIdentityId && mapping.page_url === record.receipt.observedIdentity
+      && mapping.page_name === record.receipt.observedIdentityName && record.receipt.managementVerified === true
+      && JSON.parse(mapping.evidence_refs).every((ref: string) => this.store.db.prepare("SELECT 1 FROM evidence WHERE id=? AND task=?").get(ref, mapping.audit_operation_id)));
+    return { ...record, evidenceVerified: Boolean(archived), identityMappingVerified };
   }
+  ownsOperation(operationId: string) { return this.read(operationId) !== null; }
   list() { return this.rows().map(row => this.read(row.operationId)); }
   async start(raw: unknown) {
     const input = startSchema.parse(raw), digest = createHash("sha256").update(stable(input)).digest("hex");
@@ -146,7 +162,9 @@ export class BusinessPlanExecutionBridge {
     const bindings = this.store.db.prepare("SELECT body FROM bindings").all().map(row => bindingSchema.safeParse(JSON.parse(row.body as string))).filter(result => result.success).map(result => result.data);
     const binding = bindings.find(value => value.id === this.config.bindingId && value.deviceId === this.config.deviceId && value.serial === this.config.serial);
     requireFact(binding && binding.platform === "facebook" && binding.platformIdentity.trim().length > 0 && Date.parse(binding.validUntil) > Date.now(), "RUNTIME_BINDING_UNAVAILABLE");
-    requireFact(input.scope.platform === binding.platform && input.canonicalIdentityRef.length > 0, "RUNTIME_IDENTITY_SCOPE_MISMATCH");
+    requireFact(input.scope.platform === binding.platform && input.scope.identityId === this.config.productIdentityId
+      && input.canonicalIdentityRef === this.config.canonicalIdentityRef && input.accountId === this.config.accountId
+      && binding.accountId === this.config.runtimeAccountId && input.pageName === this.config.pageName, "RUNTIME_IDENTITY_SCOPE_MISMATCH");
     return binding;
   }
   private runtimeUnresolved(deviceId: string) {
@@ -155,32 +173,59 @@ export class BusinessPlanExecutionBridge {
     // task identity. They do not, by themselves, represent an active phone session.
     return tasks.some(row => row.status === "queued" || row.status === "running");
   }
+  private pageMapping(record: BridgeRecord) {
+    const row = this.store.db.prepare("SELECT canonical_ref,account_id,runtime_account_id,binding_id,audit_operation_id,parent_identity,page_id,page_url,page_name,evidence_refs FROM business_plan_page_identity_mappings WHERE identity_id=?")
+      .get(record.scope.identityId) as { canonical_ref: string; account_id: string; binding_id: string; audit_operation_id: string;
+        runtime_account_id: string; parent_identity: string; page_id: string; page_url: string; page_name: string; evidence_refs: string } | undefined;
+    if (!row || row.canonical_ref !== record.canonicalIdentityRef || row.account_id !== record.accountId || row.runtime_account_id !== this.config.runtimeAccountId || row.binding_id !== this.config.bindingId
+      || row.parent_identity !== this.runtimeBinding(record).platformIdentity || row.page_name !== record.pageName) return null;
+    let evidenceRefs: string[];
+    try { evidenceRefs = z.array(z.string().uuid()).min(1).parse(JSON.parse(row.evidence_refs)); } catch { return null; }
+    if (!evidenceRefs.every(ref => this.store.db.prepare("SELECT 1 FROM evidence WHERE id=? AND task=?").get(ref, row.audit_operation_id))) return null;
+    return { id: row.page_id, url: row.page_url, parentIdentity: row.parent_identity, evidenceRefs, auditOperationId: row.audit_operation_id };
+  }
   private async execute(record: BridgeRecord, task: Parameters<typeof executeDeviceTask>[0], bytes: Buffer, assistanceToken: string) {
     const artemis = this.ports.artemis(this.config.artemisRoot, { url: this.config.runtimeUrl, token: assistanceToken,
       deviceId: this.config.deviceId, serial: this.config.serial });
     try {
       await (artemis as ArtemisPort & { connect?: () => Promise<void> }).connect?.();
-      const receipt = await executeDeviceTask(task, { artemis, device: this.ports.device,
+      const runTask = (taskInput: Parameters<typeof executeDeviceTask>[0]) => executeDeviceTask(taskInput, { artemis, device: this.ports.device,
         download: async url => { requireFact(new URL(url).origin === new URL(this.config.runtimeUrl).origin, "MEDIA_ORIGIN_MISMATCH"); return bytes; },
+        authorizePrepare: async () => { await this.authorizeAction(record.operationId, "prepare_media", "navigate"); },
         trace: traceId => this.update({ ...record, traceId, updatedAt: new Date().toISOString() }), installMissing: false,
         archive: async (mime, body) => {
           const id = randomUUID(), digest = createHash("sha256").update(body).digest("hex");
           this.store.db.prepare("INSERT INTO evidence(id,task,sha256,mime,body) VALUES(?,?,?,?,?)").run(id, record.operationId, digest, mime, body);
           return id;
         } });
-      const state = receipt.executionStatus === "completed" && receipt.publishStatus === "not_submitted" ? "completed" : receipt.publishStatus === "unknown" ? "unknown" : "blocked";
-      if (state === "completed" && receipt.observedIdentityKind === "facebook_page" && receipt.observedIdentityName === record.pageName && receipt.observedIdentity) {
-        // Convert the previously verified login binding into the exact Page target only
-        // after Artemis observed that Page on the bound physical device.
-        const priorBinding = this.runtimeBinding(record), verifiedAt = new Date().toISOString();
+      let mapping = this.pageMapping(record);
+      if (!mapping) {
+        const auditTask = { ...task, directive: { ...task.directive, taskId: randomUUID() }, settings: { ...task.settings, identityAuditOnly: true } } as Parameters<typeof executeDeviceTask>[0];
+        const audit = await runTask(auditTask);
+        requireFact(audit.executionStatus === "completed" && audit.publishStatus === "not_submitted"
+          && audit.observedIdentityKind === "facebook_page" && audit.observedIdentityName === record.pageName
+          && Boolean(audit.observedIdentityId && audit.observedIdentity && audit.parentIdentity === task.binding.platformIdentity)
+          && audit.managementVerified === true && audit.evidenceRefs.length > 0, "PAGE_IDENTITY_AUDIT_INCOMPLETE");
+        const verifiedAt = new Date().toISOString(), previousBinding = this.runtimeBinding(record);
+        requireFact(typeof previousBinding.platformIdentity === "string" && audit.parentIdentity === previousBinding.platformIdentity
+          && typeof audit.observedIdentityId === "string" && typeof audit.observedIdentity === "string"
+          && typeof audit.observedIdentityName === "string", "PAGE_IDENTITY_AUDIT_INCOMPLETE");
+        const saved = this.store.db.prepare("INSERT OR IGNORE INTO business_plan_page_identity_mappings(identity_id,canonical_ref,account_id,runtime_account_id,binding_id,audit_operation_id,parent_identity,page_id,page_url,page_name,evidence_refs,verified_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
+          .run(record.scope.identityId, record.canonicalIdentityRef, record.accountId, this.config.runtimeAccountId, previousBinding.id, record.operationId,
+            audit.parentIdentity!, audit.observedIdentityId!, audit.observedIdentity!, audit.observedIdentityName!, JSON.stringify(audit.evidenceRefs), verifiedAt);
+        requireFact(saved.changes === 1, "PAGE_IDENTITY_MAPPING_CONFLICT");
         this.store.db.prepare("INSERT OR IGNORE INTO business_plan_identity_audits VALUES(?,?,?,?,?,?,?,?)")
-          .run(record.operationId, priorBinding.id, priorBinding.platformIdentity, JSON.stringify(priorBinding), receipt.observedIdentity, record.pageName,
-            JSON.stringify(receipt.evidenceRefs), verifiedAt);
-        const verifiedBinding = bindingSchema.parse({ ...priorBinding, platformIdentity: receipt.observedIdentity, verifiedAt });
-        const updated = this.store.db.prepare("UPDATE bindings SET body=? WHERE id=? AND device=? AND platform='facebook' AND body=?")
-          .run(JSON.stringify(verifiedBinding), verifiedBinding.id, verifiedBinding.deviceId, JSON.stringify(priorBinding));
-        requireFact(updated.changes === 1, "RUNTIME_BINDING_CHANGED_DURING_PAGE_AUDIT");
+          .run(record.operationId, previousBinding.id, previousBinding.platformIdentity!, JSON.stringify(previousBinding), audit.observedIdentity!,
+            record.pageName, JSON.stringify(audit.evidenceRefs), verifiedAt);
+        mapping = this.pageMapping(record);
       }
+      requireFact(mapping, "PAGE_IDENTITY_MAPPING_UNAVAILABLE");
+      const contentTask = { ...task, directive: { ...task.directive, taskId: randomUUID() }, settings: {
+        ...task.settings, expectedFacebookPageIdentity: { id: mapping.id, url: mapping.url } } } as Parameters<typeof executeDeviceTask>[0];
+      const contentReceipt = await runTask(contentTask);
+      const receipt: ExecutionReceipt = { ...contentReceipt, evidenceRefs: [...new Set([...mapping.evidenceRefs, ...contentReceipt.evidenceRefs])],
+        observedIdentityId: mapping.id, parentIdentity: mapping.parentIdentity, managementVerified: true };
+      const state = receipt.executionStatus === "completed" && receipt.publishStatus === "not_submitted" ? "completed" : receipt.publishStatus === "unknown" ? "unknown" : "blocked";
       this.update({ ...record, state, receipt, updatedAt: new Date().toISOString(), blocker: state === "blocked" ? receipt.failureCode ?? "BUSINESS_PLAN_PREFLIGHT_NOT_CONFIRMED" : null });
     } catch {
       this.update({ ...record, state: "unknown", updatedAt: new Date().toISOString(), blocker: "BUSINESS_PLAN_ORIGINAL_ATTEMPT_UNKNOWN" });
@@ -196,7 +241,6 @@ export class BusinessPlanExecutionBridge {
   async authorizeAction(operationId: string, action: string, category: ActionCategory) {
     const record = this.read(operationId);
     requireFact(record?.state === "running", "BUSINESS_PLAN_OPERATION_NOT_RUNNING");
-    if (category === "read") return { allowed: true };
     const response = await fetch(new URL("/api/internal/business-plan-workflow/authorize-action", this.config.callbackUrl), {
       method: "POST", headers: { authorization: `Bearer ${this.config.token}`, "content-type": "application/json" },
       body: JSON.stringify({ operationId, claimId: record.claimId, scope: record.scope, scopeFingerprint: record.scopeFingerprint,

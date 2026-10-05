@@ -33,7 +33,8 @@ export interface ServerOptions {
   verification?: VerificationConfig;
   businessPlanExecution?: {
     artemisRoot: string; runtimeUrl: string; token: string; deviceId: string;
-    serial: string; bindingId: string; productDeviceId: string; callbackUrl: string;
+    serial: string; bindingId: string; productDeviceId: string; productIdentityId: string;
+    canonicalIdentityRef: string; accountId: string; runtimeAccountId: string; pageName: string; callbackUrl: string;
   };
 }
 const safeEqual = (a: string, b: string) =>
@@ -169,7 +170,8 @@ export function createRuntimeServer(options: ServerOptions) {
           };
         else if (path === "/assistance/agent/gate" && req.method === "POST") {
           const input = z.object({ action: z.string().max(80), category: z.enum(["read","navigate","login_submit","recovery","install","publish","create_identity","correct_account","unmanaged"]) }).strict().parse(JSON.parse((await body(req, 2048)).toString()));
-          if (session.scope.mode === "execution" && executionBridge) await executionBridge.authorizeAction(session.scope.taskId, input.action, input.category);
+          if (session.scope.mode === "execution" && executionBridge?.ownsOperation(session.scope.taskId))
+            await executionBridge.authorizeAction(session.scope.taskId, input.action, input.category);
           value = assistance.supervision.gate(session.id, input);
         }
         else if (path === "/assistance/agent/finish-observation" && req.method === "POST")
@@ -782,10 +784,17 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     mediaBaseUrl: process.env.SG_MEDIA_BASE_URL,
     allowedOrigins: process.env.SG_ALLOWED_ORIGINS?.split(","),
     businessPlanExecution: process.env.SG_PRODUCT_EXECUTION_RUNTIME_TOKEN && process.env.SG_PRODUCT_EXECUTION_RUNTIME_BINDING_ID
+      && process.env.SG_PRODUCT_EXECUTION_IDENTITY_ID && process.env.SG_PRODUCT_EXECUTION_CANONICAL_REF
+      && process.env.SG_PRODUCT_EXECUTION_ACCOUNT_ID && process.env.SG_PRODUCT_EXECUTION_RUNTIME_ACCOUNT_ID && process.env.SG_PRODUCT_EXECUTION_PAGE_NAME
       ? { artemisRoot: process.env.SG_ARTEMIS_ROOT ?? "", runtimeUrl: `http://127.0.0.1:${port}`,
           token: process.env.SG_PRODUCT_EXECUTION_RUNTIME_TOKEN, deviceId: process.env.SG_PRODUCT_EXECUTION_SERIAL ?? "",
           serial: process.env.SG_PRODUCT_EXECUTION_SERIAL ?? "", bindingId: process.env.SG_PRODUCT_EXECUTION_RUNTIME_BINDING_ID,
           productDeviceId: process.env.SG_PRODUCT_EXECUTION_DEVICE_ID ?? "",
+          productIdentityId: process.env.SG_PRODUCT_EXECUTION_IDENTITY_ID,
+          canonicalIdentityRef: process.env.SG_PRODUCT_EXECUTION_CANONICAL_REF,
+          accountId: process.env.SG_PRODUCT_EXECUTION_ACCOUNT_ID,
+          runtimeAccountId: process.env.SG_PRODUCT_EXECUTION_RUNTIME_ACCOUNT_ID,
+          pageName: process.env.SG_PRODUCT_EXECUTION_PAGE_NAME,
           callbackUrl: process.env.SG_PRODUCT_EXECUTION_CALLBACK_URL ?? "http://127.0.0.1:4320" }
       : undefined,
     verification: process.env.SG_WEB_VERIFICATION_MEDIA
