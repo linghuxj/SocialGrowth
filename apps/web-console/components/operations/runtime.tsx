@@ -29,6 +29,7 @@ type TaskRecord = {
   task: {
     settings: { scheduleId: string; mode: string };
     directive: {
+      deviceId: string;
       attemptId: string;
       projectId: string;
       accountId: string;
@@ -547,13 +548,21 @@ export function RuntimeReceipts({
         .filter(
           (t) =>
             t.status === 'unknown' ||
-            (t.status === 'blocked' && t.receipt?.actionRequired),
+            (t.status === 'blocked' && t.receipt?.actionRequired) ||
+            (t.status === 'completed' &&
+              t.receipt?.publishStatus === 'confirmed_not_published' &&
+              status.pauses.some((pause) => [
+                `device:${t.task.directive.deviceId}`,
+                `account:${t.task.directive.accountId}`,
+                `project:${t.task.directive.projectId}`,
+                `content:${t.task.directive.contentIdentityId}`,
+              ].includes(pause.scope))),
         )
         .map((t) => (
           <Form
             key={t.taskId}
             id={`review-${t.taskId}`}
-            title={`${t.status === 'blocked' ? '处理执行前阻断' : '核对未知结果'}：${lookup(state, t.task.directive.contentIdentityId)}`}
+            title={`${t.status === 'completed' ? '复核已确认未发布任务的暂停范围' : t.status === 'blocked' ? '处理执行前阻断' : '核对未知结果'}：${lookup(state, t.task.directive.contentIdentityId)}`}
             submit="保存核对并重新审查相关范围"
             fields={[
               {
