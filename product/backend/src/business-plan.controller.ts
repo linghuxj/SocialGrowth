@@ -23,6 +23,12 @@ export class BusinessPlanController {
     catch (error) { rethrowHttp(error, `request-${randomUUID()}`); }
   }
 
+  @Get("workflow") @Header("Cache-Control", "no-store")
+  async workflow(@Param("projectId") projectInput: string, @Req() request: Request) {
+    try { return await this.service.workflow(operatorSessionTokenFrom(request.headers.cookie), uuidSchema.parse(projectInput)); }
+    catch (error) { rethrowHttp(error, `request-${randomUUID()}`); }
+  }
+
   @Post("tasks/:taskId/attempts") @Header("Cache-Control", "no-store")
   async createTaskAttempt(@Param("projectId") projectInput: string, @Param("taskId") taskInput: string, @Body() body: unknown,
     @Req() request: Request, @Headers("x-csrf-token") csrf: string | undefined) {
