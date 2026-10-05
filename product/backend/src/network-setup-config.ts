@@ -32,7 +32,7 @@ const configSchema = z.strictObject({
 });
 
 export type PilotNetworkSetupConfig = z.infer<typeof configSchema>;
-export interface PilotAuthKey { key: string; expiresAt: string }
+export interface PilotAuthKey { key: string; expiresAt: string | null }
 export class PilotNetworkSetupConfigError extends Error {
   constructor(readonly code: "PILOT_CONFIG_UNAVAILABLE") { super(code); }
 }
@@ -52,7 +52,7 @@ export async function readPilotNetworkSetupConfig(path: string): Promise<PilotNe
 /** The fixed pilot key is separate from the node allowlist, optional, and read
  * only when an authenticated installation explicitly requests it. */
 export async function readPilotAuthKeyFile(path: string | null, expiresAt: string | null, now = Date.now()): Promise<PilotAuthKey> {
-  if (!path || !expiresAt || !Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt) <= now) {
+  if (!path || (expiresAt !== null && (!Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt) <= now))) {
     throw new PilotNetworkSetupConfigError("PILOT_CONFIG_UNAVAILABLE");
   }
   try {

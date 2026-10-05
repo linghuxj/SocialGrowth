@@ -1,7 +1,6 @@
 package com.socialgrowth.product
 
 import org.json.JSONObject
-import java.io.BufferedReader
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.charset.StandardCharsets
@@ -93,6 +92,7 @@ class ProviderApiClient(private val baseUrl: String) {
         val connection = (URL(baseUrl.trimEnd('/') + path).openConnection() as HttpURLConnection)
         try {
             connection.requestMethod = "POST"
+            connection.instanceFollowRedirects = false
             connection.connectTimeout = 10_000
             connection.readTimeout = 15_000
             connection.doOutput = true
@@ -106,9 +106,9 @@ class ProviderApiClient(private val baseUrl: String) {
             }
             val status = connection.responseCode
             val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-            val response = stream?.bufferedReader(StandardCharsets.UTF_8)
-                ?.use(BufferedReader::readText)
-                .orEmpty()
+            val bytes = stream?.use { it.readNBytes(262145) } ?: ByteArray(0)
+            require(bytes.size <= 262144) { "Response too large" }
+            val response = String(bytes, StandardCharsets.UTF_8)
             if (status !in 200..299) throw parseError(response, status)
             return response
         } finally {

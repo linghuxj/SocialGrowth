@@ -104,7 +104,12 @@ try {
   await panel.getByLabel("预期平台身份 ID", { exact: true }).fill("com.socialgrowth.product");
   await panel.getByLabel("任务目标（禁止凭证）", { exact: true }).fill(allowWithdrawal ? "本轮明确授权后台参与与一次撤回测试；禁止其他授权、自动恢复或发布。" : "用户要求保留当前连接与参与，暂不测试撤回。测试后台参与持续后保持参与；首次确认按本次单独勾选授权执行；禁止撤回、注册、登录、自动恢复参与、设置修改、其他 App、内容发布；保留历史 unknown。");
   if (mode === "connectivity_test") await panel.getByLabel("任务目标（禁止凭证）", { exact: true }).fill(
-    process.env.SG_DEMO_ROTATE_WIRELESS_PORT === "authorized" ? "ROTATE_WIRELESS_PORT_ONCE: 恢复现有 Tailscale，切换无线调试一次并回到已关联 App；不配对、不发布。" : "恢复现有授权 Tailscale 和无线调试，返回自有 App 核对事实并开启本次端口上报；不配对、不发布。");
+    process.env.SG_DEMO_REQUIRE_CENTER_CONNECTION === "authorized" ? "REQUIRE_CENTER_CONNECTION: 恢复已有授权，检查本机准备并启动连接检查，必须看到平台已连接到这台手机；不读取密钥、不重新配对、不发布。" : process.env.SG_DEMO_ROTATE_WIRELESS_PORT === "authorized" ? "ROTATE_WIRELESS_PORT_ONCE: 恢复现有 Tailscale，切换无线调试一次并回到已关联 App；不配对、不发布。" : "恢复现有授权 Tailscale 和无线调试，返回自有 App 检查本机准备三步引导；连接检查按勾选授权执行；不读取密钥或配对码、不配对、不发布。");
+  if (mode === "connectivity_test") {
+    const goal = panel.getByLabel("任务目标（禁止凭证）", { exact: true });
+    if (process.env.SG_DEMO_ROTATE_WIRELESS_PORT === "authorized") await goal.fill(`ROTATE_WIRELESS_PORT_ONCE: ${await goal.inputValue()}`);
+    if (process.env.SG_DEMO_CHECK_PILOT_KEY_COPY === "authorized") await goal.fill(`CHECK_PILOT_KEY_COPY: 仅通过App按钮取用并复制密钥，检查成功提示；禁止读取、输出、粘贴密钥。 ${await goal.inputValue()}`);
+  }
   await panel.getByLabel("验收文案", { exact: true }).fill("NATIVE PARTICIPATION TEST - NO PUBLICATION");
   if (allowInitialStart) { assert.equal(mode, "client_test"); }
   if (allowInitialStart) await panel.locator("#client-initial-start").check();

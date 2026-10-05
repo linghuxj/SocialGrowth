@@ -42,6 +42,19 @@ import java.util.UUID
 import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
+    override fun setContentView(view: View?) {
+        if (view == null) { super.setContentView(view); return }
+        // Target SDK 36 draws behind system bars. Preserve comfortable touch
+        // areas when the guide scrolls to its first and last actions.
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(view) { content, insets ->
+            val bars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars() or androidx.core.view.WindowInsetsCompat.Type.displayCutout())
+            content.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            insets
+        }
+        super.setContentView(view)
+        androidx.core.view.ViewCompat.requestApplyInsets(view)
+    }
+
     private data class ControlAttempt(
         val fact: DeviceControlFact?,
         val requestAccepted: Boolean,
@@ -73,7 +86,17 @@ class MainActivity : ComponentActivity() {
     private var managementSessionToken: String? = null
     private var pendingScanGeneration: Int? = null
     private var exitedDevicesExpanded = false
+    private var preparationResume: (() -> Unit)? = null
+    private var preparationPause: (() -> Unit)? = null
     private var associationConfirmKey = newIdempotencyKey("association-confirm")
+    private var connectionPermissionScreen: Int? = null
+    private val connectionNotificationPermission = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
+        val screen = connectionPermissionScreen
+        connectionPermissionScreen = null
+        if (screen != screenGeneration) return@registerForActivityResult
+        if (granted) startConnectionChecking()
+        else Toast.makeText(this, "请允许通知，方便查看连接进度和随时停止。", Toast.LENGTH_LONG).show()
+    }
     private val barcodeLauncher = registerForActivityResult(ScanContract()) { result ->
         if (pendingScanGeneration != screenGeneration) {
             if (result.contents != null) {
@@ -123,14 +146,23 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         ++screenGeneration
+        preparationPause?.invoke()
+        preparationResume = null
+        preparationPause = null
         pendingScanGeneration = null
         mainHandler.removeCallbacksAndMessages(null)
         executor.shutdownNow()
         super.onDestroy()
     }
 
+    override fun onPause() {
+        preparationPause?.invoke()
+        super.onPause()
+    }
+
     override fun onResume() {
         super.onResume()
+        preparationResume?.invoke()
         if (!::sessionStore.isInitialized) return
         val current = sessionStore.load()
         val token = managementSessionToken
@@ -850,93 +882,229 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showInstallationNetworkGuide(state: InstallationSelfView) {
+        preparationPause?.invoke()
         val screen = ++screenGeneration
         backAction = { showInstallationLoading() }
         val root = vertical(20).apply { setBackgroundColor(canvas) }
-        root.addView(backHeader("本机网络接入") { showInstallationLoading() }, matchWrap())
-        root.addView(label("网络连接与端口上报", 27f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(22) })
-        root.addView(label("按步骤在这台执行手机完成配套设置。打开应用或系统页面不代表设置已生效；返回后请重新检查。", 14f, secondary), matchWrap().apply { topMargin = dp(8) })
-        val tailscaleCard = vertical(14).apply { background = rounded(Color.WHITE, 12) }
-        tailscaleCard.addView(label("步骤 1 · 本机网络配套", 18f, ink, Typeface.BOLD))
-        tailscaleCard.addView(label("在专用执行手机安装并打开 Tailscale，按应用提示完成所需设置。登录和网络状态由你在本机确认；本页不会替你登录或授权。", 14f, secondary), matchWrap().apply { topMargin = dp(5) })
-        val tailscaleInstalled = packageManager.getLaunchIntentForPackage("com.tailscale.ipn") != null
-        tailscaleCard.addView(primaryButton(if (tailscaleInstalled) "打开本机 Tailscale" else "查看官方 Tailscale Android 安装页").apply {
-            setOnClickListener {
-                if (tailscaleInstalled) {
-                    val launch = packageManager.getLaunchIntentForPackage("com.tailscale.ipn")
-                    if (launch == null) Toast.makeText(this@MainActivity, "无法打开 Tailscale；请从应用列表手动打开。", Toast.LENGTH_LONG).show()
-                    else runCatching { startActivity(launch) }.onFailure {
-                        Toast.makeText(this@MainActivity, "无法打开 Tailscale；请从应用列表手动打开。", Toast.LENGTH_LONG).show()
-                    }
-                } else openExternal("https://tailscale.com/download/android", "无法打开官方安装页；请在本机浏览器访问 tailscale.com/download/android。")
+        root.addView(backHeader("本机准备") { showInstallationLoading() }, matchWrap())
+        root.addView(label("让这台手机连接到平台", 27f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(18) })
+        root.addView(label("按下面的步骤完成首次设置。每次从设置返回，我们会自动检查进度。", 15f, secondary), matchWrap().apply { topMargin = dp(8) })
+        val progress = label("正在检查本机…", 15f, blue, Typeface.BOLD)
+        root.addView(progress, matchWrap().apply { topMargin = dp(16) })
+        fun section(title: String, explanation: String): LinearLayout {
+            val box = vertical(16).apply { background = rounded(Color.WHITE, 12) }
+            box.addView(label(title, 19f, ink, Typeface.BOLD))
+            box.addView(label(explanation, 15f, secondary), matchWrap().apply { topMargin = dp(8) })
+            root.addView(box, matchWrap().apply { topMargin = dp(14) })
+            return box
+        }
+        val network = section("1 · 连接业务网络", "Tailscale 用于让平台连接这台手机。请先连接稳定的 Wi-Fi，再完成 Tailscale 设置。")
+        val networkStatus = label("正在检查网络…", 14f, secondary)
+        network.addView(networkStatus, matchWrap().apply { topMargin = dp(10) })
+        val wifi = secondaryButton("连接 Wi-Fi").apply {
+            setOnClickListener { openPreparationSetting(android.provider.Settings.ACTION_WIFI_SETTINGS, "请在系统设置中打开 Wi-Fi，并连接可用网络。") }
+        }
+        network.addView(wifi, matchHeight(50).apply { topMargin = dp(10) })
+        val openTailscale = primaryButton("打开 Tailscale").apply { setOnClickListener { openTailscaleSetup() } }
+        network.addView(openTailscale, matchHeight(52).apply { topMargin = dp(8) })
+        network.addView(label("首次入网：在 Tailscale 登录页右上角菜单选择“Use an auth key”，粘贴内测接入密钥，并确认系统的 VPN 连接请求。也可使用已获授权的 Tailscale 账号登录；已有连接可直接返回检查。", 14f, secondary), matchWrap().apply { topMargin = dp(10) })
+
+        val copyKey = secondaryButton("获取并复制接入密钥")
+        network.addView(copyKey, matchHeight(50).apply { topMargin = dp(8) })
+        val keyStatus = label("", 14f, secondary).apply { visibility = View.GONE }
+        network.addView(keyStatus, matchWrap().apply { topMargin = dp(8) })
+        copyKey.setOnClickListener {
+            copyKey.isEnabled = false
+            runNetwork(action = {
+                val token = installationStore.load()?.activeSessionToken() ?: error("Inactive installation")
+                val result = JSONObject(api.post("/api/installation/network-setup/key",
+                    JSONObject().put("contractVersion", "android-network-setup-v1"), token))
+                require(result.getString("contractVersion") == "android-network-setup-v1")
+                require(result.getString("usage") == "pilot_shared")
+                if (!result.isNull("expiresAt")) require(Instant.parse(result.getString("expiresAt")).isAfter(Instant.now()))
+                result.getString("key").also { require(it.startsWith("tskey-auth-") && it.length <= 512) }
+            }, success = { key ->
+                copyKey.isEnabled = true
+                if (screen != screenGeneration) return@runNetwork
+                val clipboard = getSystemService(android.content.ClipboardManager::class.java)
+                val clip = android.content.ClipData.newPlainText("SocialGrowth 接入密钥", key)
+                clip.description.extras = android.os.PersistableBundle().apply { putBoolean("android.content.extra.IS_SENSITIVE", true) }
+                clipboard.setPrimaryClip(clip)
+                mainHandler.postDelayed({
+                    if (clipboard.hasPrimaryClip() && clipboard.primaryClip?.getItemAt(0)?.text?.toString() == key) clipboard.clearPrimaryClip()
+                }, 60_000)
+                keyStatus.visibility = View.VISIBLE
+                keyStatus.text = "密钥已复制，1 分钟后清除。请打开 Tailscale，在登录页菜单选择 Use an auth key 后粘贴。"
+            }, failure = {
+                copyKey.isEnabled = true
+                if (screen == screenGeneration) {
+                    keyStatus.visibility = View.VISIBLE
+                    keyStatus.text = "暂时无法获取密钥。已入网手机可直接继续；新手机可使用已获授权的 Tailscale 账号登录，或联系运营。"
+                }
+            })
+        }
+
+        val debugging = section("2 · 允许远程连接", "平台需要通过系统的“无线调试”连接本机。此项必须由你在这台执行手机上开启。")
+        val debuggingStatus = label("正在检查设置…", 14f, secondary)
+        debugging.addView(debuggingStatus, matchWrap().apply { topMargin = dp(10) })
+        val developerHelp = label("先打开“关于手机”，连续点击“版本号”7 次，按系统提示验证锁屏密码。Samsung 的版本号在“软件信息”中。", 14f, secondary)
+        debugging.addView(developerHelp, matchWrap().apply { topMargin = dp(8) })
+        val about = secondaryButton("打开关于手机").apply {
+            setOnClickListener { openPreparationSetting(android.provider.Settings.ACTION_DEVICE_INFO_SETTINGS, "请打开设置 → 关于手机 → 软件信息 → 版本号。") }
+        }
+        debugging.addView(about, matchHeight(50).apply { topMargin = dp(10) })
+        debugging.addView(primaryButton("打开开发者选项").apply {
+            setOnClickListener { openPreparationSetting(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS, "请打开系统设置中的开发者选项，再找到“无线调试”。") }
+        }, matchHeight(52).apply { topMargin = dp(8) })
+        debugging.addView(label("找到“无线调试”并开启，按系统提示允许当前 Wi-Fi。返回这里后会自动检查。", 14f, secondary), matchWrap().apply { topMargin = dp(10) })
+
+        val pairing = section("3 · 完成连接确认", "首次连接时，在执行手机的“无线调试”页面选择“使用配对码配对设备”，保持弹窗打开。用管理手机进入这台设备的详情，输入显示的 6 位配对码。")
+        val pairingStatus = label("完成前两步后，等待平台确认连接。", 15f, secondary)
+        pairing.addView(pairingStatus, matchWrap().apply { topMargin = dp(10) })
+        pairing.addView(label("已有有效配对时会尝试恢复连接，无需重复输入配对码。手机重启或切换 Wi-Fi 后，如需重新开启设置，会在这里提示。", 14f, secondary), matchWrap().apply { topMargin = dp(8) })
+        val keepConnected = primaryButton("开始连接检查")
+        pairing.addView(keepConnected, matchHeight(52).apply { topMargin = dp(10) })
+        keepConnected.setOnClickListener {
+            if (Build.VERSION.SDK_INT < 34) {
+                Toast.makeText(this, "当前自动连接检查需要 Android 14 或更高版本。", Toast.LENGTH_LONG).show()
+            } else {
+                if (EndpointReportingService.running) {
+                    startService(Intent(this, EndpointReportingService::class.java).setAction(EndpointReportingService.STOP))
+                } else if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    connectionPermissionScreen = screenGeneration
+                    connectionNotificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                } else startConnectionChecking()
             }
-        }, matchHeight(52).apply { topMargin = dp(12) })
-        root.addView(tailscaleCard, matchWrap().apply { topMargin = dp(18) })
-        val appSettings = vertical(14).apply { background = rounded(Color.WHITE, 12) }
-        appSettings.addView(label("步骤 2 · 检查本应用系统设置", 18f, ink, Typeface.BOLD))
-        appSettings.addView(label("如系统限制了通知或后台运行，可打开 SocialGrowth 的系统应用设置检查。请按本机系统实际选项处理。", 14f, secondary), matchWrap().apply { topMargin = dp(5) })
-        appSettings.addView(secondaryButton("打开本机 SocialGrowth 应用设置").apply {
+        }
+        pairing.addView(label("先开始连接检查，再打开系统配对码。检查会在通知栏显示，最多保持一小时；你可以随时停止。", 14f, secondary), matchWrap().apply { topMargin = dp(8) })
+        val serverStatus = label("正在检查平台连接…", 14f, secondary)
+        root.addView(serverStatus, matchWrap().apply { topMargin = dp(18) })
+        val retry = secondaryButton("重新检查")
+        root.addView(retry, matchHeight(50).apply { topMargin = dp(10) })
+        root.addView(secondaryButton("检查通知与后台运行设置").apply {
             setOnClickListener { openOwnAppSettings() }
-        }, matchHeight(50).apply { topMargin = dp(10) })
-        root.addView(appSettings, matchWrap().apply { topMargin = dp(12) })
-        val status = label("网络核验状态待检查", 15f, secondary)
-        root.addView(status, matchWrap().apply { topMargin = dp(20) })
-        var networkCheckSequence = 0
-        fun checkNetwork() {
-            status.text = "正在检查服务端网络核验状态…"
-            val sequence = ++networkCheckSequence
+        }, matchHeight(50).apply { topMargin = dp(8) })
+        root.addView(label("完成连接后，还需平台核对设备和账号。不会因为返回页面或重新联网就恢复已暂停的设备。", 13f, secondary), matchWrap().apply { topMargin = dp(12) })
+
+        // Discovery runs only while this guide is visible. Reports and remote
+        // authority are separate; a local candidate never completes step 3.
+        var discovery: NativeEndpointDiscovery? = null
+        var visible = false
+        var busy = false
+        var checkSequence = 0
+        var remoteConnected = false
+        var lastServerCheck = 0L
+        fun current() = screen == screenGeneration && !isDestroyed && !isFinishing
+        fun updateLocal() {
+            if (!current()) return
+            val checks = DevicePreparationChecks.read(this)
+            keepConnected.text = if (EndpointReportingService.running) "停止连接检查" else "开始连接检查"
+            wifi.visibility = if (checks.wifiConnected) View.GONE else View.VISIBLE
+            openTailscale.text = if (checks.tailscaleInstalled) "打开 Tailscale" else "安装 Tailscale"
+            networkStatus.text = when {
+                !checks.wifiConnected -> "请先连接 Wi-Fi。"
+                !checks.tailscaleInstalled -> "Wi-Fi 已连接，请安装配套 Tailscale。"
+                !checks.vpnPresent -> "Wi-Fi 已连接，请打开 Tailscale 并连接。"
+                else -> "已检测到 VPN；正在等待平台确认本机入网。"
+            }
+            developerHelp.visibility = if (checks.developerOptions == true) View.GONE else View.VISIBLE
+            about.visibility = developerHelp.visibility
+            debuggingStatus.text = when {
+                !checks.discoverySupported -> "当前版本的自动检查需要 Android 14 或更高版本，请联系运营确认支持机型。"
+                checks.developerOptions == false -> "请先开启开发者选项。"
+                checks.wirelessDebugging == false -> "无线调试尚未开启。"
+                checks.wirelessDebugging == true -> "无线调试已开启，接下来确认平台连接。"
+                else -> "暂时无法读取开关，请按系统页面完成设置后返回。"
+            }
+            val found = discovery?.snapshot()?.connect?.status == EndpointObservationStatus.CANDIDATE
+            pairingStatus.text = when {
+                !checks.discoverySupported -> "当前手机暂不能自动完成连接检查。"
+                checks.wirelessDebugging == false -> "请先完成上一步。"
+                found -> "本机已准备好，等待平台确认。首次使用请在管理手机完成配对。"
+                else -> "正在检查本机是否可连接；首次使用请在管理手机完成配对。"
+            }
+            progress.text = when {
+                remoteConnected -> "本机已连接到平台"
+                !checks.wifiConnected || !checks.tailscaleInstalled || !checks.vpnPresent -> "当前步骤：连接业务网络"
+                checks.wirelessDebugging != true -> "当前步骤：允许远程连接"
+                else -> "当前步骤：等待连接确认"
+            }
+        }
+        fun checkServer() {
+            if (!current() || !visible || busy) return
+            busy = true
+            val sequence = ++checkSequence
+            lastServerCheck = android.os.SystemClock.elapsedRealtime()
             runNetwork(action = {
                 val identity = installationStore.load() ?: error("Missing installation")
                 val token = identity.activeSessionToken() ?: error("Inactive installation")
-                NetworkAdmissionStateClient(api).state(
-                    token,
-                    UUID.fromString(identity.installationId),
-                    requireNotNull(identity.generation).toString(),
-                ).also { require(it.scope.deviceId == state.deviceId && it.scope.ownershipVersion == state.factVersion.toString()) }
+                DeviceConnectionApiClient(api).installationState(token, requireNotNull(state.deviceId))
             }, success = { fact ->
-                if (screen == screenGeneration && sequence == networkCheckSequence) {
-                    status.text = if (fact.verifierReady)
-                        "服务端网络核验已就绪；接入许可和动作权限仍需独立确认。"
-                    else "服务端网络核验尚未就绪；请核对 Tailscale 状态后重试。"
+                busy = false
+                if (current() && visible && sequence == checkSequence) {
+                    remoteConnected = fact.connected
+                    serverStatus.text = DeviceConnectionBoundary.message(fact)
+                    updateLocal()
                 }
             }, failure = {
-                if (screen == screenGeneration && sequence == networkCheckSequence) status.text = "网络核验状态暂时无法读取；不能据此判断已就绪。"
+                busy = false
+                if (current() && visible && sequence == checkSequence) serverStatus.text = "暂时联系不上平台。请检查网络后重试；已完成的系统设置无需重做。"
             })
         }
-        root.addView(secondaryButton("重新检查网络状态").apply { setOnClickListener { checkNetwork() } }, matchHeight(48).apply { topMargin = dp(8) })
-        if (BuildConfig.ENDPOINT_DIAGNOSTICS) {
-            val endpointStatus = label(EndpointReportingService.statusText(), 13f, secondary)
-            root.addView(endpointStatus, matchWrap().apply { topMargin = dp(16) })
-            fun refreshEndpointStatus() {
-                if (screen != screenGeneration || isDestroyed || isFinishing) return
-                endpointStatus.text = EndpointReportingService.statusText()
-                mainHandler.postDelayed({ refreshEndpointStatus() }, 1_000)
+        val tick = object : Runnable {
+            override fun run() {
+                if (!current() || !visible) return
+                if (Build.VERSION.SDK_INT >= 34 && discovery?.snapshot()?.active != true) {
+                    discovery?.close()
+                    discovery = NativeEndpointDiscovery(this@MainActivity).also { it.start() }
+                }
+                updateLocal()
+                if (android.os.SystemClock.elapsedRealtime() - lastServerCheck >= 5_000) checkServer()
+                mainHandler.postDelayed(this, 2_000)
             }
-            refreshEndpointStatus()
-            root.addView(primaryButton("开启端口自动上报").apply {
-                isEnabled = Build.VERSION.SDK_INT >= 34 && state.deviceId != null && state.state in setOf("associated_pending_access", "access_ready")
-                setOnClickListener {
-                    try {
-                        ContextCompat.startForegroundService(this@MainActivity, Intent(this@MainActivity, EndpointReportingService::class.java).setAction(EndpointReportingService.START))
-                    } catch (_: Exception) {
-                        Toast.makeText(this@MainActivity, "端口上报服务未能启动", Toast.LENGTH_LONG).show()
-                    }
-                }
-            }, matchHeight(54).apply { topMargin = dp(18) })
-            root.addView(secondaryButton("停止端口自动上报").apply {
-                isEnabled = EndpointReportingService.running
-                setOnClickListener {
-                    if (EndpointReportingService.running) startService(Intent(this@MainActivity, EndpointReportingService::class.java).setAction(EndpointReportingService.STOP))
-                }
-            }, matchHeight(52).apply { topMargin = dp(8) })
         }
-        root.addView(label("返回或打开其他应用都不代表检查通过；页面只采纳可信服务端状态。", 13f, secondary), matchWrap().apply { topMargin = dp(14) })
-        checkNetwork()
-        root.addView(label("此设置只管理本机端点报告服务；关联状态、可信网络来源、接入许可和当前动作授权分别核验。", 14f, secondary), matchWrap().apply { topMargin = dp(18) })
+        val resume = {
+            if (current()) {
+                visible = true
+                mainHandler.removeCallbacks(tick)
+                tick.run()
+                checkServer()
+            }
+        }
+        preparationPause = {
+            visible = false
+            ++checkSequence
+            mainHandler.removeCallbacks(tick)
+            if (Build.VERSION.SDK_INT >= 34) discovery?.close()
+            discovery = null
+        }
+        preparationResume = resume
+        retry.setOnClickListener { updateLocal(); checkServer() }
         setContentView(ScrollView(this).apply {
             isFillViewport = true
             addView(root, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         })
+        resume()
+    }
+
+    private fun startConnectionChecking() {
+        runCatching { ContextCompat.startForegroundService(this, Intent(this, EndpointReportingService::class.java).setAction(EndpointReportingService.START)) }
+            .onFailure { Toast.makeText(this, "暂时无法开始，请保持 App 在前台后重试。", Toast.LENGTH_LONG).show() }
+    }
+
+    private fun openTailscaleSetup() {
+        val launch = packageManager.getLaunchIntentForPackage("com.tailscale.ipn")
+        if (launch == null) openExternal("https://tailscale.com/download/android", "请在浏览器打开 tailscale.com/download/android 安装 Tailscale。")
+        else runCatching { startActivity(launch) }.onFailure {
+            Toast.makeText(this, "暂时无法打开，请从手机应用列表打开 Tailscale。", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun openPreparationSetting(action: String, fallback: String) {
+        runCatching { startActivity(Intent(action)) }.onFailure {
+            runCatching { startActivity(Intent(android.provider.Settings.ACTION_SETTINGS)) }
+            Toast.makeText(this, fallback, Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun openOwnAppSettings() {
@@ -1366,12 +1534,108 @@ class MainActivity : ComponentActivity() {
         facts.addView(divider(), matchHeight(1).apply { topMargin = dp(14); bottomMargin = dp(14) })
         facts.addView(detailRow("事实更新时间", formatFactTime(device.updatedAt)))
         container.addView(facts, matchWrap().apply { topMargin = dp(20) })
+        container.addView(primaryButton("连接这台执行手机").apply {
+            isEnabled = device.state in setOf("associated_pending_access", "access_ready")
+            setOnClickListener { showProviderDeviceConnection(session, device) }
+        }, matchHeight(52).apply { topMargin = dp(12) })
         container.addView(secondaryButton("修改设备备注名").apply {
             setOnClickListener { showRenameProviderDeviceDialog(session, device) }
         }, matchHeight(50).apply { topMargin = dp(12) })
         container.addView(label(DeviceFactPresentation.ACCESS_BOUNDARY, 14f, secondary), matchWrap().apply { topMargin = dp(18) })
         container.addView(label("查看详情不会申请控制，也不会改变手机状态。当前没有权威项目、发布身份或平台授权资料。", 13f, secondary), matchWrap().apply { topMargin = dp(10) })
         renderProviderControlPanel(container, session, device)
+    }
+
+    private fun showProviderDeviceConnection(session: StoredProviderSession, device: ProviderDevice) {
+        val screen = ++screenGeneration
+        backAction = { showProviderDeviceDetail(session, device.deviceId) }
+        val root = vertical(20).apply { setBackgroundColor(canvas) }
+        root.addView(backHeader("连接执行手机") { showProviderDeviceDetail(session, device.deviceId) }, matchWrap())
+        root.addView(label(device.displayName, 27f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(20) })
+        root.addView(label("设备标识尾号 ${device.deviceId.toString().takeLast(8)}", 14f, secondary), matchWrap().apply { topMargin = dp(6) })
+        root.addView(label("请先核对手边的执行手机。在那台手机完成业务网络连接并开启无线调试，再选择“使用配对码配对设备”。", 16f, ink), matchWrap().apply { topMargin = dp(20) })
+        root.addView(label("保持执行手机的配对弹窗打开，在这里输入 6 位配对码。每台手机单独配对；已经连接的手机不必重复操作。", 15f, secondary), matchWrap().apply { topMargin = dp(10) })
+        val status = label("正在检查连接…", 16f, blue)
+        status.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        root.addView(status, matchWrap().apply { topMargin = dp(22) })
+        val submit = primaryButton("输入配对码").apply { isEnabled = false }
+        root.addView(submit, matchHeight(54).apply { topMargin = dp(18) })
+        val refresh = secondaryButton("重新检查")
+        root.addView(refresh, matchHeight(50).apply { topMargin = dp(10) })
+        val client = DeviceConnectionApiClient(api)
+        var current: DeviceConnectionSnapshot? = null
+        var busy = false
+        fun check() {
+            if (busy || screen != screenGeneration) return
+            busy = true
+            submit.isEnabled = false
+            status.text = "正在检查连接…"
+            runNetwork(action = { client.providerState(session.sessionToken, device.deviceId) }, success = { fact ->
+                busy = false
+                if (screen != screenGeneration) return@runNetwork
+                current = fact
+                status.text = DeviceConnectionBoundary.message(fact)
+                submit.visibility = if (fact.connected) View.GONE else View.VISIBLE
+                submit.isEnabled = fact.networkState in setOf("admitted", "pilot_verified") && fact.pairingState == "awaiting_code"
+            }, failure = {
+                busy = false
+                if (screen != screenGeneration) return@runNetwork
+                current = null
+                status.text = "暂时无法检查这台手机的连接，请稍后重试。"
+            })
+        }
+        submit.setOnClickListener {
+            val target = current ?: return@setOnClickListener
+            val input = editText("6 位配对码", InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD).apply {
+                isSaveEnabled = false
+                importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+                filters = arrayOf(android.text.InputFilter.LengthFilter(6))
+            }
+            val error = label("", 14f, danger)
+            val content = vertical(18).apply {
+                addView(label("${device.displayName} · ${device.deviceId.toString().takeLast(8)}", 16f, ink, Typeface.BOLD), matchWrap())
+                addView(input, matchHeight(54).apply { topMargin = dp(12) })
+                addView(error, matchWrap().apply { topMargin = dp(8) })
+            }
+            val dialog = AlertDialog.Builder(this).setTitle("输入执行手机上的配对码")
+                .setView(content).setNegativeButton("取消", null).setPositiveButton("确认配对", null).create()
+            dialog.setOnDismissListener { input.text.clear() }
+            dialog.setOnShowListener {
+                dialog.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                    val code = input.text.toString()
+                    if (!code.matches(Regex("^[0-9]{6}$"))) {
+                        error.text = "请输入执行手机当前显示的 6 位数字。"
+                        return@setOnClickListener
+                    }
+                    val request = "android-pair-${UUID.randomUUID()}"
+                    input.text.clear()
+                    dialog.dismiss()
+                    submit.isEnabled = false
+                    refresh.isEnabled = false
+                    busy = true
+                    status.text = "正在配对，请保持执行手机的弹窗打开…"
+                    runNetwork(action = { client.pair(session.sessionToken, target, code, request) }, success = {
+                        busy = false
+                        if (screen == screenGeneration) { refresh.isEnabled = true; check() }
+                    }, failure = {
+                        busy = false
+                        if (screen == screenGeneration) {
+                            refresh.isEnabled = true
+                            current = null
+                            status.text = "本次配对结果尚未确认，请先重新检查。配对码已清除，不会自动重复提交。"
+                        }
+                    })
+                }
+            }
+            dialog.show()
+        }
+        refresh.setOnClickListener { check() }
+        setContentView(ScrollView(this).apply {
+            isFillViewport = true
+            addView(root, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        })
+        check()
     }
 
     private fun showRenameProviderDeviceDialog(session: StoredProviderSession, device: ProviderDevice) {

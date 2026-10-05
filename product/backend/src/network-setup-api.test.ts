@@ -97,3 +97,14 @@ test("pilot API rejects client-supplied device identity and malformed authorizat
     assert.equal((await f.api.handle("key", body, "Bearer invalid")).status, 401);
   } finally { await rm(f.dir, { recursive: true, force: true }); }
 });
+
+test("unknown expiry is deferred to Tailscale; a known expired key is withheld", async () => {
+  const { readPilotAuthKeyFile } = await import("./network-setup-config.js");
+  const dir = await mkdtemp(join(tmpdir(), "sg-pilot-expiry-"));
+  try {
+    const path = join(dir, "key.txt");
+    await writeFile(path, fakeKey, { mode: 0o600 });
+    assert.deepEqual(await readPilotAuthKeyFile(path, null), { key: fakeKey, expiresAt: null });
+    await assert.rejects(readPilotAuthKeyFile(path, new Date(Date.now() - 1000).toISOString()));
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});

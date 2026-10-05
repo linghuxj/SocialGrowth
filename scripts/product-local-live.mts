@@ -134,7 +134,7 @@ async function main(): Promise<void> {
   // Explicit opt-in for the small Android pilot; values are file/binary paths,
   // never Auth Key contents. Other ambient SG configuration remains excluded.
   for (const name of ["SG_PRODUCT_TAILNET_PILOT_CONFIG", "SG_PRODUCT_TAILNET_PILOT_AUTH_KEY_FILE",
-    "SG_PRODUCT_TAILSCALE_CLI", "SG_PRODUCT_CENTER_ADB", "SG_PRODUCT_CENTER_ADB_USER_HOME"]) {
+    "SG_PRODUCT_TAILSCALE_CLI", "SG_PRODUCT_CENTER_ADB", "SG_PRODUCT_CENTER_ADB_USER_HOME", "SG_PRODUCT_CENTER_ADB_TAILSCALE_CLI"]) {
     const value = process.env[name];
     if (value) Object.assign(env, { [name]: value });
   }

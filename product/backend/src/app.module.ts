@@ -1,3 +1,10 @@
+import { NetworkSetupApi } from "./network-setup-api.js";
+import { NetworkSetupController } from "./network-setup.controller.js";
+import { PilotDeviceNetworkAuthority } from "./network-access-authority.js";
+import { TailscaleCliWhoIs } from "./tailscale-source-verifier.js";
+import { DeviceConnectionApi } from "./device-connection-api.js";
+import { DeviceConnectionAdb } from "./device-connection-adb.js";
+import { InstallationDeviceConnectionController, ProviderDeviceConnectionController } from "./device-connection.controller.js";
 import { Module } from "@nestjs/common";
 import { Pool } from "pg";
 import { AppController } from "./app.controller.js";
@@ -158,6 +165,9 @@ const providerAuthProvider = {
     DevelopmentProviderSmsController,
     InstallationController,
     NetworkAdmissionController,
+    NetworkSetupController,
+    InstallationDeviceConnectionController,
+    ProviderDeviceConnectionController,
     LocalParticipationController,
     InstallationSelfControlController,
     ProviderDeviceControlController,
@@ -183,6 +193,30 @@ const providerAuthProvider = {
     MetricFeedbackController,
   ],
   providers: [
+    {
+      provide: NetworkSetupApi,
+      inject: [Pool, InstallationAuthService],
+      useFactory: (pool: Pool, auth: InstallationAuthService) => new NetworkSetupApi(
+        new NetworkAdmissionStore(pool), auth,
+        process.env.SG_PRODUCT_TAILNET_PILOT_CONFIG ?? "",
+        new TailscaleCliWhoIs(process.env.SG_PRODUCT_TAILSCALE_CLI ?? "/Applications/Tailscale.app/Contents/MacOS/Tailscale"),
+        process.env.SG_PRODUCT_TAILNET_PILOT_AUTH_KEY_FILE ?? null,
+      ),
+    },
+    {
+      provide: DeviceConnectionApi,
+      inject: [Pool, InstallationAuthService, ProviderAuthService],
+      useFactory: (pool: Pool, installation: InstallationAuthService, provider: ProviderAuthService) => {
+        const pilot = process.env.SG_PRODUCT_TAILNET_PILOT_CONFIG;
+        const tailscale = process.env.SG_PRODUCT_TAILSCALE_CLI;
+        const adb = process.env.SG_PRODUCT_CENTER_ADB;
+        const adbHome = process.env.SG_PRODUCT_CENTER_ADB_USER_HOME;
+        return new DeviceConnectionApi(pool, installation, provider,
+          pilot && tailscale ? new PilotDeviceNetworkAuthority(pilot, new TailscaleCliWhoIs(tailscale)) : null,
+          adb && adbHome ? new DeviceConnectionAdb(adb, adbHome, 8000, process.env.SG_PRODUCT_CENTER_ADB_TAILSCALE_CLI ?? null) : null);
+      },
+    },
+
     { provide: AccountPreparationService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new AccountPreparationService(pool, auth) },
     poolProvider,
     operatorAuthProvider,
