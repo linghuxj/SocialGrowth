@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 const productScripts = { "device-live": "scripts/verify-product-device-live-playwright.mts", "account-preparation": "scripts/verify-product-account-preparation-playwright.mts", "real-material-bytes": "scripts/verify-product-real-material-bytes-playwright.mts", "operator-todos": "scripts/verify-product-operator-todos-playwright.mts", "project-feedback": "scripts/verify-product-project-feedback-playwright.mts", "project-lifecycle": "scripts/verify-product-project-lifecycle-playwright.mts", direction: "scripts/verify-product-direction-playwright.mts", planning: "scripts/verify-product-planning-playwright.mts", materials: "scripts/verify-product-materials-playwright.mts", projects: "scripts/verify-product-projects-playwright.mts", "project-viewports": "scripts/verify-product-project-viewports.mts", identity: "scripts/verify-product-web-readiness.mts" };
 productScripts["operations"] = "scripts/verify-web-automation-orchestrator.mts";
 productScripts["operations-completion"] = "scripts/verify-product-operations-completion-playwright.mts";
+productScripts["core-materials"] = "scripts/verify-product-core-materials-playwright.mts";
 productScripts["closed-loop"] = "scripts/verify-product-closed-loop-playwright.mts";
 productScripts["media-accounts"] = "scripts/verify-product-media-accounts-playwright.mts";
 const target = process.env.SG_WEB_TARGET ?? "demo";

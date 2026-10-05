@@ -69,7 +69,9 @@ export class ArtemisBusinessModel implements BusinessModelPort, InitialDirection
   async analyzeMaterial(input: { durationSeconds: number; frames: string[] }, signal: AbortSignal) {
     const response = returned.parse(await this.invoke([], { operation: "material_analysis", input,
       outputSchema: z.toJSONSchema(materialAnalysisOutputSchema, { io: "input" }) }, signal));
-    return materialAnalysisOutputSchema.parse(JSON.parse(response.outputText));
+    const text = response.outputText.trim();
+    const fenced = /^```(?:json)?\s*\n([\s\S]*)\n```$/.exec(text);
+    return materialAnalysisOutputSchema.parse(JSON.parse(fenced ? fenced[1]! : text));
   }
   async generate(request: Parameters<BusinessModelPort["generate"]>[0], signal: AbortSignal) {
     const response = returned.parse(await this.invoke([], { operation: "business_suggestion", input: request.input,
