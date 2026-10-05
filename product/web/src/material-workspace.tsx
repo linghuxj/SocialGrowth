@@ -118,7 +118,7 @@ export function MaterialWorkspace({ projectId, active, readOnly, onExpired }: {
     else if (["image/jpeg", "image/png", "image/webp"].includes(ticket.contentType)) input.identity.mediaKind = "image_text";
     else return;
     input.objectIds = [ticket.objectId];
-    setRows(previous => [...previous, { id: input.variantId, filename: `已上传文件 ${ticket.objectId}`, input,
+    setRows(previous => [...previous, { id: input.variantId, filename: ticket.contentType === "video/mp4" ? "已上传切片" : "已上传图片", input,
       uploaded: true, dirty: true, error: "", firstUseConfirmed: false, evidenceText: "" }]);
     setQuery(""); setFilter("all"); setEditing(input.variantId);
   }
@@ -219,10 +219,10 @@ export function MaterialWorkspace({ projectId, active, readOnly, onExpired }: {
     {bulkOpen && <section className="panel" aria-label="批量填写语言"><h3>当前选择 {selected.length} 项</h3><label>语言标签<input value={bulkLanguage} onChange={e => setBulkLanguage(e.target.value)} placeholder="例如 es；请按真实语言填写" /></label><label className="material-inline-check"><input type="checkbox" checked={overwrite} onChange={e => setOverwrite(e.target.checked)} />明确覆盖已有语言（默认仅填空值）</label>
       <ul>{rows.filter(r => selected.includes(r.id)).map(r => <li key={r.id}>{r.filename}：{r.input.languageTag || "空"} → {r.saved || (r.input.languageTag && !overwrite) ? "保留（已有身份不可改语言）" : bulkLanguage || "待填写"}</li>)}</ul>
       <button disabled={readOnly || busy || !bulkLanguage} onClick={() => { setRows(prev => prev.map(r => selected.includes(r.id) && !r.saved && !r.pending && (!r.input.languageTag || overwrite) ? { ...r, input: { ...r.input, languageTag: bulkLanguage }, dirty: true } : r)); setBulkOpen(false); }}>应用到待保存资料</button><button className="text-button" onClick={() => setBulkOpen(false)}>取消</button></section>}
-    {row && <section className="panel material-editor" aria-label="素材资料详情"><div className="section-heading"><h3>{row.filename} · 预览与人工资料</h3><button className="text-button" onClick={() => setEditing(null)}>保留草稿返回</button></div>
+    {row && <section className="panel material-editor" aria-label="素材资料详情"><div className="section-heading"><h3>{row.filename} · 素材资料</h3><button className="text-button" onClick={() => setEditing(null)}>保留草稿返回</button></div>
       {!directionLoaded && <p role="status">正在读取当前已确认方向范围…</p>}{directionError && <p role="status" className="feedback">{directionError}</p>}
-      {previewUrl ? row.preview?.type.startsWith("image/") ? <img className="material-preview" src={previewUrl} alt="所选本地文件预览，尚非来源核验" /> : <video className="material-preview" src={previewUrl} controls /> : <p>当前仅有服务器元数据，没有获准文件下载通道；不使用示例画面代替预览。</p>}
-      <p>文件版本只读：{row.input.objectIds.join("、")}；{row.uploaded ? "字节已校验" : "尚未确认上传"}。更换文件不是普通资料编辑。</p>
+      {previewUrl ? row.preview?.type.startsWith("image/") ? <img className="material-preview" src={previewUrl} alt="所选本地文件预览" /> : <video className="material-preview" src={previewUrl} controls /> : <p className="form-note">已保存原文件；当前页面暂不支持在线播放，可直接提取切片内容。</p>}
+      <details><summary>{row.uploaded ? "原文件已校验 · 查看文件标识" : "文件尚未上传完成"}</summary><p>文件版本只读：{row.input.objectIds.join("、")}</p></details>
       {row.input.identity.mediaKind === "video" && row.uploaded && <div className="material-analysis">
         {!readOnly && <button className="outline-button" disabled={busy || !!row.pending || row.analyzing} onClick={() => void analyze(row)}>{row.analyzing ? "正在分析切片…" : "AI 提取切片信息"}</button>}
         <p className="form-note" role="status">{row.analyzing ? "正在读取视频画面和字幕，通常需要几十秒；现有资料会保留。" : "提取语言、剧情摘要和标题草稿。当前分析画面与字幕，尚不包含音频对白。"}</p>
@@ -233,8 +233,8 @@ export function MaterialWorkspace({ projectId, active, readOnly, onExpired }: {
           {row.analysis.output.limitations.length > 0 && <ul>{row.analysis.output.limitations.map((item, index) => <li key={index}>{item}</li>)}</ul>}
           {!readOnly && <button disabled={busy || !!row.pending || row.analyzing} onClick={() => edit({ ...row.input,
             languageTag: row.saved ? row.input.languageTag : row.analysis!.output.languageTag ?? row.input.languageTag,
-            declaration: { ...row.input.declaration, name: row.analysis!.output.title, description: row.analysis!.output.summary,
-              businessFacts: `AI 根据抽样画面生成的内容草稿：${row.analysis!.output.summary}` } })}>应用到素材资料</button>}
+            declaration: { ...row.input.declaration, name: row.analysis!.output.title.replace(/\s+/g, " ").trim(), description: row.analysis!.output.summary.replace(/\s+/g, " ").trim(),
+              businessFacts: `AI 根据抽样画面生成的内容草稿：${row.analysis!.output.summary.replace(/\s+/g, " ").trim()}` } })}>应用到素材资料</button>}
           <p className="form-note">应用会替换名称、内容说明和业务信息；点击保存后才会登记到项目。来源和集序仍保留原值。</p>
         </div>}
       </div>}
@@ -243,13 +243,15 @@ export function MaterialWorkspace({ projectId, active, readOnly, onExpired }: {
         <label>语言标签<input disabled={!!row.saved} value={row.input.languageTag} onChange={e => edit({ ...row.input, languageTag: e.target.value })} /></label>
         <label>成品类型<select disabled={!!row.saved} value={row.input.identity.mediaKind} onChange={e => edit({ ...row.input, identity: { ...row.input.identity, mediaKind: e.target.value as Input["identity"]["mediaKind"], seriesId: null, episodeNumber: null } })}><option value="video">视频</option><option value="image_text">图文</option></select></label>
         <label>业务类型<select aria-label="业务类型" disabled={!!row.saved} value={row.input.identity.businessKind} onChange={e => edit({ ...row.input, identity: { ...row.input.identity, businessKind: e.target.value as Input["identity"]["businessKind"], seriesId: null, episodeNumber: null } })}><option value="product">商品</option><option value="drama">短剧</option></select></label>
-        {(["description", "businessFacts", "sourceStatement"] as const).map((key, i) => <label key={key}>{["内容说明", "业务事实", "来源声明"][i]}<textarea aria-label={["内容说明", "业务事实", "来源声明"][i]} value={row.input.declaration[key]} onChange={e => edit({ ...row.input, declaration: { ...row.input.declaration, [key]: e.target.value } })} /></label>)}
+        {(["description", "businessFacts"] as const).map((key, i) => <label key={key}>{["内容说明", "业务信息"][i]}<textarea aria-label={["内容说明", "业务信息"][i]} value={row.input.declaration[key]} onChange={e => edit({ ...row.input, declaration: { ...row.input.declaration, [key]: e.target.value } })} /></label>)}
+      </div><details><summary>补充来源与关联资料（选填）</summary><div className="material-form-grid">
+        <label>来源声明<textarea value={row.input.declaration.sourceStatement} onChange={e => edit({ ...row.input, declaration: { ...row.input.declaration, sourceStatement: e.target.value } })} /></label>
         <label>已有来源证明记录标识（逗号分隔 UUID）<textarea aria-label="已有来源证明记录标识（逗号分隔 UUID）" value={row.evidenceText} onChange={e => { const text = e.target.value; update(row.id, r => ({ ...r, evidenceText: text, dirty: true, error: "", input: { ...r.input, declaration: { ...r.input.declaration, sourceEvidenceIds: text.split(",").map(v => v.trim()).filter(Boolean) } } })); }} /></label>
-        <label>商品／短剧业务标识 UUID<input disabled={!!row.saved} value={row.input.identity.businessEntityId} onChange={e => edit({ ...row.input, identity: { ...row.input.identity, businessEntityId: e.target.value } })} /></label>
+        <label>商品／短剧业务标识 UUID（留空自动生成）<input disabled={!!row.saved} value={row.input.identity.businessEntityId} onChange={e => edit({ ...row.input, identity: { ...row.input.identity, businessEntityId: e.target.value } })} /></label>
         <label>来源主体标识 UUID（选填）<input disabled={!!row.saved} value={row.input.sourceId ?? ""} onChange={e => edit({ ...row.input, sourceId: e.target.value || null })} /></label>
         <label>原成品来源记录 UUID（选填）<input disabled={!!row.saved} value={row.input.sourceRecordId ?? ""} onChange={e => edit({ ...row.input, sourceRecordId: e.target.value || null })} /></label>
         {row.input.identity.businessKind === "drama" && row.input.identity.mediaKind === "video" && <><label>连载标识 UUID（独立宣传片留空）<input disabled={!!row.saved} value={row.input.identity.seriesId ?? ""} onChange={e => edit({ ...row.input, identity: { ...row.input.identity, seriesId: e.target.value || null } })} /></label><label>明确集序（不从文件名推断）<input disabled={!!row.saved} type="number" min="1" value={row.input.identity.episodeNumber ?? ""} onChange={e => edit({ ...row.input, identity: { ...row.input.identity, episodeNumber: e.target.value ? Number(e.target.value) : null } })} /></label></>}
-      </div><label className="material-inline-check"><input type="checkbox" checked={row.firstUseConfirmed} onChange={e => update(row.id, r => ({ ...r, firstUseConfirmed: e.target.checked, dirty: true, error: "", input: { ...r.input, declaration: { ...r.input.declaration, firstUseDeclaration: e.target.checked ? "declared_not_previously_published" : "unknown" } } }))} />已确认此成品此前未发布（选填；未确认时保留未知）</label></fieldset>
+      </div><label className="material-inline-check"><input type="checkbox" checked={row.firstUseConfirmed} onChange={e => update(row.id, r => ({ ...r, firstUseConfirmed: e.target.checked, dirty: true, error: "", input: { ...r.input, declaration: { ...r.input.declaration, firstUseDeclaration: e.target.checked ? "declared_not_previously_published" : "unknown" } } }))} />已确认此成品此前未发布（选填；未确认时保留未知）</label></details></fieldset>
       <MaterialScopeConfirmation state={scopeState} directionId={currentScope?.directionId ?? null} projectVersion={currentScope?.projectVersion ?? null}
         direction={currentScope?.direction ?? null} languages={currentScope?.languages ?? []} contentForms={currentScope?.contentForms ?? []}
         reviewed={!!row.input.declaration.contentRulesReviewed && row.input.declaration.expectedApprovedDirectionId === (currentScope?.directionId ?? null)
@@ -259,7 +261,7 @@ export function MaterialWorkspace({ projectId, active, readOnly, onExpired }: {
           expectedApprovedDirectionId: currentScope?.directionId ?? null, expectedApprovedProjectVersion: currentScope?.projectVersion ?? null, contentRulesReviewed: checked } }, dirty: true, error: "" })); }} />
       {row.saved && <MaterialCandidateStatus status={row.saved.status} candidateAllowed={row.saved.candidateAllowed} eligibilityReason={row.saved.eligibilityReason} publicationAllowed={row.saved.publicationAllowed} />}
       <p className="form-note">当前切片测试可先保存内容资料，来源资料留空表示尚未提供；业务标识留空时系统生成登记标识。</p>
-      {!readOnly && <button disabled={busy || !row.dirty || row.uploading} onClick={() => void save([row])}>保存本条／接续原请求</button>}{row.pending && <p role="status">原提交结果待确认，暂锁定输入；重试使用同一文件、记录和请求。</p>}
+      {!readOnly && <button disabled={busy || !row.dirty || row.uploading || row.analyzing} onClick={() => void save([row])}>{row.pending ? "核对并接续保存" : "保存素材资料"}</button>}{row.pending && <p role="status">保存结果待确认，输入已保留；再次操作会核对同一请求。</p>}
       {row.saved && row.dirty && <button className="outline-button" disabled={busy} onClick={() => void readCurrent(row)}>读取当前版本核对</button>}
       {row.observed && <div className="project-conflict"><h4>当前保存 v{row.observed.currentRevision}</h4><pre>{JSON.stringify({ language: row.observed.languageTag, identity: row.observed.identity, declaration: row.observed.declaration, objects: row.observed.objects.map(o => o.objectId) }, null, 2)}</pre>
         <p>本人表单输入仍保留。采用最新版本只更新保存基线，下一次保存会提交表单中的全部资料；请逐项核对。</p><button className="outline-button" disabled={busy || !!row.pending || readOnly} onClick={() => adoptCurrent(row)}>已核对，采用最新版本</button></div>}
