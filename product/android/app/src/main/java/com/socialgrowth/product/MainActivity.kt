@@ -987,7 +987,7 @@ class MainActivity : ComponentActivity() {
                 } else startConnectionChecking()
             }
         }
-        pairing.addView(label("先开始连接检查，再打开系统配对码。检查会在通知栏显示，最多保持一小时；你可以随时停止。", 14f, secondary), matchWrap().apply { topMargin = dp(8) })
+        pairing.addView(label("先开始连接检查，再打开系统配对码。检查会在通知栏持续显示；你可以随时停止。手机重启后请返回这里重新开启检查。", 14f, secondary), matchWrap().apply { topMargin = dp(8) })
         val serverStatus = label("正在检查平台连接…", 14f, secondary)
         if (state?.deviceId == null) serverStatus.text = "系统设置完成后，请返回接入页面，完成本机关联，再确认平台连接。"
         root.addView(serverStatus, matchWrap().apply { topMargin = dp(18) })

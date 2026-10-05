@@ -37,7 +37,8 @@ class NativeEndpointDiscovery(context: Context) {
         return startWindow(windowMillis)
     }
     // Called only by an explicitly started visible connected-device foreground
-    // service. No boot/sticky observer; lifetime remains bounded to one hour.
+    // service. Each observation window is bounded; the visible service may
+    // renew it until stopped. No boot/sticky observer.
     internal fun startForegroundWindow(): EndpointDiscoverySnapshot = startWindow(60 * 60_000L)
     private fun startWindow(windowMillis: Long): EndpointDiscoverySnapshot {
         requireMain()

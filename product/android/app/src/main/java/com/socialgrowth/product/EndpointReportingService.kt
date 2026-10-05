@@ -11,7 +11,6 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
-import android.os.SystemClock
 import org.json.JSONObject
 import java.time.Instant
 import java.util.UUID
@@ -19,7 +18,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** User-started discovery reporting; no pairing secrets or business action lease.
- * Visible, bounded lifetime and non-sticky; server verifies the target independently.
+ * Visible and non-sticky; user stop/session change ends the connection check.
  */
 class EndpointReportingService : Service() {
     companion object {
@@ -37,7 +36,6 @@ class EndpointReportingService : Service() {
     private var pending: JSONObject? = null // A lost ACK retries exactly the same report.
     private var stopping = false
     private var busy = false
-    private var deadline = 0L
     private var epoch: String? = null
     private var sequence = 0L
     private var failures = 0
@@ -57,12 +55,11 @@ class EndpointReportingService : Service() {
             manager.createNotificationChannel(NotificationChannel("endpoint-reporting", "远程连接检查", NotificationManager.IMPORTANCE_LOW))
             val stop = PendingIntent.getService(this, 2, Intent(this, EndpointReportingService::class.java).setAction(STOP), PendingIntent.FLAG_IMMUTABLE)
             val notification = Notification.Builder(this, "endpoint-reporting").setSmallIcon(android.R.drawable.ic_dialog_info)
-                .setContentTitle("SocialGrowth 正在保持连接").setContentText("正在帮助平台连接本机，本次最长保持一小时。")
+                .setContentTitle("SocialGrowth 正在保持连接").setContentText("正在帮助平台连接本机，可随时停止连接检查。")
                 .setOngoing(true).addAction(Notification.Action.Builder(null, "停止连接检查", stop).build()).build()
             startForeground(2402, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
             originalToken = InstallationIdentityStore(this).load()?.activeSessionToken()
             require(originalToken != null)
-            deadline = SystemClock.elapsedRealtime() + 60 * 60_000L
             discovery = NativeEndpointDiscovery(this).also { it.startForegroundWindow() }
             live.set(true); running = true; status = "正在检查远程连接"
             main.post(tick)
@@ -71,7 +68,7 @@ class EndpointReportingService : Service() {
     }
     private fun cycle() {
         if (!live.get() || busy) return
-        if (SystemClock.elapsedRealtime() >= deadline || InstallationIdentityStore(this).load()?.activeSessionToken() != originalToken) {
+        if (InstallationIdentityStore(this).load()?.activeSessionToken() != originalToken) {
             shutdown(); return
         }
         busy = true
