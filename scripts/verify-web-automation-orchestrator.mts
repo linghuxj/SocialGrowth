@@ -2,187 +2,138 @@ import assert from "node:assert/strict";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { chromium } from "playwright";
-
-const outputDir = resolve("artifacts/acceptance/product/automation-orchestrator");
-await mkdir(outputDir, { recursive: true, mode: 0o755 });
-
-async function main() {
-  console.log("==========================================================================");
-  console.log("🌐 验证 Web 调度总控: AI 动态内容自适应、端到端全闭环与人工接管边界验收");
-  console.log("==========================================================================");
-
-  const config = JSON.parse(await readFile(".runtime/product-local-live/config.json", "utf8"));
-
-  const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({ locale: "zh-CN", viewport: { width: 1440, height: 1100 } });
-  const page = await context.newPage();
-
-  // 1. 登录 Web 控制台
-  console.log("[步骤 1] 登录 Web 控制台 (http://127.0.0.1:3100)...");
-  await page.goto("http://127.0.0.1:3100", { waitUntil: "networkidle" });
-  await page.getByLabel("登录名", { exact: true }).fill("device-live-local");
-  await page.getByLabel("密码", { exact: true }).fill(config.operatorPassword);
+const baseUrl = process.env.SG_WEB_BASE_URL ?? "http://127.0.0.1:3100";
+const outputDir = resolve(process.env.SG_OPERATIONS_OUTPUT ?? "output/playwright/operations-fix");
+await mkdir(outputDir, { recursive: true });
+const checks: string[] = [];
+const browser = await chromium.launch({ headless: true });
+const context = await browser.newContext({ locale: "zh-CN", viewport: { width: 1440, height: 1000 } });
+const page = await context.newPage();
+let activeStep = "login", nonLoginWrites = 0;
+page.on("request", request => { if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method()) && !/\/operator\/(login|logout)$/.test(new URL(request.url()).pathname)) nonLoginWrites++; });
+const record = (check: string) => { checks.push(check); console.log(`[passed] ${check}`); };
+try {
+  const password = process.env.SG_OPERATOR_PASSWORD ?? (JSON.parse(await readFile(".runtime/product-local-live/config.json", "utf8")) as { operatorPassword: string }).operatorPassword;
+  await page.goto(baseUrl, { waitUntil: "networkidle" });
+  await page.getByRole("heading", { name: "登录正式产品", exact: true }).waitFor();
+  await page.getByLabel("登录名", { exact: true }).fill(process.env.SG_OPERATOR_LOGIN ?? "device-live-local");
+  await page.getByLabel("密码", { exact: true }).fill(password);
   await page.getByRole("button", { name: "登录", exact: true }).click();
 
-  // 2. 进入目标项目
-  console.log("[步骤 2] 进入目标短剧项目工作区...");
-  const projectNav = page.getByRole("button", { name: "项目", exact: true });
-  await projectNav.waitFor();
-  await projectNav.click();
-  await page.getByRole("button", { name: "准备清单", exact: true }).first().click();
-
-  // 3. 点击进入“AI 自动化总控”面板
-  console.log("[步骤 3] 切换至【AI 自动化总控】工作区...");
-  const autoTabButton = page.getByRole("button", { name: "AI 自动化总控", exact: true });
-  await autoTabButton.waitFor();
-  await autoTabButton.click();
-
-  const orchestratorSection = page.locator(".automation-orchestrator");
-  await orchestratorSection.waitFor();
-  await orchestratorSection.getByRole("heading", { name: "AI 自动化调度总控", exact: true }).waitFor();
-
-  // 4. 断言 5 大阶段看板可见
-  console.log("[步骤 4] 校验 5 大阶段看板与状态流转定义...");
-  const stageCards = orchestratorSection.locator(".stage-card");
-  assert.equal(await stageCards.count(), 5, "预期包含 5 大闭环阶段卡片");
-  await orchestratorSection.getByRole("heading", { name: "AI 动态策略生成" }).waitFor();
-  await orchestratorSection.getByRole("heading", { name: "真机公共主页发布" }).waitFor();
-  await orchestratorSection.getByRole("heading", { name: "线上指标自动采集" }).waitFor();
-  await orchestratorSection.getByRole("heading", { name: "次周期策略迭代" }).waitFor();
-  await orchestratorSection.getByRole("heading", { name: "异常熔断与接管" }).waitFor();
-
-  // 5. 校验 95% AI 自主与 5% 人工协助边界清单
-  console.log("[步骤 5] 核验 AI 自主边界与 5% 人工协助边界定义卡片...");
-  const boundarySection = orchestratorSection.locator(".human-boundary-section");
-  await boundarySection.waitFor();
-  await boundarySection.getByText("95% AI 完全自主闭环范围", { exact: false }).waitFor();
-  await boundarySection.getByText("5% 必须人工介入边界清单", { exact: false }).waitFor();
-  await boundarySection.getByText("平台 2FA / 短信验证码拦截", { exact: false }).waitFor();
-  await boundarySection.getByText("物理设备脱机 / 硬件死机", { exact: false }).waitFor();
-  console.log("✔ 人工接管边界清单与权限隔离明确展示通过");
-
-  const screenshotOverview = `${outputDir}/01-web-orchestrator-overview.png`;
-  await page.screenshot({ path: screenshotOverview, fullPage: true });
-  console.log(`✔ 调度总控全景看板截图已保存: ${screenshotOverview}`);
-
-  // 6. 验证 AI 动态内容自适应能力：预设剧集切换 (第 2 集)
-  console.log("[步骤 6] 验证预设剧集切换与 AI 动态内容自适应 (切换至第 2 集)...");
-  const episodeSelect = orchestratorSection.locator("select");
-  await episodeSelect.selectOption("ep2");
-
-  const strategyBox = orchestratorSection.locator(".strategy-preview-box");
-  await strategyBox.waitFor();
-  await strategyBox.getByText("恶毒女二在慈善晚宴当众泼酒羞辱", { exact: false }).waitFor();
-  await strategyBox.getByText("把红酒泼回她脸上，一切后果我来承担！", { exact: false }).waitFor();
-  await strategyBox.getByText("#SweetRevenge", { exact: false }).waitFor();
-  await strategyBox.getByText("AI 冲突烈度评分: 9.4 / 10", { exact: false }).waitFor();
-  console.log("✔ 预设第2集 AI 动态策略自适应刷新完成");
-
-  // 7. 验证 AI 化动态内容处理能力：自定义剧集切片与 AI 动态推演
-  console.log("[步骤 7] 验证自定义短剧题材切片与 AI 多模态多题材动态推演...");
-  await episodeSelect.selectOption("custom");
-
-  const customEditor = orchestratorSection.locator(".custom-drama-editor");
-  await customEditor.waitFor();
-  await customEditor.getByRole("heading", { name: "自定义剧集素材要素输入" }).waitFor();
-
-  // 点击重新触发 AI 动态策略推演
-  const recomputeAiBtn = customEditor.getByRole("button", { name: "重新触发 AI 动态策略推演", exact: false });
-  await recomputeAiBtn.click();
-
-  // 断言 AI 自适应根据输入生成专属董事会罢免 Hook 与思维链
-  await strategyBox.getByText("你签下的罢免书，不过是我三年前废弃的草案！", { exact: false }).waitFor();
-  await strategyBox.getByText("#FemaleRevenge", { exact: false }).waitFor();
-  await strategyBox.getByText("AI 推演思维链", { exact: false }).waitFor();
-  console.log("✔ AI 动态多模态内容自适应推演成功，生成具有高冲突烈度的反转 Hook 与思维链");
-
-  const screenshotAiStrategy = `${outputDir}/02-ai-dynamic-content-reasoning.png`;
-  await page.screenshot({ path: screenshotAiStrategy, fullPage: true });
-  console.log(`✔ AI 动态策略推演截图已保存: ${screenshotAiStrategy}`);
-
-  // 8. 验证偶发异常拦截与人工接管协作闭环演练
-  console.log("[步骤 8] 演练 5% 偶发异常拦截 (2FA 短信验证码) 与人工接管闭环...");
-  const anomalyBtn = orchestratorSection.getByRole("button", { name: "演练偶发异常拦截", exact: false });
-  await anomalyBtn.click();
-
-  // 校验异常熔断横幅
-  const alertBanner = orchestratorSection.locator(".anomaly-alert-banner");
-  await alertBanner.waitFor();
-  await alertBanner.getByText("触发自动化安全保护：Facebook 商业主页发布需要 2FA 短信验证码", { exact: false }).waitFor();
-  console.log("✔ 安全守卫成功拦截并触发保护，流程安全挂起，未产生破坏性重试");
-
-  // 点击“人工验证码已处理 · 复核并恢复运转”
-  const resolveBtn = alertBanner.getByRole("button", { name: "人工验证码已处理 · 复核并恢复运转", exact: true });
-  await resolveBtn.click();
-
-  const resolvedNote = orchestratorSection.locator(".anomaly-resolved-note");
-  await resolvedNote.waitFor();
-  await resolvedNote.getByText("人工介入处理完成，Artemis 真机复核通过，全流程自动解除阻断恢复就绪！", { exact: false }).waitFor();
-  console.log("✔ 人工接管完成并上报，真机复核恢复就绪闭环打通");
-
-  const screenshotTakeover = `${outputDir}/03-anomaly-human-takeover.png`;
-  await page.screenshot({ path: screenshotTakeover, fullPage: true });
-  console.log(`✔ 人工接管与复核恢复截图已保存: ${screenshotTakeover}`);
-
-  // 9. 触发一键全流程闭环运转
-  console.log("[步骤 9] 启动【AI 自动化全流程闭环】，观察阶段 1~5 真实流转推进...");
-  const launchBtn = orchestratorSection.getByRole("button", { name: "启动 AI 自动化全流程闭环", exact: true });
-  await launchBtn.click();
-
-  // 等待全闭环执行完成
-  await orchestratorSection.getByText("全流程闭环自适应运转成功完成！", { exact: false }).waitFor({ timeout: 15000 });
-  console.log("✔ 实时执行终端接收到阶段 1~5 完整运转推进回执");
-
-  // 10. 核验证果卡片、权威快照与次周期复盘建议
-  const resultsCard = orchestratorSection.locator(".automation-orchestrator__results");
-  await resultsCard.waitFor();
-  await resultsCard.getByText("Tongm Mhuo 短剧精选", { exact: false }).first().waitFor();
-  await resultsCard.getByText("AI 次周期演进建议", { exact: false }).first().waitFor();
-  await resultsCard.getByText("Artemis 真实发布核验通过", { exact: false }).first().waitFor();
-
-  const screenshotExecuted = `${outputDir}/04-web-orchestrator-executed.png`;
-  await page.screenshot({ path: screenshotExecuted, fullPage: true });
-  console.log(`✔ 闭环运转完成态与复盘建议截图已保存: ${screenshotExecuted}`);
-
-  await browser.close();
-
-  // 11. 写入结构化验收审计报告
-  const reportPath = `${outputDir}/05-audit-report.json`;
-  const report = {
-    title: "Web 调度总控全流程编排、AI 动态内容自适应与人工接管边界验收报告",
-    webConsoleUrl: "http://127.0.0.1:3100",
-    projectId: "b03a3291-92ed-445a-b516-3955446fcc63",
-    projectName: "霸道总裁北美短剧出海",
-    targetDevice: "Samsung SM-S9110 (RFCW40MYYCV)",
-    targetIdentity: "fb_page_tongm_drama (Tongm Mhuo 短剧精选)",
-    stagesConfigured: [
-      "1. AI 动态多模态内容理解与策略自适应生成（针对不同题材/剧集自适应推演高冲突 Hook、留白文案、标签）",
-      "2. Artemis 真机调度与商业公共主页自适应发布",
-      "3. 真实指标视觉 OCR 采集与 PostgreSQL 权威落库",
-      "4. AI 效果复盘与次周期排期自适应迭代",
-      "5. 安全守卫与 5% 人工协助接管闭环"
-    ],
-    humanTakeoverBoundary: {
-      autonomousRatio: "95%",
-      manualTakeoverTriggers: [
-        "平台 2FA / 短信验证码拦截",
-        "物理设备硬件脱机 / 死机",
-        "商业公共主页/账号被风控封禁申诉",
-        "商业预算超限或财务充值审批"
-      ]
-    },
-    verificationVerdict: "PASSED",
-    verifiedAt: new Date().toISOString()
-  };
-
-  await writeFile(reportPath, JSON.stringify(report, null, 2), "utf8");
-  console.log(`✔ 完整验收报告已生成: ${reportPath}`);
-  console.log("==========================================================================");
-  console.log("🎉 全部验证步骤核验通过！Web AI 自动化总控已实现统一闭环与内容自适应！");
-  console.log("==========================================================================");
-}
-
-main().catch(err => {
-  console.error("❌ 验证执行失败:", err);
-  process.exit(1);
-});
+  const home = page.getByRole("region", { name: "运营工作台", exact: true });
+  await home.getByRole("heading", { name: "项目运营入口", exact: true }).waitFor();
+  await home.getByRole("button", { name: "打开项目", exact: true }).first().waitFor();
+  assert.equal(await page.getByRole("button", { name: "工作台", exact: true }).isEnabled(), true);
+  record("登录默认进入可操作工作台，真实项目与全局待办加载");
+  await page.screenshot({ path: resolve(outputDir, "01-workbench.png"), fullPage: true });
+  activeStep = "project-overview";
+  await home.getByRole("button", { name: "打开项目", exact: true }).first().click();
+  const workspace = page.locator(".project-workspace");
+  const overview = page.getByRole("region", { name: "项目当前事实", exact: true });
+  await overview.getByRole("button", { name: "刷新项目状态", exact: true }).waitFor();
+  await page.waitForFunction(() => !document.querySelector('[aria-label="项目当前事实"] button[disabled]'));
+  assert.equal(await overview.getByText("分配事实未知。", { exact: true }).count(), 0, "正常环境分配事实必须加载");
+  const resourceNames = await overview.locator("li > strong").allTextContents();
+  assert.ok(resourceNames.every(name => name !== "账号名称未知"), "已分配账号应有可读名称");
+  const projectName = await workspace.locator(".project-heading h1").innerText();
+  record("项目概览读取持久账号手机分配，显示真实下一步");
+  await page.screenshot({ path: resolve(outputDir, "02-project-overview.png"), fullPage: true });
+  activeStep = "resources";
+  await overview.getByRole("button", { name: "查看或分配媒体账号与手机", exact: true }).click();
+  const media = page.locator(".media-accounts-workspace");
+  await media.waitFor();
+  for (const name of resourceNames) await media.getByText(name, { exact: true }).first().waitFor();
+  record("概览资源入口可达，账号名称与媒体账号页面一致");
+  await page.getByRole("button", { name: "项目", exact: true }).click();
+  // Project panel keeps the selected project across main navigation.
+  await workspace.getByRole("button", { name: "AI 自动化总控", exact: true }).click();
+  const control = page.getByRole("region", { name: "AI 自动化总控", exact: true });
+  await control.getByRole("heading", { name: "AI 自动化调度总控", exact: true }).waitFor();
+  await control.getByText("执行与公开发布许可关闭；不能启动手机发布", { exact: true }).waitFor();
+  const text = await control.innerText();
+  assert.ok(!/95%|5%|发布已成功|恢复已成功|推演思维链|Samsung|Tongm/.test(text));
+  assert.equal(await control.getByRole("button", { name: /开始闭环|模拟异常|恢复执行/ }).count(), 0);
+  record("总控读取真实门禁，无固定成功回执、假AI或计时器执行入口");
+  await page.screenshot({ path: resolve(outputDir, "03-orchestrator.png"), fullPage: true });
+  activeStep = "real-navigation";
+  await control.getByRole("button", { name: "核对排期与任务", exact: true }).click();
+  await page.getByRole("heading", { name: "排期与任务", exact: true }).waitFor();
+  assert.equal(await workspace.locator(".project-heading h1").innerText(), projectName);
+  await workspace.getByRole("button", { name: "AI 自动化总控", exact: true }).click();
+  await control.getByRole("button", { name: "前往目标与方向", exact: true }).click();
+  const direction = page.getByRole("region", { name: "初始业务方向", exact: true });
+  await direction.getByLabel("发布平台 1", { exact: true }).waitFor();
+  await direction.getByLabel("发布平台 1", { exact: true }).selectOption("facebook");
+  await direction.getByLabel("发布身份编号 1", { exact: true }).fill("ops_review_identity");
+  await direction.getByLabel("分成资格阶段 1", { exact: true }).selectOption("before_monetization");
+  await direction.getByRole("button", { name: "添加发布身份", exact: true }).click();
+  await direction.getByLabel("发布平台 2", { exact: true }).selectOption("youtube");
+  await direction.getByLabel("发布身份编号 2", { exact: true }).fill("ops_review_channel");
+  await direction.getByLabel("分成资格阶段 2", { exact: true }).selectOption("after_monetization");
+  await direction.getByRole("button", { name: "移除发布身份 2", exact: true }).click();
+  assert.equal(await direction.getByLabel("发布身份编号 1", { exact: true }).inputValue(), "ops_review_identity");
+  await direction.getByLabel("发布身份编号 1", { exact: true }).fill("invalid/reference");
+  await direction.getByRole("button", { name: "生成初始方向", exact: true }).click();
+  await direction.getByText(/输入或版本不满足要求/).waitFor();
+  await direction.getByLabel("发布身份编号 1", { exact: true }).fill("ops_review_identity");
+  record("结构化范围提交校验拒绝无效编号，保留输入且不调用模型");
+  const initialization = page.getByRole("region", { name: "发布身份初始化", exact: true });
+  await initialization.getByLabel("项目账号", { exact: true }).waitFor();
+  for (const name of resourceNames) assert.ok((await initialization.getByLabel("项目账号", { exact: true }).innerText()).includes(name));
+  record("真实排期/设置入口保持项目，结构化身份范围可增删且资源选择显示名称");
+  await page.screenshot({ path: resolve(outputDir, "04-structured-settings.png"), fullPage: true });
+  activeStep = "feedback-lifecycle-todos";
+  await workspace.getByRole("button", { name: "效果与复盘", exact: true }).click();
+  await page.getByRole("heading", { name: "效果与复盘", exact: true }).waitFor();
+  const feedback = page.getByRole("region", { name: "项目效果与复盘", exact: true });
+  await feedback.getByRole("heading", { name: "效果快照", exact: true }).waitFor();
+  const metricCards = feedback.locator(".project-feedback__metric");
+  for (let i = 0; i < await metricCards.count(); i++) {
+    await metricCards.nth(i).getByRole("heading", { name: "报告指标（名称与单位未提供）", exact: true }).waitFor();
+    assert.equal(await metricCards.nth(i).getByText(/指标定义/).isVisible(), false, "记录编号应位于可展开详情中");
+  }
+  await page.screenshot({ path: resolve(outputDir, "07-feedback.png"), fullPage: true });
+  await workspace.getByRole("button", { name: "项目生命周期", exact: true }).click();
+  assert.equal(await workspace.getByRole("heading", { name: "基本信息", exact: true }).isVisible(), false);
+  await workspace.getByRole("button", { name: "AI 自动化总控", exact: true }).click();
+  await control.getByRole("button", { name: "查看设备接入待办", exact: true }).click();
+  await page.getByRole("heading", { name: "设备接入待办", exact: true }).first().waitFor();
+  record("效果/生命周期/协助入口可达，生命周期不再被基本信息表单遮挡");
+  activeStep = "failure-and-retry";
+  await page.getByRole("button", { name: "项目", exact: true }).click();
+  await workspace.getByRole("button", { name: "AI 自动化总控", exact: true }).click();
+  const failPattern = "**/api/operator/projects/*/business-plan";
+  // Transport failure only: no fake business result, no DB setup or API mutation.
+  await page.route(failPattern, route => route.abort("failed"));
+  await control.getByRole("button", { name: "刷新项目事实", exact: true }).click();
+  await control.getByText("计划事实未知", { exact: true }).waitFor();
+  await control.getByText("执行许可未知；不能启动", { exact: true }).waitFor();
+  record("真实入口遭遇传输失败时显示未知，不会变成0任务或就绪");
+  await page.screenshot({ path: resolve(outputDir, "05-source-failure.png"), fullPage: true });
+  await page.unroute(failPattern);
+  await control.getByRole("button", { name: "刷新项目事实", exact: true }).click();
+  await control.getByText("执行与公开发布许可关闭；不能启动手机发布", { exact: true }).waitFor();
+  record("解除传输故障后通过刷新读取真实状态");
+  activeStep = "mobile";
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByText("手机端为只读模式", { exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, "页面不应整体横向溢出，表格可内部滚动");
+  await page.screenshot({ path: resolve(outputDir, "06-mobile.png"), fullPage: true });
+  record("手机端保留只读说明，无整页横向溢出");
+  activeStep = "session-expiry";
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  // Actual logout in the same authenticated browser session expires the original page.
+  const popup = page.waitForEvent("popup"); await page.evaluate(url => { window.open(url); }, baseUrl); const other = await popup; await other.waitForLoadState("networkidle");
+  await other.getByRole("button", { name: "退出登录", exact: true }).first().click();
+  await other.getByRole("heading", { name: "登录正式产品", exact: true }).waitFor();
+  await control.getByRole("button", { name: "刷新项目事实", exact: true }).click();
+  await page.getByRole("heading", { name: "登录正式产品", exact: true }).waitFor();
+  await other.close();
+  record("服务端实际会话过期401后清除工作区并回到登录");
+  assert.equal(nonLoginWrites, 0, "本回归不派发模型、初始化、暂停或发布写入");
+  await writeFile(resolve(outputDir, "result.json"), JSON.stringify({ result: "passed", baseUrl, checks, businessWrites: nonLoginWrites, boundaries: ["当前候选Web操作与读取验证通过", "仅传输故障注入，无模拟业务成功", "未调用模型、手机或公开发布", "不证明自动发布或人工恢复闭环"] }, null, 2));
+} catch (error) {
+  await page.screenshot({ path: resolve(outputDir, "failure.png"), fullPage: true }).catch(() => undefined);
+  await writeFile(resolve(outputDir, "result.json"), JSON.stringify({ result: "failed", activeStep, checks, error: error instanceof Error ? error.message : "unexpected error", boundaries: ["不证明模型、手机、公开发布或恢复成功"] }, null, 2));
+  throw error;
+} finally { await context.close(); await browser.close(); }

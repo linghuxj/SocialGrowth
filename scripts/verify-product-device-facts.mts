@@ -32,7 +32,7 @@ try {
   await page.getByLabel("登录名").fill(loginName);
   await page.getByLabel("密码").fill(password);
   await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByRole("heading", { name: "邀请与接入" }).waitFor();
+  await page.getByRole("button", { name: "提供者邀请", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入" }).waitFor();
 
   await page.getByRole("button", { name: "账号与设备" }).click();
   await page.getByRole("tab", { name: "手机" }).click();
@@ -83,7 +83,7 @@ try {
   await page.getByLabel("登录名").fill(loginName);
   await page.getByLabel("密码").fill(password);
   await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByRole("heading", { name: "邀请与接入" }).waitFor();
+  await page.getByRole("button", { name: "提供者邀请", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入" }).waitFor();
   if (await page.getByRole("heading", { name: "手机资源" }).count() !== 0) {
     throw new Error("New login restored a stale device facts view");
   }

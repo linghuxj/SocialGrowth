@@ -1,0 +1,12 @@
+import { factValue, operationsRows, useProjectOperationsFacts, type OperationsTab } from "./operations-facts.js";
+export function ProjectOverviewPanel({ projectId, active, refreshVersion, onExpired, onNavigate, onOpenMediaAccounts }: { projectId: string; active: boolean; refreshVersion: number; onExpired: (e: unknown) => void; onNavigate: (tab: OperationsTab) => void; onOpenMediaAccounts: () => void }) {
+  const { facts, loading, refresh } = useProjectOperationsFacts(projectId, active, refreshVersion, onExpired);
+  const assignments = factValue(facts?.accountAssignments), accounts = factValue(facts?.accounts)?.accounts, devices = factValue(facts?.devices)?.devices;
+  const failed = facts && Object.values(facts).some(v => typeof v === "object" && v.status === "unknown");
+  return <section className="panel project-readiness" hidden={!active} aria-label="项目当前事实">
+    <div className="section-heading"><div><h3>项目当前事实与下一步</h3><p className="muted">以当前保存记录为准；资料保存、身份核验和执行许可分别判断。</p></div><button className="outline-button" disabled={loading} onClick={refresh}>刷新项目状态</button></div>
+    {loading && <p role="status">正在读取当前项目状态…</p>}{failed && <p role="alert" className="feedback">部分事实读取失败，状态保持未知，请重试。</p>}
+    <div className="table-wrap"><table><thead><tr><th>事项</th><th>当前事实</th><th>处理入口</th></tr></thead><tbody>{operationsRows(facts).map(row => <tr key={row.title}><td>{row.title}</td><td>{row.value}</td><td><button className="text-button" onClick={() => onNavigate(row.tab)}>{row.next}</button></td></tr>)}<tr><td>素材与成品</td><td>进入素材页核对已登记成品、版本与使用资格</td><td><button className="text-button" onClick={() => onNavigate("materials")}>整理素材</button></td></tr><tr><td>效果与复盘</td><td>进入反馈页核对可信报告、时间和内容归因</td><td><button className="text-button" onClick={() => onNavigate("feedback")}>查看效果与复盘</button></td></tr></tbody></table></div>
+    <div className="operations-section"><h3>已分配项目资源</h3>{!assignments ? <p>分配事实未知。</p> : assignments.assignments.length === 0 ? <p>尚未分配账号与手机。</p> : <ul>{assignments.assignments.map(a => <li key={`${a.accountId}:${a.deviceId}`}><strong>{accounts?.find(item => item.accountId === a.accountId)?.displayName ?? "账号名称未知"}</strong> · {a.platform === "facebook" ? "Facebook" : "YouTube"} → {devices?.find(item => item.deviceId === a.deviceId)?.displayName ?? "手机名称未知"} · 待初始化核验<details><summary>查看资源编号</summary>账号 {a.accountId} · 手机 {a.deviceId}</details></li>)}</ul>}<button className="outline-button" onClick={onOpenMediaAccounts}>查看或分配媒体账号与手机</button></div>
+  </section>;
+}

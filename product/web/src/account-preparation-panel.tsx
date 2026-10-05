@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { contractVersion, executionLibraryVersion, preparationExecutionLibrary, type AccountPreparationWorkspace, type AccountPreparationTaskView } from "@socialgrowth/product-contracts";
 import { PreparedAccountPreparation, readAccountPreparation } from "./account-preparation-api.js";
-import { readAccountAssignments } from "./media-accounts-api.js";
-import { isDefinitiveProjectRejection, newIdempotencyKey, ProductApiError } from "./operator-api.js";
+import { readAccountAssignments, readMediaAccounts } from "./media-accounts-api.js";
+import { isDefinitiveProjectRejection, newIdempotencyKey, ProductApiError, listOperatorDeviceFacts } from "./operator-api.js";
 const reasons: Record<string, string> = {
   RESOURCE_ASSIGNMENT_REQUIRED: "等待项目账号与手机分配",
   PARENT_ACCOUNT_SCOPE_MISMATCH: "所选账号与登录身份记录或平台不一致",
@@ -28,6 +28,7 @@ export function AccountPreparationPanel({ projectId, active, readOnly, onExpired
 }) {
   const [view, setView] = useState<AccountPreparationWorkspace | null>(null), [message, setMessage] = useState("");
   const [projectAssignments, setProjectAssignments] = useState<Awaited<ReturnType<typeof readAccountAssignments>> | null>(null);
+  const [accountNames, setAccountNames] = useState<Record<string, string>>({}), [deviceNames, setDeviceNames] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false), [unresolved, setUnresolved] = useState(false);
   const [platform, setPlatform] = useState<"facebook" | "youtube">("facebook");
   const [mode, setMode] = useState<"check_only" | "prepare_if_missing">("check_only");
@@ -39,7 +40,14 @@ export function AccountPreparationPanel({ projectId, active, readOnly, onExpired
   const pendingKind = useRef<"request" | "recheck" | "execution-review">("request");
   async function refresh() {
     const epoch = ++readEpoch.current;
-    try { const [next, assignments] = await Promise.all([readAccountPreparation(projectId), readAccountAssignments(projectId)]); if (epoch === readEpoch.current) { setView(next); setProjectAssignments(assignments); } }
+    try {
+      const [next, assignments, names, phones] = await Promise.all([readAccountPreparation(projectId), readAccountAssignments(projectId),
+        readMediaAccounts().catch(e => { if (e instanceof ProductApiError && e.status === 401) throw e; return null; }),
+        listOperatorDeviceFacts().catch(e => { if (e instanceof ProductApiError && e.status === 401) throw e; return null; })]);
+      if (epoch === readEpoch.current) { setView(next); setProjectAssignments(assignments);
+        setAccountNames(Object.fromEntries(names?.accounts.map(a => [a.accountId, a.displayName]) ?? []));
+        setDeviceNames(Object.fromEntries(phones?.devices.map(d => [d.deviceId, d.displayName]) ?? [])); }
+    }
     catch (e) { if (epoch !== readEpoch.current) return; if (e instanceof ProductApiError && e.status === 401) onExpired(e); else setMessage("检查记录暂时无法读取，请重试；没有更改原任务。"); }
   }
   useEffect(() => { if (active) void refresh(); return () => { readEpoch.current++; }; }, [active, projectId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -76,6 +84,7 @@ export function AccountPreparationPanel({ projectId, active, readOnly, onExpired
       } else { setUnresolved(true); setMessage("本次请求结果尚未确认。输入已锁定，请接续原请求，不要重新创建任务。"); }
     } finally { setBusy(false); }
   }
+  const selectedAssignment = projectAssignments?.assignments.find(a => a.platform === platform && (!account || a.accountId === account));
   function submit(event: FormEvent) { event.preventDefault(); void send("request"); }
   return <section className="panel account-preparation-panel" aria-label="发布身份初始化" hidden={!active}>
     <div className="section-heading"><div><h3>发布身份初始化</h3><p className="muted">系统检查已申请账号的 App、登录与 Page／频道条件；已有身份复用，缺少时按所选范围准备。</p></div><button className="outline-button" disabled={busy} onClick={() => void refresh()}>读取初始化记录</button></div>
@@ -84,8 +93,9 @@ export function AccountPreparationPanel({ projectId, active, readOnly, onExpired
       {!readOnly && <form className="project-form" onSubmit={submit}>
         <fieldset disabled={busy || unresolved}>
           <label>平台<select aria-label="平台" value={platform} onChange={e => { setPlatform(e.target.value as "facebook" | "youtube"); setAccount(""); setDevice(""); setExpectedId(""); }}><option value="facebook">Facebook Page</option><option value="youtube">YouTube 频道</option></select></label>
-          <label>已分配项目账号<select aria-label="项目账号" value={account || projectAssignments?.assignments.find(a => a.platform === platform)?.accountId || ""} onChange={e => setAccount(e.target.value)} required><option value="" disabled>先在“媒体平台账号”完成项目账号与手机分配</option>{projectAssignments?.assignments.filter(a => a.platform === platform).map(a => <option key={a.accountId} value={a.accountId}>{a.accountId}</option>)}</select></label>
-          <label>已分配项目手机<select aria-label="项目手机" value={device || projectAssignments?.assignments.find(a => a.accountId === (account || projectAssignments?.assignments.find(item => item.platform === platform)?.accountId))?.deviceId || ""} onChange={e => setDevice(e.target.value)} required><option value="" disabled>使用账号持久分配的手机</option>{projectAssignments?.assignments.filter(a => a.accountId === (account || projectAssignments?.assignments.find(item => item.platform === platform)?.accountId)).map(a => <option key={a.deviceId} value={a.deviceId}>{a.deviceId}</option>)}</select></label>
+          <label>已分配项目账号<select aria-label="项目账号" value={account || projectAssignments?.assignments.find(a => a.platform === platform)?.accountId || ""} onChange={e => { setAccount(e.target.value); setDevice(""); }} required><option value="" disabled>先在“媒体平台账号”完成项目账号与手机分配</option>{projectAssignments?.assignments.filter(a => a.platform === platform).map(a => <option key={a.accountId} value={a.accountId}>{accountNames[a.accountId] ?? "账号名称未知"} · {a.accountId.slice(0, 8)}</option>)}</select></label>
+          <label>已分配项目手机<select aria-label="项目手机" value={device || projectAssignments?.assignments.find(a => a.accountId === (account || projectAssignments?.assignments.find(item => item.platform === platform)?.accountId))?.deviceId || ""} onChange={e => setDevice(e.target.value)} required><option value="" disabled>使用账号持久分配的手机</option>{projectAssignments?.assignments.filter(a => a.accountId === (account || projectAssignments?.assignments.find(item => item.platform === platform)?.accountId)).map(a => <option key={a.deviceId} value={a.deviceId}>{deviceNames[a.deviceId] ?? "手机名称未知"} · {a.deviceId.slice(0, 8)}</option>)}</select></label>
+          {selectedAssignment && <details><summary>查看所选资源编号</summary>账号 {selectedAssignment.accountId} · 手机 {selectedAssignment.deviceId}</details>}
           <label>Page／频道准确名称<input value={name} onChange={e => setName(e.target.value)} required maxLength={100} /></label>
           <label>已有完整 Page／频道 ID（可留空）<input value={expectedId} onChange={e => setExpectedId(e.target.value)} maxLength={100} /></label>
           <label>初始化范围<select aria-label="初始化范围" value={mode} onChange={e => { setMode(e.target.value as "check_only" | "prepare_if_missing"); setCreate(false); setInstall(false); }}><option value="check_only">仅检查已有条件</option><option value="prepare_if_missing">检查并准备缺少的条件</option></select></label>

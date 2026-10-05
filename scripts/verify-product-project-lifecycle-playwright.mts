@@ -213,7 +213,7 @@ async function createProject(name: string) {
 }
 async function openProject(name: string) {
   await returnToList();
-  await workspace.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "准备清单", exact: true }).click();
+  await workspace.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "打开项目", exact: true }).click();
 }
 async function openLifecycle(name: string) {
   await openProject(name);
@@ -260,7 +260,7 @@ try {
   await page.getByLabel("登录名", { exact: true }).fill(login);
   await page.getByLabel("密码", { exact: true }).fill(password);
   await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
+  await page.getByRole("button", { name: "提供者邀请", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
   await page.getByRole("button", { name: "项目", exact: true }).click();
 
   const suffix = Date.now();

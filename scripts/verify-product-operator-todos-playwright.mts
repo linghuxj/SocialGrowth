@@ -21,7 +21,7 @@ async function signIn(target: Page): Promise<void> {
   await target.getByLabel("登录名", { exact: true }).fill(required("SG_PRODUCT_TEST_LOGIN_NAME"));
   await target.getByLabel("密码", { exact: true }).fill(required("SG_PRODUCT_TEST_PASSWORD"));
   await target.getByRole("button", { name: "登录", exact: true }).click();
-  await target.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
+  await target.getByRole("button", { name: "提供者邀请", exact: true }).click(); await target.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
   await target.getByRole("button", { name: "设备接入待办", exact: true }).click();
   await target.getByRole("heading", { name: "设备接入待办", exact: true, level: 1 }).waitFor();
 }

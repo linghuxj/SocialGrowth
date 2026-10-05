@@ -11,7 +11,7 @@ async function login(page: Page, name: string, password: string): Promise<void> 
   await page.getByLabel("登录名").fill(name);
   await page.getByLabel("密码").fill(password);
   await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByRole("heading", { name: "邀请与接入" }).waitFor();
+  await page.getByRole("button", { name: "提供者邀请", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入" }).waitFor();
 }
 
 async function openDevices(page: Page): Promise<void> {

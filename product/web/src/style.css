@@ -195,7 +195,7 @@ td small { display: block; margin-top: 5px; color: #7a879a; font-size: 11px; fon
 .status.exhausted { color: #9a5b00; background: #fff0cb; }
 .status.revoked { color: #9f2d24; background: #fee4e2; }
 .record-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-.text-button { padding: 8px 10px; background: transparent; }
+.text-button { padding: 8px 10px; background: transparent; color: #2459c4; }
 .danger-text { color: #b42318; }
 details { position: relative; }
 summary { color: #0f5eea; font-weight: 700; cursor: pointer; }
@@ -352,3 +352,13 @@ code { color: #31425f; }
   .device-detail-grid dl div { grid-template-columns: 110px 1fr; }
   .device-error { align-items: flex-start; flex-direction: column; }
 }
+
+.direction-identity-row { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(180px, 2fr) minmax(160px, 1fr) auto; gap: 12px; align-items: end; margin: 12px 0; }
+.direction-identity-row button { min-height: 36px; }
+@media (max-width: 1000px) { .direction-identity-row { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 700px) { .direction-identity-row { grid-template-columns: 1fr; } }
+
+.media-accounts-workspace { width: 100%; }
+.media-account-form .media-account-create-fields label { display: grid; align-items: start; }
+.operations-workbench { min-width: 0; }
+.operations-workbench td { white-space: normal; overflow-wrap: anywhere; }

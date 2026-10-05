@@ -33,7 +33,7 @@ async function enterProduct() {
   await page.getByLabel("登录名", { exact: true }).fill(loginName);
   await page.getByLabel("密码", { exact: true }).fill(loginPassword);
   await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
+  await page.getByRole("button", { name: "提供者邀请", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
 }
 async function openMediaAccounts() {
   const listRead = page.waitForResponse(r => new URL(r.url()).pathname === "/api/operator/media-accounts" && r.request().method() === "GET");
@@ -209,7 +209,7 @@ try {
 
   step = "refresh-secret-nonreadback";
   await page.reload();
-  await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
+  await page.getByRole("button", { name: "提供者邀请", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
   await openMediaAccounts();
   await page.getByText(fbLogin, { exact: true }).waitFor();
   const youtubeCardAfterReload = page.locator(".media-account-card").filter({ hasText: ytLogin });
@@ -260,7 +260,7 @@ try {
     assert.ok(deviceId);
     const context = page.context();
     const competitor = await context.newPage();
-    await competitor.goto(base); await competitor.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
+    await competitor.goto(base); await competitor.getByRole("button", { name: "提供者邀请", exact: true }).click(); await competitor.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
     const competitorAccountsRead = competitor.waitForResponse(r => new URL(r.url()).pathname === "/api/operator/media-accounts" && r.request().method() === "GET");
     await competitor.getByRole("button", { name: "媒体平台账号", exact: true }).click();
     await competitor.getByRole("heading", { name: "媒体平台账号", level: 1, exact: true }).waitFor();
@@ -355,7 +355,7 @@ try {
   assert.equal(mobileRecoveryPosts, 0);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.unroute("**/api/operator/media-accounts");
-  await page.reload(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor(); await openMediaAccounts();
+  await page.reload(); await page.getByRole("button", { name: "提供者邀请", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor(); await openMediaAccounts();
   const recovery = page.getByRole("group", { name: "未知操作恢复" });
   await recovery.getByRole("button", { name: "查询原操作" }).click();
   await page.getByText(/原键当前未查到结果，且原请求内容未保留/).waitFor();

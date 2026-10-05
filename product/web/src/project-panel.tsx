@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { OperatorView, ProjectBasics, ProjectView } from "@socialgrowth/product-contracts";
-import { ArrowLeft, CalendarBlank, DeviceMobile, FileText, Folder, Info, Link, Plus, Target, UsersThree } from "@phosphor-icons/react";
+import { ArrowLeft, Folder, Plus } from "@phosphor-icons/react";
 import { isDefinitiveProjectRejection, listProjects, newIdempotencyKey, ProductApiError, saveProject } from "./operator-api.js";
+import { ProjectOverviewPanel } from "./project-overview-panel.js";
+import type { OperationsTab } from "./operations-facts.js";
 import { MaterialWorkspace } from "./material-workspace.js";
 import { ProjectPlanningPanel } from "./project-planning-panel.js";
 import { AccountPreparationPanel } from "./account-preparation-panel.js";
@@ -20,7 +22,8 @@ const failures = (error: unknown) => error instanceof ProductApiError && error.r
   : error instanceof ProductApiError && error.response.error.code === "IDEMPOTENCY_KEY_REUSED" ? "请求标识已用于不同输入，请先核对原操作的实际结果。"
   : "服务暂时不可用，输入已保留，请重试。";
 
-export function ProjectPanel({ active, refreshVersion, operators, readOnly, onExpired }: {
+export function ProjectPanel({ active, refreshVersion, operators, readOnly, onExpired, entry, onOpenTodos, onOpenMediaAccounts }: {
+  entry?: { projectId: string; revision: number } | null; onOpenTodos: () => void; onOpenMediaAccounts: () => void;
   active: boolean; refreshVersion: number; operators: OperatorView[]; readOnly: boolean; onExpired: (error: unknown) => void;
 }) {
   const [projects, setProjects] = useState<ProjectView[] | null>(null);
@@ -49,6 +52,7 @@ export function ProjectPanel({ active, refreshVersion, operators, readOnly, onEx
       else setMessage(failures(error));
     }).finally(() => { if (alive.current && read === revision.current) setLoading(false); });
   }, [active, refreshVersion, planningRefresh]);
+  useEffect(() => { if (entry) { setSelected(entry.projectId); setTab("overview"); setMessage(""); } }, [entry?.revision]);
   const current = projects?.find(p => p.projectId === selected);
   const draft = selected ? drafts[selected] ?? (current ? { basics: basicsOf(current), base: current, key: null } : { basics: empty(), key: null }) : null;
   function change(value: Partial<ProjectBasics>) {
@@ -81,6 +85,13 @@ export function ProjectPanel({ active, refreshVersion, operators, readOnly, onEx
     if (!current) return;
     setAutomationProjects(ids => ids.includes(current.projectId) ? ids : [...ids, current.projectId]); setTab("automation");
   }
+  function navigate(tab: OperationsTab) {
+    if (tab === "settings") showPlanning();
+    else if (tab === "materials") showMaterials();
+    else if (tab === "business-plan") showBusinessPlan();
+    else if (tab === "feedback") showFeedback();
+    else showLifecycle();
+  }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected || !draft || readOnly || busy) return;
@@ -107,7 +118,6 @@ export function ProjectPanel({ active, refreshVersion, operators, readOnly, onEx
       }
     } finally { if (alive.current) setBusy(false); }
   }
-  const owner = current?.ownerOperatorId ? operators.find(o => o.operatorId === current.ownerOperatorId) : null;
   const hasDraft = selected !== null && !!drafts[selected];
   return <div className="project-workspace" hidden={!active}>
     {message && <p role="status" className="feedback">{message}</p>}
@@ -117,10 +127,10 @@ export function ProjectPanel({ active, refreshVersion, operators, readOnly, onEx
         {!readOnly && <button disabled={busy} onClick={() => open("new")}><Plus size={18} />新建项目</button>}</div>
       {projects === null ? <p>项目事实尚未读取；请刷新，不把加载失败当作无项目。</p> : projects.length === 0 ? <div className="empty-state"><Folder size={34} /><h3>尚无项目</h3><p>先建立筹备项目，再按实际资料到位顺序准备。</p></div>
         : <div className="table-wrap"><table><thead><tr><th>项目</th><th>类型 / 客户</th><th>当前事实</th><th>负责人</th><th>更新时间</th><th>查看</th></tr></thead>
-          <tbody>{projects.map(p => <tr key={p.projectId}><td><strong>{p.name}</strong>{drafts[p.projectId] && <small>有未保存输入</small>}</td><td>{p.kind === "company_owned" ? "公司自营" : "客户代运营"}<small>{p.customerName}</small></td><td><span className="status">筹备中</span><small>方向范围见项目设置</small></td><td>{operators.find(o => o.operatorId === p.ownerOperatorId)?.displayName ?? (p.ownerOperatorId ? "负责人资料待读取" : "尚未指定")}</td><td>{time(p.updatedAt)}</td><td><button className="text-button" disabled={busy} onClick={() => open(p.projectId)}>准备清单</button></td></tr>)}</tbody></table></div>}
+          <tbody>{projects.map(p => <tr key={p.projectId}><td><strong>{p.name}</strong>{drafts[p.projectId] && <small>有未保存输入</small>}</td><td>{p.kind === "company_owned" ? "公司自营" : "客户代运营"}<small>{p.customerName}</small></td><td><span className="status">基本资料已保存</span><small>运行状态进入项目核对</small></td><td>{operators.find(o => o.operatorId === p.ownerOperatorId)?.displayName ?? (p.ownerOperatorId ? "负责人资料待读取" : "尚未指定")}</td><td>{time(p.updatedAt)}</td><td><button className="text-button" disabled={busy} onClick={() => open(p.projectId)}>打开项目</button></td></tr>)}</tbody></table></div>}
       {drafts.new && <button className="text-button" disabled={busy} onClick={() => open("new")}>继续未保存的新建项目</button>}
     </section> : <>
-      <div className="project-heading"><h1>{current?.name ?? "新建筹备项目"}</h1><span className="status">筹备中</span><button className="text-button" disabled={busy} onClick={() => openList()}><ArrowLeft size={18} />返回项目列表</button></div>
+      <div className="project-heading"><h1>{current?.name ?? "新建筹备项目"}</h1><span className="status">{current ? "项目工作区" : "筹备中"}</span><button className="text-button" disabled={busy} onClick={() => openList()}><ArrowLeft size={18} />返回项目列表</button></div>
       {current && <>
         <div className="project-tabs" aria-label="项目内导航">
           <button className="text-button" aria-current={tab === "overview" ? "page" : undefined} onClick={() => setTab("overview")}>概览</button>
@@ -131,22 +141,9 @@ export function ProjectPanel({ active, refreshVersion, operators, readOnly, onEx
           <button className="text-button" aria-current={tab === "lifecycle" ? "page" : undefined} onClick={showLifecycle}>项目生命周期</button>
           <button className="text-button" aria-current={tab === "settings" ? "page" : undefined} onClick={showPlanning}>设置 · 目标与周期</button>
         </div>
-        <div hidden={tab !== "overview"}>
-        <section className="project-direction-note"><Info size={24} /><div><h3>发布前确认方向，准备可并行推进</h3><p>进入设置读取已确认方向与范围。保存资料不确认方向，也不启动发布；其他准备项按自身条件继续。</p></div></section>
-        <section className="panel project-readiness"><h3>准备清单</h3><p className="muted">资料已保存、检查通过、方向确认与设备就绪分别判断，不手工勾选为通过。</p>
-          <div className="table-wrap"><table><thead><tr><th>准备事项</th><th>当前事实</th><th>缺什么 / 影响范围</th><th>处理入口</th></tr></thead><tbody>
-            <tr><td><Target size={18} aria-hidden />目标与自主范围</td><td>进入设置读取草案与方向确认记录</td><td>草案保存不等于方向确认，不启动发布</td><td><button className="text-button" onClick={showPlanning}>编辑目标草案</button></td></tr>
-            <tr><td><FileText size={18} aria-hidden />素材与业务资料</td><td>进入素材页读取当前事实</td><td>上传和资料保存不代表候选准入或名额通过</td><td><button className="text-button" onClick={showMaterials}>整理素材</button></td></tr>
-            <tr><td><DeviceMobile size={18} aria-hidden />发布身份与手机</td><td>尚未分配</td><td>未建立项目专用、身份核验及执行条件</td><td>资源分配待接入</td></tr>
-            <tr><td><Link size={18} aria-hidden />引流入口</td><td>尚未配置</td><td>未核验有效路径，不计作引流完成</td><td>后续接入入口管理</td></tr>
-            <tr><td><CalendarBlank size={18} aria-hidden />周期与运行规则</td><td>进入设置读取周期输入草案</td><td>时区、起点、最低要求和观察输入需人工明确；尚无运行周期</td><td><button className="text-button" onClick={showPlanning}>编辑周期草案</button></td></tr>
-            <tr><td><UsersThree size={18} aria-hidden />负责人及提醒</td><td>{owner ? `${owner.displayName}${owner.status === "disabled" ? "（已停用，历史保留）" : ""}` : current.ownerOperatorId ? "负责人资料待读取" : "尚未指定"}<small>{current.notificationEmail ? "提醒邮箱已保存；尚未发送" : "提醒邮箱未配置"}</small></td><td>配置不代表送达；其他运营可代办</td><td><a href="#project-basics">编辑基本信息</a></td></tr>
-          </tbody></table></div>
-        </section>
-        <div className="project-followthrough"><section className="panel"><h3>当前可推进</h3><p>补充基本信息、负责人和提醒邮箱，进入素材页上传成品及整理人工资料。目标和资源准备继续分段接入，不推断已就绪。</p></section><section className="panel"><h3>确认后的执行方式</h3><p>后续确认明确方向后，就绪任务可在批准范围内自主执行；未就绪条件保留阻断，不增加独立启动审批。</p></section></div>
-        </div>
+        <ProjectOverviewPanel projectId={current.projectId} active={active && tab === "overview"} refreshVersion={refreshVersion + planningRefresh} onExpired={onExpired} onNavigate={navigate} onOpenMediaAccounts={onOpenMediaAccounts} />
       </>}
-      {draft && <section className="panel" id="project-basics" hidden={!!current && (tab === "materials" || tab === "business-plan" || tab === "feedback" || tab === "automation")}><div className="section-heading"><div><h3>{current ? "基本信息" : "建立项目"}</h3><p className="muted">仅保存名称、类型、客户、负责人及提醒邮箱，不保存目标或批准。</p></div><span>{hasDraft ? "本窗口有未保存输入" : current ? `已保存版本 ${current.factVersion}` : "尚未保存"}</span></div>
+      {draft && <section className="panel" id="project-basics" hidden={!!current && tab !== "overview"}><div className="section-heading"><div><h3>{current ? "基本信息" : "建立项目"}</h3><p className="muted">仅保存名称、类型、客户、负责人及提醒邮箱，不保存目标或批准。</p></div><span>{hasDraft ? "本窗口有未保存输入" : current ? `已保存版本 ${current.factVersion}` : "尚未保存"}</span></div>
         {readOnly ? <dl className="project-facts"><dt>项目名称</dt><dd>{draft.basics.name || "尚未填写"}</dd><dt>项目类型</dt><dd>{draft.basics.kind === "company_owned" ? "公司自营" : "客户代运营"}</dd><dt>客户</dt><dd>{draft.basics.customerName ?? "不适用"}</dd><dt>提醒邮箱</dt><dd>{draft.basics.notificationEmail ?? "尚未配置"}</dd></dl> : <form className="project-form" onSubmit={event => void submit(event)}>
           <fieldset disabled={busy || draft.uncertain}><label>项目名称<input required maxLength={150} value={draft.basics.name} onChange={e => change({ name: e.target.value })} /></label>
             <label>项目类型<select value={draft.basics.kind} onChange={e => change({ kind: e.target.value as ProjectBasics["kind"], customerName: null })}><option value="company_owned">公司自营</option><option value="client_managed">客户代运营</option></select></label>
@@ -169,7 +166,7 @@ export function ProjectPanel({ active, refreshVersion, operators, readOnly, onEx
     {businessPlanProjects.map(id => <BusinessPlanPanel key={id} projectId={id} active={active && selected === id && tab === "business-plan"} readOnly={readOnly} onExpired={onExpired} />)}
     {feedbackProjects.map(id => <ProjectFeedbackPanel key={id} projectId={id} active={active && selected === id && tab === "feedback"} readOnly={readOnly} onExpired={onExpired} />)}
     {lifecycleProjects.map(id => <ProjectLifecyclePanel key={id} projectId={id} active={active && selected === id && tab === "lifecycle"} readOnly={readOnly} onExpired={onExpired} onFactsChanged={() => setPlanningRefresh(v => v + 1)} />)}
-    {automationProjects.map(id => <AutomationOrchestratorPanel key={id} projectId={id} active={active && selected === id && tab === "automation"} readOnly={readOnly} onExpired={onExpired} />)}
+    {automationProjects.map(id => <AutomationOrchestratorPanel onNavigate={navigate} onOpenTodos={onOpenTodos} refreshVersion={refreshVersion + planningRefresh} key={id} projectId={id} active={active && selected === id && tab === "automation"} readOnly={readOnly} onExpired={onExpired} />)}
   </div>;
   function openList() { setSelected(null); setMessage(""); }
 }

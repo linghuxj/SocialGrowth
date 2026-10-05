@@ -13,7 +13,7 @@ try {
   await page.getByLabel("登录名").fill(required("SG_PRODUCT_TEST_LOGIN_NAME")); await page.getByLabel("密码").fill(required("SG_PRODUCT_TEST_PASSWORD"));
   await page.getByRole("button", { name: "登录", exact: true }).click(); await page.getByRole("button", { name: "项目", exact: true }).click();
   const panel = page.locator(".project-workspace"), row = panel.getByRole("row").filter({ hasText: "运营A待保存版本" }); await row.waitFor();
-  await row.getByRole("button", { name: "准备清单", exact: true }).click(); await panel.getByRole("heading", { name: "准备清单", exact: true }).waitFor();
+  await row.getByRole("button", { name: "打开项目", exact: true }).click(); await panel.getByRole("heading", { name: "打开项目", exact: true }).waitFor();
   await page.screenshot({ path: `${output}/readiness-desktop.png` }); await page.screenshot({ path: `${output}/readiness-full.png`, fullPage: true });
   for (const width of [980, 700, 390]) {
     await page.setViewportSize({ width, height: 1000 });

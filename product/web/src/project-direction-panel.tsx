@@ -1,3 +1,4 @@
+import { Plus, Trash } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import { contractVersion, directionIdentitiesSchema, missingDirectionScopeFields, type ProjectDirectionView } from "@socialgrowth/product-contracts";
 import { captureOperatorWriteSession, isDefinitiveProjectRejection, newIdempotencyKey, ProductApiError } from "./operator-api.js";
@@ -8,7 +9,8 @@ const values: Record<string, string> = { balanced: "收益与引流平衡", reve
 export function ProjectDirectionPanel({ projectId, active, readOnly, onExpired, onFactsChanged, unsaved }: {
   projectId: string; active: boolean; readOnly: boolean; unsaved: boolean; onExpired: (e: unknown) => void; onFactsChanged: () => void;
 }) {
-  const [view, setView] = useState<ProjectDirectionView | null>(null), [refs, setRefs] = useState(""), [message, setMessage] = useState("");
+  const [identities, setIdentities] = useState([{ platform: "", canonicalRef: "", declaredStage: "" }]);
+  const [view, setView] = useState<ProjectDirectionView | null>(null), [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false), [pending, setPending] = useState<PreparedDirectionRequest | null>(null);
   const alive = useRef(true), seq = useRef(0), sending = useRef(false);
   useEffect(() => { alive.current = true; return () => { alive.current = false; seq.current++; }; }, []);
@@ -29,12 +31,12 @@ export function ProjectDirectionPanel({ projectId, active, readOnly, onExpired, 
         const sameSession = captureOperatorWriteSession(); sameSession();
         const metadata = { contractVersion, requestId: `request-${crypto.randomUUID()}`, idempotencyKey: newIdempotencyKey() };
         if (kind === "generate") {
-          const identities = directionIdentitiesSchema.parse(refs.split(/\n/).map(line => { const [platform, canonicalRef, stage, extra] = line.trim().split("/"); if (extra !== undefined) throw new Error("scope"); return { platform, canonicalRef, declaredStage: stage === "开通前" ? "before_monetization" : stage === "开通后" ? "after_monetization" : null }; }));
+          const scopeIdentities = directionIdentitiesSchema.parse(identities.map(i => ({ ...i, canonicalRef: i.canonicalRef.trim() })));
           const draft = await readPlanningDraft(projectId);
           sameSession();
-          const missing = missingDirectionScopeFields(draft.inputs, identities);
+          const missing = missingDirectionScopeFields(draft.inputs, scopeIdentities);
           if (missing.length) { setMessage(`请在目标或周期分区补齐并保存：${missing.map(key => fieldLabels[key]).join("、")}。本次没有调用模型。`); return; }
-          request = new PreparedDirectionRequest(kind, { metadata, projectId, expectedProjectVersion: draft.projectFactVersion, expectedDraftVersion: draft.draftVersion, identities });
+          request = new PreparedDirectionRequest(kind, { metadata, projectId, expectedProjectVersion: draft.projectFactVersion, expectedDraftVersion: draft.draftVersion, identities: scopeIdentities });
         } else {
           if (!view?.proposal || view.approval || view.attempt?.state === "requested") throw new Error("scope");
           request = new PreparedDirectionRequest(kind, { metadata, projectId, expectedProjectVersion: view.projectVersion, proposalId: view.proposal.proposalId, snapshotDigest: view.proposal.snapshotDigest });
@@ -46,7 +48,7 @@ export function ProjectDirectionPanel({ projectId, active, readOnly, onExpired, 
       setMessage(next.approval ? "方向已确认并留存批准范围；执行条件尚未就绪。" : next.attempt?.state === "proposed" ? "真实模型方向已生成，请逐项核对范围后确认。" : next.attempt?.state === "requested" ? "原模型请求尚在处理，请读取方向结果；不要重复提交。" : next.attempt?.state === "facts_changed" ? "生成期间事实已变化，结果未采用；请核对当前草案后重新生成。" : "配置模型未返回可用方向；未采用模板，请读取结果后重试。");
     } catch (e) {
       if (!alive.current) return; failed(e);
-      if (!request || isDefinitiveProjectRejection(e)) { setPending(null); setMessage("输入或版本不满足要求，请保存完整草案、核对身份范围并读取当前方向后重试。输入保留。"); }
+      if (!request || isDefinitiveProjectRejection(e)) { setPending(null); setMessage("输入或版本不满足要求。请选择每行平台和分成资格阶段，填写仅含字母、数字、下划线或短横线的身份编号（不可重复）；保存完整草案后重试。输入保留。"); }
       else setMessage("提交结果尚未确认，保留原请求；请接续原请求或读取方向结果。");
     } finally { sending.current = false; if (alive.current) setBusy(false); }
   }
@@ -56,8 +58,17 @@ export function ProjectDirectionPanel({ projectId, active, readOnly, onExpired, 
     {message && <p role="status" className="feedback">{message}</p>}
     {!view ? <p>方向事实待读取。</p> : <>
       <p role="status">{view.approval ? "方向已确认 · 执行条件未就绪" : "尚无已确认方向"}{view.attempt?.state === "requested" && " · 模型请求处理中"}</p>
-      {!view.approval && <><label>发布身份范围（每行 facebook/PageID/开通前 或 youtube/ChannelID/开通后）<textarea aria-label="发布身份范围" value={refs} disabled={readOnly || busy || !!pending || view.attempt?.state === "requested"} onChange={e => setRefs(e.target.value)} /></label>
-        <p className="form-note">每个身份明确填写“开通前”或“开通后”，指正式分成资格阶段；填写身份编号，不填主页网址。声明不等于实际资格、分配或初始化核验。</p>
+      {!view.approval && <><fieldset disabled={readOnly || busy || !!pending || view.attempt?.state === "requested"} aria-label="发布身份范围">
+        <legend>发布身份范围</legend>
+        <p className="form-note">逐项填写 Page／频道编号和正式分成资格阶段。声明不等于身份、资格或管理权限已核验；不填写主页网址。</p>
+        {identities.map((identity, index) => <div className="direction-identity-row" key={index}>
+          <label>平台<select aria-label={`发布平台 ${index + 1}`} value={identity.platform} onChange={e => setIdentities(rows => rows.map((r, i) => i === index ? { ...r, platform: e.target.value } : r))}><option value="">请选择平台</option><option value="facebook">Facebook Page</option><option value="youtube">YouTube 频道</option></select></label>
+          <label>Page／频道编号<input aria-label={`发布身份编号 ${index + 1}`} value={identity.canonicalRef} maxLength={150} pattern="[A-Za-z0-9_-]+" onChange={e => setIdentities(rows => rows.map((r, i) => i === index ? { ...r, canonicalRef: e.target.value } : r))} /></label>
+          <label>分成资格阶段<select aria-label={`分成资格阶段 ${index + 1}`} value={identity.declaredStage} onChange={e => setIdentities(rows => rows.map((r, i) => i === index ? { ...r, declaredStage: e.target.value } : r))}><option value="">请选择阶段</option><option value="before_monetization">正式开通前</option><option value="after_monetization">正式开通后</option></select></label>
+          {!readOnly && <button className="outline-button" aria-label={`移除发布身份 ${index + 1}`} disabled={identities.length === 1} onClick={() => setIdentities(rows => rows.filter((_, i) => i !== index))}><Trash size={18} />移除</button>}
+        </div>)}
+        {!readOnly && <button className="text-button" disabled={identities.length >= 100} onClick={() => setIdentities(rows => [...rows, { platform: "", canonicalRef: "", declaredStage: "" }])}><Plus size={18} />添加发布身份</button>}
+      </fieldset>
         {!readOnly && <button disabled={busy || unsaved || view.attempt?.state === "requested" || !!pending} onClick={() => void submit("generate")}>{busy ? "处理中…" : "生成初始方向"}</button>}</>}
       {proposal && <div className="direction-review"><h4>{view.approval ? "已确认的方向与范围" : "待核对方向与范围"}</h4>{view.approval && <p>确认人：{view.approval.confirmedByOperatorName}；确认时间：{view.approval.confirmedAt}。</p>}<p className="direction-copy">{proposal.output.direction}</p><p className="direction-copy">{proposal.output.rationale}</p>
         <p className="muted">模型：{proposal.modelKey}；生成时间：{proposal.generatedAt}；依据草案 v{proposal.draftVersion}。</p>

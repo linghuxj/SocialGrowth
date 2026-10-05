@@ -23,7 +23,7 @@ try {
   await page.getByLabel("登录名", { exact: true }).fill("device-live-local");
   await page.getByLabel("密码", { exact: true }).fill(config.operatorPassword);
   await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
+  await page.getByRole("button", { name: "提供者邀请", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
   if (phase === "prepare") {
     let saved: SavedInvitation | null = null;
     try { saved = JSON.parse(await readFile(accessPath, "utf8")) as SavedInvitation; }

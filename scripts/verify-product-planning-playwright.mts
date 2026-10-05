@@ -79,7 +79,7 @@ try {
   page.on("pageerror", () => errors.push("pageerror"));
   await page.goto(process.env.SG_PRODUCT_WEB_URL ?? "http://127.0.0.1:3100");
   await page.getByLabel("登录名", { exact: true }).fill(login); await page.getByLabel("密码", { exact: true }).fill(password);
-  await page.getByRole("button", { name: "登录", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
+  await page.getByRole("button", { name: "登录", exact: true }).click(); await page.getByRole("button", { name: "提供者邀请", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
   await page.getByRole("button", { name: "项目", exact: true }).click(); const project = page.locator(".project-workspace"), name = `周期配置全链路UI验收-${Date.now()}`;
   await project.getByRole("button", { name: "新建项目" }).click(); await project.getByLabel("项目名称").fill(name); await project.getByRole("button", { name: "创建筹备项目" }).click();
   await project.getByText(/基本信息已保存；仍在筹备/).waitFor(); await project.getByRole("button", { name: "设置 · 目标与周期" }).click();
@@ -99,8 +99,8 @@ try {
   await planner.getByRole("button", { name: "刷新当前草案" }).click(); await planner.getByRole("region", { name: "当前草案核对" }).waitFor(); assert.equal(await planner.getByLabel("正式开通前阶段目标").inputValue(), "尚未保存的本人输入");
   await planner.getByRole("button", { name: "放弃本次输入" }).click(); assert.equal(await planner.getByLabel("正式开通前阶段目标").inputValue(), goal);
   await page.screenshot({ path: `${output}/planning-unapproved-desktop.png`, fullPage: true });
-  await page.reload(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor(); await page.getByRole("button", { name: "项目", exact: true }).click();
-  await project.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "准备清单" }).click(); await project.getByRole("button", { name: "设置 · 目标与周期" }).click();
+  await page.reload(); await page.getByRole("button", { name: "提供者邀请", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor(); await page.getByRole("button", { name: "项目", exact: true }).click();
+  await project.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "打开项目" }).click(); await project.getByRole("button", { name: "设置 · 目标与周期" }).click();
   await planner.getByText(/草案版本 1/).waitFor(); assert.equal(await planner.getByLabel("正式开通前阶段目标").inputValue(), goal);
   assert.equal(await planner.getByRole("checkbox", { name: "Facebook 图文", exact: true }).isChecked(), true);
   await planner.getByRole("button", { name: "周期与观察", exact: true }).click(); assert.equal(await planner.getByLabel("项目每周期引流最低任务数").inputValue(), "0");
@@ -132,7 +132,7 @@ try {
   await planner.getByText("目标与周期草案已保存，尚未批准；没有生成排期、开启周期或派发任务。", { exact: true }).waitFor();
   cyclePhase = "real-model-direction";
   const direction = page.getByRole("region", { name: "初始业务方向" });
-  await direction.getByLabel("发布身份范围", { exact: true }).fill("facebook/UI_SYNTHETIC_UNREGISTERED/开通前");
+  await direction.getByLabel("发布平台 1", { exact: true }).selectOption("facebook"); await direction.getByLabel("发布身份编号 1", { exact: true }).fill("UI_SYNTHETIC_UNREGISTERED"); await direction.getByLabel("分成资格阶段 1", { exact: true }).selectOption("before_monetization");
   actualModelAttempts += 1;
   await direction.getByRole("button", { name: "生成初始方向", exact: true }).click();
   const proposalState = direction.getByText(/真实模型方向已生成|配置模型未返回可用方向/);
@@ -181,7 +181,7 @@ try {
   await carryPlanner.getByText("目标与周期草案已保存，尚未批准；没有生成排期、开启周期或派发任务。", { exact: true }).waitFor();
   cyclePhase = "carry-forward-real-model-direction";
   const carryDirection = page.getByRole("region", { name: "初始业务方向" });
-  await carryDirection.getByLabel("发布身份范围", { exact: true }).fill("facebook/UI_SYNTHETIC_UNREGISTERED/开通前");
+  await carryDirection.getByLabel("发布平台 1", { exact: true }).selectOption("facebook"); await carryDirection.getByLabel("发布身份编号 1", { exact: true }).fill("UI_SYNTHETIC_UNREGISTERED"); await carryDirection.getByLabel("分成资格阶段 1", { exact: true }).selectOption("before_monetization");
   actualModelAttempts += 1;
   await carryDirection.getByRole("button", { name: "生成初始方向", exact: true }).click();
   const carryProposalState = carryDirection.getByText(/真实模型方向已生成|配置模型未返回可用方向/);
@@ -229,10 +229,10 @@ try {
   await pageB.getByLabel("登录名", { exact: true }).fill(operatorBLogin);
   await pageB.getByLabel("密码", { exact: true }).fill(operatorBPassword);
   await pageB.getByRole("button", { name: "登录", exact: true }).click();
-  await pageB.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
+  await pageB.getByRole("button", { name: "提供者邀请", exact: true }).click(); await pageB.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
   await pageB.getByRole("button", { name: "项目", exact: true }).click();
   const projectB = pageB.locator(".project-workspace");
-  await projectB.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "准备清单" }).click();
+  await projectB.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "打开项目" }).click();
   await projectB.getByRole("button", { name: "设置 · 目标与周期" }).click();
   const plannerB = pageB.getByRole("region", { name: "项目目标与周期草案" });
   await plannerB.getByRole("button", { name: "周期与观察", exact: true }).click();
@@ -275,7 +275,7 @@ try {
   const returnToProjectList = project.getByRole("button", { name: "返回项目列表", exact: true });
   if (await returnToProjectList.count()) await returnToProjectList.click();
   cycleCheckpoint = "A-project-list-open";
-  await project.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "准备清单" }).click();
+  await project.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "打开项目" }).click();
   cycleCheckpoint = "A-planning-project-open";
   await project.getByRole("button", { name: "设置 · 目标与周期" }).click();
   cycleCheckpoint = "A-cycle-settings-open";
@@ -377,9 +377,9 @@ try {
   // Reload restores only the frozen body/key and non-secret actor context;
   // it must not query or resend a command automatically.
   cyclePhase = "reload-with-unknown-command";
-  await page.reload(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
+  await page.reload(); await page.getByRole("button", { name: "提供者邀请", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
   await page.getByRole("button", { name: "项目", exact: true }).click();
-  await project.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "准备清单" }).click();
+  await project.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "打开项目" }).click();
   await project.getByRole("button", { name: "设置 · 目标与周期" }).click();
   await planner.getByRole("button", { name: "周期与观察", exact: true }).click();
   await cycle.getByLabel("冻结的原请求").waitFor();
@@ -401,9 +401,9 @@ try {
   await page.getByRole("button", { name: "退出登录", exact: true }).click();
   await page.getByLabel("登录名", { exact: true }).fill(operatorBLogin); await page.getByLabel("密码", { exact: true }).fill(operatorBPassword);
   await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
+  await page.getByRole("button", { name: "提供者邀请", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
   await page.getByRole("button", { name: "项目", exact: true }).click();
-  await project.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "准备清单" }).click();
+  await project.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "打开项目" }).click();
   await project.getByRole("button", { name: "设置 · 目标与周期" }).click();
   await planner.getByRole("button", { name: "周期与观察", exact: true }).click();
   await cycle.getByText(/当前登录身份不同，仅保留未知事实/).waitFor();
@@ -419,9 +419,9 @@ try {
   await page.getByRole("button", { name: "退出登录", exact: true }).click();
   await page.getByLabel("登录名", { exact: true }).fill(login); await page.getByLabel("密码", { exact: true }).fill(password);
   await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
+  await page.getByRole("button", { name: "提供者邀请", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
   await page.getByRole("button", { name: "项目", exact: true }).click();
-  await project.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "准备清单" }).click();
+  await project.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "打开项目" }).click();
   await project.getByRole("button", { name: "设置 · 目标与周期" }).click();
   await planner.getByRole("button", { name: "周期与观察", exact: true }).click();
   await cycle.getByRole("button", { name: "明确接续同一请求", exact: true }).waitFor();
@@ -476,7 +476,7 @@ try {
   await page.getByRole("button", { name: "项目", exact: true }).click();
   const returnToListForA = project.getByRole("button", { name: "返回项目列表", exact: true });
   if (await returnToListForA.count()) await returnToListForA.click();
-  await project.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "准备清单" }).click();
+  await project.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "打开项目" }).click();
   await project.getByRole("button", { name: "设置 · 目标与周期" }).click();
   await planner.getByRole("button", { name: "周期与观察", exact: true }).click();
   cycle = page.getByRole("region", { name: "下周期配置确认" });
@@ -516,7 +516,7 @@ try {
   await page.getByRole("button", { name: "项目", exact: true }).click();
   const returnToListForB = project.getByRole("button", { name: "返回项目列表", exact: true });
   if (await returnToListForB.count()) await returnToListForB.click();
-  await project.getByRole("row").filter({ hasText: carryProjectName }).getByRole("button", { name: "准备清单" }).click();
+  await project.getByRole("row").filter({ hasText: carryProjectName }).getByRole("button", { name: "打开项目" }).click();
   await project.getByRole("button", { name: "设置 · 目标与周期" }).click();
   const carryPlannerVisible = page.getByRole("region", { name: "项目目标与周期草案" });
   await carryPlannerVisible.getByRole("button", { name: "周期与观察", exact: true }).click();
@@ -593,7 +593,7 @@ try {
   await page.getByRole("button", { name: "项目", exact: true }).click();
   const returnToProjectListForMobile = project.getByRole("button", { name: "返回项目列表", exact: true });
   if (await returnToProjectListForMobile.count()) await returnToProjectListForMobile.click();
-  await project.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "准备清单" }).click();
+  await project.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "打开项目" }).click();
   await project.getByRole("button", { name: "设置 · 目标与周期" }).click();
   await planner.getByRole("button", { name: "周期与观察", exact: true }).click();
   cyclePhase = "mobile-readonly";

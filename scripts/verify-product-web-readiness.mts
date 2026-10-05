@@ -20,7 +20,7 @@ async function signIn(page: import("playwright").Page, loginName: string, passwo
   await page.getByLabel("登录名").fill(loginName);
   await page.getByLabel("密码").fill(password);
   await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByRole("heading", { name: "邀请与接入" }).waitFor();
+  await page.getByRole("button", { name: "提供者邀请", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入" }).waitFor();
 }
 
 try {
@@ -135,19 +135,19 @@ try {
         throw new Error("Mobile read-only mode still exposes invitation creation");
       }
       await primary.getByRole("button", { name: "账号与设备" }).click();
-      await primary.getByRole("heading", { name: "运营账号管理" }).waitFor();
+      await primary.getByRole("tab", { name: "运营账号", exact: true }).click(); await primary.getByRole("heading", { name: "运营账号管理" }).waitFor();
       if (await primary.getByRole("button", { name: "开通账号" }).count() !== 0) {
         throw new Error("Mobile read-only mode still exposes operator creation");
       }
       await primary.getByRole("button", { name: "转电脑操作" }).first().waitFor();
-      await primary.getByRole("button", { name: "提供者与分佣" }).click();
-      await primary.getByRole("heading", { name: "邀请与接入" }).waitFor();
+      await primary.getByRole("button", { name: "提供者邀请" }).click();
+      await primary.getByRole("button", { name: "提供者邀请", exact: true }).click(); await primary.getByRole("heading", { name: "邀请与接入" }).waitFor();
     }
   }
   await primary.setViewportSize({ width: 1465, height: 1074 });
 
   await primary.getByRole("button", { name: "账号与设备" }).click();
-  await primary.getByRole("heading", { name: "运营账号管理" }).waitFor();
+  await primary.getByRole("tab", { name: "运营账号", exact: true }).click(); await primary.getByRole("heading", { name: "运营账号管理" }).waitFor();
 
   const csrfRecoveryPage = await primaryContext.newPage();
   await csrfRecoveryPage.goto(baseUrl, { waitUntil: "networkidle" });
@@ -182,7 +182,7 @@ try {
   await secondary.getByLabel("登录名").fill(primaryLogin);
   await secondary.getByLabel("密码").fill(primaryPassword);
   await secondary.getByRole("button", { name: "登录", exact: true }).click();
-  await secondary.getByRole("heading", { name: "邀请与接入" }).waitFor();
+  await secondary.getByRole("button", { name: "提供者邀请", exact: true }).click(); await secondary.getByRole("heading", { name: "邀请与接入" }).waitFor();
   if (await secondary.getByRole("heading", { name: "邀请已创建" }).count() !== 0) {
     throw new Error("Re-authentication as another operator restored one-time invitation access");
   }

@@ -32,7 +32,7 @@ try {
   await page.getByLabel("登录名", { exact: true }).fill(required("SG_PRODUCT_TEST_LOGIN_NAME"));
   await page.getByLabel("密码", { exact: true }).fill(required("SG_PRODUCT_TEST_PASSWORD"));
   await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
+  await page.getByRole("button", { name: "提供者邀请", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
   await page.getByRole("button", { name: "项目", exact: true }).click();
   const project = page.locator(".project-workspace"), name = `获准原文件字节验收-${Date.now()}`;
   await project.getByRole("button", { name: "新建项目" }).click(); await project.getByLabel("项目名称").fill(name);
@@ -75,9 +75,9 @@ try {
   }
   await material.screenshot({ path: `${output}/original-bytes-verified.png` });
   assert.equal(declarationWrites, 0); assert.deepEqual(errors, []);
-  await page.reload(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
+  await page.reload(); await page.getByRole("button", { name: "提供者邀请", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
   await page.getByRole("button", { name: "项目", exact: true }).click();
-  await project.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "准备清单" }).click();
+  await project.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "打开项目" }).click();
   await project.getByRole("button", { name: "素材", exact: true }).click();
   await material.getByRole("heading", { name: "尚无已登记素材", exact: true }).waitFor();
   await writeFile(`${output}/result.json`, JSON.stringify({ passed: true, evidence, declarationWrites, firstUseHumanConfirmed: firstUseConfirmed, sourceRecordVerified: false,

@@ -32,7 +32,7 @@ async function main() {
   await page.getByLabel("登录名", { exact: true }).fill("device-live-local");
   await page.getByLabel("密码", { exact: true }).fill(config.operatorPassword);
   await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor({ timeout: 15000 });
+  await page.getByRole("button", { name: "提供者邀请", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor({ timeout: 15000 });
   console.log("✔ 登录成功");
 
   console.log("-> 进入项目列表...");
@@ -41,7 +41,7 @@ async function main() {
 
   const headingList = page.getByRole("heading", { name: "项目列表", level: 1, exact: true });
   if (await headingList.isVisible()) {
-    await page.locator("tr", { hasText: "霸道总裁北美短剧出海" }).first().getByRole("button", { name: "准备清单" }).click();
+    await page.locator("tr", { hasText: "霸道总裁北美短剧出海" }).first().getByRole("button", { name: "打开项目" }).click();
   }
   await page.getByRole("heading", { name: "霸道总裁北美短剧出海", level: 1 }).waitFor();
 

@@ -58,7 +58,7 @@ try {
   });
   await page.goto(process.env.SG_PRODUCT_WEB_URL ?? "http://127.0.0.1:3100");
   await page.getByLabel("登录名", { exact: true }).fill(login); await page.getByLabel("密码", { exact: true }).fill(password);
-  await page.getByRole("button", { name: "登录", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
+  await page.getByRole("button", { name: "登录", exact: true }).click(); await page.getByRole("button", { name: "提供者邀请", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
   await page.getByRole("button", { name: "项目", exact: true }).click();
   const project = page.locator(".project-workspace"), name = `素材页面验收-${Date.now()}`;
   await project.getByRole("button", { name: "新建项目" }).click(); await project.getByLabel("项目名称").fill(name);
@@ -108,9 +108,9 @@ try {
   const other = await browser.newPage({ locale: "zh-CN", viewport: { width: 1487, height: 1058 } });
   await other.goto(process.env.SG_PRODUCT_WEB_URL ?? "http://127.0.0.1:3100");
   await other.getByLabel("登录名", { exact: true }).fill(login); await other.getByLabel("密码", { exact: true }).fill(password);
-  await other.getByRole("button", { name: "登录", exact: true }).click(); await other.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
+  await other.getByRole("button", { name: "登录", exact: true }).click(); await other.getByRole("button", { name: "提供者邀请", exact: true }).click(); await other.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
   await other.getByRole("button", { name: "项目", exact: true }).click();
-  await other.locator(".project-workspace").getByRole("row").filter({ hasText: name }).getByRole("button", { name: "准备清单" }).click();
+  await other.locator(".project-workspace").getByRole("row").filter({ hasText: name }).getByRole("button", { name: "打开项目" }).click();
   await other.locator(".project-workspace").getByRole("button", { name: "素材", exact: true }).click();
   const otherMaterial = other.getByRole("region", { name: "项目素材", exact: true });
   await otherMaterial.getByRole("button", { name: "预览／资料", exact: true }).click();
@@ -132,9 +132,9 @@ try {
   assert.equal(await editor.getByLabel("内容说明", { exact: true }).inputValue(), `${details.description}；本人未保存草稿`);
   await page.screenshot({ path: `${output}/material-read-race.png`, fullPage: true });
   await page.unroute(path); await other.close();
-  await page.reload(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
+  await page.reload(); await page.getByRole("button", { name: "提供者邀请", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
   await page.getByRole("button", { name: "项目", exact: true }).click();
-  await project.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "准备清单" }).click();
+  await project.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "打开项目" }).click();
   await project.getByRole("button", { name: "素材", exact: true }).click();
   await material.getByText("资料已保存 v2 · 待检查：项目尚无已确认的方向与范围。", { exact: true }).waitFor();
   await material.getByRole("button", { name: "预览／资料" }).click(); assert.equal(await editor.getByLabel("内容名称", { exact: true }).inputValue(), details.name);

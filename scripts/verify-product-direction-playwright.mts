@@ -77,8 +77,8 @@ page.on("response", response => {
 async function open(p: Page, initial = false) {
   await p.goto(process.env.SG_PRODUCT_WEB_URL ?? "http://127.0.0.1:3100");
   if (initial) { await p.getByLabel("登录名", { exact: true }).fill(required("SG_PRODUCT_TEST_LOGIN_NAME")); await p.getByLabel("密码", { exact: true }).fill(required("SG_PRODUCT_TEST_PASSWORD")); await p.getByRole("button", { name: "登录", exact: true }).click(); }
-  await p.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor(); await p.getByRole("button", { name: "项目", exact: true }).click();
-  if (!initial || p === second) { await project(p).getByRole("row").filter({ hasText: name }).getByRole("button", { name: "准备清单" }).click(); await project(p).getByRole("button", { name: "设置 · 目标与周期" }).click(); await planner(p).getByText(/项目版本 \d+，草案版本/).waitFor(); }
+  await p.getByRole("button", { name: "提供者邀请", exact: true }).click(); await p.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor(); await p.getByRole("button", { name: "项目", exact: true }).click();
+  if (!initial || p === second) { await project(p).getByRole("row").filter({ hasText: name }).getByRole("button", { name: "打开项目" }).click(); await project(p).getByRole("button", { name: "设置 · 目标与周期" }).click(); await planner(p).getByText(/项目版本 \d+，草案版本/).waitFor(); }
 }
 async function generate() {
   // Exercise actual operator recovery through the UI, not a hidden provider
@@ -114,7 +114,7 @@ try {
   for (const [label, value] of [["复盘间隔（天）", "7"], ["项目每周期引流最低任务数", "0"], ["内容观察窗口（小时）", "24"], ["结束后收尾观察（天）", "0"], ["每日总发布上界", "1"]]) await planner(page).getByLabel(label!, { exact: true }).fill(value!);
   await planner(page).getByLabel("发布有效窗口开始（ISO 含时区）").fill(start); await planner(page).getByLabel("发布有效窗口结束（ISO 含时区，结束不含）").fill(end);
   await planner(page).getByRole("button", { name: "保存全部草案", exact: true }).click(); await planner(page).getByText("目标与周期草案已保存，尚未批准；没有生成排期、开启周期或派发任务。", { exact: true }).waitFor();
-  await direction(page).getByLabel("发布身份范围", { exact: true }).fill("facebook/UI_SYNTHETIC_UNREGISTERED/开通前"); await generate();
+  await direction(page).getByLabel("发布平台 1", { exact: true }).selectOption("facebook"); await direction(page).getByLabel("发布身份编号 1", { exact: true }).fill("UI_SYNTHETIC_UNREGISTERED"); await direction(page).getByLabel("分成资格阶段 1", { exact: true }).selectOption("before_monetization"); await generate();
   assert.ok((await direction(page).locator(".direction-copy").first().innerText()).length > 0);
   if (!narrowPlanFlow) {
     // A real second browser page edits the stored planning draft through the UI.

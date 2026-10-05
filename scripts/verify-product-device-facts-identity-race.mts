@@ -19,7 +19,7 @@ async function signIn(page: Page, loginName: string, password: string): Promise<
   await page.getByLabel("登录名").fill(loginName);
   await page.getByLabel("密码").fill(password);
   await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByRole("heading", { name: "邀请与接入" }).waitFor();
+  await page.getByRole("button", { name: "提供者邀请", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入" }).waitFor();
 }
 
 async function openDevices(page: Page): Promise<void> {
@@ -114,7 +114,7 @@ try {
   await page.unroute("**/api/operator/device-facts", holdOldRequest);
 
   // A real UI mutation proves the new login's CSRF capability survived the old 401.
-  await page.getByRole("button", { name: "提供者与分佣" }).click();
+  await page.getByRole("button", { name: "提供者邀请" }).click();
   await page.getByRole("button", { name: "创建邀请" }).click();
   await page.getByRole("heading", { name: "邀请已创建" }).waitFor();
   await page.getByRole("button", { name: "退出登录" }).click();

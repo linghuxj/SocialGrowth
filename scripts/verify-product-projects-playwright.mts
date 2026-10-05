@@ -13,7 +13,7 @@ async function signIn(page: Page, name: string, secret: string) {
   page.on("pageerror", e => errors.push(e.message));
   page.on("console", message => { if (message.type() === "error" && !message.text().startsWith("Failed to load resource")) errors.push(message.text()); });
   await page.goto(baseUrl, { waitUntil: "networkidle" }); await page.getByLabel("登录名").fill(name); await page.getByLabel("密码").fill(secret);
-  await page.getByRole("button", { name: "登录", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
+  await page.getByRole("button", { name: "登录", exact: true }).click(); await page.getByRole("button", { name: "提供者邀请", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
 }
 const panel = (page: Page) => page.locator(".project-workspace");
 try {
@@ -49,7 +49,7 @@ try {
   const retry = a.waitForRequest(r => r.method() === "POST" && new URL(r.url()).pathname === "/api/operator/projects");
   await panel(a).getByRole("button", { name: "创建筹备项目" }).click(); keys.push(((await retry).postDataJSON() as { metadata: { idempotencyKey: string } }).metadata.idempotencyKey);
   await panel(a).getByText(/基本信息已保存；仍在筹备/).waitFor(); assert.equal(keys[0], keys[1]);
-  await panel(a).getByRole("heading", { name: "准备清单", exact: true }).waitFor();
+  await panel(a).getByRole("heading", { name: "项目当前事实与下一步", exact: true }).waitFor();
   assert.equal(await panel(a).locator(".project-readiness tbody tr").count(), 6);
   assert.equal(await panel(a).getByRole("button", { name: "确认方向", exact: true }).count(), 0);
   await panel(a).getByLabel("项目名称").fill("保留的跨导航输入");
@@ -63,7 +63,7 @@ try {
   await b.getByRole("button", { name: "项目", exact: true }).click();
   await panel(b).getByRole("row").filter({ hasText: "验收筹备项目A" }).waitFor();
   assert.equal(await panel(b).getByRole("row").filter({ hasText: "验收筹备项目A" }).count(), 1);
-  await panel(b).getByRole("button", { name: "准备清单", exact: true }).click();
+  await panel(b).getByRole("button", { name: "打开项目", exact: true }).click();
   await panel(a).getByLabel("项目名称").fill("运营A待保存版本");
   await panel(b).getByLabel("项目名称").fill("运营B已保存版本"); await panel(b).getByRole("button", { name: "保存基本信息" }).click(); await panel(b).getByText(/基本信息已保存；仍在筹备/).waitFor();
   await panel(a).getByRole("button", { name: "保存基本信息" }).click(); await panel(a).getByText(/项目已被其他运营更新/).waitFor(); assert.equal(await panel(a).getByLabel("项目名称").inputValue(), "运营A待保存版本");
@@ -72,7 +72,7 @@ try {
   await panel(a).getByRole("button", { name: "已核对，采用最新版本继续编辑" }).click(); await panel(a).getByRole("button", { name: "保存基本信息" }).click(); await panel(a).getByText(/基本信息已保存；仍在筹备/).waitFor();
   await panel(a).getByLabel("负责人").selectOption({ label: "验收代办运营" }); await panel(a).getByLabel("提醒邮箱").fill("qa-project@example.invalid");
   await panel(a).getByRole("button", { name: "保存基本信息" }).click(); await panel(a).getByText("提醒邮箱已保存；尚未发送", { exact: true }).waitFor();
-  await a.reload({ waitUntil: "networkidle" }); await a.getByRole("button", { name: "项目", exact: true }).click(); await panel(a).getByRole("button", { name: "准备清单", exact: true }).click();
+  await a.reload({ waitUntil: "networkidle" }); await a.getByRole("button", { name: "项目", exact: true }).click(); await panel(a).getByRole("button", { name: "打开项目", exact: true }).click();
   assert.equal(await panel(a).getByLabel("项目名称").inputValue(), "运营A待保存版本"); assert.equal(await panel(a).getByLabel("提醒邮箱").inputValue(), "qa-project@example.invalid");
   await a.screenshot({ path: `${output}/readiness-desktop.png` });
   await a.screenshot({ path: `${output}/readiness-full.png`, fullPage: true });

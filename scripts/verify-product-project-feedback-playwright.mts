@@ -21,7 +21,7 @@ async function signIn(target: Page): Promise<void> {
   await target.getByLabel("登录名", { exact: true }).fill(required("SG_PRODUCT_TEST_LOGIN_NAME"));
   await target.getByLabel("密码", { exact: true }).fill(required("SG_PRODUCT_TEST_PASSWORD"));
   await target.getByRole("button", { name: "登录", exact: true }).click();
-  await target.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
+  await target.getByRole("button", { name: "提供者邀请", exact: true }).click(); await target.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
 }
 
 const projectListResponse = (target: Page) => target.waitForResponse(response =>
@@ -60,7 +60,7 @@ try {
     createdProjectThroughUI = true;
   } else {
     selectedProjectId = projects[0]!.projectId;
-    await projectPanel.getByRole("button", { name: "准备清单", exact: true }).first().click();
+    await projectPanel.getByRole("button", { name: "打开项目", exact: true }).first().click();
   }
   {
     const assertProjectFeedback = async (projectId: string) => {
@@ -99,7 +99,7 @@ try {
     let switchedProject = false;
     if (projects.length > 1) {
       await projectPanel.getByRole("button", { name: "返回项目列表", exact: true }).click();
-      await projectPanel.getByRole("button", { name: "准备清单", exact: true }).nth(1).click();
+      await projectPanel.getByRole("button", { name: "打开项目", exact: true }).nth(1).click();
       const second = await assertProjectFeedback(projects[1]!.projectId);
       assert.equal(second.projectId?.toLowerCase(), projects[1]!.projectId.toLowerCase());
       switchedProject = true;

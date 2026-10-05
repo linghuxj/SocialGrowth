@@ -13,7 +13,7 @@ const results: string[] = [], errors: string[] = []; let taskIds: string[] = [],
 page.on("pageerror", () => errors.push("pageerror"));
 try {
   await page.goto(base); await page.getByLabel("登录名", { exact: true }).fill(login); await page.getByLabel("密码", { exact: true }).fill(password);
-  await page.getByRole("button", { name: "登录", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
+  await page.getByRole("button", { name: "登录", exact: true }).click(); await page.getByRole("button", { name: "提供者邀请", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
   await page.getByRole("button", { name: "项目", exact: true }).click(); const project = page.locator(".project-workspace"), projectName = `初始化检查合成验收-${Date.now()}`;
   await project.getByRole("button", { name: "新建项目" }).click(); await project.getByLabel("项目名称").fill(projectName); await project.getByRole("button", { name: "创建筹备项目" }).click();
   await project.getByText(/基本信息已保存；仍在筹备/).waitFor(); await project.getByRole("button", { name: "设置 · 目标与周期" }).click();
@@ -78,8 +78,8 @@ try {
   await panel.getByText("检查请求已记录，当前阻断已保存；尚未操作手机或创建 Page／频道。", { exact: true }).waitFor();
   await page.unroute("**/account-preparation/request"); results.push("实际保存后丢响应：锁输入、读记录、原键接续，无重复任务");
   await panel.screenshot({ path: `${output}/preparation-desktop.png` });
-  await page.reload(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor(); await page.getByRole("button", { name: "项目", exact: true }).click();
-  await project.getByRole("row").filter({ hasText: projectName }).getByRole("button", { name: "准备清单" }).click(); await project.getByRole("button", { name: "设置 · 目标与周期" }).click();
+  await page.reload(); await page.getByRole("button", { name: "提供者邀请", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor(); await page.getByRole("button", { name: "项目", exact: true }).click();
+  await project.getByRole("row").filter({ hasText: projectName }).getByRole("button", { name: "打开项目" }).click(); await project.getByRole("button", { name: "设置 · 目标与周期" }).click();
   await panel.getByRole("row").filter({ hasText: "合成验证频道不实际创建" }).waitFor(); assert.equal(await panel.getByRole("button", { name: "重新检查原任务" }).count(), 2);
   await panel.getByText("执行条件核验记录 · v0", { exact: true }).waitFor();
   results.push("重载保留两平台任务与原检查状态");
