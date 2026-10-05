@@ -217,11 +217,11 @@ async function main(): Promise<void> {
     if (operators === 0) await run("pnpm", ["--filter", "@socialgrowth/product-backend", "operator:admin", "initialize", "--login-name", "device-live-local",
       "--display-name", "本机真机联调运营", "--request-id", `initialize-${randomUUID()}`], env, config.operatorPassword);
     await privateFile(resolve(dir, "ready.json"), JSON.stringify({ checkedAt: new Date().toISOString(), database, clusterId: config.clusterId,
-      containerId: config.containerId, smsMode: "development_capture", phoneFactsSeeded: false, executorEnabled: false,
+      containerId: config.containerId, smsMode: "development_capture", phoneFactsSeeded: false, executorConfigured: "SG_PRODUCT_EXECUTION_RUNTIME_URL" in env && "SG_PRODUCT_EXECUTION_RUNTIME_TOKEN" in env && "SG_PRODUCT_EXECUTION_DEVICE_ID" in env,
       materialMode: env.SG_PRODUCT_MATERIAL_MODE,
-      web: "http://127.0.0.1:3100", backend: "http://127.0.0.1:4320" }, null, 2));
+      web: "http://127.0.0.1:3100", backend: `http://127.0.0.1:${backendPort}` }, null, 2));
   } finally { await pool.end(); }
-  console.log("[product-local] persistent owned database prepared; no device facts seeded; executor disabled");
+  console.log("[product-local] persistent owned database prepared; execution permissions checked per task; no device facts seeded");
   if (mode === "serve") {
     await free(3100); await free(Number(backendPort));
     const children: ReturnType<typeof spawn>[] = [];
