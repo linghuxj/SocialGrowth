@@ -5,20 +5,20 @@ import { isIP } from "node:net";
 import { isAbsolute } from "node:path";
 import { inflateSync } from "node:zlib";
 import { z } from "zod";
-import { phoneActionRequestSchema, timestampSchema, type PhoneActionRequest } from "@socialgrowth/product-contracts";
+import { phoneActionRequestSchema, phoneActionRequestBaseSchema, timestampSchema, type PhoneActionRequest } from "@socialgrowth/product-contracts";
 import type { PhoneFenceTransport, PhoneTransportTicket } from "./phone-action-fence.js";
 
 // Internal immutable construction, never an HTTP body or worker environment
 // switch. Current network/target/installation authority is still required by
 // the caller's broker and fence. This seals ONE transport, not the raw SDK.
-const bindingSchema = phoneActionRequestSchema.omit({ actionId: true, kind: true }).extend({
+const bindingSchema = phoneActionRequestBaseSchema.omit({ actionId: true, kind: true }).extend({
   serial: z.string().regex(/^[A-Za-z0-9._:-]{1,128}$/),
   host: z.string().refine(v => isIP(v) !== 0 && !["0.0.0.0", "::"].includes(v)),
   port: z.int().min(1).max(65535),
   binaryPath: z.string().refine(isAbsolute), binarySha256: z.string().regex(/^[a-f0-9]{64}$/),
 });
 export type AdbReadScreenBinding = z.infer<typeof bindingSchema>;
-const ticketSchema = phoneActionRequestSchema.extend({ serial: bindingSchema.shape.serial,
+const ticketSchema = phoneActionRequestBaseSchema.extend({ serial: bindingSchema.shape.serial,
   checkedAt: timestampSchema, validUntil: timestampSchema, replayed: z.literal(false) });
 export class AdbReadScreenError extends Error {
   constructor(readonly code: "INVALID_BOUNDARY" | "DENIED" | "READ_UNCONFIRMED") {

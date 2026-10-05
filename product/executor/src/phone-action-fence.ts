@@ -2,12 +2,12 @@ import { randomUUID } from "node:crypto";
 import { closeSync, constants, lstatSync, openSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
-import { admissionGenerationSchema, phoneActionRequestSchema, timestampSchema, uuidSchema,
+import { admissionGenerationSchema, phoneActionRequestSchema, phoneActionRequestBaseSchema, phoneActionKindSchema, timestampSchema, uuidSchema,
   type PhoneActionRequest } from "@socialgrowth/product-contracts";
 
-const grantSchema = phoneActionRequestSchema.omit({ actionId: true, kind: true }).extend({
+const grantSchema = phoneActionRequestBaseSchema.omit({ actionId: true, kind: true }).extend({
   serial: z.string().min(1).max(128), leaseUntil: timestampSchema,
-  allowedKinds: z.array(phoneActionRequestSchema.shape.kind).min(1),
+  allowedKinds: z.array(phoneActionKindSchema).min(1),
 });
 export type LocalPhoneGrant = z.infer<typeof grantSchema>;
 const proofSchema = z.strictObject({
@@ -15,10 +15,10 @@ const proofSchema = z.strictObject({
   controlGeneration: admissionGenerationSchema, evidenceId: uuidSchema, checkedAt: timestampSchema,
   allPathsFenced: z.literal(true), controllerReleased: z.literal(true), targetQuiescent: z.literal(true),
 });
-const ticketSchema = phoneActionRequestSchema.extend({ serial: z.string().min(1).max(128),
+const ticketSchema = phoneActionRequestBaseSchema.extend({ serial: z.string().min(1).max(128),
   checkedAt: timestampSchema, validUntil: timestampSchema, replayed: z.literal(false) });
 export type PhoneTransportTicket = z.infer<typeof ticketSchema>;
-const originalEndSchema = phoneActionRequestSchema.extend({ serial: z.string().min(1).max(128),
+const originalEndSchema = phoneActionRequestBaseSchema.extend({ serial: z.string().min(1).max(128),
   stopRequestId: uuidSchema, stopGeneration: admissionGenerationSchema,
   checkedAt: timestampSchema, evidenceId: uuidSchema, status: z.literal("ended") });
 const stateSchema = z.strictObject({

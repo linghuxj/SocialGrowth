@@ -6,7 +6,7 @@ import { uuidSchema } from "./common.js";
 export const controlProtocolVersion = "2026-09-30.control-v1" as const;
 export const actionPurposeSchema = z.enum(["business", "recovery_check", "exit_cleanup", "operator_takeover"]);
 export const phoneActionKindSchema = z.enum(["read_screen", "navigate", "write_input", "submit_login", "submit_publication", "remove_content", "sign_out"]);
-const phoneActionRequestBaseSchema = z.strictObject({
+export const phoneActionRequestBaseSchema = z.strictObject({
   protocolVersion: z.literal(controlProtocolVersion),
   deviceId: uuidSchema,
   holderId: uuidSchema,

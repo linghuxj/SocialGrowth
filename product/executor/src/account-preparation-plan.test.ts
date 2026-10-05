@@ -6,7 +6,7 @@ import { planAccountPreparation, preparationInstructions } from "./account-prepa
 function input(): AccountPreparationInput {
   return accountPreparationInputSchema.parse({ protocolVersion: executionLibraryVersion,
     projectId: "11111111-1111-4111-8111-111111111111", deviceId: "22222222-2222-4222-8222-222222222222", accountId: "33333333-3333-4333-8333-333333333333",
-    parentLoginRef: "parent-login-record", mode: "prepare_if_missing",
+    mode: "prepare_if_missing",
     target: { platform: "facebook", name: "Authorized Page", expectedId: null, category: "Entertainment", description: "Authorized business" },
     requestedScope: { scopeRef: "initialization-scope", allowTrustedInstall: true, allowIdentityCreation: true },
     facts: { version: 1, currentScopeMatches: true, unresolvedDeviceTask: false, boundIdentityId: null, priorCreation: "none",

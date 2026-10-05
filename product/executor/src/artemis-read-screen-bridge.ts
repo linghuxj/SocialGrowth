@@ -3,12 +3,12 @@ import { chmodSync, lstatSync, realpathSync, unlinkSync } from "node:fs";
 import { createServer, type Server, type Socket } from "node:net";
 import { dirname, basename, isAbsolute } from "node:path";
 import { z } from "zod";
-import { phoneActionRequestSchema, uuidSchema, type PhoneActionRequest } from "@socialgrowth/product-contracts";
+import { phoneActionRequestSchema, phoneActionRequestBaseSchema, uuidSchema, type PhoneActionRequest } from "@socialgrowth/product-contracts";
 import { PhoneActionFence } from "./phone-action-fence.js";
 import type { AdbScreenCapture } from "./adb-read-screen-transport.js";
 
 export const readScreenBridgeVersion = "2026-10-02.read-screen-v1";
-const scopeSchema = phoneActionRequestSchema.omit({ actionId: true, kind: true }).extend({ serial: z.string().min(1).max(128) });
+const scopeSchema = phoneActionRequestBaseSchema.omit({ actionId: true, kind: true }).extend({ serial: z.string().min(1).max(128) });
 export type ReadScreenBridgeScope = z.infer<typeof scopeSchema>;
 export interface ReadScreenBridgeAccess { socketPath: string; token: string; scopeDigest: string; serial: string }
 const requestSchema = z.strictObject({ version: z.literal(readScreenBridgeVersion), requestId: uuidSchema,
