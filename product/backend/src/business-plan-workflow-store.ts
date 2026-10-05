@@ -20,7 +20,7 @@ export interface TaskWorkflowExecutorPort {
     authorizeAction(stepId: string): Promise<WorkflowActionPermit | null> }): Promise<WorkflowReportedObservation>
 }
 export type TrustedWorkflowVerification = { verificationEventId: string; payloadDigest: string;
-  decision: "prepared" | "verified_published" | "verified_not_published" | "unknown"; resultId: string | null; verifiedAt: string | null };
+  decision: "prepared" | "verified_published" | "verified_not_published" | "unknown"; resultId: string | null; verifiedAt: string | null; blockers?: string[] };
 export interface TrustedPublicationVerifierPort {
   verifyOriginal(input: { scope: BusinessPlanWorkflowScope; operationId: string;
     observation: WorkflowReportedObservation | null }): Promise<TrustedWorkflowVerification>
@@ -241,7 +241,8 @@ export class BusinessPlanWorkflowStore {
       || !/^[0-9a-f-]{36}$/i.test(result.verificationEventId) || !hashPattern.test(result.payloadDigest)
       || !["prepared", "verified_published", "verified_not_published", "unknown"].includes(result.decision)
       || (result.resultId !== null && (result.resultId.length < 1 || result.resultId.length > 200))
-      || (result.verifiedAt !== null && !Number.isFinite(Date.parse(result.verifiedAt)))) throw new BusinessPlanWorkflowError("INPUT_INVALID");
+      || (result.verifiedAt !== null && !Number.isFinite(Date.parse(result.verifiedAt)))
+      || (result.blockers !== undefined && (!Array.isArray(result.blockers) || result.blockers.some(value => typeof value !== "string")))) throw new BusinessPlanWorkflowError("INPUT_INVALID");
     const complete = result.decision !== "unknown";
     if (complete !== Boolean(result.resultId && result.verifiedAt)) throw new BusinessPlanWorkflowError("INPUT_INVALID");
     return this.tx(async client => {
@@ -258,12 +259,14 @@ export class BusinessPlanWorkflowStore {
         if (sameOutcome && (job.state === "prepared" ? job.preparedResultId === result.resultId : job.verifiedResultId === result.resultId) && sameTime) return job;
         throw new BusinessPlanWorkflowError("EVENT_CONFLICT");
       }
+      const nextBlockers = complete ? [] : blockers([...job.blockers, ...(result.blockers ?? [])]);
+      if (job.state === "submission_unknown" && !complete && JSON.stringify(nextBlockers) === JSON.stringify(job.blockers)) return job;
       await this.event(client, job.workflowId, job.scopeFingerprint, "verify:" + result.verificationEventId, "verification_completed", result);
       const state = result.decision === "prepared" ? "prepared" : result.decision === "verified_published" ? "verified" : result.decision === "verified_not_published" ? "not_published" : "submission_unknown";
       const submission = result.decision;
       const operationState = result.decision === "prepared" ? "prepared" : result.decision === "verified_published" ? "verified" : result.decision === "verified_not_published" ? "not_published" : "submission_unknown";
-      await client.query("UPDATE " + schema + ".business_plan_workflow_jobs SET state=$2,submission_state=$3,operation_state=$4,verified_result_id=$5,verified_at=$6,prepared_at=CASE WHEN $2='prepared' THEN $6 ELSE NULL END,prepared_result_id=CASE WHEN $2='prepared' THEN $7 ELSE NULL END,claim_id=NULL,claim_owner=NULL,lease_until=NULL,updated_at=clock_timestamp() WHERE workflow_id=$1 AND operation_id=$8 AND state NOT IN ('prepared','verified','not_published')",
-        [job.workflowId, state, submission, operationState, result.decision === "prepared" ? null : result.resultId, result.verifiedAt, result.decision === "prepared" ? result.resultId : null, operationId]);
+      await client.query("UPDATE " + schema + ".business_plan_workflow_jobs SET state=$2,submission_state=$3,operation_state=$4,verified_result_id=$5,verified_at=$6::timestamptz,prepared_at=CASE WHEN $2='prepared' THEN $6::timestamptz ELSE NULL END,prepared_result_id=CASE WHEN $2='prepared' THEN $7 ELSE NULL END,blockers=$9::jsonb,claim_id=NULL,claim_owner=NULL,lease_until=NULL,updated_at=clock_timestamp() WHERE workflow_id=$1 AND operation_id=$8 AND state NOT IN ('prepared','verified','not_published')",
+        [job.workflowId, state, submission, operationState, result.decision === "prepared" ? null : result.resultId, result.verifiedAt, result.decision === "prepared" ? result.resultId : null, operationId, JSON.stringify(nextBlockers)]);
       const updated = await this.readOne(client, taskId);
       if (!updated) throw unavailable();
       return updated;
@@ -332,7 +335,7 @@ export class BusinessPlanWorkflowConsumer implements BusinessPlanWorkflowPortSta
     const result = await this.ports.proofVerifier.verifyOriginal({ scope: job.scope, operationId: job.operationId, observation: null });
     // This is a GET-only reconciliation of the same operation. Unknown or still-running
     // responses stay frozen and are never converted into another dispatch.
-    if (result.decision !== "prepared") return job;
+    if (result.decision !== "prepared" && !(result.decision === "unknown" && result.blockers?.length)) return job;
     return this.store.applyTrustedVerification(job.taskId, job.operationId, result);
   }
   async start(scopeInput: unknown, workerId: string) {

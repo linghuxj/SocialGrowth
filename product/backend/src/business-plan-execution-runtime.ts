@@ -4,7 +4,7 @@ import type { BusinessPlanWorkflowPorts, WorkflowReadiness } from "./business-pl
 
 type ExecutionFacts = { canonicalIdentityRef: string; accountId: string; pageName: string; captionText: string };
 type RuntimeResult = { operationId: string; claimId: string; scopeFingerprint: string; state: "running" | "completed" | "unknown" | "blocked";
-  scope: BusinessPlanWorkflowScope; evidenceVerified?: boolean; identityMappingVerified?: boolean;
+  scope: BusinessPlanWorkflowScope; diagnostic?: { phase: "identity_audit" | "content_preflight" | "unknown"; reason: string }; evidenceVerified?: boolean; identityMappingVerified?: boolean;
   receipt: null | { publishStatus: string; executionStatus: string; observedIdentity?: string; observedIdentityKind?: string; observedIdentityName?: string;
     observedIdentityId?: string; parentIdentity?: string; managementVerified?: boolean; evidenceRefs: string[] } };
 function canonicalJson(value: unknown): string {
@@ -110,9 +110,14 @@ export class BusinessPlanExecutionRuntime {
         const sameOperation = result.operationId === operationId && result.scopeFingerprint === expectedFingerprint && canonicalJson(result.scope) === canonicalJson(scope);
         const prepared = sameOperation && result.evidenceVerified === true && result.state === "completed"
           && result.receipt?.executionStatus === "completed" && result.receipt.evidenceRefs.length > 0 && identityValid;
+        const phase = result.diagnostic?.phase;
+        const diagnosticBlockers = sameOperation && result.state !== "running" && result.diagnostic
+          ? [result.diagnostic.reason === "EXECUTION_TIMEOUT"
+            ? phase === "identity_audit" ? "identity_audit_timeout" : phase === "content_preflight" ? "content_preflight_timeout" : "preflight_timeout"
+            : phase === "identity_audit" ? "identity_audit_incomplete" : phase === "content_preflight" ? "content_preflight_failed" : "preflight_failed"] : [];
         return { verificationEventId: randomUUID(), payloadDigest: createHash("sha256").update(JSON.stringify(result)).digest("hex"),
           decision: prepared ? "prepared" : result.state === "blocked" ? "unknown" : "unknown",
-          resultId: prepared ? operationId : null, verifiedAt: prepared ? new Date().toISOString() : null };
+          resultId: prepared ? operationId : null, verifiedAt: prepared ? new Date().toISOString() : null, blockers: prepared ? [] : diagnosticBlockers };
       } },
       originalAttemptReconciler: { reconcileOriginalAttempt: async ({ scope, claimId, scopeFingerprint }) => {
         const jobs = await request("/api/runtime/business-plan-executions") as RuntimeResult[];

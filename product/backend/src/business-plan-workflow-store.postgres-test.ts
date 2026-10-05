@@ -55,6 +55,7 @@ before(async () => {
     CREATE FUNCTION socialgrowth_product.business_plan_immutable() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RAISE EXCEPTION 'immutable'; END$$;`);
   const migration = await readFile(new URL("../migrations/0041_business_plan_workflow.sql", import.meta.url), "utf8");
   await pool.query(migration);
+  await pool.query(await readFile(new URL("../migrations/0046_business_plan_preflight_prepared.sql", import.meta.url), "utf8"));
 });
 after(async () => { try { await pool.query("DROP SCHEMA IF EXISTS socialgrowth_product CASCADE"); } finally { await pool.end(); } });
 
@@ -130,4 +131,32 @@ test("an expired pre-operation claim is retained for read-only reconciliation an
     originalAttemptReconciler:{reconcileOriginalAttempt:async input=>{reconciles++;assert.equal(input.claimId,claim!.claimId);return {outcome:"not_found"};}}});
   const reconciled = await consumer.runOnce(value,"worker-reconcile");
   assert.equal(reconciled?.state,"blocked"); assert.equal(dispatches,0); assert.equal(reconciles,1);
+});
+
+
+test("querying failed original check persists diagnostics without dispatch or successful verification", async () => {
+  const value = scope(); await addTask(value);
+  await store.materialize(value, ready(value));
+  const claim = await store.claim(value.taskId, "diagnostic-owner");
+  const original = await store.startOperation(value.taskId, claim!.claimId!, fingerprint(value));
+  await store.recordObservation(value.taskId, original!.operationId, { sourceEventId: uuid(), payloadDigest: "8".repeat(64), reportedState: "unknown" });
+  let dispatches = 0;
+  const consumer = new BusinessPlanWorkflowConsumer(store, { readiness: { assess: async () => ready(value) }, actionGate: null,
+    executor: { execute: async () => { dispatches++; throw new Error("Must never reissue"); } },
+    proofVerifier: { verifyOriginal: async ({ operationId }) => {
+      assert.equal(operationId, original!.operationId);
+      return { verificationEventId: uuid(), payloadDigest: "9".repeat(64), decision: "unknown", resultId: null, verifiedAt: null, blockers: ["identity_audit_timeout"] };
+    } } });
+  const queried = await consumer.queryOriginal(value.projectId, value.taskId);
+  assert.equal(queried?.state, "submission_unknown");
+  assert.equal(queried?.operationId, original!.operationId);
+  assert.deepEqual(queried?.blockers, ["identity_audit_timeout"]);
+  assert.equal(queried?.verifiedResultId, null);
+  assert.equal(queried?.preparedAt, null);
+  const eventCount = async () => (await pool.query("SELECT count(*)::int AS n FROM socialgrowth_product.business_plan_workflow_events WHERE workflow_id=$1", [queried!.workflowId])).rows[0].n;
+  const before = await eventCount();
+  await consumer.queryOriginal(value.projectId, value.taskId);
+  assert.equal(await eventCount(), before);
+  assert.equal(dispatches, 0);
+  assert.equal(await store.claim(value.taskId, "retry-must-not-win"), null);
 });

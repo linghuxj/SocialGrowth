@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import type { BusinessPlanCurrentCheckBlocker } from "@socialgrowth/product-contracts";
+import type { BusinessPlanCurrentCheckBlocker, BusinessPlanWorkflowResponse } from "@socialgrowth/product-contracts";
 import { ArrowClockwise, ArrowSquareOut, ClipboardText } from "@phosphor-icons/react";
 import { readProjectCurrentChecks, type ProjectCurrentChecksView } from "./project-lifecycle-api.js";
 import { createBusinessPlanTaskAttempt, queryBusinessPlanPreflight, readBusinessPlanWorkflow, startBusinessPlanPreflight } from "./business-plan-api.js";
+import { preflightDiagnostics } from "./preflight-diagnostics.js";
 import { readFact } from "./operations-facts.js";
 import { ProductApiError } from "./operator-api.js";
 
@@ -83,15 +84,22 @@ export function TaskReadinessPanel({ projectId, active, readOnly, onExpired, ref
   const [checks, setChecks] = useState<ProjectCurrentChecksView | null>(null);
   const [loadedProjectId, setLoadedProjectId] = useState<string | null>(null);
   const [workflowStates, setWorkflowStates] = useState<Record<string, string>>({});
+  const [workflowBlockers, setWorkflowBlockers] = useState<Record<string, string[]>>({});
   const [preflightBusy, setPreflightBusy] = useState<string | null>(null);
   const sequence = useRef(0);
   const expiredRef = useRef(onExpired);
   expiredRef.current = onExpired;
 
+  function showWorkflow(workflow: BusinessPlanWorkflowResponse) {
+    setWorkflowStates(Object.fromEntries(workflow.tasks.map(task => [task.taskId.toLowerCase(), task.workflow.state])));
+    setWorkflowBlockers(Object.fromEntries(workflow.tasks.map(task => [task.taskId.toLowerCase(), task.workflow.blockers])));
+  }
+
   async function refresh() {
     const current = ++sequence.current;
     setState("loading");
     setWorkflowStates({});
+    setWorkflowBlockers({});
     const result = await readFact(() => readProjectCurrentChecks(projectId), error => {
       if (current === sequence.current) expiredRef.current(error);
     });
@@ -108,7 +116,7 @@ export function TaskReadinessPanel({ projectId, active, readOnly, onExpired, ref
     setChecks(result.value);
     setState("loaded");
     void readBusinessPlanWorkflow(projectId).then(workflow => {
-      if (current === sequence.current) setWorkflowStates(Object.fromEntries(workflow.tasks.map(task => [task.taskId.toLowerCase(), task.workflow.state])));
+      if (current === sequence.current) showWorkflow(workflow);
     }).catch(error => {
       if (current === sequence.current && error instanceof Error && "status" in error && (error as { status?: number }).status === 401) expiredRef.current(error);
       else if (current === sequence.current) setWorkflowStates(Object.fromEntries(result.value.tasks.map(task => [task.taskId.toLowerCase(), "response_unknown"])));
@@ -124,7 +132,7 @@ export function TaskReadinessPanel({ projectId, active, readOnly, onExpired, ref
     try {
       if (["running", "submission_unknown", "response_unknown"].includes(stateNow ?? "")) {
         const workflow = stateNow === "response_unknown" ? await readBusinessPlanWorkflow(projectId) : await queryBusinessPlanPreflight(projectId, taskId);
-        setWorkflowStates(Object.fromEntries(workflow.tasks.map(task => [task.taskId.toLowerCase(), task.workflow.state])));
+        showWorkflow(workflow);
         await refresh();
         return;
       }
@@ -163,7 +171,7 @@ export function TaskReadinessPanel({ projectId, active, readOnly, onExpired, ref
   useEffect(() => {
     if (!active || !Object.values(workflowStates).some(value => ["queued", "claimed", "running", "submission_unknown"].includes(value))) return;
     const timer = setTimeout(() => {
-      void readBusinessPlanWorkflow(projectId).then(workflow => setWorkflowStates(Object.fromEntries(workflow.tasks.map(task => [task.taskId.toLowerCase(), task.workflow.state])))).catch(error => {
+      void readBusinessPlanWorkflow(projectId).then(workflow => showWorkflow(workflow)).catch(error => {
         if (error instanceof Error && "status" in error && (error as { status?: number }).status === 401) expiredRef.current(error);
         else setWorkflowStates(value => Object.fromEntries(Object.keys(value).map(taskId => [taskId, "response_unknown"])));
       });
@@ -206,6 +214,7 @@ export function TaskReadinessPanel({ projectId, active, readOnly, onExpired, ref
             || task.planRevision !== current.plan.revision);
           const blockerEntries = task.blockers.map(code => ({ code, ...blockerInfo[code] }));
           const workflowState = workflowStates[task.taskId.toLowerCase()];
+          const diagnostics = (workflowBlockers[task.taskId.toLowerCase()] ?? []).map(code => preflightDiagnostics[code]).filter(Boolean);
           return <article className="task-readiness__row" key={task.taskId}>
             <div className="task-readiness__task">
               <strong>{task.platform === "facebook" ? "Facebook" : "YouTube"} · {formLabel[task.form] ?? "成品形式未知"}</strong>
@@ -261,6 +270,7 @@ export function TaskReadinessPanel({ projectId, active, readOnly, onExpired, ref
                 {!readOnly && <button type="button" className="outline-button" disabled={!!preflightBusy || task.blockers.some(code => !["action_inspector_unavailable","network_not_admitted","stop_unconfirmed"].includes(code)) || ["claimed","prepared","verified","not_published"].includes(workflowState ?? "")}
                   onClick={() => void startPreflight(task.taskId)}>{preflightBusy === task.taskId ? "正在连接手机核对…" : ["running","submission_unknown","response_unknown"].includes(workflowState ?? "") ? "查询原核查状态" : attempt ? "检查 Page 与切片发布准备" : "创建原尝试并检查发布准备"}</button>
                 }
+                {diagnostics.map(({ title, next }) => <div key={title} role="status"><strong>{title}</strong><p>{next}</p></div>)}
                 {workflowState === "prepared" && <strong role="status">发布准备已核对，尚未发布</strong>}
                 {workflowState === "submission_unknown" && <strong role="alert">原核查结果未知，已冻结；先查询原操作，不会重发。</strong>}
                 {workflowState === "response_unknown" && <strong role="alert">请求响应中断，原核查状态未知；请查询当前状态，不会重新发起。</strong>}

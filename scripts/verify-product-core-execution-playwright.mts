@@ -8,6 +8,8 @@ assert.equal(new URL(base).hostname, "127.0.0.1");
 const projectName = process.env.SG_PRODUCT_CORE_PROJECT_NAME;
 assert.ok(projectName, "Use the existing authorized test project");
 const execute = process.env.SG_PRODUCT_CORE_EXECUTE === "1";
+const queryUnknown = process.env.SG_PRODUCT_CORE_EXPECT_UNKNOWN === "1";
+assert.ok(!(execute && queryUnknown), "Querying an unknown original must never start a new check");
 const output = resolve(process.env.SG_PRODUCT_CORE_OUTPUT ?? "output/playwright/core-execution-20261006");
 await mkdir(output, { recursive: true });
 const password = JSON.parse(await readFile(".runtime/product-local-live/config.json", "utf8")).operatorPassword;
@@ -48,6 +50,25 @@ try {
   checks.push("390px 保持只读、隐藏启动动作且无整页横向溢出");
   await page.setViewportSize({ width: 1465, height: 1074 });
   await page.getByText("手机端为只读模式", { exact: true }).waitFor({ state: "hidden" });
+  if (queryUnknown) {
+    step = "query original failed audit and inspect operator feedback";
+    const querying = readiness.getByRole("button", { name: "查询原核查状态", exact: true });
+    await querying.click();
+    await readiness.getByText(/身份核验超时|原发布准备检查超时/).waitFor();
+    assert.ok((await readiness.innerText()).includes("系统不会重复启动") || (await readiness.innerText()).includes("结果核清前不会重复启动"));
+    assert.equal(await readiness.getByRole("button", { name: /创建原尝试并检查|检查 Page 与切片/ }).count(), 0);
+    assert.equal(starts, 0); assert.equal(attempts, 0);
+    await readiness.screenshot({ path: resolve(output, "original-timeout-desktop.png") });
+    await page.reload();
+    await project.getByRole("button", { name: "排期与任务", exact: true }).click();
+    await readiness.getByText(/身份核验超时|原发布准备检查超时/).waitFor();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByText("手机端为只读模式", { exact: true }).waitFor();
+    await readiness.screenshot({ path: resolve(output, "original-timeout-390.png") });
+    assert.equal(await readiness.getByRole("button", { name: "查询原核查状态", exact: true }).count(), 0);
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+    checks.push("原核验超时原因和下一步可见，刷新后保留，桌面只查询、手机只读，零重复派发");
+  }
   if (execute) {
     step = "real phone preflight with lost HTTP response";
     const start = readiness.getByRole("button", { name: /创建原尝试并检查发布准备|检查 Page 与切片发布准备/, exact: false });
@@ -78,7 +99,7 @@ try {
     await prepared.waitFor();
     checks.push("原任务可信准备结果回写且刷新后保留，明确尚未发布");
   }
-  await writeFile(resolve(output, "result.json"), JSON.stringify({ result: "passed", checks, starts, attempts, phonePreflight: execute, publicPublication: false }, null, 2));
+  await writeFile(resolve(output, "result.json"), JSON.stringify({ result: "passed", checks, starts, attempts, phonePreflight: execute, queriedOriginalUnknown: queryUnknown, publicPublication: false }, null, 2));
   console.log(JSON.stringify({ passed: true, checks: checks.length, starts, attempts, phonePreflight: execute }));
 } catch (error) {
   await page.screenshot({ path: resolve(output, "failed.png"), fullPage: true });

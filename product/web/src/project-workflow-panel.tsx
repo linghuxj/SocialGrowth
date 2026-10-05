@@ -2,6 +2,7 @@ import { ArrowClockwise, ArrowSquareOut, ClipboardText, FileText, Robot } from "
 import { useEffect, useRef, useState } from "react";
 import type { BusinessPlanWorkflowResponse, OperatorAssistanceTodoDetailResponse, ProjectFeedbackResponse } from "@socialgrowth/product-contracts";
 import { ProductApiError } from "./operator-api.js";
+import { preflightDiagnostics } from "./preflight-diagnostics.js";
 import { readFact } from "./operations-facts.js";
 import { readProjectFeedback } from "./project-feedback-api.js";
 import { readAssistanceTodoDetail, readProjectWorkflow } from "./workflow-api.js";
@@ -16,7 +17,7 @@ const workflowLabels: Record<BusinessPlanWorkflowResponse["tasks"][number]["work
   queued: "等待系统调度",
   claimed: "执行端已领取",
   running: "任务执行中",
-  submission_unknown: "提交结果待核实",
+  submission_unknown: "原执行结果待核实",
   prepared: "发布准备已核对，尚未发布",
   verified: "可信结果核验已完成",
   not_published: "可信核验为未发布",
@@ -27,7 +28,7 @@ const operationLabels: Record<NonNullable<BusinessPlanWorkflowResponse["tasks"][
   queued: "已创建，等待调度",
   claimed: "执行端已领取",
   running: "执行进行中",
-  submission_unknown: "提交结果未知，需核实原操作",
+  submission_unknown: "原执行结果未知，需核实原操作",
   prepared: "发布准备已核对，尚未发布",
   verified: "可信核验已完成",
   not_published: "已核验未发布",
@@ -86,8 +87,8 @@ function displayTime(raw: string | null | undefined): string {
   return Number.isNaN(value.getTime()) ? "时间未知" : new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 }
 
-function titleForBlocker(code: string) {
-  return blockerMessages[code] ?? { title: `系统返回待处理条件：${code}`, next: "查看当前项目条件和设备事实；未核清前不会按就绪处理。" };
+function titleForBlocker(code: string): { title: string; next: string; destination?: BlockerDestination } {
+  return preflightDiagnostics[code] ?? blockerMessages[code] ?? { title: `系统返回待处理条件：${code}`, next: "查看当前项目条件和设备事实；未核清前不会按就绪处理。" };
 }
 
 export function ProjectWorkflowPanel({ projectId, active, readOnly, onExpired, refreshVersion = 0, onNavigate, onOpenTodos, onOpenMediaAccounts, onOpenDevices }:
