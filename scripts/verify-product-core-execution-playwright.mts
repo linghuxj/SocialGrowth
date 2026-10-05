@@ -28,11 +28,14 @@ try {
   await page.getByLabel("登录名", { exact: true }).fill("device-live-local");
   await page.getByLabel("密码", { exact: true }).fill(password);
   await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByRole("button", { name: "项目", exact: true }).click();
   const project = page.locator(".project-workspace");
-  await project.getByRole("row").filter({ has: page.getByText(projectName, { exact: true }) })
-    .getByRole("button", { name: "打开项目", exact: true }).click();
-  await project.getByRole("button", { name: "排期与任务", exact: true }).click();
+  async function openProjectTasks() {
+    await page.getByRole("button", { name: "项目", exact: true }).click();
+    await project.getByRole("row").filter({ has: page.getByText(projectName!, { exact: true }) })
+      .getByRole("button", { name: "打开项目", exact: true }).click();
+    await project.getByRole("button", { name: "排期与任务", exact: true }).click();
+  }
+  await openProjectTasks();
   const readiness = page.getByRole("region", { name: "计划任务当前条件", exact: true });
   await readiness.getByText(/发布准备状态：/).waitFor();
   await readiness.getByText(/检查时间：/).waitFor();
@@ -54,13 +57,14 @@ try {
     step = "query original failed audit and inspect operator feedback";
     const querying = readiness.getByRole("button", { name: "查询原核查状态", exact: true });
     await querying.click();
+    await querying.waitFor({ state: "visible" });
     await readiness.getByText(/身份核验超时|原发布准备检查超时/).waitFor();
     assert.ok((await readiness.innerText()).includes("系统不会重复启动") || (await readiness.innerText()).includes("结果核清前不会重复启动"));
     assert.equal(await readiness.getByRole("button", { name: /创建原尝试并检查|检查 Page 与切片/ }).count(), 0);
     assert.equal(starts, 0); assert.equal(attempts, 0);
     await readiness.screenshot({ path: resolve(output, "original-timeout-desktop.png") });
     await page.reload();
-    await project.getByRole("button", { name: "排期与任务", exact: true }).click();
+    await openProjectTasks();
     await readiness.getByText(/身份核验超时|原发布准备检查超时/).waitFor();
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByText("手机端为只读模式", { exact: true }).waitFor();
@@ -95,7 +99,7 @@ try {
     assert.ok(starts <= 1 && attempts <= 1, "One original attempt and one start at most");
     await readiness.screenshot({ path: resolve(output, "prepared.png") });
     await page.reload();
-    await project.getByRole("button", { name: "排期与任务", exact: true }).click();
+    await openProjectTasks();
     await prepared.waitFor();
     checks.push("原任务可信准备结果回写且刷新后保留，明确尚未发布");
   }

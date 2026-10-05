@@ -85,7 +85,7 @@ export function TaskReadinessPanel({ projectId, active, readOnly, onExpired, ref
   const [loadedProjectId, setLoadedProjectId] = useState<string | null>(null);
   const [workflowStates, setWorkflowStates] = useState<Record<string, string>>({});
   const [workflowBlockers, setWorkflowBlockers] = useState<Record<string, string[]>>({});
-  const [preflightBusy, setPreflightBusy] = useState<string | null>(null);
+  const [preflightBusy, setPreflightBusy] = useState<{ taskId: string; queryOnly: boolean } | null>(null);
   const sequence = useRef(0);
   const expiredRef = useRef(onExpired);
   expiredRef.current = onExpired;
@@ -128,7 +128,7 @@ export function TaskReadinessPanel({ projectId, active, readOnly, onExpired, ref
     const currentTask = current.tasks.find(task => task.taskId.toLowerCase() === taskId.toLowerCase());
     if (!currentTask) return;
     const stateNow = workflowStates[taskId.toLowerCase()];
-    setPreflightBusy(taskId);
+    setPreflightBusy({ taskId, queryOnly: ["running", "submission_unknown", "response_unknown"].includes(stateNow ?? "") });
     try {
       if (["running", "submission_unknown", "response_unknown"].includes(stateNow ?? "")) {
         const workflow = stateNow === "response_unknown" ? await readBusinessPlanWorkflow(projectId) : await queryBusinessPlanPreflight(projectId, taskId);
@@ -268,7 +268,7 @@ export function TaskReadinessPanel({ projectId, active, readOnly, onExpired, ref
               </>}
               {task.platform === "facebook" && task.form === "facebook_video" && <>
                 {!readOnly && <button type="button" className="outline-button" disabled={!!preflightBusy || task.blockers.some(code => !["action_inspector_unavailable","network_not_admitted","stop_unconfirmed"].includes(code)) || ["claimed","prepared","verified","not_published"].includes(workflowState ?? "")}
-                  onClick={() => void startPreflight(task.taskId)}>{preflightBusy === task.taskId ? "正在连接手机核对…" : ["running","submission_unknown","response_unknown"].includes(workflowState ?? "") ? "查询原核查状态" : attempt ? "检查 Page 与切片发布准备" : "创建原尝试并检查发布准备"}</button>
+                  onClick={() => void startPreflight(task.taskId)}>{preflightBusy?.taskId === task.taskId ? preflightBusy.queryOnly ? "正在查询原检查…" : "正在连接手机核对…" : ["running","submission_unknown","response_unknown"].includes(workflowState ?? "") ? "查询原核查状态" : attempt ? "检查 Page 与切片发布准备" : "创建原尝试并检查发布准备"}</button>
                 }
                 {diagnostics.map(({ title, next }) => <div key={title} role="status"><strong>{title}</strong><p>{next}</p></div>)}
                 {workflowState === "prepared" && <strong role="status">发布准备已核对，尚未发布</strong>}
