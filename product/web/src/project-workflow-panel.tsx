@@ -26,7 +26,7 @@ const operationLabels: Record<NonNullable<BusinessPlanWorkflowResponse["tasks"][
   queued: "已创建，等待调度",
   claimed: "执行端已领取",
   running: "执行进行中",
-  submission_unknown: "提交结果未知，正在核实原操作",
+  submission_unknown: "提交结果未知，需核实原操作",
   verified: "可信核验已完成",
   not_published: "已核验未发布",
   failed: "执行失败",
@@ -34,8 +34,8 @@ const operationLabels: Record<NonNullable<BusinessPlanWorkflowResponse["tasks"][
 
 const recheckLabels: Record<OperatorAssistanceTodoDetailResponse["recheck"]["status"], string> = {
   not_requested: "尚未请求系统复核",
-  pending: "系统正在复核原任务",
-  verified_recovered: "系统复核通过，正在重新检查原任务条件",
+  pending: "复核请求已排队或认领；尚未证明系统开始执行",
+  verified_recovered: "可信端已核验并接续原任务",
   still_blocked: "系统复核后仍有阻断",
   unknown: "复核结果未知",
 };
