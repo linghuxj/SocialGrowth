@@ -4,14 +4,27 @@ import type { BusinessPlanCurrentView } from "@socialgrowth/product-contracts";
 import { ArrowClockwise, CalendarDots, ClipboardText } from "@phosphor-icons/react";
 import { BusinessPlanClientError, PreparedBusinessPlanArrange, readBusinessPlan } from "./business-plan-api.js";
 import { isDefinitiveProjectRejection, newIdempotencyKey, ProductApiError } from "./operator-api.js";
+import { TaskReadinessPanel } from "./task-readiness-panel.js";
 
 const formLabel = (form: string) => ({ facebook_video: "Facebook 视频", facebook_image_text: "Facebook 图文", youtube_shorts: "YouTube Shorts", youtube_video: "YouTube 视频" }[form] ?? form);
 const platformLabel = (platform: string) => platform === "facebook" ? "Facebook" : "YouTube";
 const outcomeLabel = (outcome: string) => ({ planned: "已根据当前权威事实生成并保存排期与待核查任务。", unchanged: "当前排期未变化。", insufficient_data: "当前资料不足，服务没有安排新任务。", direction_confirmation_required: "模型要求运营先确认方向调整；请回到方向页复核提案。" }[outcome] ?? "请求已返回。");
 const arrangeWaitLimitMs = 45_000;
 
-export function BusinessPlanPanel({ projectId, active, readOnly, onExpired }: { projectId: string; active: boolean; readOnly: boolean; onExpired: (error: unknown) => void }) {
+type ProjectTab = "settings" | "materials" | "lifecycle";
+type BusinessPlanPanelProps = {
+  projectId: string; active: boolean; readOnly: boolean; onExpired: (error: unknown) => void;
+  refreshVersion?: number;
+  onNavigate?: (tab: ProjectTab) => void;
+  onOpenMediaAccounts?: () => void;
+  onOpenDevices?: () => void;
+};
+
+export function BusinessPlanPanel({ projectId, active, readOnly, onExpired, refreshVersion = 0,
+  onNavigate, onOpenMediaAccounts, onOpenDevices,
+}: BusinessPlanPanelProps) {
   const [view, setView] = useState<BusinessPlanCurrentView | null>(null), [loading, setLoading] = useState(false);
+  const [checksRefreshVersion, setChecksRefreshVersion] = useState(0);
   const [error, setError] = useState(""), [message, setMessage] = useState(""), [attention, setAttention] = useState(false);
   const [pending, setPending] = useState<PreparedBusinessPlanArrange | null>(null), [pendingRead, setPendingRead] = useState(false), [busy, setBusy] = useState(false);
   const sequence = useRef(0), alive = useRef(true);
@@ -20,14 +33,17 @@ export function BusinessPlanPanel({ projectId, active, readOnly, onExpired }: { 
     const current = ++sequence.current; setLoading(true); setError("");
     try {
       const next = await readBusinessPlan(projectId);
-      if (alive.current && current === sequence.current) { setView(next); setError(""); if (pending) setPendingRead(true); }
+      if (alive.current && current === sequence.current) {
+        if (view) setChecksRefreshVersion(value => value + 1);
+        setView(next); setError(""); if (pending) setPendingRead(true);
+      }
     } catch (cause) {
       if (!alive.current || current !== sequence.current) return;
       if (cause instanceof ProductApiError && cause.status === 401) onExpired(cause);
       else setError("排期与任务事实暂不可用；读取失败不代表没有排期。");
     } finally { if (alive.current && current === sequence.current) setLoading(false); }
   }
-  useEffect(() => { if (active) void refresh(); else sequence.current++; }, [active, projectId]);
+  useEffect(() => { if (active) void refresh(); else sequence.current++; }, [active, projectId, refreshVersion]); // eslint-disable-line react-hooks/exhaustive-deps
   async function arrange(command?: PreparedBusinessPlanArrange) {
     const current = view;
     if (busy || readOnly || (!command && (!current?.currentScope.approvalId || !current))) return;
@@ -56,7 +72,7 @@ export function BusinessPlanPanel({ projectId, active, readOnly, onExpired }: { 
       if (result.kind === "error") throw result.cause;
       const response = result.response;
       if (!alive.current) return;
-      setView(response); setPending(null); setPendingRead(false); setMessage(outcomeLabel(response.outcome)); setAttention(response.outcome === "insufficient_data" || response.outcome === "direction_confirmation_required");
+      setView(response); setChecksRefreshVersion(value => value + 1); setPending(null); setPendingRead(false); setMessage(outcomeLabel(response.outcome)); setAttention(response.outcome === "insufficient_data" || response.outcome === "direction_confirmation_required");
     } catch (cause) {
       if (!alive.current) return;
       if (cause instanceof ProductApiError && cause.status === 401) { setPendingRead(false); onExpired(cause); return; }
@@ -89,7 +105,9 @@ export function BusinessPlanPanel({ projectId, active, readOnly, onExpired }: { 
         {!rows.length ? <p className="business-plan__empty">当前没有任务记录；只有服务端完成安排后才会显示任务。</p> : <div className="table-wrap"><table><thead><tr><th>平台／形式</th><th>语言</th><th>素材版本</th><th>计划时间</th><th>当前状态</th></tr></thead><tbody>{rows.map(task => <tr key={task.taskId}><td>{platformLabel(task.platform)} · {formLabel(task.form)}</td><td>{task.languageTag}</td><td>{task.variantId.slice(0, 8)}… v{task.materialRevision}</td><td>{new Date(task.scheduledAt).toLocaleString("zh-CN")}</td><td>待核查当前条件</td></tr>)}</tbody></table></div>}
         <p className="business-plan__guard">服务端返回的任务仍为 pending_current_checks；当前界面未提供执行或发布动作。排期和任务都不表示实际已运行。</p>
       </section>
-      <section className="business-plan__permissions" aria-label="权限状态"><span>执行许可：关闭</span><span>发布许可：关闭</span><span>回执与人工续接：未接入</span></section>
+      <section className="business-plan__permissions" aria-label="权限状态"><span>执行许可：关闭</span><span>发布许可：关闭</span><span>手机任务派发：未接入</span></section>
     </>}
+    <TaskReadinessPanel projectId={projectId} active={active} onExpired={onExpired} refreshVersion={refreshVersion + checksRefreshVersion}
+      onNavigate={onNavigate} onOpenMediaAccounts={onOpenMediaAccounts} onOpenDevices={onOpenDevices} />
   </section>;
 }
