@@ -237,9 +237,12 @@ export class BusinessPlanWorkflowStore {
       if (!job || job.operationId !== operationId) throw new BusinessPlanWorkflowError("CLAIM_STALE");
       const terminal = job.state === "verified" || job.state === "not_published";
       if (terminal) {
+        await this.event(client, job.workflowId, job.scopeFingerprint, "verify:" + result.verificationEventId, "verification_completed", result);
         const sameOutcome = (job.state === "verified" && result.decision === "verified_published")
           || (job.state === "not_published" && result.decision === "verified_not_published");
-        if (sameOutcome && job.verifiedResultId === result.resultId && job.verifiedAt === result.verifiedAt) return job;
+        const sameTime = job.verifiedAt !== null && result.verifiedAt !== null
+          && Date.parse(job.verifiedAt) === Date.parse(result.verifiedAt);
+        if (sameOutcome && job.verifiedResultId === result.resultId && sameTime) return job;
         throw new BusinessPlanWorkflowError("EVENT_CONFLICT");
       }
       await this.event(client, job.workflowId, job.scopeFingerprint, "verify:" + result.verificationEventId, "verification_completed", result);
