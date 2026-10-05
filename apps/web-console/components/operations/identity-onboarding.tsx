@@ -153,11 +153,14 @@ export function OnboardingJobs({
             )}
           </div>
 
-          {['unknown', 'interrupted'].includes(j.status) && (
+          {j.verificationClosure && (
             <Notice>
-              {j.verificationClosure
-                ? '这条旧核验已结束，后续不会再次查询或重发；原结果仍未知，不代表核验成功，且未修改发布绑定。'
-                : j.action === 'create' || (j.action === 'initialize' && j.initializationMode === 'create_if_missing')
+              这条旧核验已结束，后续不会再次查询或重发；原结果仍未知，不代表核验成功，且未修改发布绑定。
+            </Notice>
+          )}
+          {!j.verificationClosure && ['unknown', 'interrupted'].includes(j.status) && (
+            <Notice>
+              {j.action === 'create' || (j.action === 'initialize' && j.initializationMode === 'create_if_missing')
                 ? '创建结果未确认，不允许自动再次创建。请核对原设备与平台记录；已发现的身份请发起“核验已有”任务。'
                 : '身份核验未完成，未修改发布绑定。请查看阻断原因或现场截图，处理后重新核验。'}
             </Notice>

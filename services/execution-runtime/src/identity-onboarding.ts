@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { lstat, readFile, realpath } from "node:fs/promises";
 import { z } from "zod";
 import { ArtemisMcp, type ArtemisPort } from "./artemis.ts";
 import { AdbDevice, artemisStructuredResult } from "./device-executor.ts";
@@ -50,8 +51,11 @@ export type IdentityJob = Input & {
   verificationClosure?: {
     actor: "operator";
     at: string;
-    evidenceKind: "engine_trace_terminal" | "supervision_stop_and_session_closed";
+    evidenceKind: "engine_trace_terminal" | "artemis_archived_status" | "supervision_stop_and_session_closed";
     engineTraceStatus: string | "unavailable";
+    mcpStatusOutcome: "terminal_match" | "query_failed" | "response_incomplete";
+    mcpStatusError?: string;
+    engineTraceEndedAt?: string;
     originalStatus: "unknown" | "interrupted";
     originalReason?: string;
     originalTraceId: string;
@@ -466,6 +470,10 @@ After success, read complete platform ID and management evidence from native UI.
     this.assertNoInFlight(original);
 
     let engineTraceStatus: string | "unavailable" = "unavailable";
+    let engineTraceEndedAt: string | undefined;
+    let mcpStatusOutcome: "terminal_match" | "query_failed" | "response_incomplete" = "response_incomplete";
+    let mcpStatusError: string | undefined;
+    let evidenceKind: IdentityJob["verificationClosure"] extends infer C ? C extends { evidenceKind: infer K } ? K | null : never : never = null;
     const client = new ArtemisMcp(cfg.artemisRoot);
     try {
       await client.connect();
@@ -477,18 +485,33 @@ After success, read complete platform ID and management evidence from native UI.
         requireFact(!["pending", "running"].includes(name), "IDENTITY_TRACE_STILL_ACTIVE");
         const traceId = value.trace_id ?? value.traceId;
         const serial = value.device_serial ?? value.deviceSerial ?? value.serial;
-        if (["completed", "failed", "cancelled", "canceled"].includes(name)
-          && traceId === original.traceId && serial === original.serial) engineTraceStatus = name;
+        if (traceId !== undefined) requireFact(traceId === original.traceId, "IDENTITY_TRACE_SCOPE_MISMATCH");
+        if (serial !== undefined) requireFact(serial === original.serial, "IDENTITY_TRACE_SCOPE_MISMATCH");
+        if (["completed", "failed", "cancelled", "canceled"].includes(name) && traceId !== undefined && serial !== undefined) {
+          engineTraceStatus = name;
+          evidenceKind = "engine_trace_terminal";
+          mcpStatusOutcome = "terminal_match";
+        }
       }
     } catch (error) {
-      if (error instanceof RuntimeError && error.code === "IDENTITY_TRACE_STILL_ACTIVE") throw error;
+      if (error instanceof RuntimeError && ["IDENTITY_TRACE_STILL_ACTIVE", "IDENTITY_TRACE_SCOPE_MISMATCH"].includes(error.code)) throw error;
       // Missing/unreadable trace can only use the separately verified supervision-stop evidence below.
+      mcpStatusOutcome = "query_failed";
+      mcpStatusError = error instanceof RuntimeError ? error.code : "ARTEMIS_STATUS_QUERY_FAILED";
     } finally {
       await client.close().catch(() => undefined);
     }
 
-    const stopped = engineTraceStatus === "unavailable" ? this.stoppedSessionEvidence(original) : null;
-    requireFact(engineTraceStatus !== "unavailable" || stopped, "IDENTITY_STOP_EVIDENCE_REQUIRED");
+    if (engineTraceStatus === "unavailable") {
+      const archived = await this.readArchivedTraceStatus(cfg, original);
+      if (archived) {
+        engineTraceStatus = archived.status;
+        engineTraceEndedAt = archived.endTime;
+        evidenceKind = "artemis_archived_status";
+      }
+    }
+    const stopped = evidenceKind === null ? this.stoppedSessionEvidence(original) : null;
+    requireFact(evidenceKind !== null || stopped, "IDENTITY_STOP_EVIDENCE_REQUIRED");
     await this.assertNoEngineOwner(cfg);
 
     this.store.db.exec("BEGIN IMMEDIATE");
@@ -503,10 +526,13 @@ After success, read complete platform ID and management evidence from native UI.
       "IDENTITY_JOB_CHANGED_DURING_CLOSE");
       this.assertNoInFlight(latest);
       const at = new Date().toISOString();
-      const closed: IdentityJob = { ...latest, verificationClosure: {
+      const closed: IdentityJob = { ...latest, status: "cancelled", verificationClosure: {
         actor, at,
-        evidenceKind: stopped ? "supervision_stop_and_session_closed" : "engine_trace_terminal",
+        evidenceKind: evidenceKind ?? "supervision_stop_and_session_closed",
         engineTraceStatus,
+        mcpStatusOutcome,
+        ...(mcpStatusError ? { mcpStatusError } : {}),
+        ...(engineTraceEndedAt ? { engineTraceEndedAt } : {}),
         originalStatus: latest.status as "unknown" | "interrupted",
         originalReason: latest.reason,
         originalTraceId: latest.traceId!,
@@ -525,14 +551,15 @@ After success, read complete platform ID and management evidence from native UI.
     requireFact(![...this.active.keys()].some((activeId) => this.list().some((candidate) => candidate.id === activeId && candidate.deviceId === job.deviceId)), "IDENTITY_OPERATION_ACTIVE");
     requireFact(!this.assistance.deviceBusy(job.deviceId), "ASSISTANCE_SESSION_ACTIVE");
     requireFact(!this.assistance.supervision.controls().some((control) => control.deviceId === job.deviceId && !["stopped", "closed"].includes(control.state)), "SUPERVISION_CONTROL_ACTIVE");
+    requireFact(!this.assistance.supervision.requests().some((request) => request.deviceId === job.deviceId && ["waiting", "responded", "claimed"].includes(request.status)), "SUPERVISION_REQUEST_ACTIVE");
     requireFact(!this.assistance.list().some((challenge) => challenge.deviceId === job.deviceId && ["waiting", "submitted", "claimed"].includes(challenge.status)), "ASSISTANCE_REQUEST_ACTIVE");
     requireFact(!this.store.db.prepare("SELECT 1 FROM device_holds WHERE device IN (?,?)").get(job.deviceId, job.serial), "DEVICE_HELD");
     requireFact(!this.store.db.prepare("SELECT 1 FROM tasks WHERE device IN (?,?) AND status IN ('queued','running','unknown')").get(job.deviceId, job.serial), "DEVICE_HAS_UNRESOLVED_CONTENT_TASK");
   }
   private stoppedSessionEvidence(job: IdentityJob) {
     requireFact(job.traceId && job.finishedAt, "IDENTITY_TRACE_EVIDENCE_REQUIRED");
-    const controls = this.assistance.supervision.controls();
-    const control = controls.find((entry) => entry.taskId === job.id && entry.deviceId === job.deviceId && entry.state === "stopped");
+    const controls = this.assistance.supervision.controls() as Array<{ taskId: string; deviceId: string; sessionId: string; state: string; reason?: string; serial?: string }>;
+    const control = controls.find((entry) => entry.taskId === job.id && entry.deviceId === job.deviceId && entry.serial === job.serial && entry.state === "stopped");
     if (!control || !control.reason) return null;
     const event = this.assistance.supervision.events().find((entry) => entry.taskId === job.id && entry.sessionId === control.sessionId
       && entry.type === "stopped" && entry.code === control.reason && Date.parse(entry.at) <= Date.parse(job.finishedAt!));
@@ -547,6 +574,39 @@ After success, read complete platform ID and management evidence from native UI.
     const { stdout } = await execFileAsync(python, ["-c", code, cfg.serial], { cwd: cfg.artemisRoot, timeout: 5000, maxBuffer: 1024 });
     const result = z.strictObject({ activeOwner: z.boolean() }).parse(JSON.parse(stdout.trim()));
     requireFact(!result.activeOwner, "ARTEMIS_DEVICE_EXECUTION_ACTIVE");
+  }
+  private async readArchivedTraceStatus(cfg: VerificationConfig, job: IdentityJob) {
+    const traceId = z.string().uuid().parse(job.traceId);
+    const root = await realpath(cfg.artemisRoot);
+    const tracesDir = resolve(root, "traces");
+    const traceDir = resolve(tracesDir, traceId);
+    const statusPath = resolve(traceDir, "status.json");
+    requireFact(traceDir.startsWith(`${tracesDir}/`) && statusPath.startsWith(`${traceDir}/`), "ARTEMIS_ARCHIVE_PATH_INVALID");
+    let tracesInfo;
+    let traceInfo;
+    try {
+      tracesInfo = await lstat(tracesDir);
+      traceInfo = await lstat(traceDir);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw error;
+    }
+    requireFact(tracesInfo.isDirectory() && !tracesInfo.isSymbolicLink() && traceInfo.isDirectory() && !traceInfo.isSymbolicLink(), "ARTEMIS_ARCHIVE_PATH_INVALID");
+    requireFact(await realpath(tracesDir) === tracesDir && await realpath(traceDir) === traceDir, "ARTEMIS_ARCHIVE_PATH_INVALID");
+    let statusInfo;
+    try { statusInfo = await lstat(statusPath); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw error;
+    }
+    requireFact(statusInfo.isFile() && !statusInfo.isSymbolicLink() && statusInfo.size > 0 && statusInfo.size <= 8192, "ARTEMIS_ARCHIVE_FILE_INVALID");
+    requireFact(await realpath(statusPath) === statusPath, "ARTEMIS_ARCHIVE_PATH_INVALID");
+    const archived = z.strictObject({ trace_id: z.string().uuid(), device_serial: z.string().min(1).max(100),
+      status: z.enum(["completed", "failed", "cancelled", "canceled"]), end_time: z.string().min(1).max(100), pid: z.number().int().positive() })
+      .parse(JSON.parse(await readFile(statusPath, "utf8")));
+    requireFact(archived.trace_id === traceId && archived.device_serial === job.serial && Number.isFinite(Date.parse(archived.end_time))
+      && Date.parse(archived.end_time) <= Date.now(), "ARTEMIS_ARCHIVE_SCOPE_INVALID");
+    return { status: archived.status, endTime: archived.end_time };
   }
   async close() {
     for (const [id] of this.active) this.stop(id);
