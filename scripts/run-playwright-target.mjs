@@ -11,10 +11,10 @@ productScripts["media-accounts"] = "scripts/verify-product-media-accounts-playwr
 const target = process.env.SG_WEB_TARGET ?? "demo";
 const scope = process.env.SG_PRODUCT_WEB_SCOPE ?? "identity";
 const demoScope = process.env.SG_DEMO_WEB_SCOPE ?? "readiness";
-if (target === "demo" && !["readiness", "observation", "client"].includes(demoScope)) { console.error("[playwright] Unknown demo scope"); process.exit(2); }
+if (target === "demo" && !["readiness", "observation", "client", "core-recovery"].includes(demoScope)) { console.error("[playwright] Unknown demo scope"); process.exit(2); }
 if (target === "product" && !(scope in productScripts)) { console.error("[playwright] Unknown product scope"); process.exit(2); }
 const targets = {
-  demo: ["tsx", demoScope === "client" ? "scripts/verify-demo-client-playwright.mts" : demoScope === "observation" ? "scripts/verify-demo-observation-playwright.mts" : "scripts/verify-web-publication-readiness.mts"],
+  demo: ["tsx", demoScope === "core-recovery" ? "scripts/verify-runtime-core-recovery-playwright.mts" : demoScope === "client" ? "scripts/verify-demo-client-playwright.mts" : demoScope === "observation" ? "scripts/verify-demo-observation-playwright.mts" : "scripts/verify-web-publication-readiness.mts"],
   product: ["tsx", productScripts[scope]],
 };
 

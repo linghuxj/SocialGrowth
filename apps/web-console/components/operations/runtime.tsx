@@ -542,6 +542,7 @@ export function RuntimeReceipts({
           存在待核对的暂停范围：
           {status.pauses.map((p) => `${p.scope}（${p.reason}）`).join('；')}
           。设备重新上线不会自动解除暂停。
+          {exceptions && <Link page="receipts">前往任务中心复核暂停范围</Link>}
         </Notice>
       )}
       {status.tasks
