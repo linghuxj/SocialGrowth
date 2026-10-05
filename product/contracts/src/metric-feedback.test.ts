@@ -21,6 +21,22 @@ test("feedback contract distinguishes measured zero from absent and unknown repo
   assert.equal(projectFeedbackResponseSchema.safeParse({ ...base, sourceState: "not_configured", sourceReasonCode: "source_not_configured", metrics: [snapshot] }).success, false);
 });
 
+test("trusted metric definition metadata is optional for legacy snapshots and strict when present", () => {
+  const legacy = projectFeedbackResponseSchema.parse({ ...base, sourceState: "available", sourceReasonCode: null, metrics: [snapshot] });
+  assert.equal(legacy.metrics[0]!.metricDefinition, undefined);
+  const metricDefinition = {
+    name: "播放次数", unit: "次", description: "平台报告的播放计数",
+    sourceDefinition: "Facebook Insights 原始播放指标，按报告截止时间累计",
+  };
+  const current = projectFeedbackResponseSchema.parse({ ...base, sourceState: "available", sourceReasonCode: null,
+    metrics: [{ ...snapshot, metricDefinition }] });
+  assert.deepEqual(current.metrics[0]!.metricDefinition, metricDefinition);
+  assert.equal(projectFeedbackResponseSchema.safeParse({ ...base, sourceState: "available", sourceReasonCode: null,
+    metrics: [{ ...snapshot, metricDefinition: { ...metricDefinition, unit: " " } }] }).success, false);
+  assert.equal(projectFeedbackResponseSchema.safeParse({ ...base, sourceState: "available", sourceReasonCode: null,
+    metrics: [{ ...snapshot, metricDefinition: { ...metricDefinition, guessed: true } }] }).success, false);
+});
+
 test("feedback projection is strict and rejects cross-project rows", () => {
   const otherProject = { ...snapshot, projectId: randomUUID() };
   assert.equal(projectFeedbackResponseSchema.safeParse({ ...base, sourceState: "available", sourceReasonCode: null, metrics: [otherProject] }).success, false);

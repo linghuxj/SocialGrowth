@@ -15,7 +15,10 @@ export class MetricSnapshotError extends Error {
 }
 const key = (v: MetricSnapshot) => `${v.sourceId}/${v.sourceReportId}`;
 const scope = (v: MetricSnapshot) => JSON.stringify({ sourceId: v.sourceId, sourceReportId: v.sourceReportId, definitionId: v.definitionId,
-  projectId: v.projectId, identityId: v.identityId, platform: v.platform, subject: v.subject, measurement: v.measurement });
+  projectId: v.projectId, identityId: v.identityId, platform: v.platform, subject: v.subject, measurement: v.measurement,
+  // Definition metadata is part of a report's immutable meaning. An older
+  // history without it cannot be silently relabelled by a later resolver.
+  metricDefinition: v.metricDefinition ?? null });
 function fail(code: MetricSnapshotError["code"]): never { throw new MetricSnapshotError(code); }
 function latest(rows: MetricSnapshot[], matches: (row: MetricSnapshot) => boolean): MetricSnapshot | undefined {
   for (let i = rows.length - 1; i >= 0; i--) if (matches(rows[i]!)) return rows[i];

@@ -129,6 +129,22 @@ test("default closed, account reservation scoped, cumulative zero/replay/correct
     [f.sourceId, f.sourceReportId])).rows[0]!.current_revision, "2");
 });
 
+test("trusted resolver metric definitions survive history persistence and project feedback reads", async () => {
+  const f = fixture(); await seed(f);
+  const token = randomBytes(32).toString("base64url"), auth = new OperatorAuthService(pool, "synthetic-metric-feedback-auth-pepper-0001");
+  await pool.query(`INSERT INTO socialgrowth_product.operator_sessions(session_id,operator_id,token_digest,csrf_digest,credential_version,expires_at)
+    VALUES($1,$2,$3,$4,1,clock_timestamp()+interval '1 hour')`, [randomUUID(), f.operatorId,
+    createHash("sha256").update(token).digest(), createHash("sha256").update("metric-definition-csrf").digest()]);
+  const metricDefinition = { name: "播放次数", unit: "次", description: "平台报告的播放计数",
+    sourceDefinition: "Facebook Insights 原始累计指标" };
+  f.setCurrent({ ...f.snapshot, metricDefinition });
+  const store = new MetricSnapshotStore(pool, f.resolver, auth);
+  const ingested = await store.ingestCurrent(key(f));
+  assert.deepEqual(ingested.snapshot.metricDefinition, metricDefinition);
+  const projection = await store.readProjectFeedback(token, f.projectId);
+  assert.deepEqual(projection.metrics[0]?.metricDefinition, metricDefinition);
+});
+
 test("missing, delayed, content, wrong-account, and stale revisions preserve uncertainty and default closed", async () => {
   const f = fixture(); await seed(f); const store = new MetricSnapshotStore(pool, f.resolver);
   const missingReportId = randomUUID(), missing = { ...f.snapshot, snapshotId: randomUUID(), sourceReportId: missingReportId,

@@ -8,6 +8,14 @@ const time = z.string().regex(new RegExp(iso.replace(/^\^/, "^(?!0000-)")));
 const id = uuidSchema;
 const content = z.strictObject({ kind: z.literal("content"), publicationId: id, taskId: id, contentUnitId: id, variantId: id });
 const account = z.strictObject({ kind: z.literal("account") });
+// Present only when a trusted report resolver can supply the authoritative
+// definition. Older stored snapshots omit this field and remain readable.
+const metricDefinitionSchema = z.strictObject({
+  name: z.string().trim().min(1).max(120),
+  unit: z.string().trim().min(1).max(48).nullable(),
+  description: z.string().trim().min(1).max(500),
+  sourceDefinition: z.string().trim().min(1).max(500),
+});
 
 export const metricSnapshotSchema = z.strictObject({
   snapshotId: id,
@@ -21,6 +29,7 @@ export const metricSnapshotSchema = z.strictObject({
   revision: z.int().min(1),
   replacesSnapshotId: id.nullable(),
   measurement: z.enum(["cumulative", "interval"]),
+  metricDefinition: metricDefinitionSchema.optional(),
   value: z.string().max(256).regex(/^(?:0|[1-9][0-9]*)(?:\.[0-9]*[1-9])?$/).nullable(),
   availability: z.enum(["available", "missing", "delayed"]),
   missingReason: z.enum(["permission_unavailable", "source_unavailable", "no_data", "unknown_cutoff", "unknown_coverage"]).nullable(),

@@ -46,6 +46,25 @@ test("missing source metadata can be explicitly corrected without relabeling or 
   assert.deepEqual(result.history[0], row); assert.deepEqual(result.history[1], fixed);
   assert.equal(readMetricReport(result.history, row.sourceId, row.sourceReportId)?.sourceTimeZone, "Asia/Shanghai");
 });
+test("legacy history stays readable while trusted definition metadata is immutable within one report", () => {
+  const legacy = fixture();
+  assert.deepEqual(parseMetricHistory([legacy])[0], legacy);
+  const described = { ...fixture(), metricDefinition: { name: "播放次数", unit: "次",
+    description: "平台报告的播放计数", sourceDefinition: "Facebook Insights 原始累计指标" } };
+  const revised = correction(described);
+  assert.deepEqual(appendMetricSnapshot([described], revised).history[1]?.metricDefinition, described.metricDefinition);
+  for (const metricDefinition of [
+    { ...described.metricDefinition, name: "观看次数" },
+    { ...described.metricDefinition, unit: null },
+    { ...described.metricDefinition, description: "另一种指标解释" },
+    { ...described.metricDefinition, sourceDefinition: "另一来源口径" },
+    undefined,
+  ]) {
+    assert.throws(() => appendMetricSnapshot([described], { ...revised, metricDefinition }), code("REPORT_SCOPE_CHANGED"));
+  }
+  assert.throws(() => appendMetricSnapshot([legacy], { ...correction(legacy),
+    metricDefinition: described.metricDefinition }), code("REPORT_SCOPE_CHANGED"));
+});
 test("corrections form one nonforking chain and cannot use stale predecessor, skip revision or lose provenance", () => {
   const row = fixture(), next = correction(row), history = appendMetricSnapshot([row], next).history;
   for (const patch of [{ replacesSnapshotId: randomUUID() }, { revision: 3 }, { collectedAt: "2026-09-30T00:00:00Z" }]) assert.throws(() => appendMetricSnapshot([row], { ...next, ...patch }), code("CORRECTION_STALE"));

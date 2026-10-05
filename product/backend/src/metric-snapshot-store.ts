@@ -16,6 +16,8 @@ export interface AuthorizedMetricReport { accountId: string; snapshot: unknown }
 
 // A real adapter must authenticate the platform/source report and resolve its
 // authorized account server-side. No operator route accepts metric values.
+// When available, snapshot.metricDefinition must be taken from that same
+// authenticated report/definition; this boundary does not infer labels or units.
 export interface TrustedMetricReportResolver {
   resolve(input: MetricReportRequest, signal: AbortSignal): Promise<AuthorizedMetricReport | null>;
 }
