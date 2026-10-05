@@ -26,9 +26,15 @@ const startSchema = z.strictObject({
   assetSha256: z.string().regex(/^[a-f0-9]{64}$/),
 });
 type StartInput = z.infer<typeof startSchema>;
+type ExecutionPhase = "identity_audit" | "content_preflight";
+type Diagnostic = { phase: ExecutionPhase | "unknown"; reason: string };
+const diagnosticReasons = new Set(["EXECUTION_TIMEOUT", "ARTEMIS_TASK_FAILED", "ARTEMIS_DEVICE_MISMATCH", "ARTEMIS_TOOL_FAILED",
+  "ARTEMIS_CONTRACT_UNSUPPORTED", "ARTEMIS_HUMAN_INPUT_EXTENSION_REQUIRED", "TECHNICAL_FAILURE", "IDENTITY_GATE_VIOLATED",
+  "PAGE_IDENTITY_AUDIT_INCOMPLETE", "DIAGNOSTIC_UNAVAILABLE"]);
 type ActionCategory = "read" | "navigate" | "login_submit" | "recovery" | "install" | "publish" | "create_identity" | "correct_account" | "unmanaged";
 type BridgeRecord = StartInput & { state: "running" | "completed" | "unknown" | "blocked"; startedAt: string;
-  updatedAt: string; traceId: string | null; receipt: ExecutionReceipt | null; blocker: string | null };
+  updatedAt: string; traceId: string | null; executionPhase?: ExecutionPhase; diagnostic?: Diagnostic;
+  receipt: ExecutionReceipt | null; blocker: string | null };
 
 function stable(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
@@ -78,7 +84,8 @@ export class BusinessPlanExecutionBridge {
   read(operationId: string) {
     requireFact(uuid.safeParse(operationId).success, "INPUT_INVALID");
     const record = this.rows().find(row => row.operationId === operationId) ?? null;
-    if (!record?.receipt) return record;
+    if (!record) return null;
+    if (!record.receipt) return record.state === "unknown" ? { ...record, diagnostic: this.legacyDiagnostic(record) } : record;
     const refs = record.receipt.evidenceRefs;
     const archived = refs.length > 0 && refs.every(ref => this.store.db.prepare("SELECT 1 FROM evidence WHERE id=? AND task=?").get(ref, operationId));
     const mapping = this.store.db.prepare("SELECT identity_id,canonical_ref,account_id,runtime_account_id,binding_id,audit_operation_id,parent_identity,page_id,page_url,page_name,evidence_refs FROM business_plan_page_identity_mappings WHERE identity_id=?")
@@ -91,6 +98,25 @@ export class BusinessPlanExecutionBridge {
       && mapping.page_name === record.receipt.observedIdentityName && record.receipt.managementVerified === true
       && JSON.parse(mapping.evidence_refs).every((ref: string) => this.store.db.prepare("SELECT 1 FROM evidence WHERE id=? AND task=?").get(ref, mapping.audit_operation_id)));
     return { ...record, evidenceVerified: Boolean(archived), identityMappingVerified };
+  }
+  private legacyDiagnostic(record: BridgeRecord): Diagnostic | undefined {
+    if (!record.traceId) return undefined;
+    const rows = this.store.db.prepare("SELECT sha256,mime,body FROM evidence WHERE task=? AND mime='application/json'").all(record.operationId) as Array<{ sha256: string; mime: string; body: Buffer }>;
+    const parsed = rows.flatMap(row => {
+      const body = Buffer.from(row.body);
+      if (body.length > 128 * 1024 || createHash("sha256").update(body).digest("hex") !== row.sha256) return [];
+      try { const value = JSON.parse(body.toString("utf8")); return value && typeof value === "object" ? [value as Record<string, unknown>] : []; } catch { return []; }
+    });
+    const traces = parsed.filter(value => value.traceId === record.traceId && value.deviceSerial === this.config.serial
+      && value.attemptId === record.scope.taskAttemptId && typeof value.taskId === "string" && uuid.safeParse(value.taskId).success);
+    if (traces.length !== 1) return undefined;
+    const trace = traces[0]!;
+    const failures = parsed.filter(value => value.taskId === trace.taskId && value.attemptId === trace.attemptId
+      && (value.stage === "device_work_started" || value.stage === "before_device_work")
+      && typeof value.reason === "string" && diagnosticReasons.has(value.reason));
+    if (failures.length !== 1) return undefined;
+    const hasMapping = Boolean(this.store.db.prepare("SELECT 1 FROM business_plan_page_identity_mappings WHERE identity_id=?").get(record.scope.identityId));
+    return { phase: hasMapping ? "content_preflight" : "identity_audit", reason: failures[0]!.reason as string };
   }
   ownsOperation(operationId: string) { return this.read(operationId) !== null; }
   list() { return this.rows().map(row => this.read(row.operationId)); }
@@ -187,12 +213,14 @@ export class BusinessPlanExecutionBridge {
   private async execute(record: BridgeRecord, task: Parameters<typeof executeDeviceTask>[0], bytes: Buffer, assistanceToken: string) {
     const artemis = this.ports.artemis(this.config.artemisRoot, { url: this.config.runtimeUrl, token: assistanceToken,
       deviceId: this.config.deviceId, serial: this.config.serial });
+    let phase: ExecutionPhase = "identity_audit";
+    let phaseReceipt: ExecutionReceipt | null = null;
     try {
       await (artemis as ArtemisPort & { connect?: () => Promise<void> }).connect?.();
-      const runTask = (taskInput: Parameters<typeof executeDeviceTask>[0]) => executeDeviceTask(taskInput, { artemis, device: this.ports.device,
+      const runTask = (taskInput: Parameters<typeof executeDeviceTask>[0], taskPhase: ExecutionPhase) => executeDeviceTask(taskInput, { artemis, device: this.ports.device,
         download: async url => { requireFact(new URL(url).origin === new URL(this.config.runtimeUrl).origin, "MEDIA_ORIGIN_MISMATCH"); return bytes; },
         authorizePrepare: async () => { await this.authorizePrepare(record, assistanceToken); },
-        trace: traceId => this.update({ ...record, traceId, updatedAt: new Date().toISOString() }), installMissing: false,
+        trace: traceId => this.update({ ...record, traceId, executionPhase: taskPhase, updatedAt: new Date().toISOString() }), installMissing: false,
         archive: async (mime, body) => {
           const id = randomUUID(), digest = createHash("sha256").update(body).digest("hex");
           this.store.db.prepare("INSERT INTO evidence(id,task,sha256,mime,body) VALUES(?,?,?,?,?)").run(id, record.operationId, digest, mime, body);
@@ -201,12 +229,20 @@ export class BusinessPlanExecutionBridge {
       let mapping = this.pageMapping(record);
       if (!mapping) {
         const auditTask = { ...task, directive: { ...task.directive, taskId: randomUUID() }, settings: { ...task.settings, identityAuditOnly: true } } as Parameters<typeof executeDeviceTask>[0];
-        const audit = await runTask(auditTask);
-        requireFact(audit.executionStatus === "completed" && audit.publishStatus === "not_submitted"
+        phase = "identity_audit";
+        const audit = await runTask(auditTask, phase);
+        phaseReceipt = audit;
+        const auditPassed = audit.executionStatus === "completed" && audit.publishStatus === "not_submitted"
           && audit.finalSubmitClicked === false && audit.mutationsPerformed === 0
           && audit.observedIdentityKind === "facebook_page" && audit.observedIdentityName === record.pageName
           && Boolean(audit.observedIdentityId && audit.observedIdentity && audit.parentIdentity === task.binding.platformIdentity)
-          && audit.managementVerified === true && audit.evidenceRefs.length > 0, "PAGE_IDENTITY_AUDIT_INCOMPLETE");
+          && audit.managementVerified === true && audit.evidenceRefs.length > 0;
+        if (!auditPassed) {
+          const diagnostic = this.receiptDiagnostic(record, audit, phase);
+          this.update({ ...record, state: "unknown", receipt: audit, executionPhase: phase, diagnostic,
+            blocker: diagnostic.reason, updatedAt: new Date().toISOString() });
+          return;
+        }
         const verifiedAt = new Date().toISOString(), previousBinding = this.runtimeBinding(record);
         requireFact(typeof previousBinding.platformIdentity === "string" && audit.parentIdentity === previousBinding.platformIdentity
           && typeof audit.observedIdentityId === "string" && typeof audit.observedIdentity === "string"
@@ -223,13 +259,18 @@ export class BusinessPlanExecutionBridge {
       requireFact(mapping, "PAGE_IDENTITY_MAPPING_UNAVAILABLE");
       const contentTask = { ...task, directive: { ...task.directive, taskId: randomUUID() }, settings: {
         ...task.settings, expectedFacebookPageIdentity: { id: mapping.id, url: mapping.url } } } as Parameters<typeof executeDeviceTask>[0];
-      const contentReceipt = await runTask(contentTask);
+      phase = "content_preflight";
+      const contentReceipt = await runTask(contentTask, phase);
+      phaseReceipt = contentReceipt;
       const receipt: ExecutionReceipt = { ...contentReceipt,
         observedIdentityId: mapping.id, parentIdentity: mapping.parentIdentity, managementVerified: true };
       const state = receipt.executionStatus === "completed" && receipt.publishStatus === "not_submitted" ? "completed" : receipt.publishStatus === "unknown" ? "unknown" : "blocked";
-      this.update({ ...record, state, receipt, updatedAt: new Date().toISOString(), blocker: state === "blocked" ? receipt.failureCode ?? "BUSINESS_PLAN_PREFLIGHT_NOT_CONFIRMED" : null });
-    } catch {
-      this.update({ ...record, state: "unknown", updatedAt: new Date().toISOString(), blocker: "BUSINESS_PLAN_ORIGINAL_ATTEMPT_UNKNOWN" });
+      const diagnostic = state === "completed" ? undefined : this.receiptDiagnostic(record, receipt, phase);
+      this.update({ ...record, state, receipt, executionPhase: phase, diagnostic, updatedAt: new Date().toISOString(), blocker: state === "blocked" ? receipt.failureCode ?? "BUSINESS_PLAN_PREFLIGHT_NOT_CONFIRMED" : diagnostic?.reason ?? null });
+    } catch (error) {
+      const diagnostic = phaseReceipt ? this.receiptDiagnostic(record, phaseReceipt, phase) : { phase: "unknown" as const, reason: this.safeReason(error) };
+      this.update({ ...record, state: "unknown", ...(phaseReceipt ? { receipt: phaseReceipt } : {}), executionPhase: phase,
+        diagnostic, updatedAt: new Date().toISOString(), blocker: diagnostic.reason });
     } finally {
       await artemis.close().catch(() => undefined);
       this.assistance.closeSession(assistanceToken);
@@ -238,6 +279,17 @@ export class BusinessPlanExecutionBridge {
         this.store.db.prepare("DELETE FROM device_holds WHERE device=? AND actor=?").run(task.binding.deviceId, record.operationId);
       }
     }
+  }
+  private safeReason(error: unknown) {
+    const reason = error instanceof Error ? error.message : "";
+    return diagnosticReasons.has(reason) ? reason : "DIAGNOSTIC_UNAVAILABLE";
+  }
+  private receiptDiagnostic(record: BridgeRecord, receipt: ExecutionReceipt, phase: ExecutionPhase): Diagnostic {
+    const stored = this.legacyDiagnostic({ ...record, traceId: this.read(record.operationId)?.traceId ?? record.traceId });
+    if (stored?.phase === phase) return stored;
+    if (receipt.failureCode === "IDENTITY_CHALLENGE") return { phase, reason: "IDENTITY_GATE_VIOLATED" };
+    if (receipt.failureCode && diagnosticReasons.has(receipt.failureCode)) return { phase, reason: receipt.failureCode };
+    return { phase, reason: "DIAGNOSTIC_UNAVAILABLE" };
   }
   async authorizeAction(operationId: string, action: string, category: ActionCategory) {
     const record = this.read(operationId);
