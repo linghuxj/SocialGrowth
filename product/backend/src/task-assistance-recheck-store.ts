@@ -11,6 +11,9 @@ const finishSchema = z.strictObject({
   status: z.enum(["verified_recovered", "still_blocked", "unknown"]),
   blockers: blockersSchema,
   checkedAt: timestampSchema,
+}).superRefine((value, ctx) => {
+  if (value.status === "verified_recovered" && value.blockers.length > 0) ctx.addIssue({ code: "custom", message: "Recovered result cannot have blockers" });
+  if (value.status !== "verified_recovered" && value.blockers.length === 0) ctx.addIssue({ code: "custom", message: "Unresolved result requires blockers" });
 });
 export type TaskAssistanceRecheckStatus = z.infer<typeof stateSchema>;
 export interface TaskAssistanceRecheckView {
@@ -95,7 +98,7 @@ export class TaskAssistanceRecheckStore {
     // Do not revoke/rebind a live claim when a second operator note arrives.
     // The in-flight trusted check already rereads current facts and owns its
     // stable note/idempotency key; its eventual receipt must remain attachable.
-    if (current.rows[0]?.status === "claimed") return;
+    if (current.rows[0]?.status === "claimed" || current.rows[0]?.status === "unknown") return;
     if (current.rows[0] && Number(current.rows[0].version) >= Number.MAX_SAFE_INTEGER) fail("STALE_FACT");
     await client.query(`UPDATE ${schema}.task_assistance_recheck_links
       SET status='pending',blockers='[]'::jsonb,last_reported_note_id=$2,checked_at=NULL,
@@ -119,14 +122,14 @@ export class TaskAssistanceRecheckStore {
     }
   }
 
-  async readDisposition(taskId: string, taskAttemptId: string): Promise<{ status: TaskAssistanceRecheckStatus; blockers: string[] }> {
+  async readDisposition(taskId: string, taskAttemptId: string): Promise<{ status: TaskAssistanceRecheckStatus | "not_linked"; blockers: string[] }> {
     const task = uuidSchema.safeParse(taskId), attempt = uuidSchema.safeParse(taskAttemptId);
     if (!task.success || !attempt.success) fail("INVALID_BOUNDARY");
     try {
       const result = await this.pool.query<{ task_id: string; status: string; blockers: unknown }>(
         `SELECT task_id,status,blockers FROM ${schema}.task_assistance_recheck_links WHERE task_attempt_id=$1`, [attempt.data.toLowerCase()]);
       const row = result.rows[0];
-      if (!row) return { status: "not_requested", blockers: [] };
+      if (!row) return { status: "not_linked", blockers: [] };
       if (row.task_id !== task.data.toLowerCase()) return { status: "unknown", blockers: ["task_attempt_scope_mismatch"] };
       return { status: stateSchema.parse(row.status), blockers: blockersSchema.parse(row.blockers) };
     } catch (error) {
@@ -144,21 +147,23 @@ export class TaskAssistanceRecheckStore {
       await client.query("SET LOCAL lock_timeout='5s'");
       await client.query("SET LOCAL statement_timeout='10s'");
       const row = (await client.query<{ task_attempt_id: string; task_id: string; todo_id: string; device_id: string; note_id: string; version: string;
-        status: "pending" | "claimed"; claim_token: string | null; lease_expired: boolean }>(
+        status: "pending" | "claimed" | "unknown"; claim_token: string | null; lease_expired: boolean }>(
         `SELECT task_attempt_id,task_id,todo_id,device_id,last_reported_note_id AS note_id,version::text,status,claim_token,
-          (status='claimed' AND lease_until<=clock_timestamp()) AS lease_expired
+          (status IN ('claimed','unknown') AND lease_until<=clock_timestamp()) AS lease_expired
          FROM ${schema}.task_assistance_recheck_links
-         WHERE (status='pending' OR (status='claimed' AND lease_until<=clock_timestamp())) AND last_reported_note_id IS NOT NULL
+         WHERE (status='pending' OR (status IN ('claimed','unknown') AND lease_until<=clock_timestamp())) AND last_reported_note_id IS NOT NULL
          ORDER BY updated_at,task_attempt_id FOR UPDATE SKIP LOCKED LIMIT 1`)).rows[0];
       if (!row) { await client.query("COMMIT"); return null; }
-      const reconcileOnly = row.status === "claimed";
+      const reconcileOnly = row.status !== "pending";
       const claimToken = reconcileOnly ? row.claim_token : randomUUID();
       if (!claimToken || (reconcileOnly && row.lease_expired !== true)) fail("STALE_FACT");
       const version = Number(row.version);
-      const idempotencyKey = `assistance_recheck_${row.task_attempt_id.replaceAll("-", "")}_${version}`;
+      // Stable across notes and restarts: this exact attempt never receives a
+      // fresh physical recovery idempotency key.
+      const idempotencyKey = `assistance_recheck_${row.task_attempt_id.replaceAll("-", "")}`;
       const updated = reconcileOnly
         ? await client.query(`UPDATE ${schema}.task_assistance_recheck_links SET lease_until=clock_timestamp()+($3::int * interval '1 millisecond'),updated_at=clock_timestamp()
-          WHERE task_attempt_id=$1 AND version=$4 AND status='claimed' AND claim_token=$2 RETURNING task_attempt_id`,
+          WHERE task_attempt_id=$1 AND version=$4 AND status IN ('claimed','unknown') AND claim_token=$2 RETURNING task_attempt_id`,
         [row.task_attempt_id, claimToken, leaseMs, version])
         : await client.query(`UPDATE ${schema}.task_assistance_recheck_links SET status='claimed',claim_token=$2,
           lease_until=clock_timestamp()+($3::int * interval '1 millisecond'),updated_at=clock_timestamp()
@@ -184,14 +189,17 @@ export class TaskAssistanceRecheckStore {
       || !Number.isSafeInteger(claim.version) || claim.version < 0) fail("INVALID_BOUNDARY");
     try {
       const updated = await this.pool.query(`UPDATE ${schema}.task_assistance_recheck_links SET status=$8,blockers=$9,checked_at=$10,
-        claim_token=NULL,lease_until=NULL,version=version+1,updated_at=clock_timestamp()
+        claim_token=CASE WHEN $8='unknown' THEN claim_token ELSE NULL END,
+        lease_until=CASE WHEN $8='unknown' THEN lease_until ELSE NULL END,
+        version=CASE WHEN $8='unknown' THEN version ELSE version+1 END,updated_at=clock_timestamp()
         WHERE task_attempt_id=$1 AND task_id=$2 AND todo_id=$3 AND device_id=$4 AND last_reported_note_id=$5
           AND version=$6 AND status='claimed' AND claim_token=$7 RETURNING task_attempt_id`,
-        [attempt.data, task.data, todo.data, device.data, note.data, claim.version, token.data, result.data.status, result.data.blockers, result.data.checkedAt]);
+        [attempt.data, task.data, todo.data, device.data, note.data, claim.version, token.data, result.data.status, JSON.stringify(result.data.blockers), result.data.checkedAt]);
       if (updated.rowCount !== 1) fail("STALE_FACT");
     } catch (error) {
       if (error instanceof TaskAssistanceRecheckStoreError) throw error;
-      fail("DATABASE_UNAVAILABLE");
+      const databaseCode = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : undefined;
+      throw new TaskAssistanceRecheckStoreError("DATABASE_UNAVAILABLE", databaseCode);
     }
   }
 }

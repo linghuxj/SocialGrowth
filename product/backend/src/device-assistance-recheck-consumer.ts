@@ -21,11 +21,17 @@ const blocker = "trusted_recheck_unavailable";
 // existing two-attempt/five-minute budget. This interface is never HTTP input.
 export interface TrustedDeviceAssistanceRecoveryPort {
   recheckAndContinueSameAttempt(claim: Readonly<TaskAssistanceRecheckClaim>): Promise<TaskAssistanceRecheckResult>;
-  // Restart path: this method must only read/reconcile the original operation
-  // identified by the unchanged claim token/idempotency key. It must never
-  // dispatch/retry the recovery action.
-  reconcileOriginalAttempt(claim: Readonly<TaskAssistanceRecheckClaim>): Promise<TaskAssistanceRecheckResult>;
+  // Restart path: this method only reads/reconciles the original operation
+  // associated with this immutable task attempt. It never dispatches/retries.
+  reconcileOriginalAttempt(claim: Readonly<TaskAssistanceRecheckClaim>): Promise<OriginalAttemptReconciliation>;
+  // A found operation is still not proof of its business result. Only a
+  // separately trusted verifier may turn its exact observation into a result.
+  verifyOriginalAttempt(claim: Readonly<TaskAssistanceRecheckClaim>, original: Extract<OriginalAttemptReconciliation, { outcome: "found" }>): Promise<TaskAssistanceRecheckResult>;
 }
+
+export type OriginalAttemptReconciliation =
+  | { outcome: "found"; operationId: string; observation: unknown }
+  | { outcome: "not_found" | "ambiguous" };
 
 export interface DeviceAssistanceRecheckRunResult {
   consumed: boolean;
@@ -48,7 +54,7 @@ export class DeviceAssistanceRecheckConsumer {
     } else {
       try {
         const candidate: unknown = claim.reconcileOnly
-          ? await this.trustedPort.reconcileOriginalAttempt(claim)
+          ? await this.reconcileAndVerify(claim)
           : await this.trustedPort.recheckAndContinueSameAttempt(claim);
         const parsed = resultSchema.safeParse(candidate);
         outcome = parsed.success ? parsed.data : { status: "unknown", blockers: [blocker], checkedAt: new Date().toISOString() };
@@ -61,6 +67,14 @@ export class DeviceAssistanceRecheckConsumer {
     }
     await this.store.complete(claim, outcome);
     return { consumed: true, status: outcome.status };
+  }
+
+  private async reconcileAndVerify(claim: Readonly<TaskAssistanceRecheckClaim>): Promise<unknown> {
+    const original = await this.trustedPort!.reconcileOriginalAttempt(claim);
+    if (original.outcome !== "found" || !original.operationId || original.operationId.length > 160) {
+      return { status: "unknown", blockers: [original.outcome === "not_found" ? "original_operation_not_found" : "original_operation_ambiguous"], checkedAt: new Date().toISOString() };
+    }
+    return this.trustedPort!.verifyOriginalAttempt(claim, original);
   }
 }
 
@@ -76,7 +90,8 @@ export async function getRecoveryDisposition(
   if (!task.success || !attempt.success) return { state: "blocked", blockers: ["invalid_task_scope"] };
   const view = await store.readDisposition(task.data.toLowerCase(), attempt.data.toLowerCase());
   switch (view.status) {
-    case "not_requested": return { state: "not_required", blockers: [] };
+    case "not_linked": return { state: "not_required", blockers: [] };
+    case "not_requested": return { state: "blocked", blockers: ["assistance_not_reported"] };
     case "verified_recovered": return { state: "eligible", blockers: [] };
     case "still_blocked": return { state: "blocked", blockers: view.blockers };
     case "pending":

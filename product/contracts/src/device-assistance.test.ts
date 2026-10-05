@@ -55,8 +55,10 @@ test("operator todo detail is read-only projection and only trusted result statu
   assert.deepEqual(operatorAssistanceTodoDetailResponseSchema.parse(value), value);
   for (const patch of [
     { status: "resolved" },
-    { status: "verified_recovered", blockers: ["still_paused"] },
-    { status: "unknown", blockers: [] },
+    { ...value.recheck, status: "verified_recovered", blockers: ["still_paused"] },
+    { ...value.recheck, status: "verified_recovered", checkedAt: null },
+    { ...value.recheck, status: "unknown", blockers: [] },
+    { ...value.recheck, status: "still_blocked", checkedAt: null },
     { status: "pending", blockers: [], permissionGranted: true },
     { status: "pending", blockers: Array(33).fill("blocked") },
     { status: "pending", blockers: ["x".repeat(121)] },

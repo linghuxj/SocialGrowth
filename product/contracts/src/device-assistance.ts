@@ -66,6 +66,11 @@ export const operatorAssistanceTodoDetailResponseSchema = z.strictObject({
     blockers: z.array(z.string().min(1).max(120)).max(32),
     checkedAt: assistanceTimestampSchema.nullable(),
   }),
+}).superRefine((value, ctx) => {
+  const r = value.recheck;
+  if (r.status === "verified_recovered" && (r.blockers.length > 0 || r.checkedAt === null)) ctx.addIssue({ code: "custom", message: "Recovered status needs a trusted check time and no blockers" });
+  if ((r.status === "unknown" || r.status === "still_blocked") && (r.blockers.length === 0 || r.checkedAt === null)) ctx.addIssue({ code: "custom", message: "Unresolved recheck needs blockers and a check time" });
+  if (r.status === "not_requested" && (r.blockers.length > 0 || r.checkedAt !== null)) ctx.addIssue({ code: "custom", message: "Unrequested recheck has no result facts" });
 });
 export type OperatorAssistanceTodoDetailResponse = z.infer<typeof operatorAssistanceTodoDetailResponseSchema>;
 export const listDeviceAssistanceNotesResponseSchema = z.strictObject({ todo: deviceAssistanceTodoSummarySchema, notes: z.array(deviceAssistanceNoteViewSchema).max(50), nextAfterNoteId: uuidSchema.nullable() })
