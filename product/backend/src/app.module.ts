@@ -48,6 +48,7 @@ import { ProjectDirectionController } from "./project-direction.controller.js";
 import { ArtemisBusinessModel, readInitialDirectionModel } from "./artemis-business-model.js";
 import { BusinessPlanController } from "./business-plan.controller.js";
 import { BusinessPlanService } from "./business-plan-service.js";
+import { BusinessPlanWorkflowStore, BusinessPlanWorkflowConsumer } from "./business-plan-workflow-store.js";
 import { AccountPreparationService } from "./account-preparation-service.js";
 import { AccountPreparationController } from "./account-preparation.controller.js";
 import { DeviceAssistanceFeedService } from "./device-assistance-feed-service.js";
@@ -58,6 +59,9 @@ import { ProviderCommissionFeedService } from "./provider-commission-feed-servic
 import { ProviderCommissionFeedController } from "./provider-commission-feed.controller.js";
 import { DeviceAssistanceNotesService } from "./device-assistance-notes-service.js";
 import { DeviceAssistanceNotesController } from "./device-assistance-notes.controller.js";
+import { TaskAssistanceRecheckStore } from "./task-assistance-recheck-store.js";
+import { DeviceAssistanceRecheckConsumer } from "./device-assistance-recheck-consumer.js";
+import { DeviceAssistanceRecheckLifecycle } from "./device-assistance-recheck-lifecycle.js";
 import { TrackingLinkService } from "./tracking-link-service.js";
 import { TrackingRedirectController } from "./tracking-redirect.controller.js";
 import { MetricFeedbackController } from "./metric-feedback.controller.js";
@@ -227,11 +231,23 @@ const providerAuthProvider = {
     { provide: ProjectPlanningService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new ProjectPlanningService(pool, auth) },
     { provide: ArtemisBusinessModel, useFactory: () => readInitialDirectionModel() },
     { provide: ProjectDirectionService, inject: [Pool, OperatorAuthService, ArtemisBusinessModel], useFactory: (pool: Pool, auth: OperatorAuthService, model: ArtemisBusinessModel | null) => new ProjectDirectionService(pool, auth, model) },
-    { provide: BusinessPlanService, inject: [Pool, OperatorAuthService, MaterialRuntime, ArtemisBusinessModel], useFactory: (pool: Pool, auth: OperatorAuthService, materials: MaterialRuntime, model: ArtemisBusinessModel | null) => new BusinessPlanService(pool, auth, materials, model) },
+    { provide: BusinessPlanWorkflowStore, inject: [Pool], useFactory: (pool: Pool) => new BusinessPlanWorkflowStore(pool) },
+    // No trusted current-scope producer or phone execution/verification ports
+    // are installed. This consumer exposes truthful status, never starts a
+    // scheduler or widens device permissions merely because USB is present.
+    { provide: BusinessPlanWorkflowConsumer, inject: [BusinessPlanWorkflowStore], useFactory: (store: BusinessPlanWorkflowStore) =>
+      new BusinessPlanWorkflowConsumer(store, { readiness: null, actionGate: null, executor: null, proofVerifier: null }) },
+    { provide: BusinessPlanService, inject: [Pool, OperatorAuthService, MaterialRuntime, ArtemisBusinessModel, BusinessPlanWorkflowConsumer],
+      useFactory: (pool: Pool, auth: OperatorAuthService, materials: MaterialRuntime, model: ArtemisBusinessModel | null, workflow: BusinessPlanWorkflowConsumer) => new BusinessPlanService(pool, auth, materials, model, workflow) },
     { provide: DeviceAssistanceFeedService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new DeviceAssistanceFeedService(pool, auth) },
     { provide: ProviderAssistanceFeedService, inject: [Pool, ProviderAuthService], useFactory: (pool: Pool, auth: ProviderAuthService) => new ProviderAssistanceFeedService(pool, auth) },
     { provide: ProviderCommissionFeedService, inject: [Pool, ProviderAuthService], useFactory: (pool: Pool, auth: ProviderAuthService) => new ProviderCommissionFeedService(pool, auth) },
     { provide: DeviceAssistanceNotesService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new DeviceAssistanceNotesService(pool, auth) },
+    { provide: TaskAssistanceRecheckStore, inject: [Pool], useFactory: (pool: Pool) => new TaskAssistanceRecheckStore(pool) },
+    // The scheduler consumes reports, not proof. No trusted phone recovery
+    // adapter is available in this listener; unknown is persisted explicitly.
+    { provide: DeviceAssistanceRecheckConsumer, inject: [TaskAssistanceRecheckStore], useFactory: (store: TaskAssistanceRecheckStore) => new DeviceAssistanceRecheckConsumer(store) },
+    DeviceAssistanceRecheckLifecycle,
     // No real business target origin/definition has been supplied. Closed until
     // an explicit server-owned policy adapter is reviewed; no ambient fallback.
     { provide: TrackingLinkService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new TrackingLinkService(pool, auth, null) },

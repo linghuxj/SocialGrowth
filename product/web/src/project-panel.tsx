@@ -10,6 +10,7 @@ import { AccountPreparationPanel } from "./account-preparation-panel.js";
 import { BusinessPlanPanel } from "./business-plan-panel.js";
 import { ProjectFeedbackPanel } from "./project-feedback-panel.js";
 import { ProjectLifecyclePanel } from "./project-lifecycle-panel.js";
+import { ProjectWorkflowPanel } from "./project-workflow-panel.js";
 import { AutomationOrchestratorPanel } from "./automation-orchestrator-panel.js";
 
 interface Draft { basics: ProjectBasics; base?: ProjectView; key: string | null; uncertain?: boolean }
@@ -23,7 +24,7 @@ const failures = (error: unknown) => error instanceof ProductApiError && error.r
   : "服务暂时不可用，输入已保留，请重试。";
 
 export function ProjectPanel({ active, refreshVersion, operators, readOnly, onExpired, entry, onOpenTodos, onOpenMediaAccounts, onOpenDevices }: {
-  entry?: { projectId: string; revision: number } | null; onOpenTodos: () => void; onOpenMediaAccounts: () => void; onOpenDevices: () => void;
+  entry?: { projectId: string; revision: number } | null; onOpenTodos: (todoId?: string) => void; onOpenMediaAccounts: () => void; onOpenDevices: () => void;
   active: boolean; refreshVersion: number; operators: OperatorView[]; readOnly: boolean; onExpired: (error: unknown) => void;
 }) {
   const [projects, setProjects] = useState<ProjectView[] | null>(null);
@@ -166,7 +167,7 @@ export function ProjectPanel({ active, refreshVersion, operators, readOnly, onEx
     {businessPlanProjects.map(id => <BusinessPlanPanel key={id} projectId={id} active={active && selected === id && tab === "business-plan"} readOnly={readOnly} onExpired={onExpired} refreshVersion={refreshVersion + planningRefresh} onNavigate={navigate} onOpenMediaAccounts={onOpenMediaAccounts} onOpenDevices={onOpenDevices} />)}
     {feedbackProjects.map(id => <ProjectFeedbackPanel key={id} projectId={id} active={active && selected === id && tab === "feedback"} readOnly={readOnly} onExpired={onExpired} />)}
     {lifecycleProjects.map(id => <ProjectLifecyclePanel key={id} projectId={id} active={active && selected === id && tab === "lifecycle"} readOnly={readOnly} onExpired={onExpired} onFactsChanged={() => setPlanningRefresh(v => v + 1)} />)}
-    {automationProjects.map(id => <AutomationOrchestratorPanel onNavigate={navigate} onOpenTodos={onOpenTodos} refreshVersion={refreshVersion + planningRefresh} key={id} projectId={id} active={active && selected === id && tab === "automation"} readOnly={readOnly} onExpired={onExpired} />)}
+    {automationProjects.map(id => <div key={id} hidden={!(active && selected === id && tab === "automation")}><ProjectWorkflowPanel projectId={id} active={active && selected === id && tab === "automation"} readOnly={readOnly} onExpired={onExpired} refreshVersion={refreshVersion + planningRefresh} onNavigate={navigate} onOpenTodos={onOpenTodos} onOpenMediaAccounts={onOpenMediaAccounts} onOpenDevices={onOpenDevices} /><AutomationOrchestratorPanel onNavigate={navigate} onOpenTodos={() => onOpenTodos()} refreshVersion={refreshVersion + planningRefresh} projectId={id} active={active && selected === id && tab === "automation"} readOnly={readOnly} onExpired={onExpired} /></div>)}
   </div>;
   function openList() { setSelected(null); setMessage(""); }
 }

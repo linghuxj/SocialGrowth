@@ -1,4 +1,4 @@
-import { ArrowClockwise, ArrowSquareOut, ClipboardText, FileText, LinkSimple, Robot } from "@phosphor-icons/react";
+import { ArrowClockwise, ArrowSquareOut, ClipboardText, FileText, Robot } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import type { BusinessPlanWorkflowResponse, OperatorAssistanceTodoDetailResponse, ProjectFeedbackResponse } from "@socialgrowth/product-contracts";
 import { ProductApiError } from "./operator-api.js";

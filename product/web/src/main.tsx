@@ -7,6 +7,8 @@ import "./operator-todos.css";
 import "./project-feedback-panel.css";
 import "./project-lifecycle-panel.css";
 import "./automation-orchestrator.css";
+import "./project-workflow-panel.css";
+import "./material-upload-inventory-panel.css";
 import "./style.css";
 
 const root = document.getElementById("root");

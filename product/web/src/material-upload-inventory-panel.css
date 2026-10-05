@@ -1,0 +1,7 @@
+.material-upload-inventory { margin-top: 24px; }
+.material-upload-inventory__list { list-style: none; margin: 0; padding: 0; }
+.material-upload-inventory__list li { display: grid; gap: 8px; padding: 16px 0; border-top: 1px solid var(--border, #d8dfe7); }
+.material-upload-inventory__list dl { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 8px; }
+.material-upload-inventory__list dd { margin: 0; overflow-wrap: anywhere; }
+.material-upload-inventory__list small { line-height: 1.65; }
+@media (max-width: 700px) { .material-upload-inventory .section-heading { align-items: stretch; flex-direction: column; } .material-upload-inventory__list dl { grid-template-columns: minmax(0, 1fr); } }

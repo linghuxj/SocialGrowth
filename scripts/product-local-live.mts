@@ -7,6 +7,7 @@ import { createServer } from "node:net";
 import { chmod, lstat, mkdir, readFile, readdir, realpath, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { stopOwnedProcessGroups } from "./product-local-process-lifecycle.js";
+import { parseMaterialStorageConfig } from "../product/backend/src/material-object-storage.js";
 
 async function main(): Promise<void> {
   // Persistent, owned LOOPBACK development environment. No phone/controller,
@@ -127,6 +128,29 @@ async function main(): Promise<void> {
     SG_PRODUCT_BACKEND_HOST: "127.0.0.1", SG_PRODUCT_BACKEND_PORT: "4320", SG_PRODUCT_TRUST_PROXY_HOPS: "1",
     SG_PRODUCT_MATERIAL_MODE: "unavailable", SG_PRODUCT_BUSINESS_MODEL_MODE: "unavailable",
     SG_PRODUCT_MEDIA_CREDENTIAL_KEY_FILE: mediaKeyPath };
+  // Optional, explicitly installed local configuration. Never discover an
+  // existing bucket, invent business proof, or fall back to ambient AWS keys.
+  const materialConfigPath = resolve(dir, "material-storage.json");
+  try {
+    const file = await lstat(materialConfigPath);
+    assert.ok(file.isFile() && !file.isSymbolicLink());
+    assert.equal(file.mode & 0o077, 0, "Private material configuration required");
+    if (process.getuid) assert.equal(file.uid, process.getuid());
+    const material = parseMaterialStorageConfig(JSON.parse(await readFile(materialConfigPath, "utf8")));
+    Object.assign(env, {
+      SG_PRODUCT_MATERIAL_MODE: "configured", SG_PRODUCT_MATERIAL_LOCATION_ID: material.storageLocationId,
+      SG_PRODUCT_MATERIAL_ENDPOINT: material.endpoint, SG_PRODUCT_MATERIAL_REGION: material.region,
+      SG_PRODUCT_MATERIAL_BUCKET: material.bucket, SG_PRODUCT_MATERIAL_FORCE_PATH_STYLE: String(material.forcePathStyle),
+      SG_PRODUCT_MATERIAL_ACCESS_KEY: material.accessKeyId, SG_PRODUCT_MATERIAL_SECRET_KEY: material.secretAccessKey,
+      SG_PRODUCT_MATERIAL_MAX_OBJECT_BYTES: String(material.maxObjectBytes),
+      SG_PRODUCT_MATERIAL_REQUEST_TIMEOUT_MS: String(material.requestTimeoutMs),
+      ...(material.sessionToken ? { SG_PRODUCT_MATERIAL_SESSION_TOKEN: material.sessionToken } : {}),
+    });
+  } catch (error) {
+    // A present-but-invalid file is a configuration failure, never silently
+    // ignored as an unconfigured service.
+    if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error;
+  }
   try {
     const actual = (await pool.query<{ database: string; cluster: string }>("SELECT current_database() AS database, system_identifier::text AS cluster FROM pg_control_system()")).rows[0]!;
     assert.equal(actual.database, database);
@@ -155,6 +179,7 @@ async function main(): Promise<void> {
       "--display-name", "本机真机联调运营", "--request-id", `initialize-${randomUUID()}`], env, config.operatorPassword);
     await privateFile(resolve(dir, "ready.json"), JSON.stringify({ checkedAt: new Date().toISOString(), database, clusterId: config.clusterId,
       containerId: config.containerId, smsMode: "development_capture", phoneFactsSeeded: false, executorEnabled: false,
+      materialMode: env.SG_PRODUCT_MATERIAL_MODE,
       web: "http://127.0.0.1:3100", backend: "http://127.0.0.1:4320" }, null, 2));
   } finally { await pool.end(); }
   console.log("[product-local] persistent owned database prepared; no device facts seeded; executor disabled");

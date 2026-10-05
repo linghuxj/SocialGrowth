@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { contractVersion, saveMaterialDeclarationRequestSchema } from "@socialgrowth/product-contracts";
 import type { ProjectDirectionView, ProjectPlanningDraftView } from "@socialgrowth/product-contracts";
 import { ArrowClockwise, FileVideo, UploadSimple } from "@phosphor-icons/react";
-import { listProjectMaterials, readProjectMaterial, type MaterialCurrentView } from "./material-api.js";
+import { listProjectMaterials, readProjectMaterial, type MaterialCurrentView, type MaterialUploadPage } from "./material-api.js";
 import { readProjectDirection } from "./project-direction-api.js";
 import { readPlanningDraft, samePlanningInputs } from "./project-planning-api.js";
+import { MaterialUploadInventoryPanel } from "./material-upload-inventory-panel.js";
 import { MaterialCandidateStatus, materialEligibilityLabel } from "./material-candidate-status.js";
 import { MaterialScopeConfirmation } from "./material-scope-confirmation.js";
 import { PreparedMaterialDeclaration } from "./material-save-api.js";
@@ -42,6 +43,7 @@ export function MaterialWorkspace({ projectId, active, readOnly, onExpired }: {
   const [rows, setRows] = useState<Row[]>([]), [loaded, setLoaded] = useState(false), [loading, setLoading] = useState(false);
   const [direction, setDirection] = useState<ProjectDirectionView | null>(null), [directionLoaded, setDirectionLoaded] = useState(false), [directionError, setDirectionError] = useState("");
   const [planning, setPlanning] = useState<ProjectPlanningDraftView | null>(null);
+  const [uploadInventoryRefresh, setUploadInventoryRefresh] = useState(0);
   const [error, setError] = useState(""), [busy, setBusy] = useState(false), [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all"), [selected, setSelected] = useState<string[]>([]), [editing, setEditing] = useState<string | null>(null);
   const [cursor, setCursor] = useState<string | null>(null), [bulkLanguage, setBulkLanguage] = useState("");
@@ -105,10 +107,25 @@ export function MaterialWorkspace({ projectId, active, readOnly, onExpired }: {
     }
     setRows(prev => [...prev, ...added]);
   }
+  function continueUploaded(ticket: MaterialUploadPage["tickets"][number]) {
+    if (readOnly || busy || ticket.status !== "verified_bytes") return;
+    const existing = rows.find(value => value.input.objectIds.includes(ticket.objectId));
+    if (existing) { setEditing(existing.id); return; }
+    // Reuse the persisted bytes, never infer source, language, first use or
+    // publication rights from an object ID or its content type.
+    const input = newInput(projectId);
+    if (ticket.contentType === "video/mp4") input.identity.mediaKind = "video";
+    else if (["image/jpeg", "image/png", "image/webp"].includes(ticket.contentType)) input.identity.mediaKind = "image_text";
+    else return;
+    input.objectIds = [ticket.objectId];
+    setRows(previous => [...previous, { id: input.variantId, filename: `已上传文件 ${ticket.objectId}`, input,
+      uploaded: true, dirty: true, error: "", firstUseConfirmed: false, evidenceText: "" }]);
+    setQuery(""); setFilter("all"); setEditing(input.variantId);
+  }
   async function upload(r: Row) {
     if (readOnly || busy || !r.transfer || r.uploading) return;
     update(r.id, v => ({ ...v, uploading: true, error: "" }));
-    try { await r.transfer.send(); if (alive.current) update(r.id, v => ({ ...v, uploaded: true })); }
+    try { await r.transfer.send(); if (alive.current) { update(r.id, v => ({ ...v, uploaded: true })); setUploadInventoryRefresh(v => v + 1); } }
     catch (e) { if (alive.current && !expired(e)) update(r.id, v => ({ ...v, error: message(e) })); }
     finally { if (alive.current) update(r.id, v => ({ ...v, uploading: false })); }
   }
@@ -184,6 +201,7 @@ export function MaterialWorkspace({ projectId, active, readOnly, onExpired }: {
     </div>
     <div className="material-save-scope"><p>保存范围：当前项目全部 {dirty.length} 项未保存／待确认资料（包括筛选隐藏项）；不是勾选范围。刷新或翻页清除勾选，保留草稿。</p><details><summary>查看保存对象</summary>{dirty.map(r => <p key={r.id}>{r.filename} · {r.id}</p>)}</details>
       {!readOnly && <button disabled={busy || !dirty.length || rows.some(r => r.uploading)} onClick={() => void save(dirty)}>{busy ? "保存中…" : "保存资料"}</button>}<p className="form-note">不生成示例素材、权利证明或发布资格；关闭页面会丢失未保存文件与草稿，原请求未知时请先接续。</p></div>
+    <MaterialUploadInventoryPanel projectId={projectId} active={active} refreshVersion={uploadInventoryRefresh} onExpired={onExpired} readOnly={readOnly || busy} onContinue={continueUploaded} />
     {bulkOpen && <section className="panel" aria-label="批量填写语言"><h3>当前选择 {selected.length} 项</h3><label>语言标签<input value={bulkLanguage} onChange={e => setBulkLanguage(e.target.value)} placeholder="例如 es；请按真实语言填写" /></label><label className="material-inline-check"><input type="checkbox" checked={overwrite} onChange={e => setOverwrite(e.target.checked)} />明确覆盖已有语言（默认仅填空值）</label>
       <ul>{rows.filter(r => selected.includes(r.id)).map(r => <li key={r.id}>{r.filename}：{r.input.languageTag || "空"} → {r.saved || (r.input.languageTag && !overwrite) ? "保留（已有身份不可改语言）" : bulkLanguage || "待填写"}</li>)}</ul>
       <button disabled={readOnly || busy || !bulkLanguage} onClick={() => { setRows(prev => prev.map(r => selected.includes(r.id) && !r.saved && !r.pending && (!r.input.languageTag || overwrite) ? { ...r, input: { ...r.input, languageTag: bulkLanguage }, dirty: true } : r)); setBulkOpen(false); }}>应用到待保存资料</button><button className="text-button" onClick={() => setBulkOpen(false)}>取消</button></section>}

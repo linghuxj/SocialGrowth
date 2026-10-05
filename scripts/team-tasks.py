@@ -53,6 +53,15 @@ def main() -> None:
     parser.add_argument("--task")
     parser.add_argument("--revision", type=int)
     args = parser.parse_args()
+    # Consume a replacement before taking the shared lock. A producer may be
+    # another ledger read; waiting for stdin while holding flock can deadlock
+    # the producer when a large JSON snapshot fills its stdout pipe.
+    replacement = None
+    if args.command == "replace":
+        if args.revision is None:
+            parser.error("replace requires --revision")
+        replacement = json.load(sys.stdin)
+        validate(replacement)
     common = Path(subprocess.check_output(
         ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
         text=True,
@@ -64,9 +73,6 @@ def main() -> None:
         fcntl.flock(stream, fcntl.LOCK_EX)
         state = json.loads(board.read_text(encoding="utf-8"))
         validate(state)
-        if args.command == "read":
-            print(json.dumps(state, ensure_ascii=False, indent=2))
-            return
         if args.command == "claim":
             if not args.actor or not args.task:
                 parser.error("claim requires --actor and --task")
@@ -77,19 +83,19 @@ def main() -> None:
             if not set(task.get("depends_on", [])).issubset(done):
                 raise ValueError("Task dependencies are incomplete")
             task.update(owner=args.actor, status="in_progress")
-        else:
-            if args.revision is None:
-                parser.error("replace requires --revision")
+        elif args.command == "replace":
             if args.revision != state["revision"]:
                 raise ValueError("Revision conflict: reread and retry")
-            replacement = json.load(sys.stdin)
-            validate(replacement)
+            assert replacement is not None
             if replacement.get("revision") != state["revision"]:
                 raise ValueError("Replacement must match the current revision")
             state = replacement
-        state["revision"] += 1
-        atomic_write(board, state)
-        print(json.dumps(state, ensure_ascii=False, indent=2))
+        if args.command != "read":
+            state["revision"] += 1
+            atomic_write(board, state)
+    # stdout can block until its consumer reads. A committed/snapshotted result
+    # must never retain the stable lock while waiting for that consumer.
+    print(json.dumps(state, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

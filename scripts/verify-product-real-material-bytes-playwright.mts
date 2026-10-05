@@ -34,9 +34,15 @@ try {
   await page.getByRole("button", { name: "登录", exact: true }).click();
   await page.getByRole("button", { name: "提供者邀请", exact: true }).click(); await page.getByRole("heading", { name: "邀请与接入", exact: true }).waitFor();
   await page.getByRole("button", { name: "项目", exact: true }).click();
-  const project = page.locator(".project-workspace"), name = `获准原文件字节验收-${Date.now()}`;
-  await project.getByRole("button", { name: "新建项目" }).click(); await project.getByLabel("项目名称").fill(name);
-  await project.getByRole("button", { name: "创建筹备项目" }).click(); await project.getByText(/基本信息已保存；仍在筹备/).waitFor();
+  const project = page.locator(".project-workspace"), name = process.env.SG_PRODUCT_REAL_MATERIAL_PROJECT_NAME ?? `获准原文件字节验收-${Date.now()}`;
+  if (process.env.SG_PRODUCT_REAL_MATERIAL_PROJECT_NAME) {
+    const target = project.getByRole("row").filter({ has: page.getByText(name, { exact: true }) });
+    await target.getByRole("button", { name: "打开项目", exact: true }).click();
+    await project.locator(".project-heading h1").getByText(name, { exact: true }).waitFor();
+  } else {
+    await project.getByRole("button", { name: "新建项目" }).click(); await project.getByLabel("项目名称").fill(name);
+    await project.getByRole("button", { name: "创建筹备项目" }).click(); await project.getByText(/基本信息已保存；仍在筹备/).waitFor();
+  }
   await project.getByRole("button", { name: "素材", exact: true }).click();
   const material = page.getByRole("region", { name: "项目素材", exact: true });
   for (const file of paths) {
@@ -61,6 +67,15 @@ try {
     assert.equal(receipt.candidateAllowed, false); assert.equal(receipt.publicationAllowed, false);
     await row.getByRole("button", { name: "预览／资料", exact: true }).click();
     const editor = material.getByRole("region", { name: "素材资料详情" });
+    const draftPath = process.env.SG_PRODUCT_REAL_MATERIAL_DRAFT_FILE;
+    if (draftPath) {
+      const draft = JSON.parse(await readFile(draftPath, "utf8")) as { draftTitle: string; draftDescription: string; assumptionNotice: string };
+      assert.ok(draft.draftTitle && draft.draftDescription && draft.assumptionNotice);
+      await editor.getByLabel("内容名称", { exact: true }).fill(draft.draftTitle);
+      await editor.getByLabel("内容说明", { exact: true }).fill(draft.draftDescription);
+      await editor.getByLabel("业务事实", { exact: true }).fill(draft.assumptionNotice);
+      assert.equal(await editor.getByLabel("语言标签", { exact: true }).inputValue(), "", "测试假设不能填成已确认素材语言");
+    }
     const firstUse = editor.getByRole("checkbox", { name: "我已人工确认：此成品此前未发布；声明不等于系统核验通过" });
     assert.equal(await firstUse.isChecked(), false);
     if (firstUseConfirmed) {
@@ -70,6 +85,7 @@ try {
     await editor.getByRole("button", { name: "保存本条／接续原请求" }).click();
     await editor.getByText(firstUseConfirmed ? "请补齐资料和真实引用：名称、语言、业务/来源关系、说明、事实及证明。" : "请人工确认首次使用声明；文件上传不能代替来源确认。", { exact: true }).waitFor();
     assert.equal(await firstUse.isChecked(), firstUseConfirmed);
+    await editor.screenshot({ path: `${output}/test-draft-incomplete-${evidence.length + 1}.png` });
     evidence.push({ file: basename(file), bytes: receipt.bytes, sha256: receipt.sha256, objectId: receipt.objectId });
     await editor.getByRole("button", { name: "保留草稿返回" }).click();
   }
@@ -80,7 +96,16 @@ try {
   await project.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "打开项目" }).click();
   await project.getByRole("button", { name: "素材", exact: true }).click();
   await material.getByRole("heading", { name: "尚无已登记素材", exact: true }).waitFor();
-  await writeFile(`${output}/result.json`, JSON.stringify({ passed: true, evidence, declarationWrites, firstUseHumanConfirmed: firstUseConfirmed, sourceRecordVerified: false,
+  const inventory = material.getByRole("region", { name: "已保存的文件上传记录", exact: true });
+  await inventory.getByText("原文件字节已校验", { exact: true }).first().waitFor();
+  for (const item of evidence) {
+    const receiptRow = inventory.getByRole("listitem").filter({ hasText: item.sha256 });
+    await receiptRow.locator("summary").click();
+    await receiptRow.getByText(item.objectId, { exact: true }).waitFor();
+    await receiptRow.getByText(item.sha256, { exact: true }).waitFor();
+  }
+  await inventory.screenshot({ path: `${output}/persisted-upload-receipts.png` });
+  await writeFile(`${output}/result.json`, JSON.stringify({ passed: true, projectName: name, evidence, declarationWrites, reloadPreservesVerifiedUpload: true, testDraftProvided: !!process.env.SG_PRODUCT_REAL_MATERIAL_DRAFT_FILE, firstUseHumanConfirmed: firstUseConfirmed, sourceRecordVerified: false,
     scope: "authorized original Web upload and verified hash/size; human first-use input when explicitly confirmed; missing real references block declaration; reload has no fabricated registry entry", publication: false }, null, 2));
   console.log(JSON.stringify({ passed: true, originalFiles: evidence.length, declarationWrites, publication: false }));
 } catch (error) {

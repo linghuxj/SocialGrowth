@@ -89,7 +89,7 @@ test("static legacy sparse configuration fails closed only after auth and cannot
   const auth = { authenticateSessionInTransaction: async () => { authenticated++; throw new ProductTransactionError("AUTHENTICATION_REQUIRED", "synthetic refusal"); } } as unknown as OperatorAuthService;
   const store = new MediaCredentialStore(pool, auth, { ...input, digestKeys: sparse });
   await assert.rejects(store.write("synthetic-token", "synthetic-csrf", { metadata: { contractVersion, requestId: "request-sparse-0001", idempotencyKey: "sparse-intent-0001" },
-    credentialId: randomUUID(), accountId: randomUUID(), platform: "facebook", expectedRevision: 0, operation: "put" }, Buffer.from('{"login":"synthetic","password":"synthetic"}')),
+    credentialId: randomUUID(), accountId: randomUUID(), platform: "facebook", expectedRevision: 0, operation: "put", loginIdentifier: "synthetic" }, Buffer.from('{"login":"synthetic","password":"synthetic"}')),
   error => error instanceof ProductTransactionError && error.code === "AUTHENTICATION_REQUIRED");
   assert.equal(authenticated, 1); assert.equal(released, 1); assert.ok(keys(input).every(key => !key.equals(Buffer.alloc(32))));
 });
