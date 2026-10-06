@@ -8,6 +8,10 @@
 
 2026-10-05 用户确认：后续采用[简化开发与验证规范](CLAUDE.md#简化开发与验证2026-10-05-用户确认)。一次解决一个实际问题，优先复用现有实现，采用最小改动；小改动默认单负责人，验证范围与影响范围匹配，满足验收条件后收尾。不为未来假设增加框架、抽象、迁移或协作流程。涉及权限、未知提交、敏感信息和真实业务结果的必要约束仍须遵守。
 
+## 分支与版本
+
+2026-10-06 用户确认：只保留 `main` 与 `dev`。所有日常开发在 `dev`；`main` 管理完成部署条件核验的固定版本。版本晋级须按 [CLAUDE.md 的分支与版本规范](CLAUDE.md#3-git-提交与分支规范)执行，历史 Git 合并和局部检查不代表产品验收。
+
 ## 安装与启动
 
 - 统一使用 pnpm 8.14.0，项目 `.npmrc` 自动下载并选择 Node.js 24.16.0（首次需要联网），不修改全局 Node。从根目录执行 `pnpm install --frozen-lockfile`；依赖以 `pnpm-workspace.yaml` 与唯一的 `pnpm-lock.yaml` 管理，不生成 npm / Yarn 锁文件。`pnpm env:check` 输出实际 Node 路径及 SQLite 检查结果，不用裸 `node -v` 代替项目运行环境证据。
@@ -32,7 +36,7 @@
 ## Autonomous agent teams
 
 - Default to one owner for small fixes. Delegate only when independent, authorized subtasks benefit from parallel work or the change warrants specialist review; choose the needed roles instead of requiring a full team for every change. When teams are used, the lead uses gpt-6.1-sol/high; ux and backend use gpt-6-luna/medium; adversary uses gpt-6-astra/high. The rules below apply to delegated teamwork.
-- Each live teammate owns a distinct worktree and branch. Initial assignments are in the canonical tasks.json. Additional instances must reserve their own workspace entry and create a unique codex/team-<role>-<agent-id> branch/worktree before editing. Never share a worker checkout or edit the lead checkout. Worktrees isolate file writes; integration can still require conflict resolution.
+- Each live teammate owns a distinct detached worktree from a fixed dev SHA. Do not create persistent team branches. Reserve the workspace entry before editing, record each candidate head SHA, and integrate reviewed work into dev. Never share a worker checkout or edit the lead checkout. Historical tasks.json branch names remain historical references, not authorization to recreate deleted branches.
 - The canonical task ledger is tasks.json beside the shared Git common directory. Run scripts/team-tasks.py from the canonical repository; all worktrees use the same persistent Git-directory lock. Do not edit tasks.json directly, delete the lock, or commit mutable ledger state.
 - Read with `python3 /Users/linghuxj/Documents/myproject/project/SocialGrowth/scripts/team-tasks.py read`. Claim with `claim --task <id> --actor <runtime-agent-id>`. For other updates, send a complete updated JSON snapshot on stdin to `replace --revision <observed-revision>`; on conflict reread, merge your intended change, and retry.
 - Task records contain id, title, role, status, owner, depends_on, contracts, and security_review. Use pending/in_progress/blocked/review/done statuses. Only claim tasks matching your role; only change your own task's work state. Preserve other teammates' records. Complete dependencies before claiming dependent work.
