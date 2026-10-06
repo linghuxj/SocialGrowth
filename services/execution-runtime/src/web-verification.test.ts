@@ -100,9 +100,19 @@ function fixture(result: unknown, mode: "preflight" | "observe" | "client_test" 
               assert.ok(String(args.task_desc).includes("Never use manage_app"));
             } else if (mode === "connectivity_test") {
               assert.equal(Object.hasOwn(args, "locked_app_package"), false);
+              if (String(args.task_desc).includes("offline setup-guide check")) {
+                assert.ok(String(args.task_desc).includes("disabled 开始连接检查"));
+                assert.ok(String(args.task_desc).includes("Do not retry requests, authenticate, associate"));
+              } else if (String(args.task_desc).includes("automatic-connection UI test")) {
+                assert.equal(args.verification_level, "checkpoints");
+                assert.match(String(args.task_desc), /Only SocialGrowth and launcher/);
+                assert.match(String(args.task_desc), /No shell\/ADB/);
+                assert.match(String(args.task_desc), /Do not change business state/);
+              } else {
               assert.ok(String(args.task_desc).includes("Never open any pairing-code"));
               assert.ok(String(args.task_desc).includes("Do not change account"));
               assert.ok(String(args.task_desc).includes("do not register, associate or confirm participation"));
+              }
             } else if (mode === "observe") {
               assert.equal(Object.hasOwn(args, "locked_app_package"), false);
               assert.ok(String(args.task_desc).includes("Observe current device screen only"));
@@ -324,7 +334,38 @@ test("connectivity preparation is native-only, excludes codes, and requires chec
       assert.throws(() => f.verification.start({ ...f.input, allowLocalParticipationStart: true }), /CLIENT_INITIAL_START_SCOPE_INVALID/);
       f.verification.start({ ...f.input, allowEndpointReportingStart: true });
       assert.equal((await f.finish()).resultCode, failed ? "UNCONFIRMED" : "CONNECTIVITY_SETUP_COMPLETED");
-      assert.ok(f.description().includes("Tap 开启端口自动上报 once"));
+      assert.ok(f.description().includes("start connection checks automatically"));
     } finally { await f.close(); }
   }
+});
+
+test("offline setup checks reject reporting authority and retain failed checker results", async () => {
+  for (const failed of [0, 1]) {
+    const f = fixture({ resultCode: "CONNECTIVITY_SETUP_COMPLETED", loginSubmitCount: 0, finalSubmitClicked: false,
+      test_summary: { task_status: "completed", passed: 1, failed, inconclusive: 0 } }, "connectivity_test");
+    try {
+      f.hold();
+      const input = { ...f.input, goal: "VERIFY_OFFLINE_GUIDE_ONLY" };
+      assert.throws(() => f.verification.start({ ...input, allowEndpointReportingStart: true }), /OFFLINE_GUIDE_SCOPE_INVALID/);
+      assert.equal(f.starts(), 0);
+      f.verification.start(input);
+      assert.equal((await f.finish()).resultCode, failed ? "UNCONFIRMED" : "CONNECTIVITY_SETUP_COMPLETED");
+    } finally { await f.close(); }
+  }
+});
+
+test("automatic connection checks require connection scope and never expand business participation", async () => {
+  const f = fixture({ resultCode: "CONNECTIVITY_SETUP_COMPLETED", loginSubmitCount: 0, finalSubmitClicked: false,
+    test_summary: { task_status: "completed", passed: 3, failed: 0, inconclusive: 0 } }, "connectivity_test");
+  try {
+    f.hold();
+    const input = { ...f.input, goal: "VERIFY_AUTOMATIC_CONNECTION" };
+    assert.throws(() => f.verification.start(input), /AUTOMATIC_CONNECTION_SCOPE_INVALID/);
+    assert.equal(f.starts(), 0);
+    f.verification.start({ ...input, allowEndpointReportingStart: true });
+    assert.equal((await f.finish()).resultCode, "CONNECTIVITY_SETUP_COMPLETED");
+    assert.match(f.description(), /ONE pause and ONE resume of CONNECTION AUTOMATION ONLY/);
+    assert.match(f.description(), /No shell\/ADB/);
+    assert.match(f.description(), /Do not change business state/);
+  } finally { await f.close(); }
 });

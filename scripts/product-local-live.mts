@@ -131,10 +131,29 @@ async function main(): Promise<void> {
     SG_PRODUCT_BACKEND_HOST: "127.0.0.1", SG_PRODUCT_BACKEND_PORT: backendPort, SG_PRODUCT_TRUST_PROXY_HOPS: "1",
     SG_PRODUCT_MATERIAL_MODE: "unavailable", SG_PRODUCT_BUSINESS_MODEL_MODE: "unavailable",
     SG_PRODUCT_MEDIA_CREDENTIAL_KEY_FILE: mediaKeyPath };
-  // Explicit opt-in for the small Android pilot; values are file/binary paths,
-  // never Auth Key contents. Other ambient SG configuration remains excluded.
-  for (const name of ["SG_PRODUCT_TAILNET_PILOT_CONFIG", "SG_PRODUCT_TAILNET_PILOT_AUTH_KEY_FILE",
-    "SG_PRODUCT_TAILSCALE_CLI", "SG_PRODUCT_CENTER_ADB", "SG_PRODUCT_CENTER_ADB_USER_HOME", "SG_PRODUCT_CENTER_ADB_TAILSCALE_CLI"]) {
+  // Persist explicitly installed pilot paths across normal pnpm dev restarts.
+  // This file contains paths only, never Auth Key contents or admission facts.
+  const networkNames = ["SG_PRODUCT_TAILNET_PILOT_CONFIG", "SG_PRODUCT_TAILNET_PILOT_AUTH_KEY_FILE",
+    "SG_PRODUCT_TAILSCALE_CLI", "SG_PRODUCT_CENTER_ADB", "SG_PRODUCT_CENTER_ADB_USER_HOME", "SG_PRODUCT_CENTER_ADB_TAILSCALE_CLI"];
+  let localNetwork: Record<string, string> = {};
+  try {
+    const path = resolve(dir, "network.env"), file = await lstat(path);
+    assert.ok(file.isFile() && !file.isSymbolicLink() && (file.mode & 0o077) === 0);
+    if (process.getuid) assert.equal(file.uid, process.getuid());
+    localNetwork = parseEnv(await readFile(path, "utf8"));
+  } catch (error) {
+    if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error;
+  }
+  for (const [name, value] of Object.entries(localNetwork)) {
+    assert.ok(networkNames.includes(name), "Unsupported local network configuration");
+    assert.ok(value.startsWith("/") && !/[\r\n\0]/.test(value), "Absolute network path required");
+    // A present configuration with missing targets must fail, not silently
+    // disable the connection authority as if no configuration were installed.
+    await lstat(value);
+    Object.assign(env, { [name]: value });
+  }
+  // Explicit environment paths still override installed local paths.
+  for (const name of networkNames) {
     const value = process.env[name];
     if (value) Object.assign(env, { [name]: value });
   }

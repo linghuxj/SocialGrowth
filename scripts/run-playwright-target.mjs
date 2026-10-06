@@ -8,6 +8,7 @@ productScripts["core-preparation"] = "scripts/verify-product-core-preparation-pl
 productScripts["core-materials"] = "scripts/verify-product-core-materials-playwright.mts";
 productScripts["closed-loop"] = "scripts/verify-product-closed-loop-playwright.mts";
 productScripts["media-accounts"] = "scripts/verify-product-media-accounts-playwright.mts";
+productScripts["public-phone-access"] = "scripts/verify-public-phone-access-playwright.mts";
 const target = process.env.SG_WEB_TARGET ?? "demo";
 const scope = process.env.SG_PRODUCT_WEB_SCOPE ?? "identity";
 const demoScope = process.env.SG_DEMO_WEB_SCOPE ?? "readiness";

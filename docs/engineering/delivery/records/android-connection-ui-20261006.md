@@ -1,0 +1,53 @@
+# Android 连接状态与底部导航改进
+
+2026-10-06。用户要求：已关联设备和连接引导必须显示当前连接状态，帮助普通用户判断是否正常；首页“设备／分佣／我的”采用标准 App Tab。
+
+本轮已实现并安装到 Samsung SM-S9110（RFCW40MYYCV，Android 16）。Web → Artemis 的实际真机 UI 验证通过。当前平台网络核验能力不可用，App 如实显示“平台网络待确认”，不把关联、VPN 开关或历史配对视为当前连接正常。
+
+后续用户要求恢复该状态后，已定位为统一启动漏载网络配置，恢复当前手机实际远程连接并通过真机界面检查；见[恢复记录](network-authority-restored-20261006.md)。下文保留本轮 UI 检查时的环境与结果。
+
+## 展示与交互
+
+- 首页本机卡片和设备列表直接显示当前连接结论、网络节点、调试配对、检查时间及“重新检查”；设备详情、本机执行页面与本机准备顶部展开显示“网络节点／调试配对／平台连接／执行状态”。
+- 平台实时确认连接后才显示绿色“平台已连接”；等待、配对中、连接中、中断和请求失败分别显示对应文字与下一步操作。执行状态缺少平台事实时显示“待平台核验”，不推断任务已开始或设备空闲。
+- `NETWORK_AUTHORITY_UNAVAILABLE` 时网络与配对都显示待确认，不以服务端默认值显示“尚未配对”。说明用户已完成的手机设置无需重做，联系运营处理平台核验条件。
+- 显示最近一次实际服务响应的时间；前台约每 5 秒检查，10 秒未取得新结果转为待更新。首页／设备列表只轮询可见状态卡片，离开页面或进入后台停止检查，返回重新确认；请求失败不能继续显示旧的在线状态。
+- 手动检查显示“检查中…”并防止重复请求；已确认连接的准备页提示无需重复配对。返回页面与刷新不会自动开始任务、恢复暂停或修改参与状态。
+- 三个底部入口采用 Material `BottomNavigationView` 1.13.0：固定底栏、原生图标与标签、明确选中态。重复点击当前 Tab 保持当前内容和滚动位置；系统底部安全区域沿用 Activity 的处理。
+
+## 候选与验证
+
+最终 APK SHA-256：`b8c79e20c7324bb0ab6c7d37e4c09eced3c1574af62938c86313e422be1891dc`。通过 `adb -s RFCW40MYYCV install -r` 更新，保留现有登录、关联与配对数据；旧 APK 私有备份于 `.runtime/android-connection-ui-20261006/before-upgrade.apk`。
+
+| 验证 | 结果与覆盖范围 |
+| --- | --- |
+| Android `assembleDebug` | 通过；公开 HTTPS 配置，最终候选已安装 |
+| execution-runtime 构建及现有 web-verification 测试 | 通过；15 项测试，作为补充检查 |
+| 真机操作补充检查 | 三个 Tab 对应页面及选中态正确，准备页四项状态和时间可见 |
+| 实际公开接入网关短暂停止／恢复 | 请求失败显示“暂时无法确认连接”，恢复后取得新平台结果；无虚假在线、无业务事实写入 |
+| Playwright 实际 Web 发起 → Artemis 真机 UI | **通过**；task `3ed394cb-1eb4-4112-8367-b44a7a5c5b6d`，trace `840bed0d-214c-4a86-ac83-030a9724bffd`；completed，3 通过、0 失败、0 待确认 |
+
+三个实际 UI 验收点为：首页真实待确认状态及检查时间；设备／分佣／我的图标 Tab 切换与选中态；本机准备顶部的真实连接摘要。保留 Artemis 中途检查与最终检查，未关闭检查器。测试使用当前 USB 真机通道，仅操作自有 App，登录提交 0，未点击内容发布。
+
+首轮 Web 发起返回 HTTP 409，未取得 task ID，也未派发设备任务，原结果保留在 `output/playwright/android-connection-ui-20261006/`。在核对运行任务为零后重新加载已有 runtime 配置，使用独立目录发起上述成功检查；未覆盖首轮结果。成功证据在 `output/playwright/android-connection-ui-reloaded-20261006/`，真机补充检查在私有 `.runtime/android-connection-ui-20261006/`。较早视觉截图不是最终候选的精确版本，最终候选以本表的真实 Artemis 检查及安装哈希为准。
+
+## 复现命令
+
+```sh
+SG_PRODUCT_ANDROID_DEBUG_API_BASE_URL=https://macbook-pro.tail3656e0.ts.net:8443 \
+GRADLE_USER_HOME=/tmp/socialgrowth-product-gradle \
+product/android/gradlew -p product/android assembleDebug --no-daemon
+
+pnpm --filter @socialgrowth/execution-runtime run build
+pnpm exec tsx --test services/execution-runtime/src/web-verification.test.ts
+
+SG_WEB_TARGET=demo SG_DEMO_WEB_SCOPE=client \
+SG_DEMO_REAL_CLIENT_TEST=authorized SG_DEMO_CLIENT_MODE=connectivity_test \
+SG_DEMO_REAL_CONNECTIVITY_TEST=authorized SG_DEMO_VERIFY_ANDROID_CONNECTION_UI=authorized \
+SOCIALGROWTH_VERIFICATION_OUTPUT=output/playwright/android-connection-ui-reloaded-20261006 \
+pnpm test:playwright
+```
+
+上面的输出目录已有终态任务，复核时使用脚本的 `SG_DEMO_CLIENT_PHASE=reconcile`；需要新任务时先核对旧任务终态并使用新目录。当前运行配置为 USB 序列号，旧远程配置留有私有备份，不能将此检查称为异地远程准入验收。
+
+临时 Demo Web 已停止；公开接入网关已恢复，产品服务继续运行，重新加载的 runtime 保留运行。原有人工接管未被清除。此交付不改变网络凭据、正式准入、旧业务 unknown 或首次配对；[既有新手机流程记录](new-phone-access-20261006.md)中的未验收条件仍各自保留。

@@ -41,15 +41,17 @@ internal object DeviceConnectionBoundary {
     }
     fun message(state: DeviceConnectionSnapshot): String = when {
         state.connected -> "平台已连接到这台手机。"
+        state.blockerCode == "NETWORK_AUTHORITY_UNAVAILABLE" -> "平台暂时无法核对本机网络，请联系运营处理。已完成的手机设置无需重做。"
         state.networkState == "not_configured" -> "平台的网络接入尚未配置，请联系邀请你的运营人员。"
         state.networkState == "blocked" -> "本机入网暂未通过，请联系邀请你的运营人员核对。"
         state.networkState !in setOf("admitted", "pilot_verified") -> "等待本机完成网络接入。"
         state.pairingState == "pairing" -> "正在配对，请保持执行手机的配对弹窗打开。"
-        state.pairingState == "awaiting_code" -> "已找到执行手机，请在管理手机输入配对码。"
+        state.pairingState == "awaiting_code" -> "已找到执行手机。同机使用请在 SocialGrowth 通知中输入配对码；其他手机可在管理页输入。"
         state.pairingState == "expired" -> "配对已超时，请在执行手机重新打开配对码。"
         state.connectionState == "connecting" -> "正在连接，请稍候。"
         state.connectionState == "stale" -> "连接暂时中断，正在等待执行手机重新连接。"
         state.pairingState == "unknown" -> "上次配对结果待核实，请先刷新检查，暂勿重复提交。"
+        state.pairingState == "paired" -> "已配对，但当前连接尚未确认。请检查 Wi-Fi 和 Tailscale，并保持连接检查开启；无需重复输入配对码。"
         else -> "请在执行手机开启无线调试，并打开配对码弹窗。"
     }
 }

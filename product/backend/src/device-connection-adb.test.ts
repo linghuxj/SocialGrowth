@@ -39,3 +39,19 @@ test("invalid endpoints and stalled ADB processes cannot create successful resul
   assert.equal(adbEndpoint("fd7a:115c:a1e0::1", 37002), "[fd7a:115c:a1e0::1]:37002");
   await fixture('setInterval(()=>{},1000);', async adb => assert.deepEqual(await adb.connectAndVerify("100.118.89.89", 37002), { state: "unknown" }));
 });
+
+test("failed live verification clears a cached device transport and permits the next retry", async () => {
+  const endpoint = "100.118.89.89:37002";
+  await fixture(`const fs=require("node:fs"),path=require("node:path");
+    const marker=path.join(path.dirname(process.argv[1]),"disconnected");
+    const args=process.argv.slice(2);
+    if(args[0]==="disconnect"){if(args[1]!=="${endpoint}")process.exit(2);fs.writeFileSync(marker,"");}
+    else if(args[0]==="connect")console.log("connected");
+    else if(args[0]==="devices")console.log("${endpoint}\\tdevice");
+    else if(args[2]==="get-state")console.log("device");
+    else if(args[2]==="shell"){if(fs.existsSync(marker))console.log("RFCW40MYYCV");else process.exit(1);}
+    else process.exit(2);`, async adb => {
+      assert.deepEqual(await adb.connectAndVerify("100.118.89.89", 37002), { state: "unknown" });
+      assert.deepEqual(await adb.connectAndVerify("100.118.89.89", 37002), { state: "connected", hardwareSerial: "RFCW40MYYCV" });
+    });
+});

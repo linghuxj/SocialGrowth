@@ -14,6 +14,49 @@ const expectedResult = mode === "client_test" ? "CLIENT_TEST_COMPLETED" : "CONNE
 const allowInitialStart = process.env.SG_DEMO_CLIENT_INITIAL_CONFIRM === "authorized";
 const allowEndpointStart = process.env.SG_DEMO_ENDPOINT_REPORTER_START === "authorized";
 const allowWithdrawal = process.env.SG_DEMO_CLIENT_WITHDRAWAL_TEST === "authorized";
+const offlineGuideOnly = process.env.SG_DEMO_VERIFY_OFFLINE_GUIDE_ONLY === "authorized";
+const authKeyGuideOnly = process.env.SG_DEMO_VERIFY_AUTHKEY_GUIDE_ONLY === "authorized";
+const singlePhoneGuide = process.env.SG_DEMO_VERIFY_SINGLE_PHONE_GUIDE === "authorized";
+const singlePhoneRemote = process.env.SG_DEMO_VERIFY_SINGLE_PHONE_REMOTE === "authorized";
+const androidConnectionUi = process.env.SG_DEMO_VERIFY_ANDROID_CONNECTION_UI === "authorized";
+const automaticConnection = process.env.SG_DEMO_VERIFY_AUTOMATIC_CONNECTION === "authorized";
+if (automaticConnection) {
+  assert.equal(mode, "connectivity_test");
+  assert.ok(allowEndpointStart && !androidConnectionUi && !singlePhoneRemote && !singlePhoneGuide && !offlineGuideOnly && !authKeyGuideOnly && !allowInitialStart && !allowWithdrawal);
+}
+if (androidConnectionUi) {
+  assert.equal(mode, "connectivity_test");
+  assert.ok(!singlePhoneRemote && !singlePhoneGuide && !offlineGuideOnly && !authKeyGuideOnly && !allowInitialStart && !allowEndpointStart && !allowWithdrawal);
+}
+if (singlePhoneRemote) {
+  assert.equal(mode, "connectivity_test");
+  assert.ok(!singlePhoneGuide && !offlineGuideOnly && !authKeyGuideOnly && !allowInitialStart && !allowEndpointStart && !allowWithdrawal);
+  const proofPath = resolve(".runtime/new-phone-20261006/remote-transport.private.json");
+  const stat = await lstat(proofPath); assert.ok(stat.isFile() && !stat.isSymbolicLink() && (stat.mode & 0o077) === 0);
+  const proof = JSON.parse(await readFile(proofPath, "utf8"));
+  assert.equal(proof.hardwareSerial, "RFCW40MYYCV"); assert.equal(proof.transport, "tailscale nc");
+  assert.equal(proof.usbFallback, false); assert.equal(proof.lanFallback, false);
+  assert.match(proof.serial, /^127\.0\.0\.1:\d+$/);
+  const cfg = JSON.parse(await readFile(resolve(".runtime/web-verification.json"), "utf8"));
+  assert.equal(cfg.serial, proof.serial); assert.equal(cfg.deviceId, proof.hardwareSerial);
+  const age = Date.now() - Date.parse(proof.checkedAt); assert.ok(age >= 0 && age < 60_000);
+  const run = promisify(execFile);
+  const current = await run("/Users/linghuxj/Library/Android/sdk/platform-tools/adb", ["-s", proof.serial, "shell", "getprop", "ro.serialno"], { timeout: 6000 });
+  assert.equal(current.stdout.trim(), proof.hardwareSerial);
+}
+if (singlePhoneGuide) {
+  assert.equal(mode, "connectivity_test");
+  assert.ok(!offlineGuideOnly && !authKeyGuideOnly && !allowInitialStart && !allowEndpointStart && !allowWithdrawal);
+}
+if (authKeyGuideOnly) {
+  assert.equal(mode, "connectivity_test");
+  assert.ok(!offlineGuideOnly && !allowInitialStart && !allowEndpointStart && !allowWithdrawal,
+    "Auth Key guide check only verifies the existing association and network setup");
+}
+if (offlineGuideOnly) {
+  assert.equal(mode, "connectivity_test");
+  assert.ok(!allowInitialStart && !allowEndpointStart && !allowWithdrawal, "Offline guide check cannot authorize device state changes");
+}
 const output = resolve(process.env.SOCIALGROWTH_VERIFICATION_OUTPUT ?? "artifacts/acceptance/product/B3/blocker-resolution-live-20261002/client-artemis");
 await mkdir(output, { recursive: true, mode: 0o700 });
 const intent = resolve(output, "launch-intent.json");
@@ -110,6 +153,12 @@ try {
     if (process.env.SG_DEMO_VERIFY_CONNECTED_GUIDE_ONLY === "authorized") await goal.fill("VERIFY_CONNECTED_GUIDE_ONLY REQUIRE_CENTER_CONNECTION: 仅在已关联的自有客户端核验本机准备与真实平台连接；不打开其他设置、不取密钥、不配对、不发布。");
     if (process.env.SG_DEMO_ROTATE_WIRELESS_PORT === "authorized") await goal.fill(`ROTATE_WIRELESS_PORT_ONCE: ${await goal.inputValue()}`);
     if (process.env.SG_DEMO_CHECK_PILOT_KEY_COPY === "authorized") await goal.fill(`CHECK_PILOT_KEY_COPY: 仅通过App按钮取用并复制密钥，检查成功提示；禁止读取、输出、粘贴密钥。 ${await goal.inputValue()}`);
+    if (offlineGuideOnly) await goal.fill("VERIFY_OFFLINE_GUIDE_ONLY: 验证平台不可达时可进入本机准备；未确认关联与网络时，密钥获取和连接检查均不可用。只检查现有App，不登录、不关联、不修改系统或网络设置、不发布。");
+    if (authKeyGuideOnly) await goal.fill("VERIFY_AUTHKEY_GUIDE_ONLY: 已通过USB单独完成当前手机Auth Key登录；仅验证自有App的实际本机网络确认、当前版本菜单说明和密钥复制反馈。禁止再次登录、读取或粘贴密钥、修改系统设置、启动连接检查或参与、配对和发布。");
+    if (singlePhoneGuide) await goal.fill("VERIFY_SINGLE_PHONE_GUIDE: 用户已授权同一台手机管理与执行；本机已登录本人管理账号。仅通过本机卡片核对并明确确认关联SM-S9110，检查关联回执与管理、本机准备页面往返；禁止扫码关联其他手机、重新登录、读取密钥或验证码、改系统设置、启动连接检查、开始参与或发布。");
+    if (singlePhoneRemote) await goal.fill("VERIFY_SINGLE_PHONE_REMOTE REQUIRE_CENTER_CONNECTION: 本轮实际执行配置限定为已核对硬件序列号的Tailscale远程ADB通道。检查本机管理、准备往返、通知内配对说明与当前平台已连接反馈；保持现有连接检查，不读取配对码、不重新关联、不修改系统、不启停参与、不发布。");
+    if (androidConnectionUi) await goal.fill("VERIFY_ANDROID_CONNECTION_UI: 仅核验本人App首页实时连接状态、更新时间、标准图标Tab切换，以及本机准备顶部的网络/配对/连接/执行状态；当前平台网络配置尚未确认，必须如实显示待确认且不能宣称已连接。允许点击重新检查；不登录、不关联、不读取密钥或配对码、不改系统、不启停连接检查或参与、不发布。");
+    if (automaticConnection) await goal.fill("VERIFY_AUTOMATIC_CONNECTION: 核验已关联本机打开App自动恢复平台连接及跨Tab保持；首次观察不得点击任何连接启动/恢复/重新检查按钮。随后明确授权一次暂停自动连接、退出并重新打开App确认暂停保留、一次恢复自动连接并核验真实连接。保持原配对与业务参与，不打开其他设置或App、不读取凭据、不重配对、不登录、不发布。");
   }
   await panel.getByLabel("验收文案", { exact: true }).fill("NATIVE PARTICIPATION TEST - NO PUBLICATION");
   if (allowInitialStart) { assert.equal(mode, "client_test"); }
@@ -122,8 +171,10 @@ try {
   const responsePromise = page.waitForResponse(r => new URL(r.url()).pathname === "/api/runtime/verifications" && r.request().method() === "POST");
   await panel.getByRole("button", { name: "从 Web 启动完整验收", exact: true }).click();
   const response = await responsePromise;
-  await save("launch-http-result.json", { status: response.status(), mode });
-  assert.equal(response.status(), 200);
+  const errorCode = response.ok() ? undefined : (await response.json().catch(() => null))?.error?.code;
+  await save("launch-http-result.json", { status: response.status(), mode,
+    ...(typeof errorCode === "string" && /^[A-Z0-9_]+$/.test(errorCode) ? { errorCode } : {}) });
+  assert.equal(response.status(), 200, `Native task launch rejected: ${typeof errorCode === "string" && /^[A-Z0-9_]+$/.test(errorCode) ? errorCode : response.status()}`);
   const launched = await response.json() as { id: string; deviceId: string; status: string };
   assert.equal(launched.deviceId, "RFCW40MYYCV"); assert.equal(launched.status, "running");
   taskId = launched.id; assert.match(taskId, /^[a-f0-9-]{36}$/);

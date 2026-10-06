@@ -8,4 +8,9 @@
         <item name="android:navigationBarColor">#F4F6FA</item>
         <item name="android:windowActionModeOverlay">true</item>
     </style>
+    <style name="Theme.SocialGrowth.Navigation" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="colorPrimary">#2459C4</item>
+        <item name="colorOnSurface">#526176</item>
+        <item name="android:fontFamily">sans</item>
+    </style>
 </resources>

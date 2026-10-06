@@ -4,6 +4,7 @@ import android.app.AlertDialog
 import android.app.Dialog
 import android.graphics.Bitmap
 import android.content.Intent
+import android.content.res.ColorStateList
 import androidx.core.content.ContextCompat
 import android.graphics.Color
 import android.graphics.Typeface
@@ -16,6 +17,8 @@ import android.os.Looper
 import android.text.InputType
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.ContextThemeWrapper
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -30,6 +33,10 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.ComponentActivity
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
 import com.journeyapps.barcodescanner.ScanContract
@@ -73,6 +80,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var associationApi: AssociationApiClient
     private lateinit var sessionStore: ProviderSessionStore
     private lateinit var installationStore: InstallationIdentityStore
+    private lateinit var automaticConnectionMonitor: AutomaticConnectionMonitor
     private lateinit var deviceLabelCommandStore: ProviderDeviceLabelCommandStore
     private var registrationMode = true
     private var invitationCode: String? = null
@@ -95,7 +103,10 @@ class MainActivity : ComponentActivity() {
         connectionPermissionScreen = null
         if (screen != screenGeneration) return@registerForActivityResult
         if (granted) startConnectionChecking()
-        else Toast.makeText(this, "请允许通知，方便查看连接进度和随时停止。", Toast.LENGTH_LONG).show()
+        else {
+            startConnectionChecking()
+            Toast.makeText(this, "自动连接仍会检查。首次配对需要通知，请在 App 设置中允许通知。", Toast.LENGTH_LONG).show()
+        }
     }
     private val barcodeLauncher = registerForActivityResult(ScanContract()) { result ->
         if (pendingScanGeneration != screenGeneration) {
@@ -122,10 +133,12 @@ class MainActivity : ComponentActivity() {
         sessionStore = ProviderSessionStore(this)
         installationStore = InstallationIdentityStore(this)
         deviceLabelCommandStore = ProviderDeviceLabelCommandStore(this)
+        automaticConnectionMonitor = AutomaticConnectionMonitor(this, executor)
+        lifecycle.addObserver(automaticConnectionMonitor)
         invitationCode = intent?.data?.getQueryParameter("invitation")
             ?: intent?.data?.getQueryParameter("code")
             ?: intent?.getStringExtra("invitation")
-        if (installationStore.exists()) {
+        if (installationStore.exists() && sessionStore.load() == null) {
             showInstallationLoading()
             return
         }
@@ -392,14 +405,14 @@ class MainActivity : ComponentActivity() {
             setPadding(dp(20), dp(24), dp(20), dp(24))
         }
         root.addView(label("SocialGrowth", 20f, ink, Typeface.BOLD), matchWrap())
-        root.addView(label("选择这台手机的使用方式", 30f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(28) })
-        root.addView(label("管理登录不会将本机接入执行。", 15f, secondary), matchWrap().apply { topMargin = dp(8) })
+        root.addView(label("一台手机，管理与执行", 30f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(28) })
+        root.addView(label("登录后可直接接入这台手机，不需要另一台手机扫码。", 15f, secondary), matchWrap().apply { topMargin = dp(8) })
         val management = vertical(14).apply {
             background = rounded(Color.WHITE, 12)
             isClickable = true
             isFocusable = true
             contentDescription = "管理我的设备：查看本人设备、处理协助事项和查看分佣"
-            setOnClickListener { registrationMode = true; showAuthForm() }
+            setOnClickListener { openManagement() }
         }
         management.setPadding(dp(18), dp(16), dp(18), dp(16))
         management.addView(label("管理我的设备", 20f, ink, Typeface.BOLD))
@@ -410,19 +423,26 @@ class MainActivity : ComponentActivity() {
             background = rounded(Color.WHITE, 12)
             isClickable = true
             isFocusable = true
-            contentDescription = "接入这台执行手机：将本机作为专用手机接入平台执行"
+            contentDescription = "查看本机接入：准备网络连接与执行设置"
             setOnClickListener { showExecutionIntro() }
         }
         execution.setPadding(dp(18), dp(16), dp(18), dp(16))
-        execution.addView(label("接入这台执行手机", 20f, ink, Typeface.BOLD))
-        execution.addView(label("将本机作为专用手机接入平台执行", 14f, secondary))
+        execution.addView(label("查看本机接入", 20f, ink, Typeface.BOLD))
+        execution.addView(label("准备网络连接与执行设置，也可随时返回管理", 14f, secondary))
         execution.minimumHeight = dp(112)
         root.addView(execution, matchWrap())
-        root.addView(label("管理手机与执行手机的身份、授权和接入进展分别处理。", 14f, secondary), matchWrap().apply { topMargin = dp(8) })
+        root.addView(label("你决定是否关联本机。切换页面不会自动开始或停止任务。", 14f, secondary), matchWrap().apply { topMargin = dp(8) })
         setContentView(ScrollView(this).apply {
             isFillViewport = true
             addView(root, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         })
+    }
+
+    private fun openManagement() {
+        sessionStore.load()?.let { showManagement(it) } ?: run {
+            registrationMode = invitationCode != null
+            showAuthForm()
+        }
     }
 
     private fun showExecutionIntro() {
@@ -430,8 +450,9 @@ class MainActivity : ComponentActivity() {
         backAction = { showUseChoice() }
         val root = vertical(20).apply { setBackgroundColor(canvas) }
         root.addView(backHeader("执行手机接入") { showUseChoice() }, matchWrap())
-        root.addView(label("将本机作为专用执行手机接入", 28f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(22) })
-        root.addView(label("本机身份独立保存在安全存储中。管理登录、设备归属和执行授权分别进行；接入不表示已获得执行资格。", 15f, secondary), matchWrap().apply { topMargin = dp(10) })
+        root.addView(label("准备这台手机执行任务", 28f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(22) })
+        root.addView(label("你可以在本机管理设备，也可以让本机执行任务。接下来会引导你确认关联、连接网络和允许远程连接；完成准备后，平台还需核验执行条件。执行期间请避免操作任务使用的应用。", 15f, secondary), matchWrap().apply { topMargin = dp(10) })
+        root.addView(label("无需自行准备 Tailscale 账号或购买 VPN 订阅。接入信息由平台提供，手机与平台不需要连接同一个 Wi-Fi。", 15f, secondary), matchWrap().apply { topMargin = dp(10) })
         root.addView(primaryButton("继续在本机接入").apply {
             setOnClickListener {
                 try {
@@ -457,33 +478,31 @@ class MainActivity : ComponentActivity() {
         managementSessionToken = session.sessionToken
         pendingScanGeneration = null
         val content = vertical(20).apply { setBackgroundColor(canvas) }
-        content.addView(appHeader("仅管理"), matchWrap())
+        content.addView(appHeader("设备管理"), matchWrap())
         content.addView(label("我的设备", 30f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(22) })
         val identity = label("正在验证管理身份…", 14f, secondary)
         content.addView(identity, matchWrap().apply { topMargin = dp(7) })
         val summary = label("正在读取本人设备…", 14f, secondary)
         content.addView(summary, matchWrap().apply { topMargin = dp(12) })
-        content.addView(label("本人设备协助", 18f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(22) })
-        val assistance = vertical(14).apply {
-            id = R.id.provider_assistance_list
-            background = rounded(Color.WHITE, 12)
-            addView(label("正在读取本人协助事项…", 14f, secondary), matchWrap())
+        val local = vertical(18).apply { background = rounded(Color.WHITE, 12) }
+        local.addView(label("这台手机 · ${shortDeviceName()}", 20f, ink, Typeface.BOLD))
+        val localStatus = label("正在核对本机接入状态…", 14f, secondary)
+        local.addView(localStatus, matchWrap().apply { topMargin = dp(8) })
+        val localConnection = ConnectionStatusView(this, false, "associated_pending_access", localInstallation = true).apply { visibility = View.GONE }
+        local.addView(localConnection, matchWrap().apply { topMargin = dp(12) })
+        val localAction = primaryButton("接入这台手机").apply {
+            isEnabled = false
+            setOnClickListener { showInstallationLoading(localProvider = session) }
         }
-        content.addView(assistance, matchWrap().apply { topMargin = dp(10) })
-        val add = primaryButton("添加执行手机").apply {
+        local.addView(localAction, matchHeight(54).apply { topMargin = dp(14) })
+        local.addView(label("无需第二台手机。确认关联后，按步骤准备网络与远程连接。", 13f, secondary), matchWrap().apply { topMargin = dp(8) })
+        content.addView(local, matchWrap().apply { topMargin = dp(18) })
+        val add = secondaryButton("添加其他手机 · 扫码").apply {
             id = R.id.provider_add_device
             contentDescription = "扫码添加执行手机"
             isEnabled = false
             setOnClickListener { startAssociationScan() }
         }
-        content.addView(add, matchHeight(54).apply { topMargin = dp(22) })
-        content.addView(secondaryButton("无法扫码？输入设备关联码").apply {
-            id = R.id.provider_enter_association_code
-            setOnClickListener { showAssociationCodeInput(session) }
-        }, matchHeight(52).apply { topMargin = dp(8) })
-        content.addView(label("扫码或手动输入都只用于核对设备；确认前不会建立归属。", 13f, secondary).apply {
-            gravity = Gravity.CENTER
-        }, matchWrap().apply { topMargin = dp(9) })
         val listHeading = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -497,7 +516,22 @@ class MainActivity : ComponentActivity() {
         val devices = vertical(0).apply { id = R.id.provider_device_list }
         devices.addView(label("正在读取设备…", 14f, secondary), matchWrap().apply { topMargin = dp(12) })
         content.addView(devices, matchWrap())
+        content.addView(add, matchHeight(50).apply { topMargin = dp(12) })
+        content.addView(secondaryButton("其他手机无法扫码？输入关联码").apply {
+            id = R.id.provider_enter_association_code
+            setOnClickListener { showAssociationCodeInput(session) }
+        }, matchHeight(52).apply { topMargin = dp(8) })
+        content.addView(label("扫码或手动输入都只用于核对设备；确认前不会建立归属。", 13f, secondary).apply {
+            gravity = Gravity.CENTER
+        }, matchWrap().apply { topMargin = dp(9) })
         content.addView(label(DeviceFactPresentation.ACCESS_BOUNDARY, 13f, secondary), matchWrap().apply { topMargin = dp(14) })
+        content.addView(label("需要我处理", 18f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(24) })
+        val assistance = vertical(14).apply {
+            id = R.id.provider_assistance_list
+            background = rounded(Color.WHITE, 12)
+            addView(label("正在读取协助事项…", 14f, secondary), matchWrap())
+        }
+        content.addView(assistance, matchWrap().apply { topMargin = dp(10) })
         val scroll = ScrollView(this).apply {
             isFillViewport = true
             addView(content, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
@@ -514,12 +548,38 @@ class MainActivity : ComponentActivity() {
             success = { list ->
                 identity.text = "${session.displayName} · ${session.phoneHint}"
                 add.isEnabled = true
-                summary.text = "${list.size} 台当前归属设备 · 连接状态未确认"
+                localAction.isEnabled = true
+                localStatus.text = "本机尚待核对。点击下方按钮继续；确认前不会建立关联。"
+                summary.text = "已关联 ${list.size} 台设备"
                 renderDevices(devices, list, session)
+                val token = installationStore.load()?.activeSessionToken()
+                if (token != null) runManagementNetwork(session, generation,
+                    action = { associationApi.installationState(token) },
+                    success = { state ->
+                        when {
+                            state.state == "unassociated" -> localStatus.text = "尚未关联。下一步：核对本机并确认归属。"
+                            list.any { it.deviceId == state.deviceId } -> {
+                                localStatus.text = "已关联到你的账号 · ${DeviceFactPresentation.state(state.state).removePrefix("已关联 · ")}"
+                                localAction.text = "继续本机准备"
+                                localConnection.deviceState = state.state
+                                localConnection.visibility = View.VISIBLE
+                                observeConnection(localConnection, generation, session) {
+                                    DeviceConnectionApiClient(api).providerState(session.sessionToken, requireNotNull(state.deviceId))
+                                }
+                            }
+                            else -> {
+                                localStatus.text = "本机已关联到其他账号，请使用原账号管理。"
+                                localAction.isEnabled = false
+                            }
+                        }
+                    },
+                    failure = { localStatus.text = "本机状态暂时无法确认。点击继续可重新检查。" },
+                )
             },
             failure = { message ->
                 identity.text = "身份尚未确认"
                 summary.text = "设备读取失败"
+                localStatus.text = "暂时联系不上平台，请刷新后继续。"
                 renderDeviceError(devices, message, session)
             },
         )
@@ -594,10 +654,10 @@ class MainActivity : ComponentActivity() {
         container.addView(label("事项状态为汇总进展，不代表单台手机当前在线、健康或已恢复。", 12f, secondary), matchWrap().apply { topMargin = dp(10) })
     }
 
-    private fun showInstallationLoading(refreshSession: Boolean = false) {
+    private fun showInstallationLoading(refreshSession: Boolean = false, localProvider: StoredProviderSession? = null) {
         val generation = ++screenGeneration
-        backAction = null
-        managementSessionToken = null
+        backAction = localProvider?.let { { showManagement(it) } }
+        managementSessionToken = localProvider?.sessionToken
         pendingScanGeneration = null
         val root = vertical(20).apply {
             setBackgroundColor(canvas)
@@ -632,13 +692,25 @@ class MainActivity : ComponentActivity() {
                             newIdempotencyKey("association-session"),
                         ).also { stored = installationStore.saveAssociation(stored, it) }
                     }
-                    mainHandler.post {
+                    if (localProvider != null) {
+                        val inspection = associationApi.inspect(localProvider.sessionToken, association.associationCode)
+                        require(inspection.installationId == state.installationId)
+                        mainHandler.post {
+                            if (generation == screenGeneration) showAssociationConfirmation(localProvider, inspection, local = true)
+                        }
+                    } else mainHandler.post {
                         if (generation == screenGeneration) showInstallationCode(stored, association)
                     }
                 } else {
+                    if (localProvider != null) {
+                        require(associationApi.devices(localProvider.sessionToken).any { it.deviceId == state.deviceId })
+                    }
                     installationStore.clearAssociation(stored)
                     mainHandler.post {
-                        if (generation == screenGeneration) showInstallationAssociated(state)
+                        if (generation == screenGeneration) {
+                            if (localProvider != null) showInstallationNetworkGuide(state) { showManagement(localProvider) }
+                            else showInstallationAssociated(state)
+                        }
                     }
                 }
             } catch (error: ProviderApiException) {
@@ -665,7 +737,9 @@ class MainActivity : ComponentActivity() {
             showInstallationGuide(identity, association)
         }, matchWrap())
         root.addView(label("关联这台执行手机", 29f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(20) })
-        root.addView(label("请用已登录的管理手机扫码", 16f, secondary), matchWrap().apply { topMargin = dp(7) })
+        root.addView(label("只有这一台手机？在本机登录后即可确认关联。", 16f, secondary), matchWrap().apply { topMargin = dp(7) })
+        root.addView(primaryButton("在本机管理并关联").apply { setOnClickListener { openManagement() } }, matchHeight(54).apply { topMargin = dp(14) })
+        root.addView(label("也可用另一台已登录的手机扫描下方二维码。", 13f, secondary), matchWrap().apply { topMargin = dp(12) })
         val qrCard = vertical(18).apply {
             background = rounded(Color.WHITE, 12)
             gravity = Gravity.CENTER_HORIZONTAL
@@ -805,7 +879,8 @@ class MainActivity : ComponentActivity() {
             setBackgroundColor(canvas)
             gravity = Gravity.CENTER_HORIZONTAL
         }
-        root.addView(label("本机设备事实", 28f, ink, Typeface.BOLD), wrapWrap().apply { topMargin = dp(80) })
+        root.addView(secondaryButton("返回设备管理").apply { setOnClickListener { openManagement() } }, matchHeight(50))
+        root.addView(label("本机执行状态", 28f, ink, Typeface.BOLD), wrapWrap().apply { topMargin = dp(22) })
         root.addView(label("本机 ${shortDeviceName()}", 16f, secondary), wrapWrap().apply { topMargin = dp(8) })
         root.addView(label("仅显示这台执行手机的当前事实。", 14f, secondary).apply {
             gravity = Gravity.CENTER
@@ -817,30 +892,17 @@ class MainActivity : ComponentActivity() {
         val facts = vertical(16).apply { background = rounded(Color.WHITE, 12) }
         facts.addView(detailRow("关联状态", DeviceFactPresentation.state(state.state)))
         facts.addView(divider(), matchHeight(1).apply { topMargin = dp(14); bottomMargin = dp(14) })
-        val connectionFact = label("正在确认", 14f, ink, Typeface.BOLD)
-        facts.addView(detailRow("连接确认", connectionFact))
-        facts.addView(divider(), matchHeight(1).apply { topMargin = dp(14); bottomMargin = dp(14) })
+        val connectionFact = ConnectionStatusView(this, true, state.state, localInstallation = true)
+        facts.addView(connectionFact, matchWrap())
         facts.addView(detailRow("事实更新时间", formatFactTime(state.updatedAt)))
-        val networkFact = label("正在检查业务网络", 14f, secondary)
-        facts.addView(networkFact, matchWrap().apply { topMargin = dp(14) })
         val factScreen = screenGeneration
-        runNetwork(action = {
+        observeConnection(connectionFact, factScreen) {
             val identity = installationStore.load() ?: error("Missing installation")
             val token = identity.activeSessionToken() ?: error("Inactive installation")
             DeviceConnectionApiClient(api).installationState(token, requireNotNull(state.deviceId)).also {
                 require(it.factVersion == state.factVersion)
             }
-        }, success = { fact ->
-            if (factScreen == screenGeneration) {
-                connectionFact.text = if (fact.connected) "上次检查已连接" else "待确认"
-                networkFact.text = if (fact.connected) "请在本机准备页查看持续连接状态。" else DeviceConnectionBoundary.message(fact)
-            }
-        }, failure = {
-            if (factScreen == screenGeneration) {
-                connectionFact.text = "暂时无法确认"
-                networkFact.text = "暂时联系不上平台，请检查网络后重试。"
-            }
-        })
+        }
         root.addView(facts, matchWrap().apply { topMargin = dp(24) })
         val controlStatus = label("正在读取本机暂停进展…", 14f, secondary)
         root.addView(controlStatus, matchWrap().apply { topMargin = dp(16) })
@@ -851,7 +913,7 @@ class MainActivity : ComponentActivity() {
                 showControlConfirmation(
                     "暂停本机",
                     "本机 ${shortDeviceName()}",
-                    "停止接新任务，当前操作会尽快停止；恢复需要在管理手机上申请。",
+                    "停止接新任务，当前操作会尽快停止；恢复可返回设备管理申请。",
                 ) {
                     submitInstallationPause(requireNotNull(state.deviceId), controlStatus, this)
                 }
@@ -899,9 +961,15 @@ class MainActivity : ComponentActivity() {
         val root = vertical(20).apply { setBackgroundColor(canvas) }
         root.addView(backHeader("本机准备") { goBack() }, matchWrap())
         root.addView(label("让这台手机连接到平台", 27f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(18) })
-        root.addView(label("按下面的步骤完成首次设置。每次从设置返回，我们会自动检查进度。", 15f, secondary), matchWrap().apply { topMargin = dp(8) })
+        val guideIntroduction = label("按下面的步骤完成首次设置。每次从设置返回，我们会自动检查进度。", 15f, secondary)
+        root.addView(guideIntroduction, matchWrap().apply { topMargin = dp(8) })
         val progress = label("正在检查本机…", 15f, blue, Typeface.BOLD)
-        root.addView(progress, matchWrap().apply { topMargin = dp(16) })
+        val connectionSummary = ConnectionStatusView(this, true, state?.state ?: "unassociated", localInstallation = true).apply {
+            setPadding(dp(16), dp(16), dp(16), dp(8))
+            background = rounded(Color.WHITE, 12)
+        }
+        root.addView(connectionSummary, matchWrap().apply { topMargin = dp(16) })
+        root.addView(progress, matchWrap().apply { topMargin = dp(10) })
         fun section(title: String, explanation: String): LinearLayout {
             val box = vertical(16).apply { background = rounded(Color.WHITE, 12) }
             box.addView(label(title, 19f, ink, Typeface.BOLD))
@@ -909,7 +977,7 @@ class MainActivity : ComponentActivity() {
             root.addView(box, matchWrap().apply { topMargin = dp(14) })
             return box
         }
-        val network = section("1 · 连接业务网络", "Tailscale 用于让平台连接这台手机。请先连接稳定的 Wi-Fi，再完成 Tailscale 设置。")
+        val network = section("1 · 连接业务网络", "先连接能够上网的稳定 Wi-Fi，再返回完成本机关联。手机与平台不需要在同一个 Wi-Fi；确认关联后，按下面的说明安装连接工具并使用平台提供的接入信息。")
         val networkStatus = label("正在检查网络…", 14f, secondary)
         network.addView(networkStatus, matchWrap().apply { topMargin = dp(10) })
         val wifi = secondaryButton("连接 Wi-Fi").apply {
@@ -918,16 +986,21 @@ class MainActivity : ComponentActivity() {
         network.addView(wifi, matchHeight(50).apply { topMargin = dp(10) })
         val openTailscale = primaryButton("打开 Tailscale").apply { setOnClickListener { openTailscaleSetup() } }
         network.addView(openTailscale, matchHeight(52).apply { topMargin = dp(8) })
-        network.addView(label("首次入网：在 Tailscale 登录页右上角菜单选择“Use an auth key”，粘贴内测接入密钥，并确认系统的 VPN 连接请求。也可使用已获授权的 Tailscale 账号登录；已有连接可直接返回检查。", 14f, secondary), matchWrap().apply { topMargin = dp(10) })
+        network.addView(label("无需自行注册 Tailscale 账号。完成关联后，点击“获取并复制接入密钥”，再打开 Tailscale；点击右上角齿轮进入 Settings（设置），选择 Accounts（账号），再点右上角三点菜单 → Use an auth key（使用接入密钥）。长按输入框粘贴，点击 Add account（添加账号）。如果首页显示 Connect（连接），再点击它，并按系统提示允许 VPN 连接。返回这里后，App 会自动检查结果；只有显示平台已确认本机网络节点，才能继续。", 14f, secondary), matchWrap().apply { topMargin = dp(10) })
+        network.addView(label("平台负责提供业务上网配置，你无需自行购买 VPN 订阅。另一款 VPN 与 Tailscale 不能同时开启；临时 VPN 连接成功也不代表手机已接入平台。安装、登录或连接失败时，请联系邀请你的运营人员，不要自行换账号或重复注册。", 14f, secondary), matchWrap().apply { topMargin = dp(10) })
 
         val copyKey = secondaryButton("获取并复制接入密钥")
         copyKey.isEnabled = state?.deviceId != null
+        copyKey.alpha = if (copyKey.isEnabled) 1f else 0.45f
         network.addView(copyKey, matchHeight(50).apply { topMargin = dp(8) })
         val keyStatus = label("", 14f, secondary).apply { visibility = View.GONE }
         network.addView(keyStatus, matchWrap().apply { topMargin = dp(8) })
         if (state?.deviceId == null) {
             keyStatus.visibility = View.VISIBLE
-            keyStatus.text = "完成本机关联后可获取内测接入密钥。当前无法访问平台时，请使用运营已提供的密钥在 Tailscale 入网，再返回继续接入。"
+            keyStatus.text = "尚未确认本机关联，接入密钥和连接检查暂不可用。请返回完成关联；如果始终无法联系平台，请联系邀请你的运营人员核对接入服务地址。"
+            network.addView(secondaryButton("返回完成本机关联").apply {
+                setOnClickListener { goBack() }
+            }, matchHeight(50).apply { topMargin = dp(8) })
         }
         copyKey.setOnClickListener {
             copyKey.isEnabled = false
@@ -944,17 +1017,18 @@ class MainActivity : ComponentActivity() {
                 if (screen != screenGeneration) return@runNetwork
                 PilotKeyClipboard.copy(this, key)
                 keyStatus.visibility = View.VISIBLE
-                keyStatus.text = "密钥已复制，请及时粘贴。App 会尝试在 1 分钟后清除。请打开 Tailscale，在登录页菜单选择 Use an auth key 后粘贴。"
+                keyStatus.text = "密钥已复制，请及时粘贴。App 会尝试在 1 分钟后清除。请打开 Tailscale，按“齿轮设置 → Accounts → 三点菜单 → Use an auth key”进入输入页，粘贴后点击 Add account；首页若显示 Connect，再点击连接，然后返回这里检查。"
             }, failure = {
                 copyKey.isEnabled = true
                 if (screen == screenGeneration) {
                     keyStatus.visibility = View.VISIBLE
-                    keyStatus.text = "暂时无法获取密钥。已入网手机可直接继续；新手机可使用已获授权的 Tailscale 账号登录，或联系运营。"
+                    keyStatus.text = "暂时无法获取本机接入密钥。请重新检查平台连接；仍失败时，联系邀请你的运营人员核对本机接入配置。已有 VPN 连接不代表本机已准入。"
                 }
             })
         }
 
         val debugging = section("2 · 允许远程连接", "平台需要通过系统的“无线调试”连接本机。此项必须由你在这台执行手机上开启。")
+        debugging.addView(label("首次接入需要你按提示完成设置和配对。平台连接成功前，Artemis 无法替你操作这台手机；无需第二台手机或连接电脑。", 14f, secondary), matchWrap().apply { topMargin = dp(8) })
         val debuggingStatus = label("正在检查设置…", 14f, secondary)
         debugging.addView(debuggingStatus, matchWrap().apply { topMargin = dp(10) })
         val developerHelp = label("先打开“关于手机”，连续点击“版本号”7 次，按系统提示验证锁屏密码。Samsung 的版本号在“软件信息”中。", 14f, secondary)
@@ -968,28 +1042,54 @@ class MainActivity : ComponentActivity() {
         }, matchHeight(52).apply { topMargin = dp(8) })
         debugging.addView(label("找到“无线调试”并开启，按系统提示允许当前 Wi-Fi。返回这里后会自动检查。", 14f, secondary), matchWrap().apply { topMargin = dp(10) })
 
-        val pairing = section("3 · 完成连接确认", "首次连接时，在执行手机的“无线调试”页面选择“使用配对码配对设备”，保持弹窗打开。用管理手机进入这台设备的详情，输入显示的 6 位配对码。")
+        val pairing = section("3 · 完成连接确认", "完成前两步后，App 会自动检查并连接平台。首次配对时，在系统“无线调试”页面选择“使用配对码配对设备”，记住 6 位数字，保持弹窗打开，下拉通知栏，展开 SocialGrowth 通知并点击“输入配对码”。在通知内输入并发送，看到连接结果后再返回 App。不要切换应用或关闭配对弹窗。")
         val pairingStatus = label("完成前两步后，等待平台确认连接。", 15f, secondary)
         pairing.addView(pairingStatus, matchWrap().apply { topMargin = dp(10) })
         pairing.addView(label("已有有效配对时会尝试恢复连接，无需重复输入配对码。手机重启或切换 Wi-Fi 后，如需重新开启设置，会在这里提示。", 14f, secondary), matchWrap().apply { topMargin = dp(8) })
-        val keepConnected = primaryButton("开始连接检查")
+        val keepConnected = secondaryButton("暂停自动连接")
         keepConnected.isEnabled = state?.deviceId != null
         pairing.addView(keepConnected, matchHeight(52).apply { topMargin = dp(10) })
         keepConnected.setOnClickListener {
             if (Build.VERSION.SDK_INT < 34) {
                 Toast.makeText(this, "当前自动连接检查需要 Android 14 或更高版本。", Toast.LENGTH_LONG).show()
             } else {
-                if (EndpointReportingService.running) {
+                if (EndpointReportingService.automaticEnabled(this)) {
+                    EndpointReportingService.setAutomaticEnabled(this, false)
                     startService(Intent(this, EndpointReportingService::class.java).setAction(EndpointReportingService.STOP))
-                } else if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                    connectionPermissionScreen = screenGeneration
-                    connectionNotificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                } else startConnectionChecking()
+                } else {
+                    EndpointReportingService.setAutomaticEnabled(this, true)
+                    if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        connectionPermissionScreen = screenGeneration
+                        connectionNotificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    } else startConnectionChecking()
+                }
+                updateConnectionControl(keepConnected, state)
             }
         }
-        pairing.addView(label("先开始连接检查，再打开系统配对码。检查会在通知栏持续显示；你可以随时停止。手机重启后请返回这里重新开启检查。", 14f, secondary), matchWrap().apply { topMargin = dp(8) })
+        pairing.addView(secondaryButton("在本机完成配对").apply {
+            isEnabled = state?.deviceId != null
+            setOnClickListener {
+                val session = sessionStore.load()
+                if (session == null) {
+                    openManagement()
+                    return@setOnClickListener
+                }
+                AlertDialog.Builder(this@MainActivity)
+                    .setTitle("一台手机完成配对")
+                    .setMessage("1. App 会自动开始连接检查；如果你曾主动暂停，请先恢复自动连接。首次配对请在 App 设置中允许通知。\n2. 打开系统“无线调试”，选择“使用配对码配对设备”。\n3. 保持弹窗打开，记住 6 位数字，下拉并展开 SocialGrowth 通知。\n4. 点击通知中的“输入配对码”，输入并发送；等待提示后返回 App 查看连接结果。\n\n不要切换应用或关闭系统弹窗。管理登录失效时请先返回 App 登录，再重新打开系统配对弹窗。")
+                    .setPositiveButton("知道了", null).show()
+            }
+        }, matchHeight(50).apply { topMargin = dp(8) })
+        pairing.addView(label("打开 App 后自动检查；已有配对会自动重连，短暂网络异常会重试。你可以主动暂停自动连接，暂停后须自行恢复。首次系统授权和配对仍需按提示完成。", 14f, secondary), matchWrap().apply { topMargin = dp(8) })
+        pairing.addView(secondaryButton("允许连接通知").apply {
+            setOnClickListener {
+                connectionPermissionScreen = screenGeneration
+                connectionNotificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            }
+            visibility = if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this@MainActivity, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) View.VISIBLE else View.GONE
+        }, matchHeight(50).apply { topMargin = dp(8) })
         val serverStatus = label("正在检查平台连接…", 14f, secondary)
-        if (state?.deviceId == null) serverStatus.text = "系统设置完成后，请返回接入页面，完成本机关联，再确认平台连接。"
+        if (state?.deviceId == null) serverStatus.text = "当前尚未确认本机关联。请点击“返回完成本机关联”，确认后再继续平台连接。"
         root.addView(serverStatus, matchWrap().apply { topMargin = dp(18) })
         val retry = secondaryButton("重新检查")
         root.addView(retry, matchHeight(50).apply { topMargin = dp(10) })
@@ -1012,14 +1112,16 @@ class MainActivity : ComponentActivity() {
         fun updateLocal() {
             if (!current()) return
             val checks = DevicePreparationChecks.read(this)
-            keepConnected.text = if (EndpointReportingService.running) "停止连接检查" else "开始连接检查"
+            guideIntroduction.text = if (remoteConnected) "连接正常，无需重复配对。下方设置可用于检查与恢复连接；返回设备管理不会启动或停止任务。" else "按下面的步骤完成首次设置。每次从设置返回，我们会自动检查进度。"
+            updateConnectionControl(keepConnected, state)
             wifi.visibility = if (checks.wifiConnected) View.GONE else View.VISIBLE
             openTailscale.text = if (checks.tailscaleInstalled) "打开 Tailscale" else "安装 Tailscale"
             networkStatus.text = when {
-                networkVerified -> "本机已接入业务网络。"
+                networkVerified -> "平台已确认本机网络节点；平台上网和执行资格仍需后续核验。"
                 !checks.wifiConnected -> "请先连接 Wi-Fi。"
+                state?.deviceId == null -> "请先返回完成本机关联，再按平台提供的接入信息连接。"
                 !checks.tailscaleInstalled -> "Wi-Fi 已连接，请安装配套 Tailscale。"
-                !checks.vpnPresent -> "Wi-Fi 已连接，请打开 Tailscale 并连接。"
+                !checks.vpnPresent -> "App 会尝试恢复已有 Tailscale 连接；首次登录或系统授权请打开 Tailscale 完成。"
                 else -> "已检测到 VPN；正在等待平台确认本机入网。"
             }
             developerHelp.visibility = if (checks.developerOptions == true) View.GONE else View.VISIBLE
@@ -1034,14 +1136,15 @@ class MainActivity : ComponentActivity() {
             val found = discovery?.snapshot()?.connect?.status == EndpointObservationStatus.CANDIDATE
             pairingStatus.text = when {
                 remoteConnected -> "平台已连接到这台手机，无需再次配对。"
+                !networkVerified -> "请先完成本机关联和平台网络确认。"
                 !checks.discoverySupported -> "当前手机暂不能自动完成连接检查。"
                 checks.wirelessDebugging == false -> "请先完成上一步。"
-                found -> "本机已准备好，等待平台确认。首次使用请在管理手机完成配对。"
-                else -> "正在检查本机是否可连接；首次使用请在管理手机完成配对。"
+                found -> "本机已准备好，等待平台确认。首次使用请点击“在本机完成配对”。"
+                else -> "正在检查本机是否可连接；首次使用请点击“在本机完成配对”。"
             }
             progress.text = when {
                 remoteConnected -> "本机已连接到平台"
-                !checks.wifiConnected || !checks.tailscaleInstalled || !checks.vpnPresent -> "当前步骤：连接业务网络"
+                !networkVerified || !checks.wifiConnected || !checks.tailscaleInstalled || !checks.vpnPresent -> "当前步骤：连接业务网络"
                 checks.wirelessDebugging != true -> "当前步骤：允许远程连接"
                 else -> "当前步骤：等待连接确认"
             }
@@ -1049,6 +1152,7 @@ class MainActivity : ComponentActivity() {
         fun checkServer() {
             if (!current() || !visible || busy || state?.deviceId == null) return
             busy = true
+            connectionSummary.setRefreshing(true)
             val sequence = ++checkSequence
             lastServerCheck = android.os.SystemClock.elapsedRealtime()
             runNetwork(action = {
@@ -1062,6 +1166,7 @@ class MainActivity : ComponentActivity() {
                     remoteConnected = fact.connected
                     networkVerified = fact.networkState in setOf("admitted", "pilot_verified")
                     serverStatus.text = DeviceConnectionBoundary.message(fact)
+                    connectionSummary.accept(fact)
                     updateLocal()
                 }
             }, failure = {
@@ -1070,6 +1175,7 @@ class MainActivity : ComponentActivity() {
                     remoteConnected = false
                     networkVerified = false
                     serverStatus.text = "暂时联系不上平台。请检查网络后重试；已完成的系统设置无需重做。"
+                    connectionSummary.render(null, failed = true)
                     updateLocal()
                 }
             })
@@ -1081,6 +1187,7 @@ class MainActivity : ComponentActivity() {
                     remoteConnected = false
                     networkVerified = false
                     serverStatus.text = "正在重新确认平台连接…"
+                    connectionSummary.render(null, refreshing = busy)
                 }
                 if (Build.VERSION.SDK_INT >= 34 && discovery?.snapshot()?.active != true) {
                     discovery?.close()
@@ -1096,6 +1203,7 @@ class MainActivity : ComponentActivity() {
                 visible = true
                 remoteConnected = false
                 networkVerified = false
+                connectionSummary.render(null, refreshing = true)
                 if (state?.deviceId != null) serverStatus.text = "正在确认平台连接…"
                 mainHandler.removeCallbacks(tick)
                 tick.run()
@@ -1108,9 +1216,11 @@ class MainActivity : ComponentActivity() {
             mainHandler.removeCallbacks(tick)
             if (Build.VERSION.SDK_INT >= 34) discovery?.close()
             discovery = null
+            connectionSummary.render(null)
         }
         preparationResume = resume
         retry.setOnClickListener { updateLocal(); checkServer() }
+        connectionSummary.refreshAction = { updateLocal(); checkServer() }
         setContentView(ScrollView(this).apply {
             isFillViewport = true
             addView(root, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
@@ -1119,21 +1229,37 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startConnectionChecking() {
-        runCatching { ContextCompat.startForegroundService(this, Intent(this, EndpointReportingService::class.java).setAction(EndpointReportingService.START)) }
-            .onFailure { Toast.makeText(this, "暂时无法开始，请保持 App 在前台后重试。", Toast.LENGTH_LONG).show() }
+        // Resuming connection automation is distinct from resuming business participation.
+        automaticConnectionMonitor.recheck()
+    }
+    private fun updateConnectionControl(button: Button, state: InstallationSelfView?) {
+        button.text = if (EndpointReportingService.automaticEnabled(this)) "暂停自动连接" else "恢复自动连接"
+        button.isEnabled = Build.VERSION.SDK_INT >= 34 && state?.deviceId != null && state.state in setOf("associated_pending_access", "access_ready")
+        button.alpha = if (button.isEnabled) 1f else 0.45f
     }
 
     private fun openTailscaleSetup() {
         val launch = packageManager.getLaunchIntentForPackage("com.tailscale.ipn")
-        if (launch == null) openExternal("https://tailscale.com/download/android", "请在浏览器打开 tailscale.com/download/android 安装 Tailscale。")
+        if (launch == null) {
+            AlertDialog.Builder(this)
+                .setTitle("安装连接工具 Tailscale")
+                .setMessage("1. 点击下方按钮下载官方安装包。\n2. 下载完成后，从浏览器的下载列表打开文件，按系统提示安装。若要求允许当前浏览器安装应用，确认来源后仅允许当前浏览器。\n3. 安装完成后返回本页，按钮会变为“打开 Tailscale”。\n\n不需要 Google 商店账号或 Tailscale 账号。若下载或安装受阻，请联系邀请你的运营人员；不要关闭手机的安全保护或下载来源不明的软件。")
+                .setPositiveButton("下载官方安装包") { _, _ ->
+                    openExternal("https://pkgs.tailscale.com/stable/tailscale-android-universal-1.102.4.apk", "暂时无法打开下载，请联系邀请你的运营人员。")
+                }
+                .setNegativeButton("返回", null)
+                .show()
+        }
         else runCatching { startActivity(launch) }.onFailure {
             Toast.makeText(this, "暂时无法打开，请从手机应用列表打开 Tailscale。", Toast.LENGTH_LONG).show()
         }
     }
 
     private fun openPreparationSetting(action: String, fallback: String) {
-        runCatching { startActivity(Intent(action)) }.onFailure {
-            runCatching { startActivity(Intent(android.provider.Settings.ACTION_SETTINGS)) }
+        // Keep Settings separate for ordinary navigation. A live pairing
+        // dialog still closes on app switching; use notification input.
+        runCatching { startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.onFailure {
+            runCatching { startActivity(Intent(android.provider.Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
             Toast.makeText(this, fallback, Toast.LENGTH_LONG).show()
         }
     }
@@ -1368,6 +1494,7 @@ class MainActivity : ComponentActivity() {
     private fun showAssociationConfirmation(
         session: StoredProviderSession,
         inspection: AssociationInspection,
+        local: Boolean = false,
     ) {
         val generation = ++screenGeneration
         var confirmationSubmitted = false
@@ -1380,16 +1507,16 @@ class MainActivity : ComponentActivity() {
         backAction = leaveConfirmation
         associationConfirmKey = newIdempotencyKey("association-confirm")
         val root = vertical(20).apply { setBackgroundColor(canvas) }
-        root.addView(backHeader("添加执行手机", leaveConfirmation), matchWrap())
-        root.addView(label("核对关联设备", 29f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(20) })
-        root.addView(label("已识别关联码，请核对目标手机。", 15f, secondary), matchWrap().apply { topMargin = dp(7) })
+        root.addView(backHeader(if (local) "接入这台手机" else "添加其他手机", leaveConfirmation), matchWrap())
+        root.addView(label(if (local) "确认关联本机" else "核对关联设备", 29f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(20) })
+        root.addView(label(if (local) "将正在使用的这台手机关联到你的管理账号。" else "已识别关联码，请核对目标手机。", 15f, secondary), matchWrap().apply { topMargin = dp(7) })
         val device = vertical(18).apply { background = rounded(Color.WHITE, 12); elevation = dp(2).toFloat() }
         device.addView(label(inspection.deviceLabel, 20f, ink, Typeface.BOLD))
         device.addView(detailRow("当前提供者", session.displayName), matchWrap().apply { topMargin = dp(18) })
         device.addView(detailRow("验证手机号", session.phoneHint), matchWrap().apply { topMargin = dp(12) })
         device.addView(detailRow("目标设备", inspection.deviceLabel), matchWrap().apply { topMargin = dp(12) })
         device.addView(divider(), matchHeight(1).apply { topMargin = dp(14); bottomMargin = dp(14) })
-        device.addView(label("请核对执行手机上显示的设备标识。", 13f, secondary))
+        device.addView(label(if (local) "本机 ${shortDeviceName()} · 安装标识尾号 ${inspection.installationId.toString().takeLast(8)}" else "请核对执行手机上显示的设备标识。", 13f, secondary))
         root.addView(device, matchWrap().apply { topMargin = dp(20) })
         val providerDeviceLabel = editText("设备备注名（选填）", android.text.InputType.TYPE_CLASS_TEXT).apply {
             maxLines = 1
@@ -1400,13 +1527,14 @@ class MainActivity : ComponentActivity() {
         root.addView(label("留空时沿用执行手机的名称；该名称仅用于你自己的设备列表。", 13f, secondary), matchWrap().apply { topMargin = dp(6) })
         root.addView(label("关联后还需要", 18f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(24) })
         val next = vertical(18).apply { background = rounded(Color.WHITE, 12) }
-        next.addView(explanationRow("1", "完成平台账号授权"))
-        next.addView(explanationRow("2", "检查目标主页或频道权限"), matchWrap().apply { topMargin = dp(14) })
-        next.addView(explanationRow("3", "通过接入准备检查后才能执行"), matchWrap().apply { topMargin = dp(14) })
+        next.addView(explanationRow("1", if (local) "按引导连接业务网络" else "完成平台账号授权"))
+        next.addView(explanationRow("2", if (local) "允许远程连接并确认连接结果" else "检查目标主页或频道权限"), matchWrap().apply { topMargin = dp(14) })
+        next.addView(explanationRow("3", "完成授权与接入检查后才能执行任务"), matchWrap().apply { topMargin = dp(14) })
         root.addView(next, matchWrap().apply { topMargin = dp(12) })
         val error = label("", 13f, danger).apply { visibility = View.GONE }
         root.addView(error, matchWrap().apply { topMargin = dp(12) })
-        val confirm = primaryButton("确认关联这台执行手机").apply {
+        val confirmText = if (local) "确认关联本机" else "确认关联这台执行手机"
+        val confirm = primaryButton(confirmText).apply {
             id = R.id.association_confirm
             setOnClickListener {
                 isEnabled = false
@@ -1424,10 +1552,10 @@ class MainActivity : ComponentActivity() {
                                 providerDeviceLabel.text.toString().trim().takeIf(String::isNotEmpty),
                             )
                     },
-                    success = { receipt -> showAssociationSuccess(session, receipt) },
+                    success = { receipt -> showAssociationSuccess(session, receipt, local) },
                     failure = { message ->
                         isEnabled = true
-                        text = "确认关联这台执行手机"
+                        text = confirmText
                         showError(error, message)
                     },
                 )
@@ -1436,6 +1564,7 @@ class MainActivity : ComponentActivity() {
         root.addView(confirm, matchHeight(54).apply { topMargin = dp(18) })
         root.addView(secondaryButton("重新扫码").apply {
             id = R.id.association_rescan
+            visibility = if (local) View.GONE else View.VISIBLE
             setOnClickListener {
                 if (confirmationSubmitted) {
                     Toast.makeText(this@MainActivity, "上次确认可能仍在处理中，稍后到设备页刷新核对。", Toast.LENGTH_LONG).show()
@@ -1443,7 +1572,7 @@ class MainActivity : ComponentActivity() {
                 startAssociationScan()
             }
         }, matchHeight(52).apply { topMargin = dp(10) })
-        root.addView(label("关联不会把当前管理手机接入执行。", 13f, secondary).apply {
+        root.addView(label(if (local) "关联后仍由你确认连接与执行准备；此操作不会立即开始任务。" else "此操作只关联目标手机。", 13f, secondary).apply {
             gravity = Gravity.CENTER
         }, matchWrap().apply { topMargin = dp(13) })
         val scroll = ScrollView(this).apply {
@@ -1454,7 +1583,7 @@ class MainActivity : ComponentActivity() {
         guardManagementExpiry(session, generation)
     }
 
-    private fun showAssociationSuccess(session: StoredProviderSession, receipt: AssociationReceipt) {
+    private fun showAssociationSuccess(session: StoredProviderSession, receipt: AssociationReceipt, local: Boolean = false) {
         val generation = ++screenGeneration
         backAction = { showManagement(session) }
         val root = vertical(24).apply { setBackgroundColor(canvas); gravity = Gravity.CENTER_HORIZONTAL }
@@ -1462,6 +1591,9 @@ class MainActivity : ComponentActivity() {
         root.addView(label("设备关联成功", 28f, ink, Typeface.BOLD), wrapWrap().apply { topMargin = dp(16) })
         root.addView(label("设备已进入待授权状态。", 15f, secondary), wrapWrap().apply { topMargin = dp(9) })
         root.addView(label("后续仍需完成平台授权与接入检查。", 14f, secondary), wrapWrap().apply { topMargin = dp(16) })
+        if (local) root.addView(primaryButton("继续准备网络与连接").apply {
+            setOnClickListener { showInstallationLoading(localProvider = session) }
+        }, matchHeight(54).apply { topMargin = dp(24) })
         root.addView(primaryButton("返回设备管理").apply { setOnClickListener { showManagement(session) } }, matchHeight(54).apply { topMargin = dp(28) })
         setContentView(root)
         guardManagementExpiry(session, generation)
@@ -1486,7 +1618,11 @@ class MainActivity : ComponentActivity() {
             row.addView(label(device.displayName, 18f, ink, Typeface.BOLD))
             row.addView(label("设备标识尾号 ${device.deviceId.toString().takeLast(8)}", 12f, secondary), matchWrap().apply { topMargin = dp(4) })
             row.addView(label(DeviceFactPresentation.state(device.state), 14f, secondary), matchWrap().apply { topMargin = dp(7) })
-            row.addView(label(DeviceFactPresentation.observation(device.lastObservedAt), 12f, secondary), matchWrap().apply { topMargin = dp(5) })
+            val liveConnection = ConnectionStatusView(this, false, device.state)
+            row.addView(liveConnection, matchWrap().apply { topMargin = dp(12) })
+            observeConnection(liveConnection, screenGeneration, session) {
+                DeviceConnectionApiClient(api).providerState(session.sessionToken, device.deviceId)
+            }
             container.addView(row, matchWrap().apply { topMargin = dp(10) })
         }
         if (exitedDevices.isNotEmpty()) {
@@ -1555,14 +1691,18 @@ class MainActivity : ComponentActivity() {
 
     private fun renderProviderDeviceDetail(container: LinearLayout, session: StoredProviderSession, device: ProviderDevice) {
         container.addView(label(device.displayName, 30f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(20) })
-        container.addView(label("专用执行手机 · ${DeviceFactPresentation.state(device.state)}", 15f, secondary), matchWrap().apply { topMargin = dp(6) })
+        container.addView(label("执行手机 · ${DeviceFactPresentation.state(device.state)}", 15f, secondary), matchWrap().apply { topMargin = dp(6) })
         container.addView(label("设备标识 ${device.deviceId}", 12f, secondary), matchWrap().apply { topMargin = dp(4) })
         val facts = vertical(16).apply { background = rounded(Color.WHITE, 12) }
         facts.addView(label("当前事实", 18f, ink, Typeface.BOLD))
         facts.addView(divider(), matchHeight(1).apply { topMargin = dp(14); bottomMargin = dp(14) })
         facts.addView(detailRow("归属状态", DeviceFactPresentation.state(device.state)))
         facts.addView(divider(), matchHeight(1).apply { topMargin = dp(14); bottomMargin = dp(14) })
-        facts.addView(detailRow("连接确认", DeviceFactPresentation.CONNECTION_UNKNOWN))
+        val liveConnection = ConnectionStatusView(this, true, device.state)
+        facts.addView(liveConnection, matchWrap())
+        observeConnection(liveConnection, screenGeneration, session) {
+            DeviceConnectionApiClient(api).providerState(session.sessionToken, device.deviceId)
+        }
         facts.addView(divider(), matchHeight(1).apply { topMargin = dp(14); bottomMargin = dp(14) })
         facts.addView(detailRow("最近观察", if (device.lastObservedAt == null) "暂无" else formatFactTime(device.lastObservedAt)))
         facts.addView(divider(), matchHeight(1).apply { topMargin = dp(14); bottomMargin = dp(14) })
@@ -1580,19 +1720,19 @@ class MainActivity : ComponentActivity() {
         renderProviderControlPanel(container, session, device)
     }
 
-    private fun showProviderDeviceConnection(session: StoredProviderSession, device: ProviderDevice) {
+    private fun showProviderDeviceConnection(session: StoredProviderSession, device: ProviderDevice, local: Boolean = false) {
         val screen = ++screenGeneration
         backAction = { showProviderDeviceDetail(session, device.deviceId) }
         val root = vertical(20).apply { setBackgroundColor(canvas) }
         root.addView(backHeader("连接执行手机") { showProviderDeviceDetail(session, device.deviceId) }, matchWrap())
         root.addView(label(device.displayName, 27f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(20) })
         root.addView(label("设备标识尾号 ${device.deviceId.toString().takeLast(8)}", 14f, secondary), matchWrap().apply { topMargin = dp(6) })
-        root.addView(label("请先核对手边的执行手机。在那台手机完成业务网络连接并开启无线调试，再选择“使用配对码配对设备”。", 16f, ink), matchWrap().apply { topMargin = dp(20) })
-        root.addView(label("保持执行手机的配对弹窗打开，在这里输入 6 位配对码。每台手机单独配对；已经连接的手机不必重复操作。", 15f, secondary), matchWrap().apply { topMargin = dp(10) })
+        root.addView(label(if (local) "正在连接本机。请先开始连接检查，再在系统“无线调试”页面选择“使用配对码配对设备”。" else "请先核对手边的执行手机。在那台手机完成业务网络连接并开启无线调试，再选择“使用配对码配对设备”。", 16f, ink), matchWrap().apply { topMargin = dp(20) })
+        root.addView(label(if (local) "保持系统配对弹窗打开，下拉并展开 SocialGrowth 通知，点击“输入配对码”填写 6 位数字并发送；看到结果后再返回这里。切换应用会使配对码失效。" else "保持执行手机的配对弹窗打开，在这里输入 6 位配对码。每台手机单独配对；已经连接的手机不必重复操作。", 15f, secondary), matchWrap().apply { topMargin = dp(10) })
         val status = label("正在检查连接…", 16f, blue)
         status.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         root.addView(status, matchWrap().apply { topMargin = dp(22) })
-        val submit = primaryButton("输入配对码").apply { isEnabled = false }
+        val submit = primaryButton("输入配对码").apply { isEnabled = false; visibility = if (local) View.GONE else View.VISIBLE }
         root.addView(submit, matchHeight(54).apply { topMargin = dp(18) })
         val refresh = secondaryButton("重新检查")
         root.addView(refresh, matchHeight(50).apply { topMargin = dp(10) })
@@ -1609,7 +1749,7 @@ class MainActivity : ComponentActivity() {
                 if (screen != screenGeneration) return@runNetwork
                 current = fact
                 status.text = DeviceConnectionBoundary.message(fact)
-                submit.visibility = if (fact.connected) View.GONE else View.VISIBLE
+                submit.visibility = if (fact.connected || local) View.GONE else View.VISIBLE
                 submit.isEnabled = fact.networkState in setOf("admitted", "pilot_verified") && fact.pairingState == "awaiting_code"
             }, failure = {
                 busy = false
@@ -2092,27 +2232,77 @@ class MainActivity : ComponentActivity() {
         return "$currency ${padded.dropLast(scale)}.${padded.takeLast(scale)}"
     }
 
-    private fun providerNavigation(session: StoredProviderSession, selected: String): LinearLayout = LinearLayout(this).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER
+    private fun providerNavigation(session: StoredProviderSession, selected: String): BottomNavigationView {
+        val themed = ContextThemeWrapper(this, R.style.Theme_SocialGrowth_Navigation)
+        return (LayoutInflater.from(themed).inflate(R.layout.provider_navigation, null) as BottomNavigationView).apply {
         setBackgroundColor(Color.WHITE)
-        setPadding(dp(8), dp(6), dp(8), dp(6))
-        val destinations = listOf("devices" to "设备", "commission" to "分佣", "profile" to "我的")
-        destinations.forEach { (key, title) ->
-            val button = secondaryButton(title).apply {
-                contentDescription = "$title${if (key == selected) "，当前页" else ""}"
-                isSelected = key == selected
-                if (key == selected) setTextColor(blue)
-                setOnClickListener {
-                    when (key) {
-                        "devices" -> showManagement(session)
-                        "commission" -> showProviderCommission(session)
-                        else -> showProviderProfile(session)
-                    }
-                }
-            }
-            addView(button, LinearLayout.LayoutParams(0, dp(48), 1f))
+        // The Activity root already handles system-bar safe areas.
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets -> insets }
+        val colors = ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(blue, secondary))
+        itemIconTintList = colors
+        itemTextColor = colors
+        selectedItemId = when (selected) {
+            "commission" -> R.id.tab_commission
+            "profile" -> R.id.tab_profile
+            else -> R.id.tab_devices
         }
+        setOnItemReselectedListener { /* Keep current content and scroll position. */ }
+        setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.tab_devices -> showManagement(session)
+                R.id.tab_commission -> showProviderCommission(session)
+                R.id.tab_profile -> showProviderProfile(session)
+            }
+            true
+        }
+        }
+    }
+
+    private fun observeConnection(panel: ConnectionStatusView, generation: Int, session: StoredProviderSession? = null,
+                                  load: () -> DeviceConnectionSnapshot) {
+        var busy = false
+        var sequence = 0
+        var lastAttempt = 0L
+        var latest: DeviceConnectionSnapshot? = null
+        var failed = false
+        fun current() = generation == screenGeneration && panel.isAttachedToWindow &&
+            lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) && !isFinishing && !isDestroyed
+        fun visible() = panel.getGlobalVisibleRect(android.graphics.Rect())
+        fun refresh() {
+            if (!current() || busy) return
+            busy = true; lastAttempt = android.os.SystemClock.elapsedRealtime()
+            val attempt = ++sequence
+            panel.render(if (panel.isFresh()) latest else null, failed, refreshing = true)
+            val success: (DeviceConnectionSnapshot) -> Unit = { fact ->
+                if (current() && sequence == attempt) { busy = false; failed = false; latest = fact; panel.accept(fact) }
+            }
+            val failure: (String) -> Unit = {
+                if (current() && sequence == attempt) { busy = false; failed = true; latest = null; panel.render(null, failed = true) }
+            }
+            if (session != null) runManagementNetwork(session, generation, load, success, failure)
+            else runNetwork(load, success, { failure("unavailable") })
+        }
+        val tick = object : Runnable {
+            override fun run() {
+                if (!current()) return
+                if (!panel.isFresh()) panel.render(null, failed, busy)
+                else panel.updateTimestamp()
+                if (visible() && android.os.SystemClock.elapsedRealtime() - lastAttempt >= 5_000) refresh()
+                mainHandler.postDelayed(this, 2_000)
+            }
+        }
+        fun stop() { ++sequence; busy = false; latest = null; mainHandler.removeCallbacks(tick); panel.render(null) }
+        fun start() { if (current()) { stop(); failed = false; lastAttempt = 0; tick.run() } }
+        val observer = object : DefaultLifecycleObserver {
+            override fun onResume(owner: LifecycleOwner) { start() }
+            override fun onPause(owner: LifecycleOwner) { stop() }
+        }
+        panel.refreshAction = { refresh() }
+        panel.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) { lifecycle.addObserver(observer) }
+            override fun onViewDetachedFromWindow(v: View) { stop(); lifecycle.removeObserver(observer) }
+        })
+        if (panel.isAttachedToWindow) lifecycle.addObserver(observer)
     }
 
     private fun showAccountHelp(session: StoredProviderSession) {

@@ -1,0 +1,123 @@
+# 新手机从零接入：流程修正与当前验证
+
+日期：2026-10-06。需求依据：[R-160](../../../requirements-alignment.md#r-160新手机从零准备通过-android-app-引导异地接入)，沿用 R-124、R-148～151。当前结论：**完整异地新手机流程阻断，不能交付为已完成。** 后续按用户单独指示，公开 HTTPS 接入服务已部署并通过手机与真实浏览器验证，见[独立实施记录](public-phone-access-20261006.md)；下表保留此前整轮检查时的条件。
+
+## 起始条件与顺序
+
+正式手机与中心不在同一局域网；新手机没有 VPN／Tailscale App、订阅或 Tailscale 账号；操作人员为非专业人员。以下为同一接入流程的必要环节，不能要求操作人员自行补齐平台资源。
+
+| 顺序 | 操作人员在 App 中完成的操作 | 平台负责提供与实际核验 | 当前结果 |
+| --- | --- | --- | --- |
+| 1 | 从邀请入口取得并安装自有 App，连接能上网的稳定 Wi-Fi | 尚未加入 Tailnet 时可访问的安装分发与接入服务 | 用户确认尚无服务器／公开 HTTPS 入口；当前候选仅配置 Tailnet 内地址，存在首次接入循环依赖 |
+| 2 | 管理手机按邀请注册／登录，扫码关联这台执行手机 | 邀请有效性、本人归属、本机身份及关联结果 | 现有本地管理与关联记录可见；不是零准备异地新手机重新注册成功 |
+| 3 | 按 App 说明下载安装 Tailscale，返回查看安装状态 | 可访问且可信的安装来源，不要求 Google 商店账号 | 已补官方 APK 入口与安装说明；仅核对电脑端 URL 返回 200，零预装手机下载与系统安装分支未验收 |
+| 4 | 从 App 领取接入信息，按明确说明粘贴，不注册 Tailscale 账号 | 为本机分配受限凭据、实际节点绑定核验与正式准入；业务上网配置由平台负责 | 当前只有只读管理配置和固定单台内测配置；未提供通用新设备凭据分配与真实策略管理能力 |
+| 5 | 按机型说明打开开发者选项和无线调试，返回 App | 读取实际系统条件与当前平台网络确认；未满足时不能启动连接检查 | 已有具体操作与系统入口，本轮收紧进度和按钮条件；当前手机无线调试关闭，未改变该开关 |
+| 6 | 开始连接检查；首次配对时打开系统配对码，在已登录管理手机的对应设备页输入 | 实际中心逐台配对、端点上报与远程连接核验 | 旧配对／远程证据保留原环境范围；本轮未新配对，未用 USB 或同局域网结果代替异地验收 |
+| 7 | 按实际结果继续或处理明确失败，不自行判断“VPN 开启即成功” | 当前管理连接与 FB／YT 上网分别实测，随后衔接原有运营分配及初始化核验 | Tailscale 当前停在 Login required；集中出口未提供，订阅尚未导入，FB／YT 上网未实测 |
+
+临时 VPN 客户端安装不解决第 1、4、7 步。Android 同一用户的两个 VPN 不能并行；切换客户端能否完成控制面登录必须实测。订阅由系统持有与分配，不让新手机操作人员自行购买、寻找链接或取得管理凭据。
+
+## 本轮已修改
+
+- Android 接入首页改为普通操作说明，明确不要求自行准备 Tailscale 账号／订阅，不要求同一 Wi-Fi。
+- Tailscale 未安装时提供下载、打开安装文件、系统确认、返回 App 的说明；官方固定候选来源为 [Tailscale stable APK](https://pkgs.tailscale.com/stable/)。当前入口固定为 1.102.3，更新须重新核对实际客户端 UI 与支持范围。
+- 未确认关联时，密钥获取与连接检查不可用，并提供返回关联入口；按钮变淡。
+- 任意 VPN 的存在不再推动指南进入下一步。启动连接检查须具备关联、平台网络确认、Wi-Fi、Tailscale 安装、VPN、支持的端点发现及无线调试条件；已运行检查仍可停止。
+- 首次配对说明按“前两步完成 → 开启连接检查 → 打开系统配对码 → 管理手机对应设备输入”排列；平台确认节点不等于业务上网或执行资格。
+- 使用现有 Web → Artemis 验证入口增加仅检查离线指南的任务范围；禁止登录、领取密钥、关联、系统设置、连接检查及参与状态变更。未确认检查结果继续返回 UNCONFIRMED。
+
+## 实际环境与证据
+
+USB：Samsung SM-S9110，Android 16，序列号 RFCW40MYYCV。既有提供者、归属和本机数据保留，未清空 App 或卸载 Tailscale。此手机已有工具，不冒充零预装新手机。
+
+- Android debug APK 构建成功并覆盖安装；最终 APK SHA-256：`f9b42bc9bc50db25e6082ab1ed089622471ffadc90f8fb9991d8a1e957594552`。候选仍使用原 Tailnet 测试地址，不属于可分发的正式接入构建。下述真机任务使用上一 APK `ec408e982aab8b0b7f549eb20124ec14de9a93c34bfc065cb4b1ade62fa32890`；最后仅修正未关联时的两处状态提示并重新构建／覆盖安装，没有将其冒充新的完整真机通过候选。
+- 执行运行时 TypeScript 检查通过；`pnpm exec tsx --test services/execution-runtime/src/web-verification.test.ts`：15 通过，0 失败。它们只证明受影响代码与结果边界，不证明真机接入。
+- 原 APK 已私有备份，UID 10377 保持不变。已从 [FlClash 官方发布](https://github.com/chen08209/FlClash/releases/tag/v0.8.99)下载并安装 0.8.99 arm64；APK 摘要与官方发布摘要一致、签名校验通过。没有导入订阅或开启该 VPN。
+- 用户订阅响应仅存放在权限受限的本机文件；响应尚未解析成标准 Clash 配置，不能据此断言订阅无效，更不能称为出口通过。本文不记录订阅 URL、接入密钥或其他凭据。
+- 正式产品 Web（3100）实际 Playwright 核对：既有手机显示“接入已就绪”，但“连接确认”为“未知”，明确没有当前网络／调试授权来源。历史脚本预期“待完成接入”的断言失败；保留失败证据，未改数据库或把旧状态当成在线证明。
+- 历史 Demo Web（3000）恢复任务 `e19d50df-e532-40a1-b53a-e1d0e763a723`，Artemis `94c624fb-5da4-496a-87ce-f8fe7decdca9`：实际 Tailscale 页面为 Login required，恢复停止于未满足登录前提，UNCONFIRMED。
+- 第一次离线指南任务 `765a6648-c165-48cf-939f-5bde6b5c2f60`，Artemis `ee1a4412-509b-4b63-a9ec-0ceb33fb0207`：进入并浏览指南；自动复核请求超过 786432 字节，0 通过、0 失败、7 待确认。未接受 Agent 的成功声明。原结果保留。
+- 第二轮任务 `fa891b41-5650-40bd-8e3d-cf6b8ac62bec`，Artemis `ab20c573-082b-48bd-954b-3129b485f5f7`：最终 4 通过、0 失败、1 待确认；检查结果文字包含 JSON 转义差异，未产生对应精确条目的 verdict，整体 UNCONFIRMED。原结果保留。
+- 最后一轮任务 `b1e58dc0-aaf8-4c9c-88cf-bf798b38902a`，Artemis `7078a051-87f5-45fd-812c-11ea1b284352`：逐阶段检查观察到指南入口、未关联提示和两个禁用按钮，四项实际 UI 判断为 passed；最终 checker 异常，仅记录 `final check error:` 且无详细原因，最终 0 通过、0 失败、5 待确认，整体 UNCONFIRMED。不以逐阶段观察或 Agent 成功声明覆盖最终结果；**本轮自动真机验收未通过**。
+- 为容纳真机图像，临时 Demo 进程显式传入最大 1572864 字节的有界请求配置；默认值不变，未关闭 checker，离线检查采用逐阶段检查加最终复核。结果字段继续由运行时独立校验，检查器只检查实际页面，不比较结果 JSON 字符串。
+- 所有本轮 Web 原任务已收尾，脚本确认释放本轮人工接管；没有消费业务队列、登录、配对或发布。本轮自有 Demo 临时进程已停止，原正式产品 3100／4320 服务保留。最终 APK 留在测试手机，原 APK 私有备份保留。
+
+复现入口：
+
+```sh
+SG_WEB_TARGET=demo SG_DEMO_WEB_SCOPE=client \
+SG_DEMO_REAL_CLIENT_TEST=authorized SG_DEMO_CLIENT_MODE=connectivity_test \
+SG_DEMO_REAL_CONNECTIVITY_TEST=authorized SG_DEMO_VERIFY_OFFLINE_GUIDE_ONLY=authorized \
+SOCIALGROWTH_VERIFICATION_OUTPUT=output/playwright/new-phone-20261006/offline-guide-ui \
+pnpm test:playwright
+```
+
+实际结果存放在 `output/playwright/new-phone-20261006/`；原始私有日志与凭据响应保留在 `.runtime/new-phone-20261006/`，不提交凭据。尚未启动的新检查须使用独立输出目录；已经发起的原任务须先核对原结果，不能覆盖未知结果后重发。
+
+## 当前阻断
+
+1. 公开 HTTPS 接入服务后续已按单项授权完成，地址及证据见[实施记录](public-phone-access-20261006.md)。安装分发及完整新手机其余环节未纳入该单项；旧检查缺少公开接入地址的事实不再作为当前同一项阻断。
+2. 现有只读配置仅供查询，不具备新设备凭据分配及受限／正式准入策略管理权限；固定共享内测密钥不能替代逐台受限接入实现。
+3. 尚未有可配置的集中出口，订阅导入、Tailscale 控制面引导、VPN 切换和 FB／YT 上网未实测。
+
+以上资源缺失在本轮已由用户说明或实际核对；不要求非专业手机操作人员补齐。不能继续用同 Wi-Fi、USB、已预装工具或已有节点记录来宣布完整新手机流程通过。
+
+
+## 2026-10-06 同手机管理与执行的修订及真实检查
+
+用户追加 R-161：第二台手机不作为接入条件。当前实现增加首页本机卡片、直接核对当前安装后明确确认关联、管理与本机准备往返；扫码与手动关联改为添加其他手机的次要入口。登录和切换页面不改变执行授权、暂停或参与事实。
+
+- Samsung SM-S9110／RFCW40MYYCV 的 Tailscale 1.102.4 已通过既有内测 Auth Key 完成实际登录及连接；系统活动 VPN 属于 Tailscale，中心 `tailscale ping` 得到实际应答。只是当前内测节点，不代表逐设备正式准入或 FB／YT 出口。
+- 当前 App 安装身份与旧内测配置不同，先前 Auth Key 指南 Artemis 任务 `6cb2d8bb-d073-4e85-929c-72158e10aa79`／trace `6f18cdb3-4809-44c2-8a4c-ecc5dc58f088` 因未关联而 UNCONFIRMED，原失败保留。
+- 真机经公开 HTTPS 的真实手机号登录页面进入原提供者身份。验证码来自 R-157 回环开发通道，私有输入，没有外发验证码或密钥；不计为真实短信送达。
+- Web → Artemis 本机关联任务 `ba4153f8-68fc-42c1-b692-352b9a01c0a0`／trace `2f9f1d66-85f2-4955-a3df-6ca27e1f87fa`，APK `4383f44d2f06e723a7bb87e526836539576fd1c10ceef48abab3bb08eab65c29`：真实点击确认关联本机，看到回执、同机配对入口并完成管理与准备页往返。最终 completed，7 通过、0 失败、0 待确认；脚本确认释放本轮人工接管。此检查使用 USB，只证明关联与页面流程。
+- 服务端只读核对当前安装 `05f62b59-d075-4acd-bdfa-67b1b77ff384` generation 1，已归属原提供者，对应新设备 `69038c77-d1e4-4745-bc55-3ef533bccafd`，状态 `associated_pending_access`。旧关联、业务绑定和 `submission_unknown` 记录未被覆盖。
+- 原产品后端没有加载网络／中心 ADB 内测配置。配置补齐并重启原服务后，App 显示平台已确认本机网络节点，实际前台连接检查服务上报端口，中心经固定 Tailnet 地址建立并核对真机硬件序列号；没有使用局域网或 USB 作为这条连接的替代通道。单项内测绑定根据真实关联回执移到当前安装，私有旧配置留存；未写正式准入、Tailnet 策略或业务执行权限。
+- 实测发现系统设置原先位于 SocialGrowth 的同一个任务栈中，最近应用不能单独返回本 App。改为独立任务后可以正常往返，但实际切换应用仍会关闭系统配对弹窗，原方案不足以完成同机首次配对。因此最终改为保持系统弹窗打开，在本 App 的前台通知中直接输入配对码；不再引导切换 App 输入。
+
+本轮新增复现入口：
+
+```sh
+SG_WEB_TARGET=demo SG_DEMO_WEB_SCOPE=client \
+SG_DEMO_REAL_CLIENT_TEST=authorized SG_DEMO_CLIENT_MODE=connectivity_test \
+SG_DEMO_REAL_CONNECTIVITY_TEST=authorized SG_DEMO_VERIFY_SINGLE_PHONE_GUIDE=authorized \
+SOCIALGROWTH_VERIFICATION_OUTPUT=output/playwright/single-phone-association-20261006 \
+pnpm test:playwright
+```
+
+原目录已有任务，复核时按脚本 `SG_DEMO_CLIENT_PHASE=reconcile` 读取原回执，不覆盖或重发关联。需要新检查时使用新输出目录，且先确认原任务终态。
+
+
+## 单机首次配对的边界及替代方案检查
+
+- Android 官方无线调试支持二维码或配对码：[ADB 官方说明](https://developer.android.google.cn/tools/adb?hl=en)。二维码依赖外部屏幕供手机扫描，不改善只有一台手机的场景；USB 预配依赖现场电脑，不作为异地首次接入路径。当前普通、非 Root 手机及既有 Artemis 通道下，采用通知内输入一次六位码，后续保留主机信任并自动恢复连接。[Shizuku 同机通知配对实践](https://shizuku.rikka.app/zh-hans/guide/setup/)支持这种交互可行性，但不代替本产品验收。
+- 首次配对前 Artemis 不可用。实际启动路径为用户安装和登录 App、确认本机关联、按引导接入网络及打开系统授权 → App 的 `NativeEndpointDiscovery` 使用 Android NSD 发现本机端口 → 独立前台服务以安装会话经公开 HTTPS 上报 → 用户在通知中输入系统码 → 平台验证当前本人归属与网络绑定并执行 `adb pair` → 独立连接核对 → 进入 Artemis。发现、上报和通知输入不调用 ADB／Artemis；中心 ADB 是配对接收方，不能反过来替用户开启首次系统授权。
+- 真机实测：系统配对弹窗在下拉通知栏后保留同一码；切换 App 则失效。通知直接回复已实际输入并发送一次，收到“平台已连接到这台手机，无需重复配对。”的真实反馈；这一分支未重复提交配对，也未撤销已有主机信任。操作通过 USB 演练用户动作，故仅证明此交互入口和已有信任保护；**没有证明无 USB、未信任主机的首次握手通过**。
+- 本轮不删除现有配对、重置 App 或预置数据库状态来制造首次配对结果。零预装下载、真实短信、通用逐设备网络凭据与首次新主机配对仍保留各自未验收边界。
+
+
+### 当前安装候选
+
+最终 App SHA-256：`4763de20d957312de7f943dfb0a5817699376f7facc3f163d03ca44235caf3a6`。使用已核对的公开 HTTPS 接入地址构建、覆盖安装并保留原 App 数据和 UID；新增首次配对前须本人操作的提示。`assembleDebug` 构建成功。通知回复实测使用上一通知候选 `5b957ef18629ba9174aa465249eb4d9f2a20472d7394f2f3dcc2dec29e66ea40`，最终候选仅追加首次接入边界文案及修正内部导航注释；后续远程任务使用最终候选，不能混淆两次验证版本。
+
+
+### 当前候选的真实远程任务结果
+
+`pnpm test:playwright` 从 Demo Web 实际发起任务 `685a2e7a-3185-4ef5-85b7-ed646e60fccb`，Artemis trace `7ab3196b-e803-4e01-ba92-95293d117c04`。发起前核对实际 SDK serial 为 `127.0.0.1:50089`，由产品后端固定目标 `tailscale nc 100.118.89.89 42433` 提供；ADB 回读硬件序列号为 `RFCW40MYYCV`。SDK 实际绑定该网络 serial，没有回退至 USB／局域网。此证据证明使用了 Tailnet 通道；开发手机仍处于现场 Wi-Fi，不外推为异地网络兼容测试。
+
+任务完成了实际 UI 操作并报告本机卡片、通知配对说明及平台已连接反馈，但独立最终复核返回 `final check error:`，0 通过、0 失败、6 待确认。原 Web 脚本退出失败并确认释放本轮人工接管；**最终远程 App 验收未通过**，不接受 Agent 的成功声明。只读中心连接记录持续为 connected，实时观察和连接核验均为数秒内，硬件身份匹配；这不能覆盖 UI 复核失败。
+
+复核器源码显示最终检查有独立的 180 秒超时边界，当前错误没有异常类型，不能断言根因已确认。没有修改或关闭复核器，也没有重复派发原任务。原结果保存在 `output/playwright/single-phone-remote-20261006/`。
+
+复现命令（已有目录须 reconcile，新的真实任务使用新输出目录；先核对当前 Tailnet serial 和新鲜私有证明）：
+
+```sh
+SG_WEB_TARGET=demo SG_DEMO_WEB_SCOPE=client \
+SG_DEMO_REAL_CLIENT_TEST=authorized SG_DEMO_CLIENT_MODE=connectivity_test \
+SG_DEMO_REAL_CONNECTIVITY_TEST=authorized SG_DEMO_VERIFY_SINGLE_PHONE_REMOTE=authorized \
+SOCIALGROWTH_VERIFICATION_OUTPUT=output/playwright/single-phone-remote-20261006 \
+pnpm test:playwright
+```
+
+本轮临时 Demo 进程在原任务终态及人工接管清理确认后停止。保留产品 Web／后端、公开接入服务和手机本人开启的连接检查。首次未信任主机的配对及零预装完整接入仍未验收，不把已有配对恢复当作首次接入通过。

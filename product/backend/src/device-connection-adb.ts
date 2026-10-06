@@ -56,8 +56,11 @@ export class DeviceConnectionAdb {
     if (state.kind !== "ok" || state.stdout.trim() !== "device") return { state: "unknown" };
     const hardware = await this.run(["-s", endpoint, "shell", "getprop", "ro.serialno"]);
     const serial = hardware.stdout.trim();
-    return hardware.kind === "ok" && /^[A-Za-z0-9_-]{4,128}$/.test(serial)
-      ? { state: "connected", hardwareSerial: serial } : { state: "unknown" };
+    if (hardware.kind === "ok" && /^[A-Za-z0-9_-]{4,128}$/.test(serial)) return { state: "connected", hardwareSerial: serial };
+    // ADB can retain "device" for a dead VPN stream. Drop only this target
+    // after failed live verification so the next bounded retry reconnects.
+    await this.run(["disconnect", endpoint]);
+    return { state: "unknown" };
   }
 
   // macOS GUI Tailscale can have no OS route to Tailnet addresses. Explicit

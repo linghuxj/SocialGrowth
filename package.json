@@ -12,6 +12,7 @@
     "dev:backend": "pnpm --filter @socialgrowth/product-backend run dev",
     "dev:demo": "pnpm run env:check && concurrently --kill-others --success first --names runtime,web \"pnpm run runtime:start\" \"pnpm run runtime:web\"",
     "env:check": "node scripts/check-node.mjs",
+    "serve:public-phone": "pnpm run env:check && tsx scripts/public-phone-access.mts",
     "build": "pnpm --filter @socialgrowth/product-contracts run build && pnpm --filter './product/**' --workspace-concurrency=1 run build",
     "build:product": "pnpm --filter './product/**' --workspace-concurrency=1 run build",
     "check:product": "pnpm --filter @socialgrowth/product-contracts run build && pnpm --filter './product/**' --workspace-concurrency=1 run check",

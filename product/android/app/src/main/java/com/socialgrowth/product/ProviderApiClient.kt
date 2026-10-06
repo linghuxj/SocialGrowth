@@ -94,7 +94,8 @@ class ProviderApiClient(private val baseUrl: String) {
             connection.requestMethod = "POST"
             connection.instanceFollowRedirects = false
             connection.connectTimeout = 10_000
-            connection.readTimeout = 15_000
+            // Pairing includes a remote handshake and target verification.
+            connection.readTimeout = if (path == "/api/provider/device-connection/pair") 45_000 else 15_000
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
             connection.setRequestProperty("Accept", "application/json")

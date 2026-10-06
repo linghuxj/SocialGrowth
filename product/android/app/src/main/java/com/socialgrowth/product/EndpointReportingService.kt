@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.app.RemoteInput
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -17,19 +18,27 @@ import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
-/** User-started discovery reporting; no pairing secrets or business action lease.
- * Visible and non-sticky; user stop/session change ends the connection check.
+/** Foreground discovery reporting; pairing input is transient, never stored.
+ * Visible and non-sticky; explicit user pause is retained across App launches.
  */
 class EndpointReportingService : Service() {
     companion object {
         const val START = "com.socialgrowth.product.REPORT_ENDPOINTS"
         const val STOP = "com.socialgrowth.product.STOP_ENDPOINT_REPORTS"
+        private const val PAIR = "com.socialgrowth.product.PAIR_LOCAL_FROM_NOTIFICATION"
+        private const val PAIR_CODE = "pairing_code"
+        fun automaticEnabled(context: android.content.Context) = context.getSharedPreferences("endpoint_connection", android.content.Context.MODE_PRIVATE).getBoolean("automatic_enabled", true)
+        fun setAutomaticEnabled(context: android.content.Context, enabled: Boolean) {
+            check(context.getSharedPreferences("endpoint_connection", android.content.Context.MODE_PRIVATE).edit().putBoolean("automatic_enabled", enabled).commit())
+        }
         @Volatile var running = false
             private set
         @Volatile private var status = "连接检查未开启"
         fun statusText() = status
     }
     private val live = AtomicBoolean(false)
+    private val pairing = AtomicBoolean(false)
+    private var pairingFeedback: String? = null
     private val main = Handler(Looper.getMainLooper())
     private val worker = Executors.newSingleThreadExecutor()
     private var discovery: NativeEndpointDiscovery? = null
@@ -44,8 +53,18 @@ class EndpointReportingService : Service() {
     private val tick = Runnable { cycle() }
     override fun onBind(intent: Intent?): IBinder? = null
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == STOP) { shutdown(); return START_NOT_STICKY }
-        if (intent?.action != START || Build.VERSION.SDK_INT < 34) {
+        if (intent?.action == STOP) { setAutomaticEnabled(this, false); shutdown(); return START_NOT_STICKY }
+        if (intent?.action == PAIR) {
+            val code = RemoteInput.getResultsFromIntent(intent)?.getCharSequence(PAIR_CODE)?.toString()
+            intent.clipData = null
+            if (code?.matches(Regex("^[0-9]{6}$")) == true) pairFromNotification(code)
+            else if (live.get()) {
+                pairingFeedback = "请输入系统弹窗显示的 6 位配对码。"
+                refreshNotification()
+            } else stopSelf()
+            return START_NOT_STICKY
+        }
+        if (intent?.action != START || Build.VERSION.SDK_INT < 34 || !automaticEnabled(this)) {
             shutdown(); return START_NOT_STICKY
         }
         if (stopping) { stopSelf(); return START_NOT_STICKY }
@@ -53,11 +72,7 @@ class EndpointReportingService : Service() {
         try {
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(NotificationChannel("endpoint-reporting", "远程连接检查", NotificationManager.IMPORTANCE_LOW))
-            val stop = PendingIntent.getService(this, 2, Intent(this, EndpointReportingService::class.java).setAction(STOP), PendingIntent.FLAG_IMMUTABLE)
-            val notification = Notification.Builder(this, "endpoint-reporting").setSmallIcon(android.R.drawable.ic_dialog_info)
-                .setContentTitle("SocialGrowth 正在保持连接").setContentText("正在帮助平台连接本机，可随时停止连接检查。")
-                .setOngoing(true).addAction(Notification.Action.Builder(null, "停止连接检查", stop).build()).build()
-            startForeground(2402, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+            startForeground(2402, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
             originalToken = InstallationIdentityStore(this).load()?.activeSessionToken()
             require(originalToken != null)
             discovery = NativeEndpointDiscovery(this).also { it.startForegroundWindow() }
@@ -65,6 +80,63 @@ class EndpointReportingService : Service() {
             main.post(tick)
         } catch (_: Exception) { shutdown() }
         return START_NOT_STICKY
+    }
+
+    private fun notification(): Notification {
+        val stop = PendingIntent.getService(this, 2, Intent(this, EndpointReportingService::class.java).setAction(STOP), PendingIntent.FLAG_IMMUTABLE)
+        val builder = Notification.Builder(this, "endpoint-reporting").setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("SocialGrowth 正在保持连接")
+            .setContentText(pairingFeedback ?: "首次配对：保持系统弹窗打开，在此输入配对码。")
+            .setVisibility(Notification.VISIBILITY_PRIVATE).setOnlyAlertOnce(true).setOngoing(true)
+        if (ProviderSessionStore(this).load() != null && !pairing.get()) {
+            val reply = PendingIntent.getService(this, 3, Intent(this, EndpointReportingService::class.java).setAction(PAIR), PendingIntent.FLAG_MUTABLE)
+            val action = Notification.Action.Builder(null, "输入配对码", reply)
+                .addRemoteInput(RemoteInput.Builder(PAIR_CODE).setLabel("6 位配对码").build())
+            if (Build.VERSION.SDK_INT >= 31) action.setAuthenticationRequired(true)
+            builder.addAction(action.build())
+        }
+        return builder.addAction(Notification.Action.Builder(null, "暂停自动连接", stop).build()).build()
+    }
+
+    private fun refreshNotification() {
+        if (live.get()) getSystemService(NotificationManager::class.java).notify(2402, notification())
+    }
+
+    private fun pairFromNotification(code: String) {
+        val token = originalToken
+        if (!live.get() || stopping || token == null) { if (!live.get()) stopSelf(); return }
+        if (!pairing.compareAndSet(false, true)) return
+        pairingFeedback = "正在核对本机并配对，请保持系统弹窗打开…"
+        refreshNotification()
+        worker.execute {
+            val feedback = try {
+                require(live.get() && InstallationIdentityStore(this).load()?.activeSessionToken() == token)
+                val session = ProviderSessionStore(this).load() ?: error("Management login required")
+                val http = ProviderApiClient(BuildConfig.API_BASE_URL)
+                val installation = AssociationApiClient(http).installationState(token)
+                val client = DeviceConnectionApiClient(http)
+                val fact = client.providerState(session.sessionToken, requireNotNull(installation.deviceId))
+                when {
+                    fact.connected -> "平台已连接到这台手机，无需重复配对。"
+                    fact.networkState !in setOf("admitted", "pilot_verified") || fact.pairingState != "awaiting_code" -> DeviceConnectionBoundary.message(fact)
+                    else -> {
+                        require(live.get() && InstallationIdentityStore(this).load()?.activeSessionToken() == token
+                            && ProviderSessionStore(this).load()?.sessionToken == session.sessionToken)
+                        // One explicit submission. Lost ACK is reconciled from
+                        // state, never retried with the secret or a new request.
+                        client.pair(session.sessionToken, fact, code, "notification-pair-${UUID.randomUUID()}")
+                        DeviceConnectionBoundary.message(client.providerState(session.sessionToken, fact.deviceId))
+                    }
+                }
+            } catch (_: Exception) {
+                "配对结果尚未确认，请返回 App 检查，暂勿重复提交。"
+            }
+            main.post {
+                pairing.set(false)
+                pairingFeedback = feedback
+                refreshNotification()
+            }
+        }
     }
     private fun cycle() {
         if (!live.get() || busy) return

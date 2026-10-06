@@ -61,7 +61,10 @@ class NativeEndpointDiscovery(context: Context) {
                 }
             }
             current.networkCallback = callback
-            cm.registerNetworkCallback(NetworkRequest.Builder().addTransportType(NetworkCapabilities.TRANSPORT_WIFI).build(), callback, handler)
+            // A VPN can inherit WIFI transport from its underlying network.
+            // Observe physical Wi-Fi only; that VPN is not a Wi-Fi change.
+            cm.registerNetworkCallback(NetworkRequest.Builder().addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN).build(), callback, handler)
             discover(current, EndpointPurpose.CONNECT, "_adb-tls-connect._tcp.")
             discover(current, EndpointPurpose.PAIRING, "_adb-tls-pairing._tcp.")
             current.timeout = Runnable { if (live(current)) close("window_ended") }.also { handler.postDelayed(it, windowMillis) }
