@@ -273,7 +273,7 @@ export async function executeDeviceTask(
 
     const submitted = await run(
       identityAuditOnly ? `ONE supervised identity-audit-only task in ${d.targetAppPackage}, physical serial ${b.serial}.
-Authenticate only to the already bound parent identity ${JSON.stringify(b.platformIdentity)}. Inspect the account's managed Pages list and find the exact Page name ${JSON.stringify(expectedFacebookPageName ?? "")}. Read the exact stable Page ID and canonical HTTPS Page URL from the Page itself, verify it appears exactly once in this parent's managed Pages list, and verify management access. If parent identity, unique name match, ID, URL, or management cannot be confirmed from the UI, return unknown; never guess from a display name. Do not open composer, choose media, edit anything, or publish. Capture visible evidence while the Page identity and management context are shown. Return exact structured facts only; no content or publication work.
+Authenticate only to the already bound parent identity ${JSON.stringify(b.platformIdentity)}. Inspect the account's managed Pages list and find the exact Page name ${JSON.stringify(expectedFacebookPageName ?? "")}. Read the exact stable Page ID and canonical HTTPS Page URL from the Page itself: on the Page profile, open Page settings (...) -> Share -> Copy Link to Page (or Page link) to obtain the canonical HTTPS Page URL (e.g. https://www.facebook.com/profile.php?id=<id> or https://www.facebook.com/<name>) and extract the numeric Page ID. Verify it appears exactly once in this parent's managed Pages list, and verify management access. If parent identity, unique name match, ID, URL, or management cannot be confirmed from the UI, return unknown; never guess from a display name. Do not open composer, choose media, edit anything, or publish. Capture visible evidence while the Page identity and management context are shown. Return exact structured facts only; no content or publication work.
 Deadline ${d.expiresAt}.` : `ONE autonomous ${s.mode} workflow in ${d.targetAppPackage}, physical serial ${b.serial}.
 First authenticate to the already bound login account ${JSON.stringify(b.platformIdentity)}. The target identity is ${b.platform === "facebook" ? (requireFacebookPage ? `the existing managed Facebook Page named ${JSON.stringify(expectedFacebookPageName ?? "")}${mappedPage ? ` with exact stable ID ${JSON.stringify(mappedPage.id)} and canonical URL ${JSON.stringify(mappedPage.url)}` : ""}; a personal profile is not the target` : allowProfile ? "the bound Facebook Page or Profile" : "the bound Facebook Page") : "the bound YouTube channel"}. When a login account page is shown, select only that exact Page from its managed Pages; do not log in as a different account, select another Page/channel, or create one. Verify its stable ID and URL against the exact values when supplied. Do not infer identity from display name alone. Navigation is autonomous.
 If login needs a password, focus the empty masked password field and invoke human_password_input once. This pauses this SAME task for an operator in the Web console. Never read, guess, generate or include passwords in tools, notes or output. If the tool is unavailable/failed/cancelled/expired STOP. After INPUT_COMPLETED observe then submit Log in at most ONCE. For an explicitly incorrect password return status login_rejected; for 2FA/CAPTCHA/restriction return challenge. STOP on either or account mismatch; no retry, reset, bypass or alternate credentials. Login is authorized; content submission is governed separately below.
@@ -307,6 +307,26 @@ Deadline ${d.expiresAt}. On login rejection leave error visible. Persist concise
         finalSubmitClicked: z.boolean(),
       })
       .parse(structured);
+    const normalizePageUrl = (raw: string): string => {
+      try {
+        const u = new URL(raw);
+        if (u.protocol === "https:" && ["facebook.com", "www.facebook.com", "m.facebook.com"].includes(u.hostname)) {
+          const id = u.searchParams.get("id");
+          if (id) return `https://www.facebook.com/profile.php?id=${id}`;
+          return `https://www.facebook.com${u.pathname}`;
+        }
+      } catch { /* keep raw */ }
+      return raw;
+    };
+    if (identity.observedIdentity) {
+      identity.observedIdentity = normalizePageUrl(identity.observedIdentity);
+    }
+    if (identity.managedPages) {
+      identity.managedPages = identity.managedPages.map(page => ({
+        ...page,
+        url: normalizePageUrl(page.url),
+      }));
+    }
     const matchingManagedPages = identity.managedPages?.filter(page => page.name === expectedFacebookPageName) ?? [];
     let validObservedPageUrl = false;
     try {

@@ -137,3 +137,17 @@ USB Android `RFCW40MYYCV` 实测为 `device`；仅检查目标及当前前台元
 **未完成／阻断：** 本次 Page 精确身份核验未通过，因此后续切片准备及其可信 prepared 回写未获得实际业务通过；原 unknown 的可信最终恢复也未通过，不以工程接线或旧任务恢复代替。下一步是恢复既有 Facebook 身份详情的可读条件并核对原操作，仍沿用现有账号和 Page，不需要另找账号；尚未出现新验证码、密码或其他人工协助请求。效果观察继续按用户决定延期。没有新增恢复框架或非核心功能。
 
 本轮自有产品 Web 3100／后端 44320、Runtime 4318、旧 Web 3000 与对象存储测试容器已关闭；原 4320（PID 19852）、PostgreSQL、原件、原未知操作／设备占用及全部证据保留。独立验证 worktree 的输出已合并保留，移除本轮自有 Artemis 链接后请求归档；没有删除原 Artemis 安装。当前结论是“核心配置已连接、失败反馈可用，真实发布准备仍阻断”，不是完整 AI 业务闭环通过。
+
+### Facebook Page ID 真机提取确认与执行库标准化（2026-10-06 补充）
+
+- **真机实测提取事实**：通过真机（`RFCW40MYYCV`）实测排查，在 Facebook App 的 Page 主页管理界面（“粉絲專頁設定”），通过“分享”（Share）菜单下的“分享粉絲專頁”->“複製連結”（或“粉絲專頁連結”），成功复制出完整主页链接。通过中转验证无障碍 UI Dump 确切提取出完整 URL：`https://www.facebook.com/profile.php?id=61595032504951&mibextid=ZbWKwL`。
+- **精确 Page 身份核验**：
+  - 稳定数字 Page ID：`61595032504951`；
+  - 规范 HTTPS URL：`https://www.facebook.com/profile.php?id=61595032504951`（清洗掉追踪参数）；
+  - 对应绑定的父账号（个人 Profile）ID 为 `61550800776808`（`https://www.facebook.com/profile.php?id=61550800776808`）；
+  - 确认为不同的实体身份（`61595032504951 !== 61550800776808`），满足执行桥及审计门禁对 New Pages Experience 架构的强校验规则。
+- **执行库标准化沉淀**：
+  - 修改 `services/execution-runtime/src/device-executor.ts`，在 `identityAuditOnly` 任务提示词中显式补齐“进入 Page profile，打开 Page settings (...) -> Share -> Copy Link to Page 提取规范 HTTPS URL 及纯数字 ID”的标准化操作路径，消除此前通用视觉 Agent 在空白流中反复寻找文本 ID 导致的 15 分钟探索超时；
+  - 在 `device-executor.ts` 中增加规范化清洗逻辑，自动剥离 Facebook 客户端分享链接携带的 `mibextid` 等统计追踪参数，确保写入 `business_plan_page_identity_mappings` 与断言比对时使用规范纯净的 HTTPS URL；
+  - 运行时构建检查 `tsc --noEmit`、contracts 构建检查通过。
+
