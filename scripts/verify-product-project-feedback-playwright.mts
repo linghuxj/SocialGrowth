@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { chromium, type Page } from "playwright";
+import { projectFeedbackResponseSchema } from "../product/contracts/src/metric-feedback.ts";
 
 const required = (name: string): string => {
   const value = process.env[name];
@@ -59,8 +60,11 @@ try {
     projects = [{ projectId: selectedProjectId }];
     createdProjectThroughUI = true;
   } else {
-    selectedProjectId = projects[0]!.projectId;
-    await projectPanel.getByRole("button", { name: "打开项目", exact: true }).first().click();
+    const namedProject = process.env.SG_PRODUCT_PROJECT_FEEDBACK_PROJECT_NAME;
+    selectedProjectId = process.env.SG_PRODUCT_PROJECT_FEEDBACK_PROJECT_ID ?? projects[0]!.projectId;
+    if (namedProject) await projectPanel.getByRole("row").filter({ has: page.getByText(namedProject, { exact: true }) })
+      .getByRole("button", { name: "打开项目", exact: true }).click();
+    else await projectPanel.getByRole("button", { name: "打开项目", exact: true }).first().click();
   }
   {
     const assertProjectFeedback = async (projectId: string) => {
@@ -68,12 +72,12 @@ try {
       await page.getByRole("button", { name: "效果与复盘", exact: true }).click();
       const response = await responseWait;
       assert.ok(response.ok(), `actual project feedback GET returned ${response.status()}`);
-      const body = await response.json() as { projectId?: string; sourceState?: string; metrics?: unknown[] };
+      const body = projectFeedbackResponseSchema.parse(await response.json());
       assert.equal(body.projectId?.toLowerCase(), projectId.toLowerCase(), "feedback response belongs to selected project");
       assert.ok(["available", "not_configured", "unknown", "unavailable"].includes(body.sourceState ?? ""));
       assert.ok(Array.isArray(body.metrics));
       await feedbackPanel.getByRole("heading", { name: /已读取权威快照|效果来源尚未接入|效果来源当前不可用|暂无权威来源报告/ }).waitFor();
-      await feedbackPanel.getByText("内容级效果归因未知：尚缺已核验任务与平台实际发布内容的可信关联。账号级数据不会拆分到单条内容，也不会用于跨来源比较。", { exact: true }).waitFor();
+      await feedbackPanel.getByText("当前快照仅有账号级数据或尚无快照，内容级效果归因未知。账号级数据不会拆分到单条内容。", { exact: true }).waitFor();
       if (body.metrics.length === 0) {
         await feedbackPanel.getByText("目前没有可展示的报告行；这不代表指标为零、内容无效果或采集完整。", { exact: true }).waitFor();
       }
@@ -82,6 +86,16 @@ try {
 
     const firstProjectId = selectedProjectId;
     const first = await assertProjectFeedback(firstProjectId);
+    await writeFile(`${output}/feedback-facts.json`, JSON.stringify(first, null, 2), { mode: 0o600 });
+    const columns = ["project_id", "identity_id", "platform", "subject", "metric_name", "unit", "value", "availability", "missing_reason", "measurement", "source_definition", "coverage_start", "coverage_end", "cutoff", "collected_at", "source_timezone", "source_id", "report_id", "definition_id", "revision", "measurement_metadata_complete"];
+    const rows = first.metrics.map(metric => [metric.projectId, metric.identityId, metric.platform, metric.subject.kind,
+      metric.metricDefinition?.name ?? "", metric.metricDefinition?.unit ?? "", metric.value ?? "", metric.availability, metric.missingReason ?? "",
+      metric.measurement, metric.metricDefinition?.sourceDefinition ?? "", metric.coverage?.startsAt ?? "", metric.coverage?.endsAt ?? "",
+      metric.statisticsCutoffAt ?? "", metric.collectedAt, metric.sourceTimeZone ?? "", metric.sourceId, metric.sourceReportId,
+      metric.definitionId, String(metric.revision), String(Boolean(metric.availability === "available" && metric.metricDefinition?.unit
+        && metric.coverage && metric.statisticsCutoffAt && metric.sourceTimeZone))]);
+    const csv = (row: string[]) => row.map(value => `"${value.replaceAll('"', '""')}"`).join(",");
+    await writeFile(`${output}/standardized-metrics.csv`, [csv(columns), ...rows.map(csv)].join("\n") + "\n", { mode: 0o600 });
 
     // Exercise an actual browser transport failure, then recover through a fresh
     // UI-triggered GET. No business response or metric value is fabricated.
@@ -97,7 +111,7 @@ try {
     await feedbackPanel.getByRole("heading", { name: /已读取权威快照|效果来源尚未接入|效果来源当前不可用|暂无权威来源报告/ }).waitFor();
 
     let switchedProject = false;
-    if (projects.length > 1) {
+    if (projects.length > 1 && !process.env.SG_PRODUCT_PROJECT_FEEDBACK_PROJECT_NAME) {
       await projectPanel.getByRole("button", { name: "返回项目列表", exact: true }).click();
       await projectPanel.getByRole("button", { name: "打开项目", exact: true }).nth(1).click();
       const second = await assertProjectFeedback(projects[1]!.projectId);

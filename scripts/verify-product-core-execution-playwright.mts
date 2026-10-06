@@ -103,6 +103,13 @@ try {
     await prepared.waitFor();
     checks.push("原任务可信准备结果回写且刷新后保留，明确尚未发布");
   }
+  if (process.env.SG_PRODUCT_CORE_REVALIDATE === "1") {
+    step = "revalidate original clip and project feedback through Web";
+    await page.setViewportSize({ width: 1465, height: 1074 });
+    const { revalidateSliceAndFeedback } = await import("./verify-product-slice-feedback-steps.mts");
+    await revalidateSliceAndFeedback(page, project, output);
+    checks.push("通过真实Web重新提取原切片、核对项目账号占用和效果来源；未知数值不填零");
+  }
   await writeFile(resolve(output, "result.json"), JSON.stringify({ result: "passed", checks, starts, attempts, phonePreflight: execute, queriedOriginalUnknown: queryUnknown, publicPublication: false }, null, 2));
   console.log(JSON.stringify({ passed: true, checks: checks.length, starts, attempts, phonePreflight: execute }));
 } catch (error) {
