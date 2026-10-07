@@ -15,6 +15,8 @@ const schema = z.strictObject({
 export type AliyunSmsConfig = z.infer<typeof schema>;
 const fields = ["ACCESS_KEY_ID", "ACCESS_KEY_SECRET", "SECURITY_TOKEN", "SIGN_NAME", "REGISTRATION_TEMPLATE", "LOGIN_TEMPLATE", "CODE_PARAMETER", "TIMEOUT_MS"];
 export function readAliyunSmsConfig(env: NodeJS.ProcessEnv = process.env): AliyunSmsConfig | null {
+  // Explicit temporary mode retains provider settings for switching back, but never constructs the SDK.
+  if (env.SG_PRODUCT_SMS_MODE === "temporary_api") return null;
   if (env.SG_PRODUCT_SMS_MODE !== "aliyun") {
     if (fields.some(key => env[`SG_PRODUCT_SMS_ALIYUN_${key}`] !== undefined)) throw new Error("ALIYUN_SMS_CONFIGURATION_REQUIRED");
     return null;

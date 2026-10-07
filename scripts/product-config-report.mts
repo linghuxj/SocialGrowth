@@ -30,7 +30,7 @@ export function configReport(env: NodeJS.ProcessEnv, profile: "local" | "product
   if (profile !== "executor") {
     check("backend", () => readBackendConfig(env));
     check("database_auth_and_keys", () => readOperatorRuntimeConfig(env));
-    check("sms", () => { readSmsRuntimeConfig(env); readAliyunSmsConfig(env); return (env.SG_PRODUCT_SMS_MODE ?? "unavailable") === "unavailable" ? null : true; }, "aliyun 为阿里云中国站国内验证码；API 受理不代表手机收到");
+    check("sms", () => { readSmsRuntimeConfig(env); readAliyunSmsConfig(env); return (env.SG_PRODUCT_SMS_MODE ?? "unavailable") === "unavailable" ? null : true; }, "temporary_api 为临时响应返回验证码，不验证号码持有；aliyun 受理不代表手机收到");
     if (profile === "production" && env.SG_PRODUCT_SMS_MODE === "development_capture") checks.push({ capability: "production_sms", status: "incomplete", note: "生产禁止开发验证码模式" });
     check("material_storage", () => readMaterialRuntimeConfig(env));
     const modelMode = env.SG_PRODUCT_BUSINESS_MODEL_MODE ?? "unavailable";

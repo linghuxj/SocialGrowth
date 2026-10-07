@@ -38,3 +38,9 @@ test("provider errors are sanitized, not retried, and unsupported numbers never 
   await assert.rejects(port.sendVerificationCode({ ...delivery, expiresAt: new Date(0) }));
   assert.equal(calls, 1);
 });
+
+test("temporary API mode does not initialize Aliyun even with retained credentials", () => {
+  assert.equal(readBackendConfig({ SG_PRODUCT_SMS_MODE: "temporary_api", SG_PRODUCT_BACKEND_HOST: "0.0.0.0" }).SG_PRODUCT_SMS_MODE, "temporary_api");
+  assert.equal(readAliyunSmsConfig({ SG_PRODUCT_SMS_MODE: "temporary_api", SG_PRODUCT_SMS_ALIYUN_ACCESS_KEY_SECRET: "preserved-canary" }), null);
+  assert.throws(() => readBackendConfig({ SG_PRODUCT_SMS_MODE: "temporary_api", SG_PRODUCT_DEVELOPMENT_SMS_TOKEN: "x".repeat(32) }));
+});

@@ -35,6 +35,7 @@ data class PhoneVerificationChallenge(
     val deliveryState: String,
     val expiresAt: String,
     val resendAvailableAt: String,
+    val temporaryCode: String? = null,
 )
 
 data class PhoneVerificationProof(
@@ -189,6 +190,8 @@ object FirstBatchContractBoundary {
         require(deliveryState == GeneratedFirstBatchContractSpec.PHONE_CHALLENGE_DELIVERY_STATE) {
             "unknown deliveryState"
         }
+        val temporaryCode = if (json.has("temporaryCode")) requireString(json, "temporaryCode") else null
+        require(temporaryCode == null || temporaryCode.matches(Regex("^[0-9]{4,8}$"))) { "invalid temporary code" }
         PhoneVerificationChallenge(
             requireUuid(json, "challengeId"),
             purpose,
@@ -196,6 +199,7 @@ object FirstBatchContractBoundary {
             deliveryState,
             expiresAt,
             resendAvailableAt,
+            temporaryCode,
         )
     }
 
