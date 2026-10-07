@@ -17,6 +17,9 @@ on:
       - "CLAUDE.md"
       - "CONTEXT.md"
       - "DESIGN.md"
+      - "scripts/product-local*.mts"
+      - "scripts/product-config*.mts"
+      - "scripts/check-product-config.mts"
       - "scripts/run-playwright-target.mjs"
       - "scripts/verify-product-deployment-playwright.mts"
       - "scripts/verify-product-web-readiness.mts"
@@ -40,6 +43,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm check:product
       - run: pnpm lint:product
+      - run: pnpm test:config
       - run: pnpm test:product
       - run: pnpm build:product
       - run: docker compose --env-file product/deploy/.env.product.example -f product/deploy/compose.product.yml config --quiet

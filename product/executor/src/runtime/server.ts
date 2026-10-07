@@ -787,6 +787,7 @@ export function createRuntimeServer(options: ServerOptions) {
         await new Promise<void>((resolve, reject) =>
           http.close((e) => (e ? reject(e) : resolve())),
         );
+      screenshotStore.close();
       assistance.close();
       store.close();
     },

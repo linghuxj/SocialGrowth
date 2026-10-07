@@ -2,7 +2,6 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { z } from "zod-v3";
 import { requireFact } from "./contracts.js";
@@ -48,8 +47,8 @@ export class AppProvisioner {
     const adb = (args: string[]) => run("adb", ["-s", serial, ...args]);
     requireFact(await adb(["get-state"]) === "device", "DEVICE_UNAVAILABLE");
     requireFact(await adb(["shell", "getprop", "ro.kernel.qemu"]) !== "1", "PHYSICAL_DEVICE_REQUIRED");
-    const catalogPath = this.options.catalogPath ?? process.env.SG_APP_CATALOG ?? (existsSync("/Users/linghuxj/Documents/Codex/2026-09-20/new-chat/outputs/android-packages/catalog.json") ? "/Users/linghuxj/Documents/Codex/2026-09-20/new-chat/outputs/android-packages/catalog.json" : undefined);
-    const buildTools = this.options.buildTools ?? process.env.SG_ANDROID_BUILD_TOOLS ?? (existsSync("/Users/linghuxj/Library/Android/sdk/build-tools/36.0.0") ? "/Users/linghuxj/Library/Android/sdk/build-tools/36.0.0" : undefined);
+    const catalogPath = this.options.catalogPath ?? process.env.SG_APP_CATALOG;
+    const buildTools = this.options.buildTools ?? process.env.SG_ANDROID_BUILD_TOOLS;
     let entry: AppCatalog["apps"][number] | undefined;
     if (catalogPath) {
       const catalog = appCatalogSchema.parse(JSON.parse(await readFile(catalogPath, "utf8")));

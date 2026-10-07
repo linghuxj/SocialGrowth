@@ -1,132 +1,51 @@
-import { createHash, createHmac } from "node:crypto";
+import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
-
+import { Readable } from "node:stream";
 import { resolve } from "node:path";
 import { existsSync } from "node:fs";
+import { GetObjectCommand, HeadBucketCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { parseScreenshotStorageConfig, readScreenshotStorageConfig, type ScreenshotStorageConfig } from "./screenshot-config.js";
 
 export interface ScreenshotStoreOptions {
-  endpoint?: string;
-  accessKey?: string;
-  secretKey?: string;
-  bucket?: string;
-  region?: string;
+  storage?: ScreenshotStorageConfig;
   pythonPath?: string;
 }
-
-export interface StepMetadata {
-  workerId: string;
-  deviceId: string;
-  sessionId: string;
-  step: number;
-}
+export interface StepMetadata { workerId: string; deviceId: string; sessionId: string; step: number; }
 
 export class ScreenshotStore {
-  private readonly endpoint: string;
-  private readonly accessKey: string;
-  private readonly secretKey: string;
-  private readonly bucket: string;
-  private readonly region: string;
+  private readonly config: ScreenshotStorageConfig | null;
+  private readonly client: S3Client | null;
   private readonly pythonPath: string;
   private bucketChecked = false;
-
-  // S3 canonical URI must match the encoded wire path, including wireless
-  // ADB serials such as 127.0.0.1:34322. Preserve object-key slash separators.
-  private objectUri(imageKey: string): string {
-    return `/${this.bucket}/${imageKey.replace(/^\//, "")}`.split("/")
-      .map(segment => encodeURIComponent(segment).replace(/[!'()*]/g,
-        char => `%${char.charCodeAt(0).toString(16).toUpperCase()}`)).join("/");
-  }
-
   constructor(options: ScreenshotStoreOptions = {}) {
-    this.endpoint = (options.endpoint ?? process.env.SG_MINIO_ENDPOINT ?? "http://127.0.0.1:9000").replace(/\/$/, "");
-    this.accessKey = options.accessKey ?? process.env.SG_MINIO_ACCESS_KEY ?? "minioadmin";
-    this.secretKey = options.secretKey ?? process.env.SG_MINIO_SECRET_KEY ?? "minioadmin";
-    this.bucket = options.bucket ?? process.env.SG_MINIO_BUCKET ?? "socialgrowth-screenshots";
-    this.region = options.region ?? "us-east-1";
-
-    const candidatePaths = [
-      options.pythonPath,
-      process.env.SG_PYTHON_PATH,
-      resolve("integrations/google-artemis/.venv/bin/python"),
-      resolve("../../integrations/google-artemis/.venv/bin/python"),
-      resolve("../integrations/google-artemis/.venv/bin/python"),
-    ].filter((p): p is string => Boolean(p));
-
-    this.pythonPath = candidatePaths.find((p) => existsSync(p)) ?? "python3";
+    this.config = options.storage ? parseScreenshotStorageConfig(options.storage) : readScreenshotStorageConfig();
+    const c = this.config;
+    this.client = c ? new S3Client({ endpoint: c.endpoint, region: c.region, forcePathStyle: c.forcePathStyle,
+      maxAttempts: 1, credentials: { accessKeyId: c.accessKey, secretAccessKey: c.secretKey,
+        ...(c.sessionToken ? { sessionToken: c.sessionToken } : {}) },
+      ...(c.provider === "oss_s3" ? { requestChecksumCalculation: "WHEN_REQUIRED", responseChecksumValidation: "WHEN_REQUIRED" } : {}),
+    }) : null;
+    if (c?.provider === "oss_s3") this.client!.middlewareStack.add(next => async args => {
+      const request = args.request as { headers: Record<string, string> };
+      request.headers["x-oss-content-sha256"] = "UNSIGNED-PAYLOAD";
+      return next(args);
+    }, { step: "build", name: "ossScreenshotCompatibility" });
+    const paths = [options.pythonPath, process.env.SG_PYTHON_PATH,
+      resolve("integrations/google-artemis/.venv/bin/python"), resolve("../../integrations/google-artemis/.venv/bin/python"),
+      resolve("../integrations/google-artemis/.venv/bin/python")].filter((p): p is string => Boolean(p));
+    this.pythonPath = paths.find(p => existsSync(p)) ?? "python3";
   }
-
-  private sha256(content: string | Buffer): string {
-    return createHash("sha256").update(content).digest("hex");
-  }
-
-  private hmac(key: Buffer | string, data: string): Buffer {
-    return createHmac("sha256", key).update(data).digest();
-  }
-
-  private sign(method: string, uri: string, query: string, headers: Record<string, string>, payloadSha: string, date: Date) {
-    const amzDate = date.toISOString().replace(/[:-]|\.\d{3}/g, "");
-    const dateStamp = amzDate.slice(0, 8);
-
-    headers["host"] = new URL(this.endpoint).host;
-    headers["x-amz-date"] = amzDate;
-    headers["x-amz-content-sha256"] = payloadSha;
-
-    const sortedHeaderKeys = Object.keys(headers).map((k) => k.toLowerCase()).sort();
-    const canonicalHeaders = sortedHeaderKeys.map((k) => `${k}:${headers[k].trim()}\n`).join("");
-    const signedHeaders = sortedHeaderKeys.join(";");
-
-    const canonicalRequest = [
-      method,
-      uri,
-      query,
-      canonicalHeaders,
-      signedHeaders,
-      payloadSha,
-    ].join("\n");
-
-    const credentialScope = `${dateStamp}/${this.region}/s3/aws4_request`;
-    const stringToSign = [
-      "AWS4-HMAC-SHA256",
-      amzDate,
-      credentialScope,
-      this.sha256(canonicalRequest),
-    ].join("\n");
-
-    const kDate = this.hmac(`AWS4${this.secretKey}`, dateStamp);
-    const kRegion = this.hmac(kDate, this.region);
-    const kService = this.hmac(kRegion, "s3");
-    const kSigning = this.hmac(kService, "aws4_request");
-    const signature = createHmac("sha256", kSigning).update(stringToSign).digest("hex");
-
-    headers["authorization"] = `AWS4-HMAC-SHA256 Credential=${this.accessKey}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
-  }
-
+  close(): void { this.client?.destroy(); }
   async ensureBucket(): Promise<void> {
+    if (!this.config || !this.client) throw new Error("SCREENSHOT_STORAGE_NOT_CONFIGURED");
     if (this.bucketChecked) return;
-    const now = new Date();
-    const uri = `/${this.bucket}`;
-    const headers: Record<string, string> = {};
-    this.sign("HEAD", uri, "", headers, this.sha256(""), now);
-
-    const headRes = await fetch(`${this.endpoint}${uri}`, {
-      method: "HEAD",
-      headers,
-    });
-
-    if (headRes.status === 404) {
-      const putHeaders: Record<string, string> = {};
-      this.sign("PUT", uri, "", putHeaders, this.sha256(""), new Date());
-      const putRes = await fetch(`${this.endpoint}${uri}`, {
-        method: "PUT",
-        headers: putHeaders,
-      });
-      if (!putRes.ok && putRes.status !== 409) {
-        throw new Error(`Failed to create MinIO bucket ${this.bucket}: HTTP ${putRes.status}`);
-      }
-    } else if (!headRes.ok) throw new Error(`Failed to inspect MinIO bucket ${this.bucket}: HTTP ${headRes.status}`);
-    this.bucketChecked = true;
+    try {
+      await this.client.send(new HeadBucketCommand({ Bucket: this.config.bucket }),
+        { abortSignal: AbortSignal.timeout(this.config.requestTimeoutMs) });
+      this.bucketChecked = true;
+    } catch { throw new Error("SCREENSHOT_STORAGE_UNAVAILABLE"); }
+    // Existing buckets only. Never create infrastructure as a side effect of a screenshot.
   }
-
   async convertPngToWebp(pngBuffer: Buffer, quality = 80): Promise<Buffer> {
     return new Promise<Buffer>((resolve) => {
       try {
@@ -168,75 +87,42 @@ except Exception:
     });
   }
 
-  async uploadScreenshot(
-    imageBuffer: Buffer,
-    meta: StepMetadata,
+  async uploadScreenshot(imageBuffer: Buffer, meta: StepMetadata,
     options: { compressWebp?: boolean } = { compressWebp: true }
   ): Promise<{ imageKey: string; contentType: string; size: number }> {
     await this.ensureBucket();
-
-    let finalBuffer = imageBuffer;
-    let contentType = "image/png";
-    let ext = "png";
-
+    let body = imageBuffer, contentType = "image/png", ext = "png";
     if (options.compressWebp) {
-      const webpBuffer = await this.convertPngToWebp(imageBuffer);
-      if (webpBuffer !== imageBuffer && webpBuffer.length > 0) {
-        finalBuffer = webpBuffer;
-        contentType = "image/webp";
-        ext = "webp";
-      }
+      const converted = await this.convertPngToWebp(imageBuffer);
+      if (converted !== imageBuffer && converted.length > 0) { body = converted; contentType = "image/webp"; ext = "webp"; }
     }
-
     const imageKey = `screenshots/${meta.workerId}/${meta.deviceId}/${meta.sessionId}/step_${meta.step}.${ext}`;
-    const uri = this.objectUri(imageKey);
-    const payloadSha = this.sha256(finalBuffer);
-    const headers: Record<string, string> = {
-      "content-type": contentType,
-      "content-length": finalBuffer.length.toString(),
-    };
-
-    this.sign("PUT", uri, "", headers, payloadSha, new Date());
-
-    const res = await fetch(`${this.endpoint}${uri}`, {
-      method: "PUT",
-      headers,
-      body: new Uint8Array(finalBuffer),
-    });
-
-    if (!res.ok) {
-      throw new Error(`Failed to upload screenshot to MinIO ${imageKey}: HTTP ${res.status}`);
-    }
-
-    return {
-      imageKey,
-      contentType,
-      size: finalBuffer.length,
-    };
+    const c = this.config!;
+    try {
+      await this.client!.send(new PutObjectCommand({ Bucket: c.bucket, Key: imageKey, Body: body, ContentType: contentType,
+        ...(c.provider === "oss_s3" ? { ContentMD5: createHash("md5").update(body).digest("base64") } : {}),
+      }), { abortSignal: AbortSignal.timeout(c.requestTimeoutMs) });
+    } catch { throw new Error("SCREENSHOT_STORAGE_UPLOAD_UNCONFIRMED"); }
+    return { imageKey, contentType, size: body.length };
   }
-
   async getScreenshot(imageKey: string): Promise<{ buffer: Buffer; contentType: string } | null> {
     await this.ensureBucket();
-    const uri = this.objectUri(imageKey);
-    const headers: Record<string, string> = {};
-    this.sign("GET", uri, "", headers, this.sha256(""), new Date());
-
-    const res = await fetch(`${this.endpoint}${uri}`, {
-      method: "GET",
-      headers,
-    });
-
-    if (res.status === 404) return null;
-    if (!res.ok) {
-      throw new Error(`Failed to get screenshot from MinIO ${imageKey}: HTTP ${res.status}`);
+    const c = this.config!, signal = AbortSignal.timeout(c.requestTimeoutMs);
+    try {
+      const result = await this.client!.send(new GetObjectCommand({ Bucket: c.bucket, Key: imageKey }), { abortSignal: signal });
+      if (!result.Body) throw new Error("SCREENSHOT_STORAGE_UNAVAILABLE");
+      const body = result.Body;
+      const abort = () => { if (body instanceof Readable) body.destroy(new Error("SCREENSHOT_STORAGE_TIMEOUT")); };
+      signal.addEventListener("abort", abort, { once: true });
+      try {
+        if (signal.aborted) { abort(); signal.throwIfAborted(); }
+        const buffer = Buffer.from(await body.transformToByteArray());
+        signal.throwIfAborted();
+        return { buffer, contentType: result.ContentType || (imageKey.endsWith(".webp") ? "image/webp" : "image/png") };
+      } finally { signal.removeEventListener("abort", abort); }
+    } catch (error) {
+      if ((error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 404) return null;
+      throw new Error("SCREENSHOT_STORAGE_UNAVAILABLE");
     }
-
-    const arrayBuffer = await res.arrayBuffer();
-    const contentType = res.headers.get("content-type") || (imageKey.endsWith(".webp") ? "image/webp" : "image/png");
-
-    return {
-      buffer: Buffer.from(arrayBuffer),
-      contentType,
-    };
   }
 }

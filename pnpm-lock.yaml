@@ -85,6 +85,9 @@ importers:
 
   product/executor:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: 3.1143.0
+        version: 3.1143.0
       '@modelcontextprotocol/sdk':
         specifier: 1.26.0
         version: 1.26.0(zod@4.6.5)

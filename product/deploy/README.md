@@ -74,3 +74,25 @@ OSS 专用处理包括签名前加入 `x-oss-content-sha256`、缓冲上传及 C
 S3 继续使用 `If-None-Match: *` 与 SHA256 请求校验。两种模式都在写入后 GET 并核验完整 SHA256、大小、类型，冲突不凭 ACK 判成功。当前协议测试为隔离 HTTP fixture 的补充检查，**真实云服务鉴权、权限、上传/下载及正式 Web 素材流程须在用户填入配置后验证**。
 
 官方依据：[OSS 的 AWS SDK 接入](https://www.alibabacloud.com/help/en/oss/developer-reference/use-aws-sdks-to-access-oss)、[OSS PutObject 与版本控制限制](https://help.aliyun.com/en/oss/developer-reference/putobject)。
+
+## 本地与部署配置（2026-10-07）
+
+三份模板分别为[本地后端](.env.local.example)、[生产后端](.env.production.example)、[执行器](.env.executor.example)。模板不含实际凭据，也不创建业务绑定。现有配置文件、SQLite/PostgreSQL 数据、历史密钥和设备授权均保留；本轮配置整理不自动部署或连接云存储。
+
+本地 `pnpm dev` 与 `pnpm config:check` 共用配置加载代码。覆盖顺序为：允许覆盖的显式进程变量 → `.runtime/product-local-live/backend.env` → 现有 `material-storage.json`、`network.env`、`execution-binding.json`、`.env.runtime` → 本地默认值。新文件可选，必须当前用户持有且权限 0600；只接受模板涉及的后端可选字段及端口。数据库密码、认证 pepper、开发短信令牌仍由原 `config.json` 管理。任何素材覆盖都替换整个素材配置组，必须完整提供，避免混用旧凭据；只设置 `SG_PRODUCT_MATERIAL_MODE=unavailable` 可关闭。旧素材 JSON 也支持 `provider: "oss_s3"`，省略时保持 S3 行为；不要变更已有对象位置 ID/摘要来冒充存储迁移。
+
+生产使用受保护的 `.env.production` 及 Compose 的固定容器监听设置；变量名与本地可选配置一致。Web 保持同源 `/api`，无需另填公网 API 地址。Android 生产构建仍按上文注入 HTTPS 地址和签名材料。
+
+执行器继续读取原 `.env.runtime`，Agent 继续读取 `.env.agent`；不得用示例整体覆盖。截图存储现使用 `SG_SCREENSHOT_*`，旧 `SG_MINIO_*` 不再读取。需在下次重启前显式填写新的云存储字段；未配置时仅截图存储操作返回不可用，不自动连接 MinIO。SDK 支持 S3/OSS、区域、虚拟主机/路径寻址、STS 和请求超时；Bucket 必须预先存在，上传未确认时不自动重试。历史对象不会搬迁，旧截图可读性需另行核验。APK catalog 与 Android build-tools 必须通过选项或 `SG_APP_CATALOG` / `SG_ANDROID_BUILD_TOOLS` 指定，已移除个人电脑路径回退。
+
+只读脱敏检查（无数据库连接、云请求、设备操作或服务启动）：
+
+```sh
+pnpm config:check
+pnpm config:check --profile production --env-file /absolute/path/.env.production
+pnpm config:check --profile executor --env-file /absolute/path/.env.runtime --runtime
+```
+
+`configured` 只表示配置检查通过；`disabled` 为明确未配置/关闭；`incomplete` 为缺项或格式冲突；`missing_dependency` 为当前机器缺文件/程序；`not_wired` 表示组件未接入。缺项/依赖失败时退出码为 1，关闭项不自动视作失败。`--runtime` 仅检查**运行检查命令的机器**，不能用 Mac 的依赖代替容器证据；生产默认仅检查配置结构。原始错误、令牌、连接串及密钥不输出。配置文件读取失败也只输出固定错误码。
+
+待部署接线的明确边界：生产镜像尚无 Python/Artemis/视频分析工具，不能只填模型模式就启用；执行器保持回环监听，需要可信通道和反向回调，业务绑定必须对应目标数据库；真实短信适配器尚未接入；Redis 队列组件尚未注册；Tailscale/ADB 需要明确执行位置与工具/状态挂载。以上检查不是这些能力的业务验收，不会自动开放公网、创建云服务或重放任务。

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { ScreenshotStore } from "./storage/screenshot-store.js";
 
-test("ScreenshotStore roundtrips WebP in MinIO with an encoded wireless ADB object key", async () => {
+test("ScreenshotStore roundtrips WebP in configured cloud S3 storage with an encoded wireless ADB object key", async () => {
   const store = new ScreenshotStore();
 
   // Create a minimal 1x1 8-bit PNG buffer in memory
@@ -16,7 +16,7 @@ test("ScreenshotStore roundtrips WebP in MinIO with an encoded wireless ADB obje
   const webpBuffer = await store.convertPngToWebp(minimalPng);
   assert.ok(webpBuffer.length > 0, "WebP buffer should not be empty");
 
-  // Test upload to MinIO
+  // Test upload to configured cloud storage
   const result = await store.uploadScreenshot(minimalPng, {
     workerId: "worker01",
     deviceId: "127.0.0.1:34322",
@@ -28,9 +28,9 @@ test("ScreenshotStore roundtrips WebP in MinIO with an encoded wireless ADB obje
   assert.equal(result.contentType, "image/webp");
   assert.ok(result.size > 0);
 
-  // Test retrieval from MinIO
+  // Test retrieval from configured cloud storage
   const retrieved = await store.getScreenshot(result.imageKey);
-  assert.ok(retrieved !== null, "Object should exist in MinIO");
+  assert.ok(retrieved !== null, "Object should exist in configured cloud S3 storage");
   assert.equal(retrieved?.contentType, "image/webp");
   assert.equal(retrieved?.buffer.length, result.size);
 });
