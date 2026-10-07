@@ -48,6 +48,7 @@ jobs:
       - run: pnpm build:product
       - run: docker compose --env-file product/deploy/.env.product.example -f product/deploy/compose.product.yml config --quiet
       - run: docker compose --env-file product/deploy/.env.production.example -f product/deploy/compose.production.yml config --quiet
+      - run: docker compose --env-file product/deploy/.env.production.example -f product/deploy/compose.production.yml -f product/deploy/compose.execution.yml config --quiet
       - run: docker build --target backend -f product/deploy/Dockerfile -t socialgrowth-backend:ci .
       - run: docker build --target web -f product/deploy/Dockerfile -t socialgrowth-web:ci .
       - run: python3 docs/engineering/delivery/check_consistency.py --allow-missing-private-evidence

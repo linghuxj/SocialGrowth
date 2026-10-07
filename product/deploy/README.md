@@ -95,4 +95,23 @@ pnpm config:check --profile executor --env-file /absolute/path/.env.runtime --ru
 
 `configured` 只表示配置检查通过；`disabled` 为明确未配置/关闭；`incomplete` 为缺项或格式冲突；`missing_dependency` 为当前机器缺文件/程序；`not_wired` 表示组件未接入。缺项/依赖失败时退出码为 1，关闭项不自动视作失败。`--runtime` 仅检查**运行检查命令的机器**，不能用 Mac 的依赖代替容器证据；生产默认仅检查配置结构。原始错误、令牌、连接串及密钥不输出。配置文件读取失败也只输出固定错误码。
 
-待部署接线的明确边界：生产镜像尚无 Python/Artemis/视频分析工具，不能只填模型模式就启用；执行器保持回环监听，需要可信通道和反向回调，业务绑定必须对应目标数据库；真实短信适配器尚未接入；Redis 队列组件尚未注册；Tailscale/ADB 需要明确执行位置与工具/状态挂载。以上检查不是这些能力的业务验收，不会自动开放公网、创建云服务或重放任务。
+待部署接线的明确边界：基础镜像不包含 Python/Artemis/视频分析工具；完整执行部署需使用下述 execution overlay；执行器保持回环监听，需要可信通道和反向回调，业务绑定必须对应目标数据库；阿里云短信适配器已接入，真实发送需配置签名、模板和凭据；Redis 队列组件尚未注册；Tailscale/ADB 需要明确执行位置与工具/状态挂载。以上检查不是这些能力的业务验收，不会自动开放公网、创建云服务或重放任务。
+
+
+## 阿里云短信与服务器执行部署
+
+短信选择 `SG_PRODUCT_SMS_MODE=aliyun`，按生产模板填写 `SG_PRODUCT_SMS_ALIYUN_*`。使用中国站 `SendSms`（2017-05-25）国内验证码接口，仅接受 `+86` 大陆手机号码；注册和登录可配置不同已审核模板，模板变量默认 `code`。显式 RAM/STS 凭据仅存在保护 env 文件中，不使用默认凭据链。SDK 自动重试关闭，错误输出脱敏；成功只代表接口受理，实际送达须通过真实 Web 验证码流程核验。未提供凭据时继续保持 `unavailable`。本地可用 `backend.env` 覆盖短信模式与阿里云参数，切换到真实短信时自动移除开发验证码令牌；不会同时启用开发验证码读取。
+
+Artemis 上游固定为 `351ca8422f7b5b54e80a9c1ce03a222e02415b6b`（本轮获取的 main），[构建文件](artemis/Dockerfile)应用[项目补丁](artemis/socialgrowth.patch)，保留人工介入、动作保护、结果核验与代理适配。补丁包含锁定依赖；原本地 Artemis 工作目录及其私有配置不覆盖。上游代码及补丁在镜像中，实际模型凭据、JSONC 配置、ADB 密钥、SQLite 状态均在镜像外。
+
+```sh
+docker build -t socialgrowth-artemis:351ca8422f7b5b54e80a9c1ce03a222e02415b6b product/deploy/artemis
+# env 文件中需填写 execution overlay 的路径与对应执行器配置。
+docker compose --env-file /opt/socialgrowth/config/.env.production -f product/deploy/compose.production.yml -f product/deploy/compose.execution.yml build
+```
+
+[完整执行部署](compose.execution.yml)增加执行器容器，并为后端提供 Python 3.12、Artemis、ADB、ffmpeg/ffprobe。执行器仅在 Docker 网络监听 4318，不发布宿主机端口；后端通过 `http://executor:4318` 访问，执行回调使用 `http://backend:4320`。Redis 继续使用生产 Compose 中的 Docker 服务和持久卷；现有队列组件尚未注册，不因 Redis 存活而启动任务消费者。
+
+Tailscale 在服务器宿主机运行，持久化节点身份；容器调用挂载的 Linux CLI/本机 socket 查询节点，访问权限由 Tailnet 策略及容器用户权限共同约束。服务器加入当前 Tailnet 后核验容器到手机的真实路由，不以主机 ping 代替容器验证。首次手机联系仍使用公网 HTTPS。ADB 私钥须保留，状态目录由容器 UID 1000 持有；不重新生成密钥代替原配对。
+
+迁移时分别保存 PostgreSQL、执行器 SQLite（含原未决状态）、素材引用、原密钥和 Artemis traces。禁止把本地业务绑定直接接到空的服务器业务库，也不能让原执行器和新执行器同时接管同一设备。`unknown`、人工占用与历史回执原样保留，不自动释放或重发；固定版本发布前后用 Playwright 验证实际 Web，并另行记录模型/MCP/设备通路的证据边界。

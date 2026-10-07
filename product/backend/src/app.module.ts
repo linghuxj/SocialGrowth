@@ -1,3 +1,4 @@
+import { AliyunSmsDeliveryPort, readAliyunSmsConfig } from "./aliyun-sms.js";
 import { ExecutorConsoleController } from "./executor-console.controller.js";
 import { ExecutorConsoleService } from "./executor-console-service.js";
 import { NetworkSetupApi } from "./network-setup-api.js";
@@ -135,6 +136,8 @@ const smsRuntimeProvider = {
   provide: SMS_RUNTIME,
   useFactory: (): SmsRuntime => {
     const config = readSmsRuntimeConfig();
+    const aliyun = readAliyunSmsConfig();
+    if (aliyun) return { codeReader: new DisabledDevelopmentSmsCodeReader(), deliveryPort: new AliyunSmsDeliveryPort(aliyun) };
     if (config.SG_PRODUCT_SMS_MODE === "development_capture") {
       const capture = new DevelopmentSmsCapturePort(
         config.SG_PRODUCT_DEVELOPMENT_SMS_TOKEN!,

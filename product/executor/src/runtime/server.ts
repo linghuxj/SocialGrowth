@@ -796,6 +796,8 @@ export function createRuntimeServer(options: ServerOptions) {
 
 export function startRuntimeFromEnvironment() {
   const port = Number(process.env.SG_RUNTIME_PORT ?? 4318);
+  const host = process.env.SG_RUNTIME_HOST ?? "127.0.0.1";
+  requireFact(["127.0.0.1", "0.0.0.0", "::1"].includes(host) && Number.isInteger(port) && port >= 1 && port <= 65535, "RUNTIME_LISTENER_INVALID");
   const dataDir = resolve(process.env.SG_RUNTIME_DATA ?? ".runtime");
   const verificationConfigPath = join(dataDir, "web-verification.json");
   const server = createRuntimeServer({
@@ -836,8 +838,8 @@ export function startRuntimeFromEnvironment() {
           })
         : undefined,
   });
-  server.http.listen(port, "127.0.0.1", () =>
-    console.info(`SocialGrowth runtime listening on 127.0.0.1:${port}`),
+  server.http.listen(port, host, () =>
+    console.info(`SocialGrowth runtime listening on ${host}:${port}`),
   );
   const shutdown = () =>
     void server.close().catch(() => {

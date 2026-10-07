@@ -34,6 +34,9 @@
     "test:database-inventory": "tsx --test --test-concurrency=1 src/database-restore-inventory.pg-test.ts"
   },
   "dependencies": {
+    "@alicloud/dysmsapi20170525": "4.6.0",
+    "@alicloud/openapi-client": "0.4.15",
+    "@alicloud/tea-util": "1.4.11",
     "@aws-sdk/client-s3": "3.1143.0",
     "@nestjs/common": "12.1.1",
     "@nestjs/core": "12.1.1",

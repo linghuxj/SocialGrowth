@@ -1,0 +1,2 @@
+# Unified diffs must retain upstream context whitespace byte-for-byte.
+product/deploy/artemis/socialgrowth.patch -whitespace

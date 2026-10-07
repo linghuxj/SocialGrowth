@@ -1,0 +1,83 @@
+# Apply AFTER compose.production.yml; full runtime base image is built separately.
+services:
+  backend:
+    build:
+      target: backend-artemis
+      args:
+        ARTEMIS_IMAGE: ${SG_ARTEMIS_IMAGE:?required}
+    environment:
+      SG_PRODUCT_ARTEMIS_ROOT: /opt/artemis
+      SG_PRODUCT_BUSINESS_MODEL_MODE: artemis_configured
+      SG_PRODUCT_EXECUTION_RUNTIME_URL: http://executor:4318
+      SG_PRODUCT_TAILSCALE_CLI: /usr/local/bin/tailscale
+      SG_PRODUCT_CENTER_ADB: /usr/bin/adb
+      SG_PRODUCT_CENTER_ADB_USER_HOME: /home/node/.android
+    volumes:
+      - type: bind
+        source: ${SG_ARTEMIS_ENV_FILE:?required}
+        target: /opt/artemis/.env
+        read_only: true
+        bind: { create_host_path: false }
+      - type: bind
+        source: ${SG_ARTEMIS_CONFIG_FILE:?required}
+        target: /opt/artemis/config/artemis.jsonc
+        read_only: true
+        bind: { create_host_path: false }
+      - type: bind
+        source: /usr/bin/tailscale
+        target: /usr/local/bin/tailscale
+        read_only: true
+        bind: { create_host_path: false }
+      - type: bind
+        source: /var/run/tailscale/tailscaled.sock
+        target: /var/run/tailscale/tailscaled.sock
+        bind: { create_host_path: false }
+      - type: bind
+        source: ${SG_ADB_STATE_DIR:?required}
+        target: /home/node/.android
+        bind: { create_host_path: false }
+      - backend-artemis-data:/var/lib/socialgrowth/artemis
+  executor:
+    image: socialgrowth-executor:${SG_PRODUCT_REVISION:?required}
+    build:
+      context: ../..
+      dockerfile: product/deploy/Dockerfile
+      target: executor
+      args:
+        REVISION: ${SG_PRODUCT_REVISION:?required}
+        ARTEMIS_IMAGE: ${SG_ARTEMIS_IMAGE:?required}
+    restart: unless-stopped
+    init: true
+    env_file:
+      - ${SG_EXECUTOR_ENV_FILE:?required}
+    environment:
+      SG_RUNTIME_HOST: 0.0.0.0
+      SG_RUNTIME_PORT: "4318"
+      SG_RUNTIME_DATA: /var/lib/socialgrowth/runtime
+      SG_ARTEMIS_ROOT: /opt/artemis
+      SG_PYTHON_PATH: /opt/artemis/.venv/bin/python
+      SG_PRODUCT_EXECUTION_CALLBACK_URL: http://backend:4320
+    volumes:
+      - type: bind
+        source: ${SG_EXECUTOR_STATE_DIR:?required}
+        target: /var/lib/socialgrowth/runtime
+        bind: { create_host_path: false }
+      - type: bind
+        source: ${SG_ARTEMIS_ENV_FILE:?required}
+        target: /opt/artemis/.env
+        read_only: true
+        bind: { create_host_path: false }
+      - type: bind
+        source: ${SG_ARTEMIS_CONFIG_FILE:?required}
+        target: /opt/artemis/config/artemis.jsonc
+        read_only: true
+        bind: { create_host_path: false }
+      - type: bind
+        source: ${SG_ADB_STATE_DIR:?required}
+        target: /home/node/.android
+        bind: { create_host_path: false }
+      - executor-artemis-data:/var/lib/socialgrowth/artemis
+    stop_grace_period: 30s
+volumes:
+  backend-artemis-data:
+  executor-artemis-data:

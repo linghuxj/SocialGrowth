@@ -21,6 +21,9 @@ test("local loading preserves OSS provider and explicit precedence without modif
     assert.equal(loaded.env.SG_PRODUCT_EXECUTION_CALLBACK_URL, "http://127.0.0.1:4420");
     assert.equal(loaded.env.AWS_SECRET_ACCESS_KEY, undefined); assert.equal(loaded.env.SG_UNRELATED_SECRET, undefined);
     assert.equal(readMaterialRuntimeConfig(loaded.env)?.provider, "oss_s3");
+    const sms = await load({ SG_PRODUCT_SMS_MODE: "aliyun" });
+    assert.equal(sms.env.SG_PRODUCT_SMS_MODE, "aliyun");
+    assert.equal(sms.env.SG_PRODUCT_DEVELOPMENT_SMS_TOKEN, undefined);
     const disabled = await load({ SG_PRODUCT_MATERIAL_MODE: "unavailable" });
     assert.equal(readMaterialRuntimeConfig(disabled.env), null);
     const partial = await load({ SG_PRODUCT_MATERIAL_PROVIDER: "s3" });
