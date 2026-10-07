@@ -139,6 +139,7 @@ class EndpointReportingService : Service() {
         }
     }
     private fun cycle() {
+        if (Build.VERSION.SDK_INT < 34) { shutdown(); return }
         if (!live.get() || busy) return
         if (InstallationIdentityStore(this).load()?.activeSessionToken() != originalToken) {
             shutdown(); return
@@ -192,7 +193,7 @@ class EndpointReportingService : Service() {
                 status = if (success) "正在保持连接，请按页面提示继续" else "暂时联系不上平台，正在重试"
                 // Stop retrying a report after its bounded observation validity.
                 if (!success && pending != null && Instant.now().toEpochMilli() - Instant.parse(pending!!.getString("observedAt")).toEpochMilli() >= 10_000) pending = null
-                if (discovery?.snapshot()?.active == false) discovery?.startForegroundWindow()
+                if (Build.VERSION.SDK_INT >= 34 && discovery?.snapshot()?.active == false) discovery?.startForegroundWindow()
                 val delay = if (success) 3000L else (1000L shl failures.coerceAtMost(5)).coerceAtMost(30_000L)
                 main.postDelayed(tick, delay)
             }
@@ -202,7 +203,7 @@ class EndpointReportingService : Service() {
         if (stopping) return
         stopping = true
         live.set(false); running = false; status = "连接检查已停止"
-        main.removeCallbacks(tick); discovery?.close(); discovery = null
+        main.removeCallbacks(tick); if (Build.VERSION.SDK_INT >= 34) discovery?.close(); discovery = null
         // Single worker ordering ensures this withdrawal follows any in-flight
         // report. Best effort only: absence of ACK never grants freshness.
         if (!worker.isShutdown) worker.execute {
@@ -219,5 +220,5 @@ class EndpointReportingService : Service() {
         }
         stopForeground(STOP_FOREGROUND_REMOVE); stopSelf()
     }
-    override fun onDestroy() { live.set(false); running = false; main.removeCallbacks(tick); discovery?.close(); worker.shutdown(); super.onDestroy() }
+    override fun onDestroy() { live.set(false); running = false; main.removeCallbacks(tick); if (Build.VERSION.SDK_INT >= 34) discovery?.close(); worker.shutdown(); super.onDestroy() }
 }

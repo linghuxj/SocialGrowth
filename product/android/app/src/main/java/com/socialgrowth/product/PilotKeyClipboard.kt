@@ -3,6 +3,7 @@ package com.socialgrowth.product
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.PersistableBundle
@@ -32,7 +33,8 @@ internal object PilotKeyClipboard {
         // another application's later copy or claim an unconditional OS guarantee.
         val clipboard = context.applicationContext.getSystemService(ClipboardManager::class.java)
         if (clipboard.primaryClipDescription?.label?.toString() == label) {
-            clipboard.clearPrimaryClip()
+            if (Build.VERSION.SDK_INT >= 28) clipboard.clearPrimaryClip()
+            else clipboard.setPrimaryClip(ClipData.newPlainText("", ""))
             ownedLabel = null
             pending?.let { handler.removeCallbacks(it) }
             pending = null

@@ -74,7 +74,7 @@ jobs:
           java-version: "17"
       - name: Require the checked-in Gradle wrapper
         run: test -x product/android/gradlew
-      - run: product/android/gradlew -p product/android clean assembleDebug --no-daemon
+      - run: product/android/gradlew -p product/android clean assembleDebug lintDebug testDebugUnitTest --no-daemon
       - name: Verify Android release gate fails closed
         shell: bash
         run: |

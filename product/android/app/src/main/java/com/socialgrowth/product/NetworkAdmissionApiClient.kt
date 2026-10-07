@@ -92,7 +92,7 @@ internal class NetworkAdmissionVerifierClient(baseUrl: String) {
             connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
             val status=connection.responseCode
             val stream=if(status==200) connection.inputStream else connection.errorStream
-            val bytes=stream?.use { it.readNBytes(16385) } ?: error("Missing response")
+            val bytes=stream?.use { it.readAtMost(16385) } ?: error("Missing response")
             require(bytes.size<=16384)
             val raw=String(bytes,Charsets.UTF_8)
             if(status!=200) throw AdmissionApiBoundary.failure(raw)

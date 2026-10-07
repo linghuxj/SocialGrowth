@@ -90,7 +90,7 @@ internal class DeviceControlApiClient(baseUrl: String) {
             }
             val status = connection.responseCode
             val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-            val bytes = stream?.use { it.readNBytes(16_385) } ?: error("Missing control response")
+            val bytes = stream?.use { it.readAtMost(16_385) } ?: error("Missing control response")
             require(bytes.size <= 16_384) { "Control response exceeds the limit" }
             val raw = String(bytes, Charsets.UTF_8)
             if (status !in 200..299) throw DeviceControlRequestException(status, safeErrorCode(raw))

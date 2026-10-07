@@ -42,7 +42,7 @@ internal class ProviderAssistanceApiClient(baseUrl: String) {
             connection.setRequestProperty("Authorization", "Bearer $token")
             val status = connection.responseCode
             val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-            val bytes = stream?.use { it.readNBytes(32_769) } ?: error("Missing assistance response")
+            val bytes = stream?.use { it.readAtMost(32_769) } ?: error("Missing assistance response")
             require(bytes.size <= 32_768)
             if (status !in 200..299) throw IllegalStateException("Assistance request rejected")
             return parse(String(bytes, Charsets.UTF_8))

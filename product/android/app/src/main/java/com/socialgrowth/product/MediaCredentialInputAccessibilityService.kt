@@ -75,12 +75,15 @@ class MediaCredentialInputAccessibilityService : AccessibilityService() {
 
     private fun serveFailClosedControlChannel() {
         try {
-            LocalServerSocket(LOCAL_SOCKET_NAME).use { listener ->
+            val listener = LocalServerSocket(LOCAL_SOCKET_NAME)
+            try {
                 server = listener
                 while (!stopped.get()) {
                     val client = try { listener.accept() } catch (_: IOException) { break }
                     client.use(::handleOneConnection)
                 }
+            } finally {
+                listener.close()
             }
         } catch (_: Exception) {
             // No exception text or request data is logged. A missing channel is closed.

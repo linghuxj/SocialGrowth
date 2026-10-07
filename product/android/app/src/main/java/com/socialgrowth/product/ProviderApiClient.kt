@@ -107,7 +107,7 @@ class ProviderApiClient(private val baseUrl: String) {
             }
             val status = connection.responseCode
             val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-            val bytes = stream?.use { it.readNBytes(262145) } ?: ByteArray(0)
+            val bytes = stream?.use { it.readAtMost(262145) } ?: ByteArray(0)
             require(bytes.size <= 262144) { "Response too large" }
             val response = String(bytes, StandardCharsets.UTF_8)
             if (status !in 200..299) throw parseError(response, status)
