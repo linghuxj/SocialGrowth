@@ -22,3 +22,7 @@ APK 构建、JVM 或 Keystore／NSD 补充检查不替代真实 Web、本人授�
 固定候选的真机、自动连接和恢复证据见[证据索引](../../docs/engineering/delivery/records/README.md)。这些结果只适用于记录的候选与环境；零准备远端新手机、多机、升级签名和完整业务验收不能从旧单机通过推导。本轮文档整理没有重跑真机验收。
 
 本机准备中的管理接入、业务代理、SFA 切换和断线恢复见[手机网络准备](../../docs/specs/2026-10-07-phone-network-preparation.md)。安装 SFA 后不自动启动官方 Tailscale VPN；客户端安装状态不证明运行或平台准入。
+
+## 邀请入口（2026-10-07）
+
+运营发出的 HTTPS `/register?invitation=...` 链接进入受邀落地页，提供打开 App、下载正式 APK 和复制邀请码。App 首页“受邀加入”支持粘贴邀请码、同一生产域名的邀请链接或 `socialgrowth://provider/register` 链接；格式检查只表示内容可读取，有效期、剩余名额及注册资格仍由服务器核验。安装不会自动保留浏览器邀请，用户可从原页面再次打开 App 或粘贴邀请码。原有账号登录不消耗邀请名额。

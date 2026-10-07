@@ -1,0 +1,26 @@
+.invitation-entry { max-width: 600px; min-height: 100dvh; margin: auto; padding: 32px 24px 56px; line-height: 1.6; }
+.invitation-brand { color: #172b4d; font-size: 22px; font-weight: 700; }
+.invitation-content { margin-top: 40px; }
+.invitation-content h1 { margin: 0; font-size: 32px; line-height: 1.3; }
+.invitation-description { margin: 12px 0 28px; color: #526176; font-size: 16px; }
+.invitation-entry a, .invitation-entry button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; padding: 12px 18px; border-radius: 8px; font-size: 16px; font-weight: 600; text-decoration: none; cursor: pointer; }
+.invitation-primary { width: 100%; border: 1px solid #2459c4; background: #2459c4; color: #fff; }
+.invitation-primary:hover { background: #1c489e; }
+.invitation-help, .invitation-download p, .invitation-boundary { color: #526176; font-size: 14px; }
+.invitation-help { margin: 14px 0 24px; }
+.invitation-code-section, .invitation-input-form { display: grid; gap: 12px; }
+.invitation-entry label { font-size: 15px; font-weight: 600; }
+.invitation-entry input, .invitation-entry textarea { width: 100%; min-width: 0; padding: 12px; border: 1px solid #dce2ea; border-radius: 8px; color: #172b4d; background: #fff; font: inherit; font-size: 15px; }
+.invitation-entry textarea { min-height: 104px; resize: vertical; }
+.invitation-entry .invitation-copy { justify-self: start; margin: 0; background: transparent; border: 1px solid #2459c4; color: #2459c4; }
+.invitation-entry .invitation-copy:disabled { opacity: 0.65; cursor: wait; }
+.invitation-feedback { min-height: 24px; margin: 12px 0 0; color: #172b4d; font-size: 14px; }
+.invitation-download { margin-top: 24px; padding-top: 24px; border-top: 1px solid #dce2ea; }
+.invitation-download h2 { margin: 0; font-size: 20px; }
+.invitation-download p { margin: 8px 0 16px; }
+.invitation-secondary { border: 1px solid #2459c4; color: #2459c4; background: #fff; }
+.invitation-secondary:hover, .invitation-copy:hover { background: #edf5ff; }
+.invitation-boundary { margin-top: 28px; }
+.invitation-entry :focus-visible { outline: 3px solid #2459c4; outline-offset: 3px; }
+.invitation-entry ::selection { color: #172b4d; background: #dbe9ff; }
+@media (max-width: 450px) { .invitation-entry { padding: 24px 20px 40px; } .invitation-content { margin-top: 32px; } }
