@@ -340,9 +340,9 @@ export class ProviderAuthService {
              request_id, facts
            ) VALUES ($1, 'system', 'sms.delivery_accepted',
              'phone_verification_challenge', $2, $3,
-             jsonb_build_object('purpose', $4::text))`,
+             jsonb_build_object('purpose', $4::text, 'deliveryMode', $5::text))`,
           [randomUUID(), acceptedRow.challenge_id,
-            request.metadata.requestId, acceptedRow.purpose],
+            request.metadata.requestId, acceptedRow.purpose, this.smsDelivery.deliveryMode ?? 'sms'],
         );
       }
       return acceptedRow;

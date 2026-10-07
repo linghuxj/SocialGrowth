@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 
 import { ProductTransactionError } from "./product-transaction-error.js";
 
@@ -13,6 +13,7 @@ export interface SmsDelivery {
 }
 
 export interface SmsDeliveryPort {
+  readonly deliveryMode?: "temporary_api";
   sendVerificationCode(input: SmsDelivery): Promise<void>;
 }
 
@@ -26,6 +27,7 @@ export interface DevelopmentSmsCodeReader {
 export interface SmsRuntime {
   codeReader: DevelopmentSmsCodeReader;
   deliveryPort: SmsDeliveryPort;
+  readTemporaryCode?: (challengeId: string) => string;
 }
 
 export class UnavailableSmsDeliveryPort implements SmsDeliveryPort {
@@ -108,5 +110,20 @@ export class DevelopmentSmsCapturePort
     for (const [challengeId, captured] of this.codes) {
       if (captured.expiresAt <= now) this.codes.delete(challengeId);
     }
+  }
+}
+
+// Only wired by explicit temporary_api mode. The private token stays in this
+// process; neither the Android APK nor the development reader receives it.
+export class TemporaryApiSmsDeliveryPort implements SmsDeliveryPort {
+  readonly deliveryMode = "temporary_api" as const;
+  private readonly token = randomBytes(32).toString("hex");
+  private readonly capture: DevelopmentSmsCapturePort;
+  constructor(now: () => Date = () => new Date(), maximumEntries = 1_000) {
+    this.capture = new DevelopmentSmsCapturePort(this.token, now, maximumEntries);
+  }
+  async sendVerificationCode(input: SmsDelivery): Promise<void> { await this.capture.sendVerificationCode(input); }
+  readTemporaryCode(challengeId: string): string {
+    return this.capture.readCode({ accessToken: this.token, challengeId }).code;
   }
 }

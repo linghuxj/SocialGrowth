@@ -461,6 +461,7 @@ requireOnlyKeys(
 function requireResponseObject(
   name: string,
   expectedKeys: readonly string[],
+  expectedRequiredKeys: readonly string[] = expectedKeys,
 ): { properties: JsonObject; required: string[] } {
   const schema = requireObject(schemas[name], name);
   requireOnlyKeys(
@@ -475,15 +476,15 @@ function requireResponseObject(
     throw new Error(`Cannot generate Android contracts: ${name} properties changed order.`);
   }
   const required = requireStringArray(schema.required, `${name}.required`);
-  if (!sameStrings(required, expectedKeys)) {
-    throw new Error(`Cannot generate Android contracts: ${name} must require every field.`);
+  if (!sameStrings(required, expectedRequiredKeys)) {
+    throw new Error(`Cannot generate Android contracts: ${name} required fields changed.`);
   }
   return { properties, required };
 }
 
 const phoneChallenge = requireResponseObject("phoneVerificationChallengeResponse", [
-  "challengeId", "purpose", "phoneHint", "deliveryState", "expiresAt", "resendAvailableAt",
-]);
+  "challengeId", "purpose", "phoneHint", "deliveryState", "expiresAt", "resendAvailableAt", "temporaryCode",
+], ["challengeId", "purpose", "phoneHint", "deliveryState", "expiresAt", "resendAvailableAt"]);
 const phoneProof = requireResponseObject("phoneVerificationResponse", [
   "phoneVerificationId", "purpose", "phoneHint", "verifiedAt", "expiresAt",
 ]);

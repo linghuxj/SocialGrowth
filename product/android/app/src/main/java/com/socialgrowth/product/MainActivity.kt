@@ -261,6 +261,7 @@ class MainActivity : ComponentActivity() {
         }
         val code = editText("请输入短信验证码", InputType.TYPE_CLASS_NUMBER).apply {
             id = R.id.provider_code
+            isSaveEnabled = false
             contentDescription = "短信验证码"
             imeOptions = EditorInfo.IME_ACTION_DONE
         }
@@ -332,8 +333,10 @@ class MainActivity : ComponentActivity() {
                 success = { result ->
                     if (generation != screenGeneration) return@runNetwork
                     challenge = result
-                    requestCode.text = "验证码已受理"
-                    setStatus(status, if (requestedRegistration) "邀请已校验" else "账号已确认", "请填写验证码继续。", false)
+                    result.temporaryCode?.let { code.setText(it) }
+                    requestCode.text = if (result.temporaryCode != null) "验证码已填入" else "验证码已受理"
+                    setStatus(status, if (requestedRegistration) "邀请已校验" else "账号已确认",
+                        if (result.temporaryCode != null) "临时验证模式：验证码已自动填入，请继续。" else "请填写验证码继续。", false)
                     setBusy(false, requestCode, submit, error, card)
                     requestCode.isEnabled = false
                 },

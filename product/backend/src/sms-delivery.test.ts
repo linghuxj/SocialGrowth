@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { ProductTransactionError } from "./product-transaction-error.js";
-import { DevelopmentSmsCapturePort } from "./sms-delivery.js";
+import { DevelopmentSmsCapturePort, TemporaryApiSmsDeliveryPort } from "./sms-delivery.js";
 
 test("development SMS capture requires its token and expires with the challenge", async () => {
   const token = "development-sms-token-with-at-least-32-bytes";
@@ -35,4 +35,17 @@ test("development SMS capture requires its token and expires with the challenge"
       error instanceof ProductTransactionError &&
       error.code === "PHONE_VERIFICATION_INVALID",
   );
+});
+
+test("temporary API capture is bounded, expires, and has no SMS side effect", async () => {
+  let now = new Date("2026-10-07T00:00:00Z");
+  const port = new TemporaryApiSmsDeliveryPort(() => now, 1);
+  const input = { challengeId: "first", code: "012345", phoneE164: "+12025550123", purpose: "provider_registration" as const, expiresAt: new Date("2026-10-07T00:05:00Z") };
+  await port.sendVerificationCode(input);
+  assert.equal(port.readTemporaryCode("first"), "012345");
+  await port.sendVerificationCode({ ...input, challengeId: "second" });
+  assert.throws(() => port.readTemporaryCode("first"));
+  assert.throws(() => port.readTemporaryCode("other"));
+  now = input.expiresAt;
+  assert.throws(() => port.readTemporaryCode("second"));
 });

@@ -13,6 +13,7 @@ import {
 } from "@socialgrowth/product-contracts";
 
 import { IdentityTransactionService } from "./identity-transactions.js";
+import { SMS_RUNTIME, type SmsRuntime } from "./sms-delivery.js";
 import { ProviderAuthService } from "./provider-auth-service.js";
 import {
   bearerTokenFrom,
@@ -27,6 +28,7 @@ export class ProviderController {
     @Inject(ProviderAuthService) private readonly auth: ProviderAuthService,
     @Inject(IdentityTransactionService)
     private readonly identity: IdentityTransactionService,
+    @Inject(SMS_RUNTIME) private readonly smsRuntime?: SmsRuntime,
   ) {}
 
   @Post("phone-verifications")
@@ -35,9 +37,12 @@ export class ProviderController {
     const requestId = requestIdFrom(body);
     try {
       requireSupportedContract(body);
-      return await this.auth.requestVerification(
-        requestPhoneVerificationSchema.parse(body),
-      );
+      const challenge = await this.auth.requestVerification(requestPhoneVerificationSchema.parse(body));
+      // Only after existing invitation/account checks, throttling and challenge
+      // persistence. Plaintext codes stay out of the database and audit payload.
+      return this.smsRuntime?.readTemporaryCode
+        ? { ...challenge, temporaryCode: this.smsRuntime.readTemporaryCode(challenge.challengeId) }
+        : challenge;
     } catch (error) {
       rethrowHttp(error, requestId);
     }

@@ -41,6 +41,7 @@ export const phoneVerificationChallengeResponseSchema = z.strictObject({
   deliveryState: z.literal("accepted"),
   expiresAt: timestampSchema,
   resendAvailableAt: timestampSchema,
+  temporaryCode: phoneVerificationCodeSchema.optional(),
 }).superRefine((value, context) => {
   const order = compareTimestamps(value.resendAvailableAt, value.expiresAt);
   if (order !== null && order > 0) {

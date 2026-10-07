@@ -115,3 +115,9 @@ docker compose --env-file /opt/socialgrowth/config/.env.production -f product/de
 Tailscale 在服务器宿主机运行，持久化节点身份；容器调用挂载的 Linux CLI/本机 socket 查询节点，访问权限由 Tailnet 策略及容器用户权限共同约束。服务器加入当前 Tailnet 后核验容器到手机的真实路由，不以主机 ping 代替容器验证。首次手机联系仍使用公网 HTTPS。ADB 私钥须保留，状态目录由容器 UID 1000 持有；不重新生成密钥代替原配对。
 
 迁移时分别保存 PostgreSQL、执行器 SQLite（含原未决状态）、素材引用、原密钥和 Artemis traces。禁止把本地业务绑定直接接到空的服务器业务库，也不能让原执行器和新执行器同时接管同一设备。`unknown`、人工占用与历史回执原样保留，不自动释放或重发；固定版本发布前后用 Playwright 验证实际 Web，并另行记录模型/MCP/设备通路的证据边界。
+
+### 临时验证码直返（2026-10-07 用户确认）
+
+`SG_PRODUCT_SMS_MODE=temporary_api` 显式开启临时模式。Android 点击获取验证码时，原请求通过邀请/账号/限流校验后响应带 `temporaryCode`，App 自动填入输入框，用户仍须点击注册或登录，继续原验证码有效期、尝试次数和一次性证明校验。不调用短信服务，不代表手机号码持有验证。默认关闭；切回 `aliyun` 并重建后端容器后不再返回验证码，已有阿里云字段可保留。开发后台取码端点仍关闭，APK 不内置后台取码令牌。
+
+验证码仅保留在后端进程的有界短期缓存、当前响应和 App 输入状态中，不写入数据库或审计正文；请求响应使用 `Cache-Control: no-store`。后端重启丢失临时缓存，需重新发起有效请求；旧验证码不得重新发送或伪造成功。审计标记 `deliveryMode=temporary_api`。注册和登录均支持，Web 不自动填写。

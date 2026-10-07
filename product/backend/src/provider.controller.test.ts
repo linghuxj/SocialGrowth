@@ -238,3 +238,16 @@ test("provider association routes use the authenticated provider context", async
   });
   assert.equal(observed.filter((item) => "token" in (item as object)).length, 4);
 });
+
+test("temporary code is attached only after the original request is accepted", async () => {
+  let accepted = false, reads = 0;
+  const auth = { async requestVerification() { if (!accepted) throw new ProductTransactionError("INVITATION_REVOKED", "revoked"); return { challengeId: "challenge" }; } } as unknown as ProviderAuthService;
+  const runtime = { deliveryPort: { async sendVerificationCode() {} }, codeReader: { readCode(): never { throw new Error("disabled"); } }, readTemporaryCode(id: string) { assert.equal(id, "challenge"); reads++; return "012345"; } };
+  const controller = new ProviderController(auth, {} as IdentityTransactionService, runtime);
+  const input = { metadata, purpose: "provider_registration", phoneE164: "+12025550123", invitationCode: "A".repeat(43) };
+  await assert.rejects(controller.requestVerification(input));
+  assert.equal(reads, 0);
+  accepted = true;
+  assert.deepEqual(await controller.requestVerification(input), { challengeId: "challenge", temporaryCode: "012345" });
+  assert.equal(reads, 1);
+});

@@ -78,6 +78,19 @@ class FirstBatchContractBoundaryTest {
     }
 
     @Test
+    fun parsesOptionalTemporaryCodeAndRejectsMalformedValues() {
+        val base = """{"challengeId":"$id","purpose":"provider_registration","phoneHint":"+86*******001","deliveryState":"accepted","expiresAt":"2026-09-29T00:05:00Z","resendAvailableAt":"2026-09-29T00:01:00Z"}"""
+        assertEquals(null, FirstBatchContractBoundary.parsePhoneVerificationChallenge(base).temporaryCode)
+        val withCode = org.json.JSONObject(base).put("temporaryCode", "012345").toString()
+        assertEquals("012345", FirstBatchContractBoundary.parsePhoneVerificationChallenge(withCode).temporaryCode)
+        listOf("", "123", "abcdef", "123456789", 123456, org.json.JSONObject.NULL).forEach { value ->
+            assertFailsWith<ContractBoundaryException> {
+                FirstBatchContractBoundary.parsePhoneVerificationChallenge(org.json.JSONObject(base).put("temporaryCode", value).toString())
+            }
+        }
+    }
+
+    @Test
     fun rejectsProviderAuthSemanticContradictions() {
         val invalidChallenges = listOf(
             """{"challengeId":"$id","purpose":"provider_registration","phoneHint":"+8613800000001","deliveryState":"accepted","expiresAt":"2026-09-29T00:05:00Z","resendAvailableAt":"2026-09-29T00:01:00Z"}""",

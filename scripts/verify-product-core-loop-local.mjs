@@ -22,6 +22,8 @@ const sqlOnly = process.env.SG_PRODUCT_CORE_SQL_ONLY === "1";
 if (!sqlOnly && consent !== "1") throw new Error("First confirm actual browser policy admission; this runner cannot bypass a browser refusal");
 const scopes = (process.env.SG_PRODUCT_CORE_SCOPES ?? "materials,planning").split(",");
 assert.ok(scopes.length > 0 && scopes.every(scope => ["identity", "media-accounts", "media-accounts-postgres", "materials", "planning", "direction", "real-material-bytes", "operator-todos", "project-feedback", "project-lifecycle", "business-plan-postgres"].includes(scope)) && new Set(scopes).size === scopes.length);
+const smsMode = process.env.SG_PRODUCT_CORE_SMS_MODE ?? "unavailable";
+assert.ok(["unavailable", "temporary_api"].includes(smsMode), "Local acceptance SMS mode must not send real messages");
 const webMode = process.env.SG_PRODUCT_CORE_WEB_MODE ?? "development";
 assert.ok(["development", "preview"].includes(webMode), "web mode must be development or preview");
 const postgresOnlyScope = scopes.length === 1 && scopes[0] === "business-plan-postgres";
@@ -164,7 +166,7 @@ try {
     } finally { encryptionKey.fill(0); digestKey.fill(0); }
   }
   const environment = {
-    SG_PRODUCT_DATABASE_URL: url, SG_PRODUCT_AUTH_PEPPER: secrets[2], SG_PRODUCT_TRUST_PROXY_HOPS: "1", SG_PRODUCT_SMS_MODE: "unavailable",
+    SG_PRODUCT_DATABASE_URL: url, SG_PRODUCT_AUTH_PEPPER: secrets[2], SG_PRODUCT_TRUST_PROXY_HOPS: "1", SG_PRODUCT_SMS_MODE: smsMode,
     SG_PRODUCT_BACKEND_HOST: "127.0.0.1", SG_PRODUCT_BACKEND_PORT: String(backendPort), SG_PRODUCT_WEB_PORT: String(webPort), SG_PRODUCT_MATERIAL_MODE: storage ? "configured" : "unavailable",
     ...(storage ? {
     SG_PRODUCT_MATERIAL_LOCATION_ID: randomUUID(), SG_PRODUCT_MATERIAL_ENDPOINT: endpoint, SG_PRODUCT_MATERIAL_BUCKET: bucket,

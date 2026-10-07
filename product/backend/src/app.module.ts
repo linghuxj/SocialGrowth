@@ -81,6 +81,7 @@ import { MetricSnapshotStore } from "./metric-snapshot-store.js";
 import { PageMetricSource } from "./page-metric-source.js";
 import {
   DevelopmentSmsCapturePort,
+  TemporaryApiSmsDeliveryPort,
   DisabledDevelopmentSmsCodeReader,
   SMS_RUNTIME,
   UnavailableSmsDeliveryPort,
@@ -136,6 +137,10 @@ const smsRuntimeProvider = {
   provide: SMS_RUNTIME,
   useFactory: (): SmsRuntime => {
     const config = readSmsRuntimeConfig();
+    if (config.SG_PRODUCT_SMS_MODE === "temporary_api") {
+      const capture = new TemporaryApiSmsDeliveryPort();
+      return { codeReader: new DisabledDevelopmentSmsCodeReader(), deliveryPort: capture, readTemporaryCode: id => capture.readTemporaryCode(id) };
+    }
     const aliyun = readAliyunSmsConfig();
     if (aliyun) return { codeReader: new DisabledDevelopmentSmsCodeReader(), deliveryPort: new AliyunSmsDeliveryPort(aliyun) };
     if (config.SG_PRODUCT_SMS_MODE === "development_capture") {
