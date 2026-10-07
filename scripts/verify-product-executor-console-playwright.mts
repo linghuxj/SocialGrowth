@@ -37,12 +37,18 @@ try {
   await page.getByRole("button", { name: "执行与人工协助", exact: true }).click();
   await page.getByRole("heading", { name: "执行与人工协助", level: 1 }).waitFor();
   const factsResponse = await response; assert.equal(factsResponse.status(), 200);
-  const facts = await factsResponse.json() as { configured: boolean; available: boolean; jobs: { id: string }[]; tasks: { id: string; status: string }[] };
+  const facts = await factsResponse.json() as { configured: boolean; available: boolean; jobs: { id: string }[]; tasks: { id: string; status: string }[]; bootstrapDevices: { deviceId: string; connected: boolean }[] };
   await page.getByRole("heading", { name: "安全登录协助", exact: true }).waitFor();
   await page.getByRole("heading", { name: "人工协助与复查", exact: true }).waitFor();
   await page.getByRole("heading", { name: "受控执行检查", exact: true }).waitFor();
   assert.equal(await page.locator("[data-executor-job]").count(), facts.jobs.length);
   for (const task of facts.tasks) await page.getByRole("row").filter({ hasText: task.id }).getByRole("cell", { name: task.status, exact: true }).waitFor();
+  await page.getByRole("heading", { name: "手机接入与准备", exact: true }).waitFor();
+  if (facts.bootstrapDevices.length === 0) {
+    await page.getByText("尚无可准备的手机。", { exact: false }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "开始手机准备（不执行业务）", exact: true }).count(), 0);
+    checks.push("No live bootstrap target cannot expose a preparation launch button");
+  }
   checks.push("Visible original tasks, receipt list and migrated human-assistance sections match authenticated read");
   if (facts.available) {
     await page.getByLabel("预期身份名称", { exact: true }).fill("迁移入口校验，不执行手机任务");

@@ -1,3 +1,5 @@
+import { BootstrapRelay } from "./bootstrap-relay.js";
+import { DeviceConnectionApi } from "./device-connection-api.js";
 import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module.js";
@@ -10,6 +12,7 @@ async function bootstrap(): Promise<void> {
   app.getHttpAdapter().getInstance().set("trust proxy", config.SG_PRODUCT_TRUST_PROXY_HOPS);
   app.useGlobalFilters(new ProductExceptionFilter());
   app.enableShutdownHooks();
+  app.get(BootstrapRelay).attach(app.getHttpServer(), token => app.get(DeviceConnectionApi).bootstrapScope(token));
   await app.listen(config.SG_PRODUCT_BACKEND_PORT, config.SG_PRODUCT_BACKEND_HOST);
   console.log(
     `[product-backend] listening on http://${config.SG_PRODUCT_BACKEND_HOST}:${config.SG_PRODUCT_BACKEND_PORT}`,

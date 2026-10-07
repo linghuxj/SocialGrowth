@@ -326,6 +326,9 @@ export function createRuntimeServer(options: ServerOptions) {
           const existing = runtime.bindings().find((b) => b.accountId === job.accountId);
           requireFact(!existing || existing.platformIdentity === job.identityUrl, 'BINDING_CORRECTION_REQUIRES_REVIEW');
           result = runtime.bind({ id: existing?.id ?? `identity-${job.id}`, deviceId: job.deviceId, serial: job.serial, platform: job.platform, accountId: job.accountId, platformIdentity: job.identityUrl, authorizationRef: relation.authorizationRef, automationScopeRef: job.authorizationRef, verifiedAt: job.finishedAt, validUntil: relation.validUntil ?? new Date(Date.now() + 86400000 * 30).toISOString() }, 'operator');
+        } else if (path === "/bootstrap-verifications" && req.method === "POST") {
+          requireFact(process.env.SG_PRODUCT_BOOTSTRAP_ENABLED === "true" && !!process.env.SG_ARTEMIS_ROOT, "BOOTSTRAP_NOT_CONFIGURED");
+          result = verification.startBootstrap(JSON.parse((await body(req, 4096)).toString()), process.env.SG_ARTEMIS_ROOT!, `http://127.0.0.1:${options.port ?? 4318}`);
         } else if (path === "/verifications" && req.method === "POST")
           result = verification.start(JSON.parse((await body(req, 4096)).toString()));
         else if (path === "/verifications/stop" && req.method === "POST")

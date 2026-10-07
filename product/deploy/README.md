@@ -110,7 +110,7 @@ docker build -t socialgrowth-artemis:351ca8422f7b5b54e80a9c1ce03a222e02415b6b pr
 docker compose --env-file /opt/socialgrowth/config/.env.production -f product/deploy/compose.production.yml -f product/deploy/compose.execution.yml build
 ```
 
-[完整执行部署](compose.execution.yml)使用固定且校验 SHA256 的 Google Platform-Tools 37.0.1，ADB 配置指向实际二进制 `/opt/android/platform-tools/adb`，支持无线 TLS 配对。该部署增加执行器容器，并为后端提供 Python 3.12、Artemis、ADB、ffmpeg/ffprobe。执行器仅在 Docker 网络监听 4318，不发布宿主机端口；后端通过 `http://executor:4318` 访问，执行回调使用 `http://backend:4320`。Redis 继续使用生产 Compose 中的 Docker 服务和持久卷；现有队列组件尚未注册，不因 Redis 存活而启动任务消费者。
+[完整执行部署](compose.execution.yml)使用固定且校验 SHA256 的 Google Platform-Tools 37.0.1，ADB 配置指向实际二进制 `/opt/android/platform-tools/adb`，支持无线 TLS 配对。该部署增加执行器容器，并为后端提供 Python 3.12、Artemis、ADB、ffmpeg/ffprobe。执行器与后端共享网络命名空间，仅监听回环 4318，不发布宿主机端口；后端通过 `http://127.0.0.1:4318` 访问，执行回调使用 `http://backend:4320`。Redis 继续使用生产 Compose 中的 Docker 服务和持久卷；现有队列组件尚未注册，不因 Redis 存活而启动任务消费者。
 
 Tailscale 在服务器宿主机运行，持久化节点身份；容器调用挂载的 Linux CLI/本机 socket 查询节点，访问权限由 Tailnet 策略及容器用户权限共同约束。服务器加入当前 Tailnet 后核验容器到手机的真实路由，不以主机 ping 代替容器验证。首次手机联系仍使用公网 HTTPS。ADB 私钥须保留，状态目录由容器 UID 1000 持有；不重新生成密钥代替原配对。
 
@@ -127,3 +127,8 @@ Tailscale 在服务器宿主机运行，持久化节点身份；容器调用挂�
 `/register` 是公开受邀落地页，与运营登录页面分别显示。已安装的手机通过用户点击打开 `socialgrowth://provider/register`，传入同一邀请码；未安装时先复制邀请码，下载后在 App 首页选择“受邀加入”继续。链接及凭证格式不证明邀请有效，最终注册沿用服务器的有效期、名额和手机号核验。
 
 `SG_PRODUCT_PUBLIC_DIR` 默认 `/opt/socialgrowth/public`，只读挂载至 Web；启动前创建其中的 `android` 目录。将已校验证书、版本和 SHA256 的正式 APK 原子更新为 `android/socialgrowth.apk`，公开下载地址为 `/downloads/socialgrowth.apk`。下载不走 SPA 回退，文件缺失返回 404；禁止在该目录保存凭据、私密素材或签名 keystore。素材文件仍使用原配置的云 OSS/S3。
+
+
+## B1 首次手机接入候选
+
+`SG_PRODUCT_BOOTSTRAP_ENABLED` 默认 `false`，后端与执行器须同步启用。候选实现及验收边界见[首次连接方案](../../docs/specs/2026-10-07-bootstrap-phone-connection.md)。执行 overlay 共享后端网络命名空间以复用回环 ADB 与临时转发端口；替换后端时同时重新创建 executor，并核验原任务和 ADB 状态。不得发布 5037 或随机转发端口。当前候选未经新手机实测，不更新正式 APK 下载或按完成版本晋级 main。

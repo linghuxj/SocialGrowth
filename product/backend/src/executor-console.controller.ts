@@ -23,6 +23,16 @@ export class ExecutorConsoleController {
     try { return await this.mutate(request, csrf, "verifications", executorVerificationSchema.parse(body)); }
     catch (error) { rethrowHttp(error, `request-${randomUUID()}`); }
   }
+  @Post("bootstrap-verifications") @Header("Cache-Control", "no-store")
+  async bootstrap(@Req() request: Request, @Headers("x-csrf-token") csrf: string | undefined, @Body() body: unknown) {
+    try { return await this.mutate(request, csrf, "bootstrap-verifications", body); }
+    catch (error) { rethrowHttp(error, `request-${randomUUID()}`); }
+  }
+  @Post("bootstrap-handoff") @Header("Cache-Control", "no-store")
+  async handoff(@Req() request: Request, @Headers("x-csrf-token") csrf: string | undefined, @Body() body: unknown) {
+    try { return await this.mutate(request, csrf, "bootstrap-handoff", body); }
+    catch (error) { rethrowHttp(error, `request-${randomUUID()}`); }
+  }
   @Post("stop") @Header("Cache-Control", "no-store")
   async stop(@Req() request: Request, @Headers("x-csrf-token") csrf: string | undefined, @Body() body: unknown) {
     try { return await this.mutate(request, csrf, "verifications/stop", executorStopSchema.parse(body)); }

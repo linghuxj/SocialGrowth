@@ -41,6 +41,10 @@ class EndpointReportingService : Service() {
     private var pairingFeedback: String? = null
     private val main = Handler(Looper.getMainLooper())
     private val worker = Executors.newSingleThreadExecutor()
+    private val pairWorker = Executors.newSingleThreadExecutor()
+    @Volatile private var tunnel: BootstrapTunnel? = null
+    private var choseTransport = false
+    private var tunnelSession: String? = null
     private var discovery: NativeEndpointDiscovery? = null
     private var pending: JSONObject? = null // A lost ACK retries exactly the same report.
     private var stopping = false
@@ -108,7 +112,7 @@ class EndpointReportingService : Service() {
         if (!pairing.compareAndSet(false, true)) return
         pairingFeedback = "正在核对本机并配对，请保持系统弹窗打开…"
         refreshNotification()
-        worker.execute {
+        pairWorker.execute {
             val feedback = try {
                 require(live.get() && InstallationIdentityStore(this).load()?.activeSessionToken() == token)
                 val session = ProviderSessionStore(this).load() ?: error("Management login required")
@@ -118,7 +122,7 @@ class EndpointReportingService : Service() {
                 val fact = client.providerState(session.sessionToken, requireNotNull(installation.deviceId))
                 when {
                     fact.connected -> "平台已连接到这台手机，无需重复配对。"
-                    fact.networkState !in setOf("admitted", "pilot_verified") || fact.pairingState != "awaiting_code" -> DeviceConnectionBoundary.message(fact)
+                    fact.networkState !in setOf("admitted", "managed_verified", "pilot_verified", "bootstrap") || fact.pairingState != "awaiting_code" -> DeviceConnectionBoundary.message(fact)
                     else -> {
                         require(live.get() && InstallationIdentityStore(this).load()?.activeSessionToken() == token
                             && ProviderSessionStore(this).load()?.sessionToken == session.sessionToken)
@@ -144,8 +148,14 @@ class EndpointReportingService : Service() {
         if (InstallationIdentityStore(this).load()?.activeSessionToken() != originalToken) {
             shutdown(); return
         }
-        busy = true
         val snapshot = discovery!!.snapshot()
+        tunnel?.update(snapshot)
+        tunnel?.ensureConnected()
+        val session = tunnel?.sessionId
+        if (session != tunnelSession) {
+            tunnelSession = session; epoch = null; pending = null; sequence = 0; epochRequestId = UUID.randomUUID().toString()
+        }
+        busy = true
         val capturedAt = Instant.now().toString()
         val http = ProviderApiClient(BuildConfig.API_BASE_URL)
         worker.execute {
@@ -153,6 +163,16 @@ class EndpointReportingService : Service() {
             var fatal = false
             try {
                 val token = requireNotNull(originalToken)
+                if (!choseTransport) {
+                    val local = AssociationApiClient(http).installationState(token)
+                    val fact = DeviceConnectionApiClient(http).installationState(token, requireNotNull(local.deviceId))
+                    if (fact.networkState !in setOf("admitted", "pilot_verified", "managed_verified")) {
+                        tunnel?.close()
+                        tunnel = BootstrapTunnel(token).also { it.update(snapshot); it.ensureConnected() }
+                    }
+                    choseTransport = true
+                }
+                if (tunnel != null && tunnel?.handedOff != true && tunnel?.sessionId == null) error("Waiting for authenticated transport")
                 if (epoch == null) {
                     val response = JSONObject(http.post("/api/installation/device-connection/epoch", JSONObject().put("protocolVersion", DeviceConnectionBoundary.VERSION).put("requestId", epochRequestId), token))
                     require(response.getString("protocolVersion") == DeviceConnectionBoundary.VERSION)
@@ -183,6 +203,12 @@ class EndpointReportingService : Service() {
                 if (e.code in setOf("HTTP_409", "FACT_VERSION_STALE")) {
                     epoch = null; pending = null; sequence = 0; epochRequestId = UUID.randomUUID().toString()
                 }
+                if (e.code in setOf("HTTP_403", "AUTHORIZATION_DENIED") && (tunnel == null || tunnel?.handedOff == true)) {
+                    // Recheck authority before falling back; a revoked association
+                    // cannot open a new authenticated bootstrap session.
+                    choseTransport = false; epoch = null; pending = null; sequence = 0
+                    epochRequestId = UUID.randomUUID().toString()
+                }
                 fatal = e.code in setOf("HTTP_401", "HTTP_403", "AUTHENTICATION_REQUIRED", "PILOT_DEVICE_NOT_ALLOWED", "DEVICE_CONNECTION_SCOPE_REJECTED")
             } catch (_: Exception) { /* No token, body, system cause or pairing code logging. */ }
             main.post {
@@ -203,7 +229,7 @@ class EndpointReportingService : Service() {
         if (stopping) return
         stopping = true
         live.set(false); running = false; status = "连接检查已停止"
-        main.removeCallbacks(tick); if (Build.VERSION.SDK_INT >= 34) discovery?.close(); discovery = null
+        main.removeCallbacks(tick); tunnel?.close(); tunnel = null; if (Build.VERSION.SDK_INT >= 34) discovery?.close(); discovery = null
         // Single worker ordering ensures this withdrawal follows any in-flight
         // report. Best effort only: absence of ACK never grants freshness.
         if (!worker.isShutdown) worker.execute {
@@ -220,5 +246,5 @@ class EndpointReportingService : Service() {
         }
         stopForeground(STOP_FOREGROUND_REMOVE); stopSelf()
     }
-    override fun onDestroy() { live.set(false); running = false; main.removeCallbacks(tick); if (Build.VERSION.SDK_INT >= 34) discovery?.close(); worker.shutdown(); super.onDestroy() }
+    override fun onDestroy() { live.set(false); running = false; main.removeCallbacks(tick); tunnel?.close(); tunnel = null; if (Build.VERSION.SDK_INT >= 34) discovery?.close(); worker.shutdown(); pairWorker.shutdown(); super.onDestroy() }
 }

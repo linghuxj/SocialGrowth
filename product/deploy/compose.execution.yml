@@ -6,9 +6,10 @@ services:
       args:
         ARTEMIS_IMAGE: ${SG_ARTEMIS_IMAGE:?required}
     environment:
+      SG_PRODUCT_BOOTSTRAP_ENABLED: ${SG_PRODUCT_BOOTSTRAP_ENABLED:-false}
       SG_PRODUCT_ARTEMIS_ROOT: /opt/artemis
       SG_PRODUCT_BUSINESS_MODEL_MODE: artemis_configured
-      SG_PRODUCT_EXECUTION_RUNTIME_URL: http://executor:4318
+      SG_PRODUCT_EXECUTION_RUNTIME_URL: http://127.0.0.1:4318
       SG_PRODUCT_TAILSCALE_CLI: /usr/local/bin/tailscale
       SG_PRODUCT_CENTER_ADB: /opt/android/platform-tools/adb
       SG_PRODUCT_CENTER_ADB_USER_HOME: /home/node/.android
@@ -38,6 +39,11 @@ services:
         bind: { create_host_path: false }
       - backend-artemis-data:/var/lib/socialgrowth/artemis
   executor:
+    # Bootstrap ADB listeners and the trusted ADB daemon stay on shared loopback.
+    network_mode: "service:backend"
+    depends_on:
+      backend:
+        condition: service_healthy
     image: socialgrowth-executor:${SG_PRODUCT_REVISION:?required}
     build:
       context: ../..
@@ -51,7 +57,8 @@ services:
     env_file:
       - ${SG_EXECUTOR_ENV_FILE:?required}
     environment:
-      SG_RUNTIME_HOST: 0.0.0.0
+      SG_PRODUCT_BOOTSTRAP_ENABLED: ${SG_PRODUCT_BOOTSTRAP_ENABLED:-false}
+      SG_RUNTIME_HOST: 127.0.0.1
       SG_RUNTIME_PORT: "4318"
       SG_RUNTIME_DATA: /var/lib/socialgrowth/runtime
       SG_ARTEMIS_ROOT: /opt/artemis

@@ -1,3 +1,5 @@
+import { BootstrapManagement } from "./bootstrap-management.js";
+import { BootstrapRelay } from "./bootstrap-relay.js";
 import { AliyunSmsDeliveryPort, readAliyunSmsConfig } from "./aliyun-sms.js";
 import { ExecutorConsoleController } from "./executor-console.controller.js";
 import { ExecutorConsoleService } from "./executor-console-service.js";
@@ -219,25 +221,28 @@ const providerAuthProvider = {
       ),
     },
     {
+      provide: BootstrapRelay, useFactory: () => new BootstrapRelay(process.env.SG_PRODUCT_BOOTSTRAP_ENABLED === "true"),
+    },
+    {
       provide: DeviceConnectionApi,
-      inject: [Pool, InstallationAuthService, ProviderAuthService],
-      useFactory: (pool: Pool, installation: InstallationAuthService, provider: ProviderAuthService) => {
+      inject: [Pool, InstallationAuthService, ProviderAuthService, BootstrapRelay],
+      useFactory: (pool: Pool, installation: InstallationAuthService, provider: ProviderAuthService, bootstrap: BootstrapRelay) => {
         const pilot = process.env.SG_PRODUCT_TAILNET_PILOT_CONFIG;
         const tailscale = process.env.SG_PRODUCT_TAILSCALE_CLI;
         const adb = process.env.SG_PRODUCT_CENTER_ADB;
         const adbHome = process.env.SG_PRODUCT_CENTER_ADB_USER_HOME;
         return new DeviceConnectionApi(pool, installation, provider,
           pilot && tailscale ? new PilotDeviceNetworkAuthority(pilot, new TailscaleCliWhoIs(tailscale)) : null,
-          adb && adbHome ? new DeviceConnectionAdb(adb, adbHome, 8000, process.env.SG_PRODUCT_CENTER_ADB_TAILSCALE_CLI ?? null) : null);
+          adb && adbHome ? new DeviceConnectionAdb(adb, adbHome, 8000, process.env.SG_PRODUCT_CENTER_ADB_TAILSCALE_CLI ?? null) : null, bootstrap, tailscale ? new BootstrapManagement(pool, new TailscaleCliWhoIs(tailscale)) : null);
       },
     },
 
     { provide: AccountPreparationService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new AccountPreparationService(pool, auth) },
     poolProvider,
     operatorAuthProvider,
-    { provide: ExecutorConsoleService, inject: [OperatorAuthService], useFactory: (auth: OperatorAuthService) => {
+    { provide: ExecutorConsoleService, inject: [OperatorAuthService, DeviceConnectionApi], useFactory: (auth: OperatorAuthService, connections: DeviceConnectionApi) => {
       const url = process.env.SG_PRODUCT_EXECUTION_RUNTIME_URL, token = process.env.SG_PRODUCT_EXECUTION_RUNTIME_TOKEN;
-      return new ExecutorConsoleService(auth, url && token ? { url, token } : null);
+      return new ExecutorConsoleService(auth, url && token ? { url, token } : null, connections);
     } },
     invitationManagementProvider,
     identityTransactionProvider,
