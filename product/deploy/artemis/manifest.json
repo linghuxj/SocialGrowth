@@ -5,5 +5,9 @@
   "python": "3.12",
   "uv": "0.5.11",
   "secretsInImage": false,
-  "localWorkingDirectoryPreserved": true
+  "localWorkingDirectoryPreserved": true,
+  "androidPlatformTools": {
+    "version": "37.0.1",
+    "linuxArchiveSha256": "d230f13842f60f782a8645f9c813f8f845bf36089ea7289f28c48f17979313f1"
+  }
 }
