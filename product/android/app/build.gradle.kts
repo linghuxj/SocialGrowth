@@ -119,7 +119,13 @@ android {
     buildTypes {
         getByName("debug") {
             val debugBase = providers.environmentVariable("SG_PRODUCT_ANDROID_DEBUG_API_BASE_URL").orElse("http://127.0.0.1:4320").get()
-            require(debugBase == "http://127.0.0.1:4320" || Regex("^https://[a-z0-9-]+\\.tail[a-z0-9]+\\.ts\\.net:8443$").matches(debugBase))
+            val debugEndpoint = runCatching { URI(debugBase) }.getOrNull()
+            val explicitHttps = debugEndpoint?.scheme == "https" && debugEndpoint.host != null &&
+                debugEndpoint.userInfo == null && debugEndpoint.rawQuery == null && debugEndpoint.rawFragment == null &&
+                debugEndpoint.rawPath in listOf("", "/") && debugBase.none { it.isWhitespace() || it == '"' || it == '\\' }
+            require(debugBase == "http://127.0.0.1:4320" || explicitHttps) {
+                "Debug API must be loopback HTTP or an explicit HTTPS origin"
+            }
             buildConfigField("String", "API_BASE_URL", "\"$debugBase\"")
             buildConfigField("boolean", "ENDPOINT_DIAGNOSTICS", (debugBase.startsWith("https://")).toString())
             manifestPlaceholders["usesCleartextTraffic"] = "true"

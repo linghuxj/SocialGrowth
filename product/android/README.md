@@ -13,7 +13,7 @@ GRADLE_USER_HOME=/tmp/socialgrowth-product-gradle product/android/gradlew -p pro
 GRADLE_USER_HOME=/tmp/socialgrowth-product-gradle product/android/gradlew -p product/android testDebugUnitTest --no-daemon
 ```
 
-Debug API 默认 `http://127.0.0.1:4320`，可用 `SG_PRODUCT_ANDROID_DEBUG_API_BASE_URL` 显式设置。USB 开发转发只证明对应现场环境，不作为新手机异地首次接入证据。Release 的真实 HTTPS、版本、签名与证书必须满足[部署门禁](../deploy/README.md#android-发布输入)，无调试签名回退。
+Debug API 默认 `http://127.0.0.1:4320`，可用 `SG_PRODUCT_ANDROID_DEBUG_API_BASE_URL` 显式设置无账号、路径、查询参数的 HTTPS 服务地址，例如 `https://growth.mhtm.top`；不开放任意 HTTP 地址。USB 开发转发只证明对应现场环境，不作为新手机异地首次接入证据。Release 的真实 HTTPS、版本、签名与证书必须满足[部署门禁](../deploy/README.md#android-发布输入)，无调试签名回退。
 
 ## 验证边界
 
