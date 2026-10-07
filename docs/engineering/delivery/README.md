@@ -1,6 +1,6 @@
 # 正式工程开发与验收
 
-更新：2026-10-07。需求至 R-165；只维护 product 正式工程。默认单负责人按实际问题作最小改动。需要协作时遵循 [AGENTS.md](../../../AGENTS.md)及 main／dev 规范；不沿用旧阶段分支和窗口指令。
+更新：2026-10-08。需求至 R-166；只维护 product 正式工程。默认单负责人按实际问题作最小改动。需要协作时遵循 [AGENTS.md](../../../AGENTS.md)及 main／dev 规范；不沿用旧阶段分支和窗口指令。
 
 ## 使用顺序
 
@@ -11,7 +11,7 @@
 | [当前风险](engineering-review.md) | 沿用风险编号，核对当前条件与关闭判据 |
 | [工作包](work-packages.md) | 责任范围和依赖定义，不代表全部未开始或已完成 |
 | [契约核对](contract-checklist.md) | 状态、事务、幂等及消费端交接 |
-| [需求追踪](requirement-coverage.md) | R-001～R-165 的 WP／AC 归属，不是通过表 |
+| [需求追踪](requirement-coverage.md) | R-001～R-166 的 WP／AC 归属，不是通过表 |
 | [质量门禁](quality-gates.md) | 检查、审查、真实验收与发布分别判断 |
 | [验收矩阵](acceptance-matrix.md) | 目标场景和证据判据；未实现需求不删除 |
 | [记录模板](record-templates.md) | 需要时使用，不为小改动增加多套流程 |
