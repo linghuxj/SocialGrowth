@@ -30,6 +30,7 @@ try {
   step = "project view";
   await page.getByRole("button", { name: "项目", exact: true }).click();
   await page.getByRole("heading", { name: "项目列表", exact: true }).waitFor();
+  await page.locator(".project-list-panel .empty-state, .project-list-panel tbody tr").first().waitFor();
   await page.screenshot({ path: resolve(output, "projects.png"), fullPage: true });
   step = "session reload";
   await page.reload({ waitUntil: "networkidle" });
