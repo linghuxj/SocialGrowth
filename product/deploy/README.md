@@ -110,7 +110,7 @@ docker build -t socialgrowth-artemis:351ca8422f7b5b54e80a9c1ce03a222e02415b6b pr
 docker compose --env-file /opt/socialgrowth/config/.env.production -f product/deploy/compose.production.yml -f product/deploy/compose.execution.yml build
 ```
 
-[完整执行部署](compose.execution.yml)增加执行器容器，并为后端提供 Python 3.12、Artemis、ADB、ffmpeg/ffprobe。执行器仅在 Docker 网络监听 4318，不发布宿主机端口；后端通过 `http://executor:4318` 访问，执行回调使用 `http://backend:4320`。Redis 继续使用生产 Compose 中的 Docker 服务和持久卷；现有队列组件尚未注册，不因 Redis 存活而启动任务消费者。
+[完整执行部署](compose.execution.yml)使用固定且校验 SHA256 的 Google Platform-Tools 37.0.1，ADB 配置指向实际二进制 `/opt/android/platform-tools/adb`，支持无线 TLS 配对。该部署增加执行器容器，并为后端提供 Python 3.12、Artemis、ADB、ffmpeg/ffprobe。执行器仅在 Docker 网络监听 4318，不发布宿主机端口；后端通过 `http://executor:4318` 访问，执行回调使用 `http://backend:4320`。Redis 继续使用生产 Compose 中的 Docker 服务和持久卷；现有队列组件尚未注册，不因 Redis 存活而启动任务消费者。
 
 Tailscale 在服务器宿主机运行，持久化节点身份；容器调用挂载的 Linux CLI/本机 socket 查询节点，访问权限由 Tailnet 策略及容器用户权限共同约束。服务器加入当前 Tailnet 后核验容器到手机的真实路由，不以主机 ping 代替容器验证。首次手机联系仍使用公网 HTTPS。ADB 私钥须保留，状态目录由容器 UID 1000 持有；不重新生成密钥代替原配对。
 

@@ -10,7 +10,7 @@ services:
       SG_PRODUCT_BUSINESS_MODEL_MODE: artemis_configured
       SG_PRODUCT_EXECUTION_RUNTIME_URL: http://executor:4318
       SG_PRODUCT_TAILSCALE_CLI: /usr/local/bin/tailscale
-      SG_PRODUCT_CENTER_ADB: /usr/bin/adb
+      SG_PRODUCT_CENTER_ADB: /opt/android/platform-tools/adb
       SG_PRODUCT_CENTER_ADB_USER_HOME: /home/node/.android
     volumes:
       - type: bind
