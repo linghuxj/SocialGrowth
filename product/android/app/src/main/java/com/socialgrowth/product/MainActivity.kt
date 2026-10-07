@@ -2641,6 +2641,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun setBusy(busy: Boolean, requestCode: Button, submit: Button, error: TextView, card: LinearLayout) {
+        card.findViewById<EditText>(R.id.provider_invitation)?.isEnabled = !busy
         requestCode.isEnabled = !busy && (!registrationMode || invitationCode != null) && challenge == null
         submit.isEnabled = !busy
         card.alpha = if (busy) 0.72f else 1f
