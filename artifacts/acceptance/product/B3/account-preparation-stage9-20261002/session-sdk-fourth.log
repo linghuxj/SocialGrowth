@@ -1,0 +1,14 @@
+{"nativeContextAndOperatorLoaded":true,"freshReadCount":1,"childExited":true,"phoneStopped":false,"allPathsFenced":false,"modelCalls":0}
+✔ actual SDK context boots inside macOS sandbox, original observer crosses fence once, close records child exit only (4652.272495ms)
+✔ reconstructed host reads original launch intent without spawning or claiming phone stop (17.13217ms)
+✔ stale scope and changed pinned source refuse before original launch intent or subprocess (29.48992ms)
+✔ current local withdrawal prevents observer and child exit does not restore holder (3227.314688ms)
+✔ transport unknown closes original child, retains unresolved read and never repeats it (5976.698274ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 14362.445508

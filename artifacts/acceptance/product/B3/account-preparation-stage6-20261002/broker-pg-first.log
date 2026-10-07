@@ -1,0 +1,103 @@
+✖ real central scope grants one bounded read holder and atomically records original action before its short ticket (612.651ms)
+✖ absent real inspector and missing or stale network refuse grant rather than using admitted or USB flags (104.399879ms)
+✖ nonce, target, stopped ownership, future time, expired proof and missing path fence all deny atomically (68.331818ms)
+✖ pause, role disable, allocation loss, task version and installation replacement during external wait cannot become a grant (65.856102ms)
+✖ external observation owns no SQL device or metadata lock; another phone proceeds while first probe waits (60.6727ms)
+✖ same-holder races return one new grant and one acknowledgement; distinct actions cannot both obtain tickets (100.312273ms)
+✖ lost grant/call ACK and a later pause replay history only, with no additional inspector call or ticket (54.908654ms)
+✖ broker evidence audit failure rolls back central original call and action permission together (127.858415ms)
+✖ terminal or unknown original observation, forged task authority and non-read scope cannot obtain any new action (69.15788ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 0
+ℹ fail 9
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2161.507253
+
+✖ failing tests:
+
+test at src/preparation-action-broker.pg-test.ts:62:1
+✖ real central scope grants one bounded read holder and atomically records original action before its short ticket (612.651ms)
+  TypeError: preparations.request is not a function
+      at fixture (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend/src/preparation-action-broker.pg-test.ts:44:36)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend/src/preparation-action-broker.pg-test.ts:62:139)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3)
+
+test at src/preparation-action-broker.pg-test.ts:64:1
+✖ absent real inspector and missing or stale network refuse grant rather than using admitted or USB flags (104.399879ms)
+  TypeError: preparations.request is not a function
+      at fixture (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend/src/preparation-action-broker.pg-test.ts:44:36)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend/src/preparation-action-broker.pg-test.ts:64:130)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at src/preparation-action-broker.pg-test.ts:65:1
+✖ nonce, target, stopped ownership, future time, expired proof and missing path fence all deny atomically (68.331818ms)
+  TypeError: preparations.request is not a function
+      at fixture (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend/src/preparation-action-broker.pg-test.ts:44:36)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend/src/preparation-action-broker.pg-test.ts:65:205)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at src/preparation-action-broker.pg-test.ts:66:1
+✖ pause, role disable, allocation loss, task version and installation replacement during external wait cannot become a grant (65.856102ms)
+  TypeError: preparations.request is not a function
+      at fixture (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend/src/preparation-action-broker.pg-test.ts:44:36)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend/src/preparation-action-broker.pg-test.ts:66:232)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at src/preparation-action-broker.pg-test.ts:74:1
+✖ external observation owns no SQL device or metadata lock; another phone proceeds while first probe waits (60.6727ms)
+  TypeError: preparations.request is not a function
+      at fixture (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend/src/preparation-action-broker.pg-test.ts:44:36)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend/src/preparation-action-broker.pg-test.ts:74:135)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at src/preparation-action-broker.pg-test.ts:77:1
+✖ same-holder races return one new grant and one acknowledgement; distinct actions cannot both obtain tickets (100.312273ms)
+  TypeError: preparations.request is not a function
+      at fixture (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend/src/preparation-action-broker.pg-test.ts:44:36)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend/src/preparation-action-broker.pg-test.ts:77:134)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at src/preparation-action-broker.pg-test.ts:79:1
+✖ lost grant/call ACK and a later pause replay history only, with no additional inspector call or ticket (54.908654ms)
+  TypeError: preparations.request is not a function
+      at fixture (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend/src/preparation-action-broker.pg-test.ts:44:36)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend/src/preparation-action-broker.pg-test.ts:79:129)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at src/preparation-action-broker.pg-test.ts:80:1
+✖ broker evidence audit failure rolls back central original call and action permission together (127.858415ms)
+  TypeError: preparations.request is not a function
+      at fixture (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend/src/preparation-action-broker.pg-test.ts:44:36)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend/src/preparation-action-broker.pg-test.ts:80:120)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+
+test at src/preparation-action-broker.pg-test.ts:82:1
+✖ terminal or unknown original observation, forged task authority and non-read scope cannot obtain any new action (69.15788ms)
+  TypeError: preparations.request is not a function
+      at fixture (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend/src/preparation-action-broker.pg-test.ts:44:36)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend/src/preparation-action-broker.pg-test.ts:82:138)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+undefined
+/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: tsx --test --test-concurrency=1 src/preparation-action-broker.pg-test.ts

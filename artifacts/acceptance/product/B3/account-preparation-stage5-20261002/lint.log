@@ -1,0 +1,23 @@
+
+> socialgrowth-monorepo@1.0.0 lint:product /Users/linghuxj/Documents/myproject/project/SocialGrowth
+> pnpm --filter './product/**' --workspace-concurrency=1 run lint
+
+Scope: 4 of 10 workspace projects
+
+> @socialgrowth/product-contracts@0.0.0 lint /Users/linghuxj/Documents/myproject/project/SocialGrowth/product/contracts
+> oxlint src
+
+
+> @socialgrowth/product-backend@0.0.0 lint /Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend
+> oxlint src
+
+src/media-credential-key-custodian.test.ts:79:86: warning unicorn(no-new-array): Do not use `new Array(singleArgument)`. help: It's not clear whether the argument is meant to be the length of the array or the only element. If the argument is the array's length, consider using `Array.from({ length: n })`. If the argument is the only element, use `[element]`.
+src/media-credential-key-custodian.test.ts:86:34: warning unicorn(no-new-array): Do not use `new Array(singleArgument)`. help: It's not clear whether the argument is meant to be the length of the array or the only element. If the argument is the array's length, consider using `Array.from({ length: n })`. If the argument is the only element, use `[element]`.
+
+> @socialgrowth/product-executor@0.0.0 lint /Users/linghuxj/Documents/myproject/project/SocialGrowth/product/executor
+> oxlint src
+
+
+> @socialgrowth/product-web@0.0.0 lint /Users/linghuxj/Documents/myproject/project/SocialGrowth/product/web
+> oxlint src vite.config.ts
+

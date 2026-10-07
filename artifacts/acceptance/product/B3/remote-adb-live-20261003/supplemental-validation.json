@@ -1,0 +1,32 @@
+{
+  "projectNode": "24.16.0",
+  "pnpm": "8.14.0",
+  "androidJvm": {
+    "tests": 39,
+    "passed": 39,
+    "failures": 0,
+    "candidate": "8dcd54ad9eb4dd217655c7a39da03bfb87404afcb138d9ef92bfed96e52d1211"
+  },
+  "runtimeFocused": {
+    "tests": 28,
+    "passed": 28
+  },
+  "runtimeFullBeforeUriFix": {
+    "tests": 94,
+    "passed": 93,
+    "failed": 1,
+    "failure": "remote_serial_MinIO_HTTP_403"
+  },
+  "runtimeFullAfterUriFix": {
+    "tests": 94,
+    "passed": 94,
+    "failed": 0,
+    "durationMs": 4059.992032,
+    "realRemoteScreenshotRoundtrip": true
+  },
+  "runtimeTypes": "passed",
+  "bridgeTypes": "passed",
+  "bridgeUnauthorized": "rejected",
+  "bridgeNonTailnet": "rejected",
+  "notBusinessAcceptance": true
+}

@@ -1,0 +1,192 @@
+{
+  "schemaVersion": 1,
+  "stage": "account-preparation-stage7",
+  "createdAt": "2026-10-02T13:23:39.464338+00:00",
+  "inputCommit": "3554017fe665f85d03e97527ff6923985d2434c9",
+  "branch": "codex/core-automation-loop-stage1",
+  "status": "single_read_transport_complete_all_path_integration_blocked",
+  "sourceFiles": [
+    {
+      "path": "product/executor/src/phone-action-fence.ts",
+      "bytes": 16225,
+      "sha256": "cb0937999dde5c64476387ac13b6ea6e136a18d5f5207cf0d671fe65b0411190"
+    },
+    {
+      "path": "product/executor/src/adb-read-screen-transport.ts",
+      "bytes": 8298,
+      "sha256": "35828bd48978f41c3ff966dbb3b69c725e7e234c77f81caf9a5ce1f751ac179c"
+    },
+    {
+      "path": "product/executor/src/adb-read-screen-transport.test.ts",
+      "bytes": 10463,
+      "sha256": "317e9a240bc214f322c7066f83ca5be1a85fa60fd24de0de7dcda4b6a4a44fa8"
+    },
+    {
+      "path": "product/executor/README.md",
+      "bytes": 2984,
+      "sha256": "d0b881db7f2e23c17d1de31fd4eb3b95b2c07e2aa83b626758509ec126b70276"
+    },
+    {
+      "path": "docs/engineering/delivery/records/account-preparation-stage7-20261002.md",
+      "bytes": 8888,
+      "sha256": "1c6c67a97f7ced3e2a83e8552c90b4d0a4363e7220d5ef8b124971a9534ab897"
+    }
+  ],
+  "evidenceFiles": [
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage7-20261002/backend.log",
+      "bytes": 10884,
+      "sha256": "1e0cbb694ef7e3b4f6a1f834a0435e5e227cd054003c4583544ad924c4a40e9d"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage7-20261002/build.log",
+      "bytes": 144,
+      "sha256": "388e075fd76c442ae61748b6abf939829b4c73b8c5b648a44cce582f210c9891"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage7-20261002/check.log",
+      "bytes": 153,
+      "sha256": "2769e18578ac13ecbb4084831cb7f3832de7c12ad7b00774b9633de4feadf8d3"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage7-20261002/environment.log",
+      "bytes": 224,
+      "sha256": "fa7ea2631eeebb77628bb0609323a0b4f71a0bb88e1c33cff824f8bda368a5a1"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage7-20261002/host-readiness.json",
+      "bytes": 471,
+      "sha256": "f11ae9e374e5b66743e8fc2ded4c2956d36d36df2bfd2598e230803202edaf7b"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage7-20261002/host-readiness.mjs",
+      "bytes": 1596,
+      "sha256": "8ae39f52b520cfcf52b3cfd7a23a22fd9e0489bd36f0a9b130bd30337a598b4e"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage7-20261002/lint.log",
+      "bytes": 133,
+      "sha256": "ba0378747f69b317a5329e0bba6d477c259f598a5873fa077b7567657db71399"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage7-20261002/operator-initialize.log",
+      "bytes": 553,
+      "sha256": "43469e1d82717ae78a3b140efc108e580621b26704dca301259537861aff7dc2"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage7-20261002/original-operation-readonly.json",
+      "bytes": 310,
+      "sha256": "cbc3f39b74b74ac26594b05c3f56a2322304c39e6e0af65bb2099a93b0267d2d"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage7-20261002/playwright.log",
+      "bytes": 829,
+      "sha256": "c7fcffd8135c19e253e94b4f1e89450dbf522167c38114afaeab72d2568e585c"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage7-20261002/resource-closure.json",
+      "bytes": 797,
+      "sha256": "b75321cf4e17230ff9baa7ca24742afbcf86a14b168bb3d1454fdbebe620dc60"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage7-20261002/sql-readonly.json",
+      "bytes": 98,
+      "sha256": "b9cbf689b4c5191ff4b0f7b0768f24d2b90cf2e47202694105ca977aff3636cf"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage7-20261002/temporary-fixture-cleanup.json",
+      "bytes": 865,
+      "sha256": "25cf339d4943e8e16cd34a2e60e11ae2af7dda00f125eec21c8a048aeb6c173f"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage7-20261002/test-final.log",
+      "bytes": 60193,
+      "sha256": "1bd9d41e527c15597f253cee3fee09cef75cbd7a88c13b523e65732752c5fb80"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage7-20261002/test-first.log",
+      "bytes": 51863,
+      "sha256": "4708661e450b6c1910855d24221dc1864fcde828c6c01d4fa380df9ed5b06daf"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage7-20261002/transport-first.json",
+      "bytes": 384,
+      "sha256": "d473f16fc04386507f9e8d123c6886e79b6e0c6d4f4e081d30caeef9acbc4d4b"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage7-20261002/transport-repair.log",
+      "bytes": 2084,
+      "sha256": "d3255e611d71f48407e66a47a5687d1278a7311ca22fb0636ec4b557ee41e609"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage7-20261002/ui/preparation-desktop.png",
+      "bytes": 232157,
+      "sha256": "befe6b7bd15e36cc1963709a36467b6ccc71f5faa9c7d9f4805a3799b48c00a0"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage7-20261002/ui/preparation-mobile.png",
+      "bytes": 84891,
+      "sha256": "fc6d072fa9b70d7a1ed1009ec0255596f5507889c226000bcf9a11b95aa2f08e"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage7-20261002/ui/result.json",
+      "bytes": 987,
+      "sha256": "45c745fa949807398f1f1b0e6293a2e2bbf6889ece0f2e8e5474c72a79b34d47"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage7-20261002/web-closure.json",
+      "bytes": 74,
+      "sha256": "50abcb088ed628d7f2ed6959f26c8fad9285bffcd0be44223d01941b2b8b3229"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage7-20261002/web-environment.json",
+      "bytes": 1396,
+      "sha256": "f7d209c0ffd8fc1f39ceab743637f5bd4a1a106b2c735296fe1c8cb99361474c"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage7-20261002/web-runner.log",
+      "bytes": 102,
+      "sha256": "915e4766f9876fe6dacf240689c74f11514b1610327b2b412d8f5227f357391d"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage7-20261002/web-runner.mjs",
+      "bytes": 4806,
+      "sha256": "18123673595e1b03777735b62745c7f400bac75df79ebb30f23383b66bc917c2"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage7-20261002/web.log",
+      "bytes": 73,
+      "sha256": "312ce588553aeaeb872f4f607cd5b61ab25ce94d4cf8617f2c03f7dd0fdb7066"
+    }
+  ],
+  "verification": {
+    "productTestsPassed": 582,
+    "contractsTs": 69,
+    "contractsPython": 38,
+    "backend": 340,
+    "executor": 49,
+    "webUnit": 86,
+    "newTransportComponentTests": 8,
+    "webScenariosPassed": 8,
+    "webPageErrors": 0,
+    "executorCheckBuildLintPassed": true,
+    "hostBinaryConstructorOnlyPassed": true,
+    "postgresComponentTestsRerun": false,
+    "scope": "synthetic real-subprocess components plus actual Web blocking regression; no physical acceptance"
+  },
+  "boundaries": {
+    "rawSdkReplaced": false,
+    "physicalInspectorImplemented": false,
+    "allTransportPathsFenced": false,
+    "originalOperationStopConfirmed": false,
+    "originalCentralTaskStatus": "unknown",
+    "executorEnabled": false,
+    "newArtemisCalls": 0,
+    "deviceOperations": 0,
+    "createdPlatformAssets": 0,
+    "publications": 0,
+    "independentQa": false,
+    "mergedDeveloper": false,
+    "updatedParentPending": false
+  }
+}

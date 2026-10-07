@@ -1,0 +1,35 @@
+{
+  "checkedAt": "2026-10-02T15:14:40.528852+00:00",
+  "inputCommit": "d2ae8c73d22b4563af4412ae18a1f612381532a5",
+  "sdkCommit": "371aa6df56880643da57b30da936e9812fb0ec66",
+  "deviceSerial": "RFCW40MYYCV",
+  "deviceModel": "Samsung SM-S9110",
+  "androidVersion": "16 / API 36",
+  "sources": {
+    "services/execution-runtime/src/web-verification.ts": "5ae880e409fda7d3379da13878b346b0eee500c10b5a4db77d190a58a45be5a0",
+    "services/execution-runtime/src/web-verification.test.ts": "691c5b81a31343d15da4d0a112dfe8caad2715ff99a933bd7382dd10349d298d",
+    "scripts/verify-demo-observation-playwright.mts": "4952d1b783cb560f528068c341fec1e7c67851183419fc08488ecba353a5b1e8"
+  },
+  "evidence": {
+    "device-preflight.json": "781a024f18b151f9ca43c7a852847b11e50396b02776ae328b133c1d38a9dd8f",
+    "originals-before.json": "7c35d87df767e3be9640306b67a4fff44cb4979dca83b1b8721d355cbb8e5016",
+    "live-final-readonly.json": "425248bab435b8aea5c0313b79477bcc2a231e3e3067df5e91f12745a95e4515",
+    "android-install-native-result.json": "9001e0749a4ea10d7b2c796d311f569d14b933400cca76d452defcad4d342fbe",
+    "resource-closure.json": "303d6fe538f07d3eeee16e6fde6ddea6fbe169a171dd452ce3d6b9b6b44f68bf",
+    "live-observation/result.json": "67d3facd133ff208030741705b1fc80c3339eac7ab6147b071f88583bfe91b04",
+    "live-observation/web-observation-receipt.png": "189904b24d2d01366f02e32983ca1927294cb84728a081ba612f3d6ffebc6388"
+  },
+  "checks": {
+    "actualWebArtemisOperatorReceipt": "passed",
+    "currentScreenFacebookIdentity": "unconfirmed",
+    "runtimeUnitTests": 86,
+    "nativeCryptoChecks": 10,
+    "formalParticipation": "blocked",
+    "formalInspectApp": "blocked",
+    "pageChannelCreation": "not_attempted",
+    "publicPublication": "not_attempted"
+  },
+  "rawPhoneScreenshotCommitted": false,
+  "oldUnknownTaskReissued": false,
+  "allPathsFenced": false
+}

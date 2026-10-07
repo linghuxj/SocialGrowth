@@ -1,0 +1,232 @@
+{
+  "inputCommit": "1b3c37b62718358e7e60b6ba453c1266d16950a3",
+  "scope": "author implementation and verification; no device acceptance or platform creation",
+  "sourceFiles": [
+    {
+      "path": "product/android/README.md",
+      "sha256": "c3d5b99723770d34175426898b44bc74d1c6742d2731f7c43e32559f5f1136da"
+    },
+    {
+      "path": "product/backend/README.md",
+      "sha256": "0cb8278fa21baa4d4b223f8feb81400985059c581a5fa26f94182463d128e007"
+    },
+    {
+      "path": "product/contracts/README.md",
+      "sha256": "b71935491d758a8eb9b9226c4151461e5c41e9de8664fbcd1aa1081b1288321c"
+    },
+    {
+      "path": "product/android/app/src/main/AndroidManifest.xml",
+      "sha256": "97a6bb970720fede1b135d5e6091cc5376ba21c6be6937286126b6887d30bc15"
+    },
+    {
+      "path": "product/android/app/src/main/java/com/socialgrowth/product/MainActivity.kt",
+      "sha256": "f18796cdcb3d46a7aff1e184a25d59d395d1e10bf11dc52bfddeb92b71465d2d"
+    },
+    {
+      "path": "product/android/app/src/main/java/com/socialgrowth/product/ParticipationService.kt",
+      "sha256": "d52bc73554ba2d06a2ca3d2690cadb2be06c082fcf7ac8eab9eb2d2c2b82b84b"
+    },
+    {
+      "path": "product/android/app/src/main/java/com/socialgrowth/product/ParticipationApiClient.kt",
+      "sha256": "f82875c4f56bd0d7a2680c917fca4181babf376dd1be9f16ea2ed55fa52bf722"
+    },
+    {
+      "path": "product/android/app/src/main/java/com/socialgrowth/product/GeneratedParticipationContractSpec.kt",
+      "sha256": "c732ef9da67810ae3cc00e324a9cabb7793c073fcc7f8049dc0658940c148a0f"
+    },
+    {
+      "path": "product/android/app/src/test/java/com/socialgrowth/product/ParticipationContractBoundaryTest.kt",
+      "sha256": "909fc43040fcc6703fc79037e7454cac9261d4e10ede8c73dfa56b56c7a9b28e"
+    },
+    {
+      "path": "product/backend/src/local-participation-service.ts",
+      "sha256": "9563e5a2b2a9ef50ab34a17f26557ccccb6d6b04e06b3bc9620eb3096d3521c6"
+    },
+    {
+      "path": "product/backend/src/local-participation.controller.ts",
+      "sha256": "79551285320ce39e505aa7abf0408c61e1e841c4683ae409fde65543427eac60"
+    },
+    {
+      "path": "product/backend/src/local-participation.pg-test.ts",
+      "sha256": "87fd7447ac07bfe811b8c31236fc4e96c461c797d0be2d2f2987d04d74c1af37"
+    },
+    {
+      "path": "product/backend/src/account-preparation-api.pg-test.ts",
+      "sha256": "832bb1f37dde87d3762140f1cf2667911ee86caf182c67649262a4651b8031b7"
+    },
+    {
+      "path": "product/backend/src/account-preparation-service.ts",
+      "sha256": "350843259a033fe4c4a841ec6a16755efc5dc9948a922a914755191cf1dc9062"
+    },
+    {
+      "path": "product/backend/src/app.module.ts",
+      "sha256": "ad38c68aac8725a6e1be255350e4ef77470285a7454277afd5f7245645aa6b75"
+    },
+    {
+      "path": "product/backend/src/installation-auth-service.ts",
+      "sha256": "612f7adfbe6e8db8e4fd78698706faf327a217ef9d71acf9b1b6e3fd5d4150f0"
+    },
+    {
+      "path": "product/backend/src/phone-control-journal.ts",
+      "sha256": "746841533a25265ca5f3d4cd92fca818cb8ebd806e6833b021515f4e6755c429"
+    },
+    {
+      "path": "product/backend/migrations/0030_local_participation.sql",
+      "sha256": "dc73fd904bea5fca70acc04de8f06ae5d23cfb002fcd561f22e14f895e53ca19"
+    },
+    {
+      "path": "product/contracts/package.json",
+      "sha256": "f27f5b2d94d18b64e077a1ff953aa778bd8ca6dfba53673c7a1a1e017f875e41"
+    },
+    {
+      "path": "product/contracts/src/index.ts",
+      "sha256": "7933483c2920f1a33db21e672b0e5c9a6631581af1a242847b8a189254122a70"
+    },
+    {
+      "path": "product/contracts/src/local-participation.ts",
+      "sha256": "5b997bc1f38acdea5c31412c66f45bf76cc3fbb9778b1af13ff73d1a67de41a5"
+    },
+    {
+      "path": "product/contracts/src/local-participation.test.ts",
+      "sha256": "f7358814f56768222f7fea76eb77aacf7f5193b61367e19003bbb3acf6fb75e5"
+    },
+    {
+      "path": "product/contracts/src/generate-participation-contract.ts",
+      "sha256": "497b72ad1376f156fc29f8da0787f520bd96f345c687a5994a8c24c46d8a533a"
+    },
+    {
+      "path": "docs/engineering/delivery/records/account-preparation-stage5-20261002.md",
+      "sha256": "9886a8b8171565022ff92e08a23c0444ae2f6afb8511b8f3f9e3c8088a1788ff"
+    }
+  ],
+  "results": {
+    "productSupplementalChecksPassed": 574,
+    "participationPostgresPassed": 11,
+    "preparationPostgresPassed": 19,
+    "androidJvmPassed": 34,
+    "webCategoriesPassed": 8,
+    "webErrors": 0,
+    "newArtemisCalls": 0,
+    "createdPlatformAssets": 0,
+    "publications": 0
+  },
+  "apk": {
+    "path": "/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/android/app/build/outputs/apk/debug/app-debug.apk",
+    "sha256": "ac92a28d5bd40ac1516d8b9e20453ede293273618b1ca50cb1b50146de56e38a",
+    "bytes": 5370896
+  },
+  "evidenceFiles": [
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/android-closure.log",
+      "sha256": "665c931b022badf9004f7701ec40f73ad408fac6aa22712593ca9631c2ade712"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/android-final.log",
+      "sha256": "57356ddb27180887ce5f036beb6a571607a0fc7c97e539e781aaf9830808fdef"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/android-jvm-result.json",
+      "sha256": "0d89c6917147fa68505cbb12cc5ee46bcd7a0c10e1e9d5f3af8835f283cf712c"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/android-participation-contract.xml",
+      "sha256": "c2100718ad132c3a4badf4fd31c6249284d97e1ed19305153421a00acbaca014"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/android.log",
+      "sha256": "97646dc12f4f71ef08cd3aa268421fca84bf6f2bd4a197dfcf252deb1b202b30"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/backend-check-final.log",
+      "sha256": "677269465d0cda736b99873aae8e0a4e59e840b96dd8a646f707e44f46891aa1"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/backend-check.log",
+      "sha256": "677269465d0cda736b99873aae8e0a4e59e840b96dd8a646f707e44f46891aa1"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/backend-lint-final.log",
+      "sha256": "144c0e33697403034f70c17de7f97fa2d143448d3ef487d53c7f2882dbf94151"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/backend.log",
+      "sha256": "7b744dccab6d78da3f14604dcf99ef3aa445c8ae24bf1ef4a284e3fef2229d91"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/build.log",
+      "sha256": "8073f84b0848be7ca167dedfdee79a356de256fef6630f14270856a03bd187b6"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/check.log",
+      "sha256": "f5c950f3f867bf0dd53540195642ee1e1b3dbbc75a98e53e9952df5969ef67f6"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/environment-check.log",
+      "sha256": "fa7ea2631eeebb77628bb0609323a0b4f71a0bb88e1c33cff824f8bda368a5a1"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/environment.json",
+      "sha256": "2272efb85b61890ffcb59730175c1eb4d6351ba06124f3f9829d4e6ed6c7cb79"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/lint.log",
+      "sha256": "0a46326ec0c10d4cd9c6e881e7cd921ccccea928e7863c6606ff8675583de7f9"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/operator-initialize.log",
+      "sha256": "dd78938a95ca50133578d7619975bdcedc501226ef032651c20b73b6bd868206"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/participation-pg-first.log",
+      "sha256": "8ede2ba2c05d0e6bf7727bdd326f4e2498e490985e8e1cd5cfe369e32d30e296"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/participation-pg.log",
+      "sha256": "50fc09adaa490e35c5aaa8cc9666217f9c91f01ad986b869d060871802b193ac"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/playwright.log",
+      "sha256": "c7fcffd8135c19e253e94b4f1e89450dbf522167c38114afaeab72d2568e585c"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/preparation-pg-final.log",
+      "sha256": "853ba290103118dcfa5112163123e0b8ac133187243c8bc0145d746818e668ba"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/preparation-pg.log",
+      "sha256": "118f9c62379f8a2cb4804bbf049ea50f939c31dc44cc070fe7e02aa859b5b2ff"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/resource-closure.json",
+      "sha256": "96b904aef5be12cd530e0f9849ab4771ea08c09d51c9f509314ef097f92051d4"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/sql-readonly.json",
+      "sha256": "e73b252b8c8f06d7f919783eb87c74e1dd2b7302c83c0a7bb8503d3b6218bc2e"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/test.log",
+      "sha256": "007d133e5392d4201ca51a6831e6e69d165f29ec6543236e507626a43e5e3e42"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/ui/preparation-desktop.png",
+      "sha256": "fc2412e4d9a43328eaa511cbf5feb38217dc725fa248835f21d4e5fdeb37e29e"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/ui/preparation-mobile.png",
+      "sha256": "ec48b8ffbf92f3cac70889d956985fe8f855a54ade0231f76ce2351f966ee520"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/ui/result.json",
+      "sha256": "b2c4d347e78492b381635d318723cacb2417b13cf6453afd0084a031b53239ed"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/web-closure.json",
+      "sha256": "873668d6155c249e4c6eecbb78bd0df69f286fcc7afcdba280cb29eab1ce7b8b"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage5-20261002/web.log",
+      "sha256": "9d2f5b43726f4932a53b7ac8183f12c3a9267ec0b24a7e682ff0be67204ac423"
+    }
+  ]
+}

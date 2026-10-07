@@ -1,0 +1,18 @@
+{
+  "closedAt": "2026-10-02T08:46:47.712183+00:00",
+  "ownedContainerId": "0aa33eba79c6ab844e3442a2db0e504c9c3ef1d9cf42c8be83e3b6363d9f1922",
+  "containerImageId": "sha256:212aeeeb8faaef6c46498d86cbec6b9344d8d9492996b174664ff82c562ab685",
+  "postgresVersion": "17.11",
+  "isolatedDatabasePort": 32919,
+  "isolatedClusterIdentifier": "7691985275165425706",
+  "migrationsAppliedThrough": "0028",
+  "finalDatabaseFreshlyMigrated": true,
+  "backendPort4320Closed": true,
+  "webPort3100Closed": true,
+  "realPhoneOperations": 0,
+  "createdPlatformAssets": 0,
+  "publications": 0,
+  "unrelatedServicesPreserved": true,
+  "ownedContainerRemoved": true,
+  "temporaryCredentialsRemoved": true
+}

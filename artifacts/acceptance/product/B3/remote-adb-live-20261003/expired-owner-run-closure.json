@@ -1,0 +1,25 @@
+{
+  "checkedAt": "2026-10-02T19:05:53.835Z",
+  "device": {
+    "device_id": "0fef3177-636c-4b82-8209-1af38134e00f",
+    "state": "associated_pending_access",
+    "generation": "1"
+  },
+  "participation": {
+    "sequence": "405",
+    "command_kind": "withdraw",
+    "run_id": "1edd8f2f-38fc-41a7-b707-35d063577434",
+    "participation_state": "withdrawn",
+    "checked_at": "2026-10-02T19:01:03.783Z",
+    "valid_until": "2026-10-02T19:01:03.783Z",
+    "action_permission_granted": "false",
+    "stop_confirmed": "false",
+    "revoked_at": "2026-10-02T19:01:03.783Z",
+    "control_disposition": null,
+    "control_generation": null,
+    "has_scope": true,
+    "current_association_matches": true
+  },
+  "evidenceScope": "read_only_supplement_only",
+  "physicalControlAccepted": false
+}

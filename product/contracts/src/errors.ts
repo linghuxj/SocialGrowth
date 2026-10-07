@@ -1,0 +1,49 @@
+import { z } from "zod";
+
+import { contractVersionSchema, requestIdSchema } from "./common.js";
+
+export const productErrorCodeSchema = z.enum([
+  "AUTHENTICATION_REQUIRED",
+  "AUTHORIZATION_DENIED",
+  "INVALID_CREDENTIALS",
+  "LOGIN_RATE_LIMITED",
+  "OPERATOR_ALREADY_EXISTS",
+  "OPERATOR_DISABLED",
+  "LAST_ACTIVE_OPERATOR",
+  "CONTRACT_VERSION_UNSUPPORTED",
+  "IDEMPOTENCY_KEY_REUSED",
+  "IDEMPOTENCY_RESULT_EXPIRED",
+  "INSTALLATION_BOOTSTRAP_RATE_LIMITED",
+  "INPUT_INVALID",
+  "INTERNAL_ERROR",
+  "INVITATION_EXPIRED",
+  "INVITATION_EXHAUSTED",
+  "INVITATION_REVOKED",
+  "PHONE_ALREADY_REGISTERED",
+  "PHONE_NOT_REGISTERED",
+  "PHONE_VERIFICATION_CODE_INVALID",
+  "PHONE_VERIFICATION_EXPIRED",
+  "PHONE_VERIFICATION_INVALID",
+  "PHONE_VERIFICATION_RATE_LIMITED",
+  "PROVIDER_DISABLED",
+  "SMS_DELIVERY_UNAVAILABLE",
+  "ASSOCIATION_SESSION_EXPIRED",
+  "ASSOCIATION_SESSION_CONSUMED",
+  "ASSOCIATION_TARGET_CHANGED",
+  "DEVICE_ALREADY_ASSOCIATED",
+  "FACT_VERSION_STALE",
+]);
+
+export const productErrorResponseSchema = z.strictObject({
+  contractVersion: contractVersionSchema,
+  requestId: requestIdSchema,
+  error: z.strictObject({
+    code: productErrorCodeSchema,
+    message: z.string().min(1),
+    retryable: z.boolean(),
+    field: z.string().min(1).optional(),
+  }),
+});
+
+export type ProductErrorCode = z.infer<typeof productErrorCodeSchema>;
+export type ProductErrorResponse = z.infer<typeof productErrorResponseSchema>;

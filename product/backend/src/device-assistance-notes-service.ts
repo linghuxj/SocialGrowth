@@ -1,0 +1,126 @@
+import type { Pool, PoolClient } from "pg";
+import { z } from "zod";
+import { deviceAssistanceTodoSummarySchema, listDeviceAssistanceNotesResponseSchema, listDeviceAssistanceImpactsResponseSchema, operatorAssistanceTodoDetailResponseSchema, uuidSchema } from "@socialgrowth/product-contracts";
+import { OperatorAuthService } from "./operator-auth-service.js";
+import { ProductTransactionError } from "./product-transaction-error.js";
+const query = z.strictObject({ afterNoteId: uuidSchema.nullable(), pageSize: z.int().min(1).max(50) });
+const impactQuery = z.strictObject({ afterDeviceId: uuidSchema.nullable(), pageSize: z.int().min(1).max(50) });
+const schema = "socialgrowth_product";
+interface TodoRow { todo_id: string; occurrence_id: string; provider_id: string; initial_responsible_operator_id: string; kind: string; status: string; fact_version: string; impact_count: string; note_count: string; notification_status: string; note_times_valid: boolean; created_at: Date; updated_at: Date }
+interface NoteRow { note_id: string; actor_id: string; kind: string; text: string; recorded_at: Date }
+interface DetailRow extends TodoRow { recheck_status: string | null; recheck_blockers: unknown; recheck_checked_at: string | null }
+export class DeviceAssistanceNotesService {
+  constructor(private readonly pool: Pool, private readonly auth: OperatorAuthService) {}
+
+  async detail(token: string, todoId: string) {
+    const todo = uuidSchema.safeParse(todoId);
+    if (!todo.success) throw new ProductTransactionError("INPUT_INVALID", "Invalid assistance item");
+    const id = todo.data.toLowerCase();
+    let client: PoolClient;
+    try { client = await this.pool.connect(); } catch { throw new ProductTransactionError("INTERNAL_ERROR", "Assistance detail unavailable", true); }
+    try {
+      await client.query("BEGIN"); await client.query("SET LOCAL lock_timeout='5s'"); await client.query("SET LOCAL statement_timeout='10s'");
+      await client.query(`LOCK TABLE ${schema}.operators IN SHARE ROW EXCLUSIVE MODE`);
+      const actor = await this.auth.authenticateSessionInTransaction(client, token);
+      const row = (await client.query<DetailRow>(`SELECT t.*,
+        (SELECT count(*) FROM ${schema}.device_assistance_impacts i WHERE i.todo_id=t.todo_id)::text AS impact_count,
+        (SELECT count(*) FROM ${schema}.device_assistance_notes n WHERE n.todo_id=t.todo_id)::text AS note_count,
+        (SELECT status FROM ${schema}.device_assistance_notification_intents i WHERE i.todo_id=t.todo_id) AS notification_status,
+        (t.updated_at>=t.created_at AND NOT EXISTS(SELECT 1 FROM ${schema}.device_assistance_notes n
+          WHERE n.todo_id=t.todo_id AND (n.recorded_at<t.created_at OR n.recorded_at>t.updated_at))) AS note_times_valid,
+        r.status AS recheck_status,r.blockers AS recheck_blockers,
+        to_char(r.checked_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS recheck_checked_at
+        FROM ${schema}.device_assistance_todos t LEFT JOIN ${schema}.task_assistance_recheck_links r ON r.todo_id=t.todo_id
+        WHERE t.todo_id=$1 FOR SHARE OF t`, [id])).rows[0];
+      if (!row) throw new ProductTransactionError("FACT_VERSION_STALE", "Assistance item is unavailable");
+      if (row.note_times_valid !== true) throw new ProductTransactionError("INTERNAL_ERROR", "Assistance detail unavailable", true);
+      const summary = deviceAssistanceTodoSummarySchema.parse({ todoId: row.todo_id, occurrenceId: row.occurrence_id, providerId: row.provider_id,
+        initialResponsibleOperatorId: row.initial_responsible_operator_id, originScope: "unassigned_device", kind: row.kind, status: row.status,
+        factVersion: Number(row.fact_version), impactCount: Number(row.impact_count), noteCount: Number(row.note_count), notificationStatus: row.notification_status,
+        createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString() });
+      const blockers = z.array(z.string().min(1).max(120)).max(32).parse(row.recheck_blockers ?? []);
+      const recheckStatus = row.recheck_status === "claimed" ? "pending" : row.recheck_status ?? "not_requested";
+      const result = operatorAssistanceTodoDetailResponseSchema.parse({ todo: summary,
+        recheck: { status: recheckStatus, blockers, checkedAt: row.recheck_checked_at } });
+      if (!(await client.query(`SELECT 1 FROM ${schema}.operator_sessions WHERE session_id=$1 AND revoked_at IS NULL AND expires_at>clock_timestamp()`, [actor.sessionId])).rowCount) {
+        throw new ProductTransactionError("AUTHENTICATION_REQUIRED", "Operator session expired");
+      }
+      await client.query("COMMIT"); return result;
+    } catch (error) {
+      try { await client.query("ROLLBACK"); } catch { throw new ProductTransactionError("INTERNAL_ERROR", "Assistance detail unavailable", true); }
+      if (error instanceof ProductTransactionError) throw error;
+      throw new ProductTransactionError("INTERNAL_ERROR", "Assistance detail unavailable", true);
+    } finally { client.release(); }
+  }
+
+  async list(token: string, todoId: string, input: unknown) {
+    const parsed = query.safeParse(input), todo = uuidSchema.safeParse(todoId);
+    if (!parsed.success || !todo.success) throw new ProductTransactionError("INPUT_INVALID", "Invalid assistance notes query");
+    const id = todo.data.toLowerCase(), r = parsed.data; r.afterNoteId = r.afterNoteId?.toLowerCase() ?? null;
+    let client: PoolClient;
+    try { client = await this.pool.connect(); } catch { throw new ProductTransactionError("INTERNAL_ERROR", "Assistance notes unavailable", true); }
+    try {
+      await client.query("BEGIN"); await client.query("SET LOCAL lock_timeout='5s'"); await client.query("SET LOCAL statement_timeout='10s'");
+      await client.query(`LOCK TABLE ${schema}.operators IN SHARE ROW EXCLUSIVE MODE`);
+      const actor = await this.auth.authenticateSessionInTransaction(client, token);
+      const row = (await client.query<TodoRow>(`SELECT t.*,
+        (SELECT count(*) FROM ${schema}.device_assistance_impacts i WHERE i.todo_id=t.todo_id)::text AS impact_count,
+        (SELECT count(*) FROM ${schema}.device_assistance_notes n WHERE n.todo_id=t.todo_id)::text AS note_count,
+        (SELECT status FROM ${schema}.device_assistance_notification_intents i WHERE i.todo_id=t.todo_id) AS notification_status,
+        (t.updated_at>=t.created_at AND NOT EXISTS(SELECT 1 FROM ${schema}.device_assistance_notes n
+          WHERE n.todo_id=t.todo_id AND (n.recorded_at<t.created_at OR n.recorded_at>t.updated_at))) AS note_times_valid
+        FROM ${schema}.device_assistance_todos t WHERE t.todo_id=$1 FOR SHARE OF t`, [id])).rows[0];
+      if (!row) throw new ProductTransactionError("FACT_VERSION_STALE", "Assistance item is unavailable");
+      // Validate raw PostgreSQL instants before the driver Date projection loses
+      // sub-millisecond precision. Check the whole item's history, not just a
+      // displayed page, so an off-page corrupt note cannot masquerade as valid.
+      if (row.note_times_valid !== true) throw new ProductTransactionError("INTERNAL_ERROR", "Assistance notes unavailable", true);
+      const summary = deviceAssistanceTodoSummarySchema.parse({ todoId: row.todo_id, occurrenceId: row.occurrence_id, providerId: row.provider_id, initialResponsibleOperatorId: row.initial_responsible_operator_id,
+        originScope: "unassigned_device", kind: row.kind, status: row.status, factVersion: Number(row.fact_version), impactCount: Number(row.impact_count), noteCount: Number(row.note_count), notificationStatus: row.notification_status, createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString() });
+      if (r.afterNoteId && !(await client.query(`SELECT 1 FROM ${schema}.device_assistance_notes WHERE note_id=$1 AND todo_id=$2`, [r.afterNoteId, id])).rowCount) throw new ProductTransactionError("FACT_VERSION_STALE", "Assistance notes cursor is unavailable");
+      const rows = (await client.query<NoteRow>(`SELECT n.note_id,n.actor_id,n.kind,n.text,n.recorded_at FROM ${schema}.device_assistance_notes n WHERE n.todo_id=$2 AND ($1::uuid IS NULL OR (n.recorded_at,n.note_id)>
+        (SELECT c.recorded_at,c.note_id FROM ${schema}.device_assistance_notes c WHERE c.note_id=$1 AND c.todo_id=$2)) ORDER BY n.recorded_at,n.note_id LIMIT $3`, [r.afterNoteId, id, r.pageSize + 1])).rows;
+      const page = rows.slice(0, r.pageSize), result = listDeviceAssistanceNotesResponseSchema.parse({ todo: summary, notes: page.map(n => ({ noteId: n.note_id, actorId: n.actor_id, kind: n.kind, text: n.text, recordedAt: n.recorded_at.toISOString() })), nextAfterNoteId: rows.length > r.pageSize ? page.at(-1)!.note_id : null });
+      if (!(await client.query(`SELECT 1 FROM ${schema}.operator_sessions WHERE session_id=$1 AND revoked_at IS NULL AND expires_at>clock_timestamp()`, [actor.sessionId])).rowCount) throw new ProductTransactionError("AUTHENTICATION_REQUIRED", "Operator session expired");
+      await client.query("COMMIT"); return result;
+    } catch (error) {
+      try { await client.query("ROLLBACK"); } catch { throw new ProductTransactionError("INTERNAL_ERROR", "Assistance notes unavailable", true); }
+      if (error instanceof ProductTransactionError) throw error;
+      throw new ProductTransactionError("INTERNAL_ERROR", "Assistance notes unavailable", true);
+    } finally { client.release(); }
+  }
+
+  async listImpacts(token: string, todoId: string, input: unknown) {
+    const parsed = impactQuery.safeParse(input), todo = uuidSchema.safeParse(todoId);
+    if (!parsed.success || !todo.success) throw new ProductTransactionError("INPUT_INVALID", "Invalid assistance impact query");
+    const id = todo.data.toLowerCase(), r = parsed.data; r.afterDeviceId = r.afterDeviceId?.toLowerCase() ?? null;
+    let client: PoolClient;
+    try { client = await this.pool.connect(); } catch { throw new ProductTransactionError("INTERNAL_ERROR", "Assistance impacts unavailable", true); }
+    try {
+      await client.query("BEGIN"); await client.query("SET LOCAL lock_timeout='5s'"); await client.query("SET LOCAL statement_timeout='10s'");
+      await client.query(`LOCK TABLE ${schema}.operators IN SHARE ROW EXCLUSIVE MODE`);
+      const actor = await this.auth.authenticateSessionInTransaction(client, token);
+      // The todo row is the serialization point also used by the producer. Each
+      // page is internally consistent with a concurrent append, while later
+      // pages are live keyset reads and may see newly recorded impacts.
+      const todoRow = (await client.query<{ todo_id: string }>(`SELECT todo_id FROM ${schema}.device_assistance_todos WHERE todo_id=$1 FOR SHARE`, [id])).rows[0];
+      if (!todoRow) throw new ProductTransactionError("FACT_VERSION_STALE", "Assistance item is unavailable");
+      if (r.afterDeviceId && !(await client.query(`SELECT 1 FROM ${schema}.device_assistance_impacts WHERE todo_id=$1 AND device_id=$2`, [id, r.afterDeviceId])).rowCount) {
+        throw new ProductTransactionError("FACT_VERSION_STALE", "Assistance impact cursor is unavailable");
+      }
+      const rows = (await client.query<{ device_id: string; recorded_device_version: string; recorded_at: string }>(`SELECT device_id,recorded_device_version::text,
+        to_char(recorded_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS recorded_at
+        FROM ${schema}.device_assistance_impacts WHERE todo_id=$1 AND ($2::uuid IS NULL OR device_id>$2)
+        ORDER BY device_id LIMIT $3`, [id, r.afterDeviceId, r.pageSize + 1])).rows;
+      const page = rows.slice(0, r.pageSize), result = listDeviceAssistanceImpactsResponseSchema.parse({ todoId: id,
+        impacts: page.map(v => ({ deviceId: v.device_id, recordedDeviceVersion: Number(v.recorded_device_version), recordedAt: v.recorded_at })),
+        nextAfterDeviceId: rows.length > r.pageSize ? page.at(-1)!.device_id : null });
+      if (!(await client.query(`SELECT 1 FROM ${schema}.operator_sessions WHERE session_id=$1 AND revoked_at IS NULL AND expires_at>clock_timestamp()`, [actor.sessionId])).rowCount) throw new ProductTransactionError("AUTHENTICATION_REQUIRED", "Operator session expired");
+      await client.query("COMMIT"); return result;
+    } catch (error) {
+      try { await client.query("ROLLBACK"); } catch { throw new ProductTransactionError("INTERNAL_ERROR", "Assistance impacts unavailable", true); }
+      if (error instanceof ProductTransactionError) throw error;
+      throw new ProductTransactionError("INTERNAL_ERROR", "Assistance impacts unavailable", true);
+    } finally { client.release(); }
+  }
+}

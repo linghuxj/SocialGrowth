@@ -1,0 +1,28 @@
+{
+  "recordedAt": "2026-10-04T06:01:12.100568+00:00",
+  "sourceHead": "e3dd70f7b8c4e9884e3e004c79a794eb0cceb730",
+  "sourceFrozen": true,
+  "failure": {
+    "failureType": "TimeoutError",
+    "stage": "open project B lifecycle facts",
+    "pageErrors": [],
+    "actions": {
+      "pauseDelayedAck": null,
+      "endUnknownReplay": null,
+      "withdrawal": null
+    },
+    "pausePostCount": 0,
+    "endPostCount": 0,
+    "actualDirectionSource": "no approved direction created",
+    "actualExternalAction": false
+  },
+  "cleanup": {
+    "ownedServicesExited": true,
+    "ownedContainerIdsRemoved": [
+      "a23feec85ceda759edb1aff8fc5a0ca64b03ade9c0486dad6ac1b04f821197ab",
+      "9dd2888eade84e5879d8a11015cc32e9ce4d3098da428464c0bc7a409ce0ecc1"
+    ],
+    "temporaryCredentialsRemoved": true
+  },
+  "boundary": "Frozen-source run failed at open project B lifecycle facts before business mutations or direction/model; HTTP read statuses still needed for diagnosis. No UI acceptance."
+}

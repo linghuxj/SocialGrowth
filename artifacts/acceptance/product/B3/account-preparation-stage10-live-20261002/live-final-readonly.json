@@ -1,0 +1,56 @@
+{
+  "checkedAt": "2026-10-02T15:12:42.503807+00:00",
+  "verification": {
+    "id": "b857bc27-d94d-4cb7-ad19-31e5b5d6b994",
+    "deviceId": "RFCW40MYYCV",
+    "status": "finished",
+    "resultCode": "OBSERVATION_COMPLETED",
+    "traceId": "7a41fd3e-37fd-4b55-9c25-56a83a48bccd",
+    "loginSubmitCount": 0,
+    "finalSubmitClicked": false,
+    "startedAt": "2026-10-02T15:02:25.946Z",
+    "finishedAt": "2026-10-02T15:08:50.126Z"
+  },
+  "humanRequest": {
+    "id": "3ea1729d-3a0e-4e07-ab9d-5f80a6822f2a",
+    "status": "verified"
+  },
+  "traceArchiveStatus": "completed",
+  "traceProcessObservedAlive": false,
+  "foregroundPackage": "com.sec.android.app.launcher",
+  "ownedDeviceHoldReleased": true,
+  "originalTask": {
+    "id": "d634e4c6-4266-4cc7-a784-3a31a1737cac",
+    "status": "unknown"
+  },
+  "originalIdentityJobs": [
+    {
+      "id": "cb069920-29e9-48f0-819c-fec5cba255d0",
+      "status": "unknown"
+    },
+    {
+      "id": "ca0127c3-b295-4d42-9f0c-96249aa4a367",
+      "status": "unknown"
+    },
+    {
+      "id": "a42dda47-a850-4c30-b03c-b6c5c7f97b68",
+      "status": "unknown"
+    },
+    {
+      "id": "eec52c34-06f5-4483-aeab-e8db03c39584",
+      "status": "unknown"
+    },
+    {
+      "id": "fcaa9e2a-5ec6-4615-a2ed-069748a16e71",
+      "status": "unknown"
+    },
+    {
+      "id": "461acb0a-5d88-4ea6-b071-497aad5d36d9",
+      "status": "unknown"
+    }
+  ],
+  "businessQueueWorkerStarted": false,
+  "publicSubmissionAttempted": false,
+  "allPathsStopProven": false,
+  "formalProductExecutorEnabled": false
+}

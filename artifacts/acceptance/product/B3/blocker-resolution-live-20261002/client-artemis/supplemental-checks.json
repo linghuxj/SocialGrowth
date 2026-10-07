@@ -1,0 +1,16 @@
+{
+  "checkedAt": "2026-10-02T17:42:31.990026+00:00",
+  "runtimeTests": {
+    "command": "pnpm --filter @socialgrowth/execution-runtime test",
+    "passed": 92,
+    "failed": 0
+  },
+  "runtimeBuildPassed": true,
+  "runtimeLintPassed": true,
+  "existingLintWarnings": 2,
+  "webTypecheckPassed": true,
+  "helperTypecheckPassed": true,
+  "nativeBackgroundAcceptance": "failed",
+  "physicalStopAccepted": false,
+  "formalExecutorEnabled": false
+}

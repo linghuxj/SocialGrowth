@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-02T18:54:40.156149+00:00",
+  "packages": {
+    "com.socialgrowth.product": {
+      "backgroundAppOp": "allow",
+      "listedBackgroundRestricted": false
+    },
+    "com.tailscale.ipn": {
+      "backgroundAppOp": "allow",
+      "listedBackgroundRestricted": true
+    }
+  },
+  "scope": "read_only_system_configuration",
+  "settingsChangedBy": "device_owner"
+}

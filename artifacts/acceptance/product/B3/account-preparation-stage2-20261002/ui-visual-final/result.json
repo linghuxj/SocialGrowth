@@ -1,0 +1,20 @@
+{
+  "results": [
+    "默认仅检查；必要输入缺少时真实表单阻止提交",
+    "实际提交保存原任务，页面展示资源阻断，无虚构就绪",
+    "重新检查同一任务，原身份和历史保留，检查版本递增",
+    "实际保存后丢响应：锁输入、读记录、原键接续，无重复任务",
+    "重载保留两平台任务与原检查状态",
+    "390px 可读、写操作关闭，无横向溢出"
+  ],
+  "errors": [],
+  "taskIds": [
+    "ca67640a-c789-440f-8bb4-eaf65f7a763c",
+    "d79e3a0d-22e1-4f6d-bfe3-93503fde62af"
+  ],
+  "checkVersion": 1,
+  "phoneOperations": 0,
+  "createdPlatformAssets": 0,
+  "publications": 0,
+  "platformReadinessVerified": false
+}

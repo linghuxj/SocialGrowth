@@ -1,0 +1,17 @@
+{
+  "ownedServicesStopped": true,
+  "loopbackPortsReleased": [
+    3100,
+    4320
+  ],
+  "ownedContainerRemoved": "sg-phone4-20261002",
+  "ownedContainerVolumesRemoved": true,
+  "privateTemporaryFilesRemoved": true,
+  "existingContainersPreserved": [
+    "nestar-music-backend-20261001",
+    "nestar-stage1-20261001",
+    "minio-test"
+  ],
+  "existingDemoStateModified": false,
+  "publications": 0
+}

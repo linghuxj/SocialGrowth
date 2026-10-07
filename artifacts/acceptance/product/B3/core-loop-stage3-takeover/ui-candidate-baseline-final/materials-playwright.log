@@ -1,0 +1,6 @@
+
+> socialgrowth-monorepo@1.0.0 test:playwright /Users/linghuxj/Documents/myproject/project/SocialGrowth
+> node scripts/run-playwright-target.mjs
+
+[playwright] target=product
+{"passed":true,"scope":"project creation / actual file / human declaration / saved pending_validation / real v1-after-v2 read race / adoption retires read / reload / mobile readonly","candidateAdmission":"not tested","Artemis":"not tested"}

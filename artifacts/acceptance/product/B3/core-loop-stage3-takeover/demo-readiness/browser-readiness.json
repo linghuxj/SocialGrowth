@@ -1,0 +1,33 @@
+{
+  "checkedAt": "2026-10-02T05:29:04.398Z",
+  "baseUrl": "http://127.0.0.1:3000",
+  "tool": "Playwright / Google Chrome",
+  "readOnly": true,
+  "publicationAttempted": false,
+  "results": [
+    {
+      "route": "home",
+      "status": "page_and_runtime_ready"
+    },
+    {
+      "route": "accounts",
+      "status": "page_and_runtime_ready"
+    },
+    {
+      "route": "content",
+      "status": "page_and_runtime_ready"
+    },
+    {
+      "route": "receipts",
+      "status": "page_and_runtime_ready"
+    },
+    {
+      "route": "clients",
+      "status": "page_and_runtime_ready"
+    },
+    {
+      "route": "clients-mobile",
+      "status": "responsive_layout_ready"
+    }
+  ]
+}

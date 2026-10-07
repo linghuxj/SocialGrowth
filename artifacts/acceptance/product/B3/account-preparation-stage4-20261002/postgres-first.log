@@ -1,0 +1,29 @@
+✔ journal initialization starts blocked, never resets an existing owner and replays current state (201.710635ms)
+✔ concurrent distinct call IDs share one committed in-flight slot (44.165617ms)
+✔ lost call response never returns repeat permission; same key with another payload is rejected (44.998164ms)
+✔ pause accepts a running call, rejects next read, and late completion only updates history (44.301363ms)
+✔ unknown and restart preserve occupancy; actual stopped proof requires an ended call (52.24243ms)
+✔ new pause invalidates a previous stop proof even when all old calls ended (14.336445ms)
+✔ duplicate stops consume one version, while changed stop IDs cannot reuse a command key (29.453262ms)
+✔ audit write failure rolls back the call, command and version without leaking driver data (36.942574ms)
+✔ strict boundary rejects extra facts, secret-like strings, cross-device requests and fractional versions (25.586768ms)
+✔ stored false-stopped or malformed JSON is rejected without releasing or rewriting the row (24.051679ms)
+✔ database wall clock after a lock wait rejects an expired lease (243.483454ms)
+✔ another device progresses while one journal waits; no global executor lock (62.196354ms)
+✔ two real OS processes compete for one call slot without duplicating commands or audit (440.519155ms)
+✔ cross-device misrouted receipts preserve each original device scope (72.872205ms)
+✔ persistent generation stays lossless above JavaScript safe integer and advances on pause (38.056165ms)
+✔ control version or generation overflow rejects without partial writes or a reset (29.63219ms)
+✔ two holders race for one device; acquisition, immutable grant and audit commit once (41.51439ms)
+✔ lost acquisition response replays current pause and never renews or resurrects holder (46.656408ms)
+✔ persisted holder scope rejects kind expansion, operation substitution and lease renewal (27.349282ms)
+✔ a used holder cannot be granted again after confirmed stop or on another device (71.600689ms)
+✔ holder acquisition audit failure rolls back grant and device ownership (46.341936ms)
+ℹ tests 21
+ℹ suites 0
+ℹ pass 21
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2071.288727

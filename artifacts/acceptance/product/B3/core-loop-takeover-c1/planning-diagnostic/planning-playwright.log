@@ -1,0 +1,22 @@
+
+> socialgrowth-monorepo@1.0.0 test:playwright /Users/linghuxj/Documents/myproject/project/SocialGrowth
+> node scripts/run-playwright-target.mjs
+
+[playwright] target=product
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+locator.waitFor: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('region', { name: '项目目标与周期草案' }).getByText(/项目版本 \d+，草案版本 0/) to be visible[22m
+
+    at <anonymous> (/Users/linghuxj/Documents/myproject/project/SocialGrowth/scripts/verify-product-planning-playwright.mts:19:111) {
+  log: [
+    "  - waiting for getByRole('region', { name: '项目目标与周期草案' }).getByText(/项目版本 \\d+，草案版本 0/) to be visible"
+  ],
+  name: 'TimeoutError'
+}
+
+Node.js v24.16.0
+ ELIFECYCLE  Command failed with exit code 1.

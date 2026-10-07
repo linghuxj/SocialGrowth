@@ -1,0 +1,186 @@
+{
+  "inputCommit": "45095cd038e8765659e22503d238e2b1cb2d75d9",
+  "branch": "codex/core-automation-loop-stage1",
+  "scope": "internal holder acquisition and local per-action fence; physical composition not connected",
+  "sourceFiles": [
+    {
+      "path": "product/backend/src/action-permission-core.ts",
+      "sha256": "648a61c46e249ae4459fca910d386f9a22363aaae19729ec6f2afce7b17e8dbe"
+    },
+    {
+      "path": "product/backend/src/action-permission-core.test.ts",
+      "sha256": "6016e3a17d916c4331cd8506497631c5b9154e3e5e3dbc0e2736baa816af1f34"
+    },
+    {
+      "path": "product/backend/src/phone-control-journal.ts",
+      "sha256": "97fe8f249f88ea5681380829e70cd9c7d53217488a2ab8a84e73491618c8d244"
+    },
+    {
+      "path": "product/backend/src/phone-control-journal.postgres-test.ts",
+      "sha256": "ac612c36379b9d31efb42758d1226c3bb1b60116c1a7c64ef06613678ef751ce"
+    },
+    {
+      "path": "product/backend/migrations/0029_phone_holder_grants.sql",
+      "sha256": "f6216042a3b5379e9d8676b6bf3f4f40f6e2116f0f2ef3b001fe0a6199184b5a"
+    },
+    {
+      "path": "product/executor/src/phone-action-fence.ts",
+      "sha256": "bfd66a84e94e72c5b20834d10dde54ee4e152e4635a2bc5c15715bdb89ebe922"
+    },
+    {
+      "path": "product/executor/src/phone-action-fence.test.ts",
+      "sha256": "84243585e0d38aaced7ec83dfb955b247f178f744b0f7c79fa1c05ca386e33c8"
+    },
+    {
+      "path": "docs/specs/2026-10-02-account-preparation-execution-library.md",
+      "sha256": "3b44a52cae0586246e796dcec75619b7b3cfa55ebed383f77e22f30090b326a8"
+    },
+    {
+      "path": "docs/engineering/delivery/records/account-preparation-stage4-20261002.md",
+      "sha256": "d67ac95b4349f4ade8751d3bf0297f91f7eb8b51112927d50e2cc059bc95a1f6"
+    }
+  ],
+  "checks": {
+    "productTests": {
+      "passed": 571,
+      "failed": 0,
+      "contractsTS": 66,
+      "contractsPython": 38,
+      "backend": 340,
+      "executor": 41,
+      "web": 86
+    },
+    "postgres": {
+      "passed": 21,
+      "failed": 0,
+      "syntheticInternalAuthority": true
+    },
+    "playwright": {
+      "passedCategories": 8,
+      "pageErrors": 0,
+      "scope": "actual Web request/review/recovery; no phone dispatch"
+    },
+    "check": true,
+    "build": true,
+    "lint": true,
+    "preexistingBackendLintWarnings": 2
+  },
+  "newArtemisCalls": 0,
+  "createdPlatformAssets": 0,
+  "publications": 0,
+  "identityVerified": false,
+  "completePhysicalPhase": false,
+  "blockingImplementations": [
+    "live installation participation and authoritative loader",
+    "all Artemis driver/read/human-capture/raw-ADB paths",
+    "physical stop and original unresolved reconciliation",
+    "formal dispatcher/worker and trusted evidence consumer"
+  ],
+  "authorCheckOnly": true,
+  "artifacts": [
+    {
+      "path": "backend-stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "backend.log",
+      "sha256": "40f030efdb8ee8703bc661b2c6d4f88f82779cf979abb6702fe271e354f44aa2"
+    },
+    {
+      "path": "environment.log",
+      "sha256": "fa7ea2631eeebb77628bb0609323a0b4f71a0bb88e1c33cff824f8bda368a5a1"
+    },
+    {
+      "path": "executor-build-final.log",
+      "sha256": "388e075fd76c442ae61748b6abf939829b4c73b8c5b648a44cce582f210c9891"
+    },
+    {
+      "path": "executor-final.log",
+      "sha256": "0dcb220a5ec51351eb8fcfc03c575e772ae9015620784cc73672d01fd4e54352"
+    },
+    {
+      "path": "executor-lint-final.log",
+      "sha256": "ba0378747f69b317a5329e0bba6d477c259f598a5873fa077b7567657db71399"
+    },
+    {
+      "path": "fence-first.log",
+      "sha256": "3d05b7cd53066c3ba731d4d37cd982b0bac86dbe45b3881d1489dbbee530d8cd"
+    },
+    {
+      "path": "fence-repair.log",
+      "sha256": "ec8a28bedc2f8b918e476374f90137f8c75cdbba1861b9de9eab7c95791f8999"
+    },
+    {
+      "path": "migrations.json",
+      "sha256": "9f76e01e57032cdded49da6a0223d0accdbf9e9861b9917185ff5b76537148bc"
+    },
+    {
+      "path": "original-operation-readonly.json",
+      "sha256": "b9829e01044de9e927180e3686ca48cc0e322543a7d98beeaf2f56ab385b5b02"
+    },
+    {
+      "path": "playwright.log",
+      "sha256": "c7fcffd8135c19e253e94b4f1e89450dbf522167c38114afaeab72d2568e585c"
+    },
+    {
+      "path": "postgres-first.log",
+      "sha256": "3edb20cd7c1b8e8e6fb224e029f36efaceb4420e12f2e4ff3cb94dc395547f4f"
+    },
+    {
+      "path": "product-build.log",
+      "sha256": "b4d3b81d9c543b8c2f62f24df2d92949156ec8d27c5560e4286a1c605adc4671"
+    },
+    {
+      "path": "product-check-final.log",
+      "sha256": "2c88c5d3eb13ea6a2724ef1ded3aacfef8b2140d6e2c08859401efd1e2b60e6f"
+    },
+    {
+      "path": "product-check.log",
+      "sha256": "2c88c5d3eb13ea6a2724ef1ded3aacfef8b2140d6e2c08859401efd1e2b60e6f"
+    },
+    {
+      "path": "product-lint.log",
+      "sha256": "0a46326ec0c10d4cd9c6e881e7cd921ccccea928e7863c6606ff8675583de7f9"
+    },
+    {
+      "path": "product-tests-before-ticket.log",
+      "sha256": "51737c20f5b54ea8697e1cf33c929d894165c2560ffb50edfdfa407b57ba6589"
+    },
+    {
+      "path": "product-tests-final.log",
+      "sha256": "695922a9c5f9a42323e4fe609767566f5d669b216856c327455dcac7951b494a"
+    },
+    {
+      "path": "product-tests-first.log",
+      "sha256": "bf6650e88d589ea81b7904d77a370d1da87c82207655a4b6e265e08cac102a90"
+    },
+    {
+      "path": "resource-closure.json",
+      "sha256": "e137427ccbe9caad4cf88ebc69bb2b24de80749dd2e196d7aec21c313eeeb7f7"
+    },
+    {
+      "path": "sql-readonly.json",
+      "sha256": "2ba9c18e8313556c1a50dcfd01e32db1acf65cf641462a6e4e292a542699ef07"
+    },
+    {
+      "path": "ui/preparation-desktop.png",
+      "sha256": "e8893edeb9b23420f2f92ea0070898d02547d754de2ff399d4bb61dd0f4d4c8b"
+    },
+    {
+      "path": "ui/preparation-mobile.png",
+      "sha256": "9e401eca3a3e60502152d7d504834fe466c0941a556a720174b28f2cd88fff4e"
+    },
+    {
+      "path": "ui/result.json",
+      "sha256": "9b1129991bc76b35a134a57b95be8d88a2a0cbbf0c118f48fa90a9afa34f4f65"
+    },
+    {
+      "path": "web-stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "web.log",
+      "sha256": "2c5f7d84478e8e82570dac0349db5e036dcf721444f6b2667d3e7ce3ee255a54"
+    }
+  ]
+}

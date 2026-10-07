@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="provider_phone" type="id" />
+    <item name="provider_code" type="id" />
+    <item name="provider_request_code" type="id" />
+    <item name="provider_submit" type="id" />
+    <item name="provider_switch_mode" type="id" />
+    <item name="provider_error" type="id" />
+    <item name="provider_logout" type="id" />
+    <item name="installation_mode" type="id" />
+    <item name="installation_qr" type="id" />
+    <item name="installation_refresh" type="id" />
+    <item name="provider_add_device" type="id" />
+    <item name="provider_device_list" type="id" />
+    <item name="provider_device_refresh" type="id" />
+    <item name="provider_enter_association_code" type="id" />
+    <item name="provider_assistance_list" type="id" />
+    <item name="provider_profile" type="id" />
+    <item name="provider_device_detail" type="id" />
+    <item name="provider_account_help" type="id" />
+    <item name="provider_association_help" type="id" />
+    <item name="association_confirm" type="id" />
+    <item name="association_rescan" type="id" />
+</resources>

@@ -1,0 +1,76 @@
+
+> @socialgrowth/product-backend@0.0.0 start /Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend
+> node dist/main.js
+
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [NestFactory] Starting Nest application...
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [InstanceLoader] AppModule dependencies initialized +29ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RoutesResolver] AppController {/}: +6ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/health/live, GET} route +4ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RoutesResolver] MaterialUploadController {/api/operator/projects/:projectId/material-uploads}: +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/projects/:projectId/material-uploads, GET} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/projects/:projectId/material-uploads, POST} route +1ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/projects/:projectId/material-uploads/:objectId, GET} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/projects/:projectId/material-uploads/:objectId/bytes, PUT} route +1ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RoutesResolver] MaterialRegistryController {/api/operator/projects/:projectId/materials}: +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/projects/:projectId/materials, GET} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/projects/:projectId/materials, POST} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/projects/:projectId/materials/:variantId, GET} route +1ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/projects/:projectId/materials/batch, POST} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/projects/:projectId/materials/:variantId/revisions, GET} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RoutesResolver] DevelopmentProviderSmsController {/internal/development/provider-sms-codes}: +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/internal/development/provider-sms-codes/read, POST} route +1ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RoutesResolver] InstallationController {/api/installation}: +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/installation/bootstrap, POST} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/installation/association-sessions, POST} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/installation/state, POST} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RoutesResolver] OperatorController {/api/operator}: +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/login, POST} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/accounts, GET} route +1ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/invitations, GET} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/device-facts, GET} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/invitations, POST} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/invitations/:invitationId/revoke, POST} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/accounts, POST} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/accounts/:operatorId/disable, POST} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/logout, POST} route +1ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RoutesResolver] ProviderController {/api/provider}: +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/provider/phone-verifications, POST} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/provider/phone-verifications/verify, POST} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/provider/register, POST} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/provider/login, POST} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/provider/logout, POST} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/provider/association-sessions/inspect, POST} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/provider/association-sessions/confirm, POST} route +1ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/provider/association-sessions/result, POST} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/provider/devices/list, POST} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RoutesResolver] ProjectController {/api/operator/projects}: +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/projects, GET} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/projects, POST} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/projects/:projectId/basics, POST} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RoutesResolver] ResourcePreparationController {/api/operator/resources}: +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/resources/preparation, GET} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/resources/identities, POST} route +1ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/resources/reservations, POST} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RoutesResolver] MediaCredentialsController {/api/operator/media-accounts/:accountId/credentials}: +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/media-accounts/:accountId/credentials, GET} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/media-accounts/:accountId/credentials, POST} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RoutesResolver] ProjectPlanningController {/api/operator/projects/:projectId/planning-draft}: +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/projects/:projectId/planning-draft, GET} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/projects/:projectId/planning-draft, POST} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RoutesResolver] DeviceAssistanceFeedController {/api/operator/assistance-todos}: +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/assistance-todos, GET} route +1ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/assistance-todos/:todoId/notes, POST} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RoutesResolver] ProviderAssistanceFeedController {/api/provider/assistance-todos}: +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/provider/assistance-todos, GET} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RoutesResolver] ProviderCommissionFeedController {/api/provider/commissions}: +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/provider/commissions, GET} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RoutesResolver] DeviceAssistanceNotesController {/api/operator/assistance-todos}: +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/api/operator/assistance-todos/:todoId/notes, GET} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RoutesResolver] TrackingRedirectController {/r}: +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/r/:token, HEAD} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [RouterExplorer] Mapped {/r/:token, GET} route +0ms
+[Nest] 88605  - 10/02/2026, 11:48:34 AM     LOG [NestApplication] Nest application successfully started +2ms
+[product-backend] listening on http://127.0.0.1:4320
+/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @socialgrowth/product-backend@0.0.0 start: `node dist/main.js`
+Command failed with signal "SIGTERM"

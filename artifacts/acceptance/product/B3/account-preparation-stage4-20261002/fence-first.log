@@ -1,0 +1,43 @@
+✔ first contact is fenced; confirmation and holder installation start no transport (35.325165ms)
+✔ two ledger connections share one in-flight slot; stop blocks reads without claiming quiescence (11.300285ms)
+✔ pause arriving while central authorization waits prevents transport handoff (7.851103ms)
+✔ unknown transport outcome survives restart and is not cleared by stop, expiry or new holder (9.11666ms)
+✔ lost receipt acknowledgement never repeats the physical action (9.573949ms)
+✔ scope, generation, forbidden kinds, extra fields, lease expiry and authority loss fail before transport (8.308801ms)
+✔ a stale or false stop probe and an old-generation holder cannot reopen the fence (9.069808ms)
+✔ one physical serial cannot be rebound to another logical device in the same ledger (11.975449ms)
+✔ original unknown can be reconciled only by matching recovery evidence; control stays revoked (11.35441ms)
+✖ independent OS workers share the local call fence and observe pause while a call is running (140.372423ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 9
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 696.317913
+
+✖ failing tests:
+
+test at src/phone-action-fence.test.ts:205:1
+✖ independent OS workers share the local call fence and observe pause while a call is running (140.372423ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + undefined
+  - 'started'
+  
+      at TestContext.<anonymous> (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/executor/src/phone-action-fence.test.ts:223:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: 'started',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+undefined
+/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/executor:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: tsx --test src/phone-action-fence.test.ts

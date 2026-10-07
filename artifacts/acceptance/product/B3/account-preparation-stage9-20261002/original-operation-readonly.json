@@ -1,0 +1,11 @@
+{
+  "checkedAt": "2026-10-02T14:37:40.443Z",
+  "task": {
+    "id": "d634e4c6-4266-4cc7-a784-3a31a1737cac",
+    "status": "unknown"
+  },
+  "knownOriginalPid": 97609,
+  "originalPidProbe": "ESRCH",
+  "phoneStopProven": false,
+  "noRecoveryOrReissue": true
+}

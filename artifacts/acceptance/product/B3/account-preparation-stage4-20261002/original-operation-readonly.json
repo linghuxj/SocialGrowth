@@ -1,0 +1,25 @@
+{
+  "capturedAt": "2026-10-02T10:11:59.743Z",
+  "readOnly": true,
+  "runtime": {
+    "id": "d634e4c6-4266-4cc7-a784-3a31a1737cac",
+    "status": "unknown",
+    "attempt": "4920b891-f2aa-4ecc-bb3e-6c1df7dff7fc"
+  },
+  "agent": {
+    "id": "4920b891-f2aa-4ecc-bb3e-6c1df7dff7fc",
+    "trace": "c41af179-58fd-4628-a227-20e777f6db70",
+    "acknowledged": 1
+  },
+  "archive": {
+    "traceId": "c41af179-58fd-4628-a227-20e777f6db70",
+    "status": "completed",
+    "deviceSerial": "RFCW40MYYCV",
+    "model": "Pro",
+    "startTime": 1790135897.363286,
+    "endTime": 1790136354.826398
+  },
+  "reconciled": false,
+  "physicalStopVerified": false,
+  "newPermissionGranted": false
+}

@@ -1,0 +1,15 @@
+✔ private socket 0600 returns actual fenced capture; reusing original request never repeats transport (1047.322139ms)
+✔ wrong token/scope/protocol, injected command/kind/device, malformed identity and oversized frame issue no call (14.999066ms)
+✔ current stop refuses new IPC reads and does not turn unavailability into pixels (10.604153ms)
+✔ loss of IPC response retains the original action; reconnect never causes another read (1136.49459ms)
+✔ transport timeout returns no pixels, preserves unknown and does not grant stop confirmation (3019.042779ms)
+✔ public parent or occupied socket path is refused without replacing files (11.197484ms)
+✔ stop during in-flight capture preserves original outcome but does not deliver pixels to a stale scope (966.821705ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 6804.974673

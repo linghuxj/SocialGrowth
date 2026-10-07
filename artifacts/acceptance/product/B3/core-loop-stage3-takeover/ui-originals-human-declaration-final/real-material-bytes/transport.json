@@ -1,0 +1,38 @@
+[
+  {
+    "method": "POST",
+    "status": 201,
+    "stage": "ticket",
+    "code": null
+  },
+  {
+    "method": "PUT",
+    "status": 200,
+    "stage": "bytes",
+    "code": null
+  },
+  {
+    "method": "GET",
+    "status": 200,
+    "stage": "ticket",
+    "code": null
+  },
+  {
+    "method": "POST",
+    "status": 201,
+    "stage": "ticket",
+    "code": null
+  },
+  {
+    "method": "PUT",
+    "status": 200,
+    "stage": "bytes",
+    "code": null
+  },
+  {
+    "method": "GET",
+    "status": 200,
+    "stage": "ticket",
+    "code": null
+  }
+]

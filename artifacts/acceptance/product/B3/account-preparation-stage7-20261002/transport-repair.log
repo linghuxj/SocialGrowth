@@ -1,0 +1,32 @@
+✔ read transport passes only fixed endpoint/serial/screencap argv, excludes ambient secrets, and returns validated bytes (805.230243ms)
+✔ wrong holder/attempt/generation/device/action/serial, non-read, injected fields, and replay tickets issue no subprocess (4.24591ms)
+✔ future, expired, or over-two-second action permission refuses synchronous handoff (2.876443ms)
+✔ binary replacement or writable executable fails closed before a subprocess (3.104259ms)
+✔ truncated, wrong CRC, trailing bytes, empty output and headless PNG are never successful captures (3239.583994ms)
+✔ nonzero exit cannot use valid-looking pixels or expose stderr, and over-limit output refuses (1283.636281ms)
+✔ timeout waits for child closure and valid-looking early output cannot be acknowledged as ended (3006.721601ms)
+✖ real subprocess transport remains behind the durable fence; timeout occupies unknown across restart (14.403304ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 7
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 8783.729077
+
+✖ failing tests:
+
+test at src/adb-read-screen-transport.test.ts:123:1
+✖ real subprocess transport remains behind the durable fence; timeout occupies unknown across restart (14.403304ms)
+  Error: Phone fence rejected: DENIED
+      at deny (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/executor/src/phone-action-fence.ts:56:72)
+      at PhoneActionFence.confirmStopped (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/executor/src/phone-action-fence.ts:138:25)
+      at async TestContext.<anonymous> (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/executor/src/adb-read-screen-transport.test.ts:137:5)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    code: 'DENIED'
+  }
+undefined
+/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/executor:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: tsx --test src/adb-read-screen-transport.test.ts

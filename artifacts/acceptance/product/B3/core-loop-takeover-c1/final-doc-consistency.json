@@ -1,0 +1,13 @@
+{
+  "scope": "documentation_structure_only",
+  "documents": 9,
+  "requirements": 157,
+  "work_packages": 30,
+  "acceptance_groups": 61,
+  "contracts": 10,
+  "risks": 13,
+  "local_links_checked": 289,
+  "errors": [],
+  "passed": true,
+  "limitations": "不证明语义完整、开发完成或业务验收；不检查外部链接、服务及真机。"
+}

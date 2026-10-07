@@ -1,0 +1,14 @@
+{
+  "startedAt": "2026-10-03T15:07:24.609Z",
+  "maxLifetimeMinutes": 15,
+  "incomingPreferenceChanged": false,
+  "endpoint": "https://macbook-pro.tail3656e0.ts.net:9443/health",
+  "loopbackTargetPort": 4443,
+  "transport": "pinned_serve_proxy_v1_then_tls",
+  "certificateExpiresAt": "2026-10-05T04:30:56.000Z",
+  "tlsScope": "existing_debug_ca_not_production_tls",
+  "policyMutationPerformed": false,
+  "enrollmentApiReady": false,
+  "networkAdmissionGranted": false,
+  "actionPermissionGranted": false
+}

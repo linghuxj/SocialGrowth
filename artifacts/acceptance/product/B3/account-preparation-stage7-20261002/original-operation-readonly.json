@@ -1,0 +1,9 @@
+{
+  "checkedAt": "2026-10-02T13:17:39.896652+00:00",
+  "source": ".runtime/runtime.sqlite; readOnly DatabaseSync; exact task id/status query",
+  "taskId": "d634e4c6-4266-4cc7-a784-3a31a1737cac",
+  "centralStatus": "unknown",
+  "newDeviceOperation": false,
+  "stopConfirmed": false,
+  "newArtemisCall": false
+}

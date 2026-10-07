@@ -1,0 +1,12 @@
+{
+  "command": "/Users/linghuxj/Library/Android/sdk/platform-tools/adb devices -l",
+  "authorizedSerial": "RFCW40MYYCV",
+  "enumeratedState": "device",
+  "model": "SM_S9110",
+  "usbTransport": "20-3",
+  "deviceReadOrActionIssued": false,
+  "networkAdmissionVerified": false,
+  "localParticipationVerified": false,
+  "allPathsFenced": false,
+  "stopConfirmed": false
+}

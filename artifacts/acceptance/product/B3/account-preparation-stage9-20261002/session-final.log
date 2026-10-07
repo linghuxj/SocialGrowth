@@ -1,0 +1,20 @@
+{"nativeContextAndOperatorLoaded":true,"freshReadCount":1,"childExited":true,"phoneStopped":false,"allPathsFenced":false,"modelCalls":0}
+✔ actual SDK context boots inside macOS sandbox, original observer crosses fence once, close records child exit only (5036.868213ms)
+✔ reconstructed host reads original launch intent without spawning or claiming phone stop (17.79536ms)
+✔ stale scope and changed pinned source refuse before original launch intent or subprocess (29.098612ms)
+✔ current local withdrawal prevents observer and child exit does not restore holder (3164.140272ms)
+✔ transport unknown closes original child, retains unresolved read and never repeats it (6424.994175ms)
+{"kernelDenied":["native_ip_connect","other_unix_endpoint","native_file_write","native_fork"],"nativeScreen":[2,2],"onlyOriginalUnixEndpointAllowed":true,"allPathsFenced":false,"modelCalls":0}
+✔ host kernel denies native IP, another Unix socket, parent writes and fork before SDK Python guards; original IPC still captures (4246.386327ms)
+✔ OS profile permits only original Unix endpoint/private scratch and rejects policy text injection (61.882224ms)
+✔ private original launch receipt is recoverable without SDK/config/physical execution; even ended scope cannot relaunch (55.075137ms)
+✔ missing pinned bundle refuses before recording launch or changing current fence (18.168867ms)
+✔ public ledger and foreign access capability cannot be adopted (9.263754ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 19474.682367

@@ -1,0 +1,38 @@
+{
+  "checkedAt": "2026-10-02T17:11:48.150966+00:00",
+  "inputCommit": "a531d0006aabe72298ca209affc92df8b5cb8c1e",
+  "sources": {
+    "product/android/app/src/main/java/com/socialgrowth/product/InstallationIdentityStore.kt": "2364a463d0bbbc24da9251a918098e0399a4c962aa085ed4b5d72d17d33553ec",
+    "product/android/app/src/main/java/com/socialgrowth/product/MainActivity.kt": "b1a9e95c2289f4888b5249979837832040ffc7afbd4a6cb337e02b0472f67569",
+    "product/android/app/src/test/java/com/socialgrowth/product/InstallationSessionReplacementTest.kt": "88e6f6b3ba62cd3cbdca8c05307ca5f1cd64c9f032555f9d0243804dae21002f",
+    "scripts/product-local-live.mts": "2f20d999112f06f60a506211cf3edfe0ebd0a82db932319fc6c514fd86cf5bed",
+    "scripts/product-local-human-assistance.mts": "5a1becad193a810fc7005046978966d8d90127b00993d5994b85189245c7f3c9",
+    "scripts/verify-product-device-live-playwright.mts": "994edca6898485e92928ae95e09495aa8ef86a7b21b4c220e564f6e4e902b998",
+    "scripts/run-playwright-target.mjs": "b105861b869c5fd2472b3162952b92054a6ba0a186fa56441e97a31d68b7535e",
+    "services/execution-runtime/src/runtime.ts": "59b6db13fa602cf0d7d1586fb9a79f9066b21f119e517ad16ca4ce6700099aca",
+    "services/execution-runtime/src/runtime.test.ts": "b01f50e6bd8e37ca5c1fbb0d4e33743b292304694306788ea7060a1220273a18",
+    "docs/engineering/delivery/records/account-preparation-blocker-resolution-live-20261003.md": "8dc36062f76f535f811c9f4eb589f35e925962010ef55eaac7dc884c944bb048"
+  },
+  "authorChecks": {
+    "runtimeBuildPassed": true,
+    "runtimeTestsPassed": 89,
+    "androidJvmTestsPassed": 36,
+    "androidBuildPassed": true,
+    "localHelperStrictTypeCheckPassed": true,
+    "realWebRegistrationPassed": true,
+    "realWebSamsungAssociationPassed": true,
+    "developmentSmsOnly": true
+  },
+  "acceptance": {
+    "tailnetReachabilityPassed": true,
+    "phoneParticipationPassed": false,
+    "networkAdmissionPassed": false,
+    "allPathsFenced": false,
+    "originalUnknownResolved": false,
+    "formalExecutorEnabled": false,
+    "doublePhysicalPhoneScanPassed": false,
+    "publicPublicationAttempted": false
+  },
+  "resourcesRetainedForHumanAssistance": true,
+  "privateConfigurationOrMediaIncluded": false
+}

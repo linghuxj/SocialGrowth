@@ -1,0 +1,10 @@
+{
+  "checkedAt": "2026-10-02T16:01:32.277Z",
+  "invitationId": "397eac1e-0efb-4e18-bac4-221b5df7ad55",
+  "actualWebInvitationCreated": true,
+  "providerRegistered": false,
+  "realDeviceAssociated": false,
+  "phoneFactsSeeded": false,
+  "waitingFor": "management App registration and actual Samsung association",
+  "businessAcceptancePassed": false
+}

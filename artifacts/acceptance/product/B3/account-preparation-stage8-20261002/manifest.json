@@ -1,0 +1,257 @@
+{
+  "schemaVersion": 1,
+  "stage": "account-preparation-stage8",
+  "createdAt": "2026-10-02T14:11:53.936385+00:00",
+  "inputCommit": "ca22974b77601497bd3ec61a2b07bffbb2bf7a1a",
+  "branch": "codex/core-automation-loop-stage1",
+  "status": "private_read_bridge_and_known_sdk_rejections_complete_full_physical_integration_blocked",
+  "sourceFiles": [
+    {
+      "path": "product/executor/src/artemis-read-screen-bridge.ts",
+      "bytes": 8019,
+      "sha256": "6389b1bcaf36082ba6ea5c0bf0f5217a9bc0de10d4419b425ae78934d5859410"
+    },
+    {
+      "path": "product/executor/src/artemis-read-screen-bridge.test.ts",
+      "bytes": 6111,
+      "sha256": "f0dbe55eb7874154f68ebb718c2c5cdeb137aa534794c172c1f6eceab1e9a6e6"
+    },
+    {
+      "path": "product/executor/src/artemis-read-screen-bridge.sdk-test.ts",
+      "bytes": 2111,
+      "sha256": "92fa05e1b9c541dc4726336ff5b0e29ac34be7d23b9d28dcfa9115a85c9411b9"
+    },
+    {
+      "path": "product/executor/src/read-screen-bridge-fixture.ts",
+      "bytes": 3339,
+      "sha256": "c67a98ded38da9ff25266896f16c2df027bd7fd1e64154acc7b1b53b7a981bc6"
+    },
+    {
+      "path": "product/executor/README.md",
+      "bytes": 6327,
+      "sha256": "6be33d95661aff74667be39a70f574ea38b99546a09edcc2ba0926d4700323c2"
+    },
+    {
+      "path": "integrations/artemis/socialgrowth_read_screen.py",
+      "bytes": 4752,
+      "sha256": "bd097ca7156894b751df895088ba67bce7fdc0ef8711851c7475695319b7a8d3"
+    },
+    {
+      "path": "integrations/artemis/socialgrowth_read_only_driver.py",
+      "bytes": 5262,
+      "sha256": "36a35aa9b7fc370968682a060261204fae14c1715a92f7c6fecf570cdd3577ad"
+    },
+    {
+      "path": "integrations/artemis/sdk_read_screen_component.py",
+      "bytes": 5194,
+      "sha256": "68bd75045db847c080c3fcf19902ac5d99b837a59377887f8c95bc8da4d6becf"
+    },
+    {
+      "path": "integrations/artemis/test_read_screen.py",
+      "bytes": 4937,
+      "sha256": "6c68d42154ea248bd7f5322550c7fd93692014d563940ed467d20a7c03557036"
+    },
+    {
+      "path": "integrations/artemis/socialgrowth_supervision.py",
+      "bytes": 14094,
+      "sha256": "467cc6e939763e0846dce299eeb32699efd7051020fd914e4c033f36ab26d345"
+    },
+    {
+      "path": "integrations/artemis/socialgrowth_human_input.py",
+      "bytes": 12270,
+      "sha256": "1301de0990d3f5f2ccb5281fbdf3a000b7b0aea1becf5de21040d5d11651752a"
+    },
+    {
+      "path": "integrations/artemis/socialgrowth_observer.py",
+      "bytes": 4245,
+      "sha256": "b300dd767b2f765b5837cd1830ee0fb7c30768b7fd642fca93dae0217ae1584d"
+    },
+    {
+      "path": "docs/engineering/delivery/records/account-preparation-stage8-20261002.md",
+      "bytes": 10607,
+      "sha256": "8667a357ded636db28678cda80c4460234dc8f82c8c8ee4901e9c4147cb7bfd5"
+    }
+  ],
+  "evidenceFiles": [
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/backend.log",
+      "bytes": 10884,
+      "sha256": "6f2b1ff18aaf80e7463f5ef67353260fe35d9ddf1bccdcc710b31c06bf865eb4"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/bridge-closure.log",
+      "bytes": 892,
+      "sha256": "c200cc3bd85203987bedcf477cd42075e7b530ac07a95687339c851530184bc5"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/bridge-final.log",
+      "bytes": 889,
+      "sha256": "1b60f14dab673a21539ed817443a4ba1cb94848a8312268d58827a31aef542db"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/bridge-first.json",
+      "bytes": 296,
+      "sha256": "ccc55669551ba6fa089e5d283b3084feff36ce203423648ce029ceab22c87eb9"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/build-closure.log",
+      "bytes": 144,
+      "sha256": "388e075fd76c442ae61748b6abf939829b4c73b8c5b648a44cce582f210c9891"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/build.log",
+      "bytes": 144,
+      "sha256": "388e075fd76c442ae61748b6abf939829b4c73b8c5b648a44cce582f210c9891"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/check.log",
+      "bytes": 153,
+      "sha256": "2769e18578ac13ecbb4084831cb7f3832de7c12ad7b00774b9633de4feadf8d3"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/environment.log",
+      "bytes": 224,
+      "sha256": "fa7ea2631eeebb77628bb0609323a0b4f71a0bb88e1c33cff824f8bda368a5a1"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/lint-closure.log",
+      "bytes": 133,
+      "sha256": "ba0378747f69b317a5329e0bba6d477c259f598a5873fa077b7567657db71399"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/lint.log",
+      "bytes": 348,
+      "sha256": "c101393bf45e358508f0da7c03e3130ad70a6765a34ccdfb2279a02df74ef788"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/operator-initialize.log",
+      "bytes": 557,
+      "sha256": "505c399b9e830d8a5df02594cd54e8c0e4a5a5482087c529d27ea96b9e429025"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/original-operation-readonly.json",
+      "bytes": 242,
+      "sha256": "3cf19513c220a80973d8d7cc976fd6d976fea6d10e1a245dd7844ce36294d2ef"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/overlay-regression.log",
+      "bytes": 109,
+      "sha256": "c4739a0fee2940b3298a9d7b18e684891c235b11e0f4e87921d82b7315f3333b"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/playwright.log",
+      "bytes": 829,
+      "sha256": "c7fcffd8135c19e253e94b4f1e89450dbf522167c38114afaeab72d2568e585c"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/python-codec-closure.log",
+      "bytes": 103,
+      "sha256": "3682dbb9d421d2df4b25442c9efc8aafa2cd9f26b0ca74b36caad17186817599"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/python-codec.log",
+      "bytes": 103,
+      "sha256": "3682dbb9d421d2df4b25442c9efc8aafa2cd9f26b0ca74b36caad17186817599"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/resource-closure.json",
+      "bytes": 919,
+      "sha256": "21d3bb7674c18f0432a21189a480df7ed2fd7ad2a29852e8aacd04328cf73b9f"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/sdk-compatibility.json",
+      "bytes": 922,
+      "sha256": "009485ec5072195bcb6f7d603b525f3a0efe0656c44f2e703fc42129b5c84f66"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/sdk-component.log",
+      "bytes": 906,
+      "sha256": "d61ed125d870661b456837e7ab8f902e35b9585bdd3b1b85cf2d963abdbc908b"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/sql-readonly.json",
+      "bytes": 98,
+      "sha256": "b9cbf689b4c5191ff4b0f7b0768f24d2b90cf2e47202694105ca977aff3636cf"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/test.log",
+      "bytes": 60991,
+      "sha256": "da604cda07cf084302885ea9760a5586881a0204d8d3d960fd3352040e936d2a"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/ui/preparation-desktop.png",
+      "bytes": 231760,
+      "sha256": "14206579b3449b47e62bd66d8a6676be0bfc9b30f3ccf1299bc5a6a531c0e9f6"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/ui/preparation-mobile.png",
+      "bytes": 84576,
+      "sha256": "228802d665dcf2370daabdb231bc4136642db234c1ac088f988075a4dfdd2cc7"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/ui/result.json",
+      "bytes": 987,
+      "sha256": "35eee2feaae00ebde9a6db83ef6329f952a89068c7c781bcc158762eb418de15"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/web-closure.json",
+      "bytes": 74,
+      "sha256": "50abcb088ed628d7f2ed6959f26c8fad9285bffcd0be44223d01941b2b8b3229"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/web-environment.json",
+      "bytes": 1398,
+      "sha256": "d8a4ee191fd3619bf39244a35c7d09dd79136c8122814c52347e6434bd434b5e"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/web-runner.log",
+      "bytes": 102,
+      "sha256": "915e4766f9876fe6dacf240689c74f11514b1610327b2b412d8f5227f357391d"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/web-runner.mjs",
+      "bytes": 4812,
+      "sha256": "694d914a1f8af33fd2dee083a20c17d4a183bd7be06872c8ea51b911e439f8e4"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage8-20261002/web.log",
+      "bytes": 73,
+      "sha256": "85e8b30056b4574a456966e4373874759ccc34e7873e7fb8c24e945e3e309ca9"
+    }
+  ],
+  "verification": {
+    "productTestsPassed": 589,
+    "contractsTs": 69,
+    "contractsPython": 38,
+    "backend": 340,
+    "executor": 56,
+    "webUnit": 86,
+    "newBridgeTests": 7,
+    "actualSdkComponentTests": 1,
+    "sdkComponentDenialChecks": 29,
+    "pythonCodecTests": 5,
+    "legacyOverlayTests": 10,
+    "webScenariosPassed": 8,
+    "webPageErrors": 0,
+    "executorCheckBuildLintPassed": true,
+    "postgresComponentTestsRerun": false,
+    "scope": "Actual SDK types plus private IPC/ledger/transport with synthetic authority/executable/pixels; actual Web blocking regression; no physical acceptance"
+  },
+  "boundaries": {
+    "sourceOverlaysCopiedToSdk": false,
+    "sdkFilesEdited": false,
+    "osIsolationVerified": false,
+    "physicalInspectorImplemented": false,
+    "allTransportPathsFenced": false,
+    "originalOperationStopConfirmed": false,
+    "originalCentralTaskStatus": "unknown",
+    "executorEnabled": false,
+    "newArtemisMcpOrModelCalls": 0,
+    "deviceOperations": 0,
+    "createdPlatformAssets": 0,
+    "publications": 0,
+    "independentQa": false,
+    "mergedDeveloper": false,
+    "updatedParentPending": false
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "checkedAt": "2026-10-02T16:15:53.957853+00:00",
+  "hostRunning": true,
+  "hostOnline": true,
+  "samsungPeerOnline": true,
+  "tailnetPingPassed": true,
+  "latencyMilliseconds": 243,
+  "remoteAdbTlsPort": "",
+  "deviceAssociationVerified": false,
+  "networkAdmissionVerified": false,
+  "allPathsFenced": false
+}

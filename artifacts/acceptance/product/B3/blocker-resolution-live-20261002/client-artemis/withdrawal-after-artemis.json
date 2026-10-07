@@ -1,0 +1,30 @@
+{
+  "checkedAt": "2026-10-02T17:33:44.075Z",
+  "device": {
+    "device_id": "0fef3177-636c-4b82-8209-1af38134e00f",
+    "state": "associated_pending_access",
+    "generation": "1"
+  },
+  "participation": {
+    "sequence": "217",
+    "command_kind": "withdraw",
+    "run_id": "4a3fbd16-6379-4fa9-926d-30f7f6522c43",
+    "participation_state": "withdrawn",
+    "checked_at": "2026-10-02T17:30:14.037Z",
+    "valid_until": "2026-10-02T17:30:14.037Z",
+    "action_permission_granted": "false",
+    "stop_confirmed": "false",
+    "revoked_at": "2026-10-02T17:30:14.037Z",
+    "control_disposition": null,
+    "control_generation": null,
+    "has_scope": true,
+    "current_association_matches": true
+  },
+  "evidenceScope": "read_only_supplement_only",
+  "physicalControlAccepted": false,
+  "nativeSupplement": {
+    "foregroundPackage": "com.socialgrowth.product",
+    "participationServicePresent": false,
+    "foregroundServiceActive": false
+  }
+}

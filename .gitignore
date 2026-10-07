@@ -15,6 +15,35 @@ out/
 
 # 缓存与调试
 .cache/
+__pycache__/
 npm-debug.log*
+pnpm-debug.log*
+package-lock.json
+yarn.lock
 yarn-debug.log*
 yarn-error.log*
+
+# Local runtime state and credentials
+.runtime/
+.env.runtime
+.env.agent
+product/deploy/.env.product
+product/android/.gradle/
+product/android/.kotlin/
+product/android/local.properties
+product/android/app/build/
+
+# Local Artemis extension/test cache and private login acceptance screenshots
+integrations/artemis/__pycache__/
+integrations/google-artemis/
+artifacts/acceptance/
+artifacts/design-qa/
+
+# Local agent-team coordination state
+/tasks.json
+/.tasks-*
+.codex/
+artifacts/review/
+
+# Protected server deployment configuration
+product/deploy/.env.production

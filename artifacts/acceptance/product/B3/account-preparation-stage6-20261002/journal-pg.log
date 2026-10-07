@@ -1,0 +1,29 @@
+✔ journal initialization starts blocked, never resets an existing owner and replays current state (231.307788ms)
+✔ concurrent distinct call IDs share one committed in-flight slot (97.902374ms)
+✔ lost call response never returns repeat permission; same key with another payload is rejected (103.225389ms)
+✔ pause accepts a running call, rejects next read, and late completion only updates history (85.166593ms)
+✔ unknown and restart preserve occupancy; actual stopped proof requires an ended call (117.109745ms)
+✔ new pause invalidates a previous stop proof even when all old calls ended (43.454399ms)
+✔ duplicate stops consume one version, while changed stop IDs cannot reuse a command key (80.524844ms)
+✔ audit write failure rolls back the call, command and version without leaking driver data (100.256796ms)
+✔ strict boundary rejects extra facts, secret-like strings, cross-device requests and fractional versions (68.991106ms)
+✔ stored false-stopped or malformed JSON is rejected without releasing or rewriting the row (58.978345ms)
+✔ database wall clock after a lock wait rejects an expired lease (276.919671ms)
+✔ another device progresses while one journal waits; no global executor lock (122.670454ms)
+✔ two real OS processes compete for one call slot without duplicating commands or audit (667.299931ms)
+✔ cross-device misrouted receipts preserve each original device scope (175.456934ms)
+✔ persistent generation stays lossless above JavaScript safe integer and advances on pause (91.283031ms)
+✔ control version or generation overflow rejects without partial writes or a reset (133.903192ms)
+✔ two holders race for one device; acquisition, immutable grant and audit commit once (157.014762ms)
+✔ lost acquisition response replays current pause and never renews or resurrects holder (190.570921ms)
+✔ persisted holder scope rejects kind expansion, operation substitution and lease renewal (72.699602ms)
+✔ a used holder cannot be granted again after confirmed stop or on another device (128.941875ms)
+✔ holder acquisition audit failure rolls back grant and device ownership (89.181471ms)
+ℹ tests 21
+ℹ suites 0
+ℹ pass 21
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3637.909718

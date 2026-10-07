@@ -1,0 +1,48 @@
+# 2026-10-02 第二批核定收拢分支恢复清单（共 44 条）
+# 每项 tip 均已被主线及当前 HEAD 完整包含；仅本地 ref 安全收拢，不删除任何 commit 历史、测试与门禁记录。
+# 恢复单条命令：git branch -- <branch_name> <full_commit_sha>
+# branch_name	full_commit_sha	note
+codex/wp-11-authority-broker-stage3	09146dd7e6490030b3b2ca4deeb38f5c3f76de5c	WP-11 权限代理阶段3，与 wp-13 stage4 同 tip，已被 f3b1afd 及主线吸收
+codex/wp-13-controlled-credentials-api-stage3	3c0ce79c940dca13c23bf2d7d8c955049794764d	WP-13 受控凭据API阶段3，已由下游 stage4 及主线吸收
+codex/wp-13-controlled-key-custodian-stage4	09146dd7e6490030b3b2ca4deeb38f5c3f76de5c	WP-13 显式保管阶段4，已由 f3b1afd 消费跨 realm 异常并入主线
+codex/wp-13-controlled-media-credentials-stage2	6555a5aa5cb34dbd781893fe8a9478cb713972cd	WP-13 受控凭据账本阶段2，已由下游 stage3 及主线吸收
+codex/wp-13-resource-preparation-stage1	a42bc1501d2b12784ae5208031d1646398d25d02	WP-13 筹备阶段1，已由下游 stage2 及主线吸收
+feature/operator-cookie-boundary-hardening	8c2bc97d4d022d21cd614cb9dd754b330664f6e0	操作者 Cookie 边界加固，已由主线吸收
+feature/wp-10-endpoint-journal-stage2	b60ad242c069c00b386be289603c8d77b5b97972	包含已知 WP10-B60-01 缺陷，已由 0d7ae82 修复
+feature/wp-10-joint-reservation-stage5	df700b82d4138ee767e74e68328c2a6ff5fa652f	WP-10 共同恢复预算占位阶段5，已由主线吸收
+feature/wp-10-maintenance-budget-stage3	40a6833610070e9269c2ea06ca709a2143701d2b	WP-10 维护预算阶段3，已通过 12 项单测，已被 a068530 吸收
+feature/wp-10-maintenance-journal-stage4	a068530288a383d5b39346e065353f44e8585734	WP-10 维护日志阶段4（含 0d7ae82 修复汇合），已被 df700b8 及主线吸收
+feature/wp-15-authenticated-byte-transport-stage6	bf5c8cf6f2f6ccfe9329ddeeab7e636331b070e8	WP-15 字节传输阶段6，已由主线吸收
+feature/wp-15-authenticated-material-api-stage5	1486eafb3050e814e05cc7155d8719b4fc8e757e	WP-15 素材 API 阶段5，已由主线吸收
+feature/wp-15-authenticated-object-upload-stage4	be02bd793b5a13ea8a97c9b10404e6c299abaefb	WP-15 对象上传阶段4，已由主线吸收
+feature/wp-15-batch-history-api-stage8	02a030a4fe5751302812c263db5a885fbee4442a	WP-15 批量历史 API 阶段8，已由主线吸收
+feature/wp-15-material-batch-client-stage15	18b7cbbc8b8123b4c65b9a59be982cb7a874af4d	WP-15 批量声明客户端阶段15，已由 6cb22d3 连入前端工作区
+feature/wp-15-material-bytes-client-stage14	947efeff736089f0f5725ac25b5f158416e8feb1	WP-15 字节客户端阶段14，已由下游 stage15 及主线吸收
+feature/wp-15-material-declaration-api-stage7	14cc7aaa65c9d413bea655329e2d868f51b940b5	WP-15 素材声明 API 阶段7，已由主线吸收
+feature/wp-15-material-library-api-stage9	e00685162e3339b24cea98c3f22515b48003202a	WP-15 素材库分页 API 阶段9，已由主线吸收
+feature/wp-15-material-read-client-stage11	7f08c79a44a360158fd5f8cfc3ff85e522823d14	WP-15 只读素材客户端阶段11，已由下游各 stage 吸收
+feature/wp-15-material-read-workbench-stage11	c397e6ca5864d5c8e560431ef1893a65ea24d6a7	WP-15 素材工作台阶段11，与 wp-27 stage6 同 tip，已由主线吸收
+feature/wp-15-material-registry-stage3	747a9ceb1b6e7ea9ba8f54925f9d772e5a2fe39d	WP-15 素材登记阶段3，已由下游 stage4 吸收
+feature/wp-15-material-save-client-stage12	49f2142b76a07748e1dd2ea3440955c44715925b	WP-15 保存客户端阶段12，已由下游各 stage 吸收
+feature/wp-15-upload-inventory-api-stage10	2639d7bf7d0db63a7dbe7eab9155012ac53fb547	WP-15 上传票据清单 API 阶段10，已由主线吸收
+feature/wp-15-upload-ticket-client-stage13	430c56544b8d30a1db87d05e11dc30ee8eb833d5	WP-15 票据客户端阶段13，已由下游各 stage 吸收
+feature/wp-16-pending-recheck-outbox-stage5	cc41881629dc0654a71fb1ec16baaec22b31daba	WP-16 重检发件箱阶段5，已由主线吸收
+feature/wp-16-recheck-queue-stage4	145c3c5c9754182ac1f2f597e654cc12855293dc	WP-16 重检队列阶段4，已由下游 stage5 吸收
+feature/wp-16-task-contract-stage3	b0b8cb27c0ae86b85770d5996bdccb5efec4eab8	WP-16 任务契约阶段3，已由下游 stage4 吸收
+feature/wp-17-model-coordinator-stage2	c347d2813b2f1b042801ad7aa4d389c9fa1cd57f	WP-17 模型协调阶段2，已通过单测，已被主线吸收
+feature/wp-17-suggestion-boundary-stage1	a6e239a2eff6fdd5db14bb06df92e3a7cddf5e4e	WP-17 建议边界阶段1，已通过单测，已被 stage2 吸收
+feature/wp-21-task-impact-stage1	f55792014ab88c431d3188eb2d1445f10b8cc7fa	WP-21 任务影响阶段1，已通过单测，已被主线吸收
+feature/wp-24-runtime-calendar-stage3	ccc4707980841e4640731264a1d0af412ab5d893	WP-24 运行时日历阶段3，已由下游边界修复及主线吸收
+feature/wp-25-commission-core-stage1	18446ea098f251609052d43adc2d5d2235670e1a	WP-25 分佣核心阶段1，已通过单测，已被 stage2 吸收
+feature/wp-25-income-journal-stage2	7cf8878fcf97eac93608518dd21984944618037a	WP-25 收入账本阶段2，已通过单测，已被 stage3 吸收
+feature/wp-25-provider-projection-stage3	ab2bc2b40323f472a8d369439d4a1a887292e5ff	WP-25 本人投影阶段3，已通过单测，已被主线吸收
+feature/wp-27-encrypted-backup-stage1	546d35b3057402755c0174f635c1c5df28f4d4e2	WP-27 加密备份阶段1，已由下游各 stage 吸收
+feature/wp-27-encrypted-file-store-stage4	525a0628cf58106d3edc05278841b6273ba167c3	WP-27 加密文件存储阶段4，已由下游 stage5 吸收
+feature/wp-27-file-store-fault-recovery-stage5	4e1827e318da61eaad29d89db69cac60d637eb7a	WP-27 故障恢复阶段5，已由 stage6 吸收
+feature/wp-27-inventory-bound-backup-stage3	e4988c005f74c2794732c902e8b5bdf24bf7cd85	WP-27 清单绑定备份阶段3，已由下游各 stage 吸收
+feature/wp-27-restore-inventory-stage2	63b9cae4c57473e20d7ac3fd95bd3962b3b58d57	WP-27 恢复清单阶段2，已由下游各 stage 吸收
+feature/wp-27-snapshot-capture-stage6	c397e6ca5864d5c8e560431ef1893a65ea24d6a7	WP-27 快照采集阶段6，已由主线吸收
+fix/wp-10-source-evidence-snapshot	0d7ae826019c42943b36a5caa2a9cd35c7d8d734	已完成 19 项集成验证（含时序防篡改测试），待非作者复核签字
+fix/wp-16-queue-config-redaction	9f5812f905c325bf99626bfdcbbab8537f78abcc	WP-16 队列配置脱敏修复，已被主线吸收
+fix/wp-24-calendar-range-boundary	a761ea49b3f4c1e7eab986732451f3d0518066d4	WP-24 日历范围边界修复，已被主线吸收
+fix/wp-27-inheritance-inventory	c147ef8a8e52def2fbe94d0c30a25927698626e9	WP-27 继承清单关系修复，已被下游 stage4-6 吸收

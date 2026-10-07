@@ -1,0 +1,32 @@
+✖ older v2 acknowledgement cannot downgrade a newer observed v3 (86.559615ms)
+✔ reads of different materials remain independent (16.684141ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 1
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1331.726617
+
+✖ failing tests:
+
+test at src/material-current-read.test.ts:56:1
+✖ older v2 acknowledgement cannot downgrade a newer observed v3 (86.559615ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  2 !== 3
+  
+      at TestContext.<anonymous> (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/web/src/material-current-read.test.ts:62:10)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 2,
+    expected: 3,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+undefined
+/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/web:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: tsx --test src/material-current-read.test.ts

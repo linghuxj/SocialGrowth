@@ -1,0 +1,7 @@
+{
+  "passed": true,
+  "actualModel": true,
+  "scope": "synthetic UI inputs with configured real model; stale direction rejection, immutable confirmation, lost response original replay, reload, mobile readonly",
+  "execution": "blocked",
+  "publication": "not performed"
+}

@@ -1,0 +1,18 @@
+{"nativeScreenData":true,"actualSdkFactoryResolved":true,"observerRouted":true,"unsupportedAndRawPathsDenied":["tap","long_press","swipe","swipe_direction","input_text","press_key","launch_app","stop_app","execute_shell","get_current_package","start_video_recording","stop_video_recording","get_ui_hierarchy","guard:click","guard:input_text","guard:get_ui_hierarchy","guard:manage_app","context_adb","context_ui","raw_factory","adb_connection","ui_constructor","adb_session","subprocess","wrong_observer_serial","second_context","no_exception_fallback","context_replaced","closed_driver"],"allPathsFenced":false,"modelCalled":false,"deviceOperation":false}
+✔ actual SDK driver and observer cross private IPC into durable fence; raw and write paths refuse without fallback (4818.056121ms)
+{"nativeContextAndOperatorLoaded":true,"freshReadCount":1,"childExited":true,"phoneStopped":false,"allPathsFenced":false,"modelCalls":0}
+✔ actual SDK context boots inside macOS sandbox, original observer crosses fence once, close records child exit only (5427.803873ms)
+✔ reconstructed host reads original launch intent without spawning or claiming phone stop (20.168284ms)
+✔ stale scope and changed pinned source refuse before original launch intent or subprocess (33.212726ms)
+✔ current local withdrawal prevents observer and child exit does not restore holder (3095.332673ms)
+✔ transport unknown closes original child, retains unresolved read and never repeats it (6152.474964ms)
+{"kernelDenied":["native_ip_connect","other_unix_endpoint","native_file_write","native_fork"],"nativeScreen":[2,2],"onlyOriginalUnixEndpointAllowed":true,"allPathsFenced":false,"modelCalls":0}
+✔ host kernel denies native IP, another Unix socket, parent writes and fork before SDK Python guards; original IPC still captures (4589.018873ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 19668.43088

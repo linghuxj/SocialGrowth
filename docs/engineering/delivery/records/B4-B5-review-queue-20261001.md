@@ -1,0 +1,92 @@
+# B4/B5 固定阶段复核与真实资源交付队列
+
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
+2026-10-01；基线1921d586b1847b1b55f5f0d583836c1ed87f652c。实际交接/职责/补验队列，不把已提交等同G1/业务AC/G3或全部开发完成。模式见根memory.md，[质量手册](../quality-gates.md)、[分工](../work-packages.md)、[主台账](../delivery-tracker.md)保持权威。
+
+## 最新读取与接续（2026-10-01）
+
+当前固定队列（2026-10-02）：phase4作者09146dd7e6490030b3b2ca4deeb38f5c3f76de5c strict11/10-root505-currentHTTPPG12/静态actual0且2sparse warnings已据实记录，提交后proof0，已实际交原只读非作者3c0→09146；原QA6555→3c0已收到。stage3原非作者completed/cursor189报告9494065cdad6b59b5231740f1ca5a2ad8d1ced79870d697c2c1d26cf22d5223d全文读/汇报，513PASS+2桩status误前提首RED明确保留不计通过/有限new0rem0，ownPG/卷/snapshot精确gone，首Mounts序列辅助FAIL与2lint warning保持。已有stage2 QA523/有限双0和其他报告只读不重新发起。主窗口已从09146进入[WP11实时来源接续](WP-11-stage3.md)codex/wp-11-authority-broker-stage3：已盘点真实SQL/当前journal借trustedFacts、无holder/re-enable/实时loader/物理fence，此工程缺口继续实施不是归人工就停；不以body bool/旧record/defaulttrue授予secret/屏幕/动作。无broker完成签收、无生产/完整ACG3，Developeraf14/父pending1/UI/SEC不解除。
+
+2026-10-02最新实绩：stage2原QA已completed/cursor88，完整报告SHA7fd3a8613855387fae22bcfd8366b06228355245a611eac6e192faacbdebfb43全文读取/用户已获汇报，523=复现512+独立11首次过/有限双0不叠加，报告实际root header test:product而复现段简写test的差异另记stage2卡，不改原报告/重发任务。stage3已凝聚3c0 strict17并交同原非作者/cursor188在途，submitted-helper首-rz使用失败保留/拆参数final0及inverse0/初误述已纠正。主窗stage4作者10/root505/当前源12实际HTTPPG/全product静态0，自有两代PG精确gone；sparse/async RED、初PGwait观察FAIL、二代ready/未绑定guard零业务失败与误Demo日志全部保留，stage4凝聚排队不打断旧固定门禁。当前生产key/TLS/current许可/模型前保护/真实页面phone/初始化未签，下一核对WP11当前授权事实后受控消费者接缝，绝不secret进模型/绕拒绝；人工需求按卡逐角色继续，不合Developer隐藏父pending。
+
+2026-10-02当前优先：6555阶段二原非作者completed/cursor187，完整报告SHA3b8fbd22109a5d2ca46a1f8e26c21237c22e6f6cd9bef2d1682f64beb40a1d00全文已读，限定新增0/余0，486+12+独立8PG+独立6crypto=512首次过；原辅助失败/613旧指纹/18报告/自有资源清理保留。已向用户汇报并实际交同原QA新的a42→6555严格13，不重发旧报告或夹带未来。主窗口阶段三作者根495/真实HTTP-PG8首过，实际AppModule default无钥与另targeted真实controller/auth/PG/store合成keys模块分别取证；实际TCP ACK丢失及Nest app重建不是OS进程重启/真实业务。类型首TS2322纯type修复、立即AutoRemove断言失败与只读终核gone均保存；不重跑8洗绿，凝聚后原非作者固定复核。当前无生产key-provider/真实页面/phone/可靠模型前保护，真人缺口按卡继续，原三模式/父pending/Developeraf14/UI/SEC保持。下文是历史检查点，不覆盖本条。
+
+第三阶段作者检查点：新增4strict schema共101、原97全文结构不改，GET/POST受控接口+AppModule null-key default关闭、3TS/2Py/4controller单元；首root/check stale生成零业务失败源/log保留，generate后首次真正根495/全静态通过，AppModule/registry/index完整逆提取及同首源不改证明，没HTTP/新PG/UI/手机或生产key读取。phase3未凝聚，待新自有实际HTTP-PG验证后阶段提交；原非作者只固定6555/cursor185进行，不夹未来、不凭进度签复核；原QA筹备完整报告已读取/cursor83，后续待stage2完整门禁才交新QA。三原窗口/人工缺口/父/Developeraf14/UI/SEC及ACTIVE heartbeat继续。
+
+主窗口WP13stage2已凝聚6555a5aa5cb34dbd781893fe8a9478cb713972cd，strict13=6产品/7docs，新固定a42→6555实际交原只读非作者；待完整门禁非作者自签。原QA筹备已完整读不重发，后续stage2待非作者报告才交QA，不夹带未来。主窗口建立codex/wp-13-controlled-credentials-api-stage3继续[安全接口](WP-13-stage3.md)开发，共享元数据/受控输入及默认关闭接线不是生产录入/解密/Artemis，实际HTTP/新PG/真实页面未验；原门禁/人工需求与三窗口模式不变，不因交接停止或合Developer隐藏父pending。
+
+随后WP13筹备原QA完整SHA5f6d114c73904e667f55fd6b9e2593757519197f84f829b055266b09be14af5d全文读/已汇报，strict24/同522首过/new0-rem0/QA新oracle0，限定双工程0而非1044覆盖。53来源/原47-48及先前565QA指纹/8编译产物保持，QA首文案literal/17-helper两unused warning及ready-ENOENT诊断保留，不重跑business；ownPG68add52/卷d95690/32886和snapshotSap0o0精确gone。原筹备报告仅读不重发，原非作者空闲接stage2新固定；不是业务G1/AC/G3签收/父pending解除或Developer合并。
+
+最新原WP13筹备非作者完整报告SHAe25589b26ec43b3fdc2a7d22455e9d28ddccfc42b2a855b78ce935973715b3aa全文读/用户已获汇报，有限new0/rem0、481+原14HTTPPG+旧13+独立14=522首次过（76case不叠加），所有首诊断/own辅助失败保持、PG及snapshot精确gone。completed后已实际交原QA新固定18b7→a42严格24，原报告仅读不重发；QA仍需完整报告，主窗口[WP13第二阶段](WP-13-stage2.md)不混其快照。第二阶段server-only加密及0023持久录入/更新/失效metadata原语作者根486/实际PG最终12/全静态通过，首11原样保留、追加post实际COMMIT适配返回故障（非HTTP ACK）一组，首类型诊断保留，自有PG及卷清理。当前没有HTTP/受控key-provider/permissionloader/敏感填写/模型前屏幕保护/Artemis消费者，不签完整凭据业务或初始化。按BE实施→同原非作者固定复核→同原QA工程复验，OPS/EX/AND/BIZ真人与真实钥/当前许可/输入按卡补验；Developeraf14/父pending1/管理员UI/SEC保持。
+
+随后已全文读WP15stage15原QA完整SHAf153a5abd9268ac9e3ab533095362970b3c37bf5dab40ef72eff22403db7dbcb、78首过/QA新oracle0/限定双工程0，原稀疏warning/4元数据child失败/工具parse-patch诊断保留，source49与455旧/14reports/先前QA494保持、snapshot3f6lmv精确gone，用户已获汇报。WP13筹备a42bc15严格24路径凝聚提交/481+实际14PGHTTP+旧13PG及最终静态，已实际交原非作者新固定18b7→a42bc15，QA不提前导入待复核未来；旧报告只读不重发。主窗口继续[受控凭据第二阶段](WP-13-stage2.md)，默认关闭server-only加密边界新4首过/开发中，无真实secret或服务/手机，尚未持久录入更新失效/当前许可/敏感填入/可靠模型前保护。分工、人工需求记录继续、原三模式/父/Developer/管理员/SEC及全业务门禁保持。
+
+本轮实绩优先于历史：票据QA完整fd088c1f8b3392d413a8000e42824478547c6036f8c008b2b2cb9e743c5b86ff/46首过/0；字节非作者完整8dc7ac70c076468a7a90fb425d6283b7600b3f41f116fd28e9e72b76b12bc899及QA完整663f275255dbc1f5ad64ec7464a969fed7b8032e18038ef2f0d22c0c23c22759/各55首过/0；批量非作者完整b7960a5cd078c47d67663c943dc69159a1b19c769c5d2746b38c6c881dd3f1f9/78首过/0均全文读/已汇报。票据QA先checks辅助偏差、字节泛型首诊断、批量稀疏warning与两汇总失败等原证据保留，各own snapshot精确gone。确认完成/fullread后原QA已实际收到新固定947efef→18b7cbb严格11批量客户端，不导入主窗口WP13。原复核空闲后接[WP13第一阶段](WP-13.md)提交固定范围，作者481/14实际HTTP-PG/旧13PG及静态，非UI筹备不是实际平台资源/凭据/初始化/全AC。分工仍三原窗口及BE/EX/WEB/AND/BIZ/OPS/TL职责；缺口记录继续，Developeraf14/父pending1/管理员新UI/SEC/保护脚本保持。
+
+首轮heartbeat最新闭环：stage12原QA完整SHA2600018cd7998d70487f20197bf22542b7cad0c592b3dd9758af263b1fe71362全文读、原11/复用12/旧19首过/new0-rem0/QA新oracle0；stage13原非作者完整SHA30fcc6a7d6c540d4cc9b43a418dcfec215c889e001f56913dc8cc63360d714e6全文读、原6/新10/旧30首过/new0-rem0。原指纹/首RED与诊断保留，两窗自有快照按身份精确清理，完成状态确认后已实际发同QA49f→430票据strict8、同非作者430→c8f字节strict12，用户已获汇报。主窗口[stage15](WP-15-stage15.md)逐项批量客户端作者最终9/root472过，首8/root471和lint1warning保留，非真实HTTP/页面/业务；不导入旧快照、不在发送后签全部开发。新UI/管理员/父/SEC/真实资源门禁保持，heartbeat继续原模式。
+
+调度补充（优先于下方创建前状态）：已为本对话实际创建每小时线程heartbeat `socialgrowth`（ACTIVE，“SocialGrowth 持续开发与原窗口闭环”），并view确认调度卡。依据用户持续推进要求自动接续读取原窗口完整报告、用户汇报、整改/阶段提交/原固定复验和未阻断开发，不创建新独立窗口；状态不变不重复通知。首次缺线程目标参数明确校验失败零创建，补齐destination/target后Created成功。运行依赖本机与应用运行，不等于无间断或离线后台执行，不扩大服务/设备/发布授权，不绕管理员/安全/父门禁。完成或用户停止时关闭，真实业务AC/G3和全部开发仍未签。
+
+当前优先于下方历史：原QA stage11完整报告SHA82ca92b1bfdb8b8b106b4e0cf35a222edefacfc822e90d8f9394a0ee9e5a366e全文读/确认完成，原8/复用独立10/operator实际11首过/new0-rem0/QA新oracle0，own首取证timeout/null-status、unused repo警告及cleanup早读保留。原非作者stage12完整报告SHA97e3343936c5845e74a2dd94a0ddb44d37c82dc8338122dc7d11c34e5e9d4d07全文读/确认完成，原11/独立12/旧19首过/new0-rem0，own取证早读保留；两窗自有快照精确清理/完整实际旧Web与原指纹维持。已向用户实际汇报，随后发送同原QA7f→49f strict12保存、同原非作者49f→430 strict8票据新任务。字节c8f4bb3 strict12已提交作者7/root463/静态首过，待票据之后独立门禁；不混未来、不重发旧读取或把任务发送当报告完成。全部真实HTTP/素材/UI/Playwright/手机/准入/ACG3仍按原缺口处理。
+
+本次用户问“其他窗口为什么没有汇报/没有继续”已明确：此前主窗口交接后过早结束、报告未及时汇总是推进疏漏，非全工程阻断。此次已完成stage11～14四个客户端阶段提交并主动完整读取两个最新报告/交接下一固定批。未配置主窗口Goal/heartbeat，不能承诺普通回合结束后自动继续；新消息发送仅启动对应原窗口任务。当前模式/默认自有服务Samsung授权与所有父/管理员/安全边界不变。
+
+已全文读取并确认两窗完成：采集stage6原QA57行SHA42f0cf18f951f2a4a5d3093f0c6fcc6ec13a485dc12a1a243755706759f603d8，限定双new0/rem0/QA新oracle0，原3及重跑不双计/两PG4首过，取证顺序/helper路径/动态status及own unused show警告保留、own PG32881/卷/三库0|0|0|0及snapshot精确清理。素材读取7f原非作者37行SHA8f18ba10e4028cc2d6d608e74ec9ecf747abe70ea4339724c4afb9622e0dc130/new0/rem0，原8/独立10/operator实际11首过，静态App/styles误路径与早cleanup诊断保留，旧269指纹保持/own snapshot清理。已汇报用户，原QA接c397→7f strict14，原非作者接7f→49f strict12，非重发旧读取/不混未来430/本字节。
+
+主窗口继续[stage14](WP-15-stage14.md)原字节同步快照/实际hash/Blob固定/会话在await前捕获/专用PUT/原key接续，作者新7/root463/静态首过，只非UI/无真实HTTP-S3-UI-手机。旧backend/contract/21SQL/deps不动；当前加强遍历实际所有旧Web文件逐blob和逆剥离新增seam证明，旧App.tsx/styles.css非实际路径的作者helper证据不改。430票据已strict8凝聚、本字节完成后strict12提交顺序接原门禁；人工/管理员缺口记录原真实输入职责/解除/补验继续，不把发送作停点或代签全部开发。
+
+客户端接续：原读取7f strict14复核中，保存49f strict12已提交待其后新固定；主窗口继续票据准备/读取[WP15 stage13](WP-15-stage13.md)作者6/root456/静态首过，固定原对象/descriptor/会话与unknown原包，不做bytes/UI/准入或发布。原QA c397当前运行，自己的归档调度顺序诊断保留，不把进度算最终产品结论；两窗完整结束后主窗口读取→汇报→整改/原新固定复验。原报告/首红与父/真人资源边界不改，不以“正在执行”作为主任务结束点。
+
+原stage6报告50行/SHA0f07c7359bb060deab567793ac3f0ab797dd05b80d2e128118905b3df699f45b已全文读，有限new0/rem0，原3/原实际PG4/独立最小1表PG4首过、未root431/旧PG12/fs14；COMMIT工程未知code实际UNAVAILABLE、Buffer view所有权及provider拒绝前责任严格，own新PG32880/CID卷三库final各0|0|0|0、文件与snapshot精确身份清理，33own/21author及旧215指纹保留。原QA新固定4e→c397严格10已发送，原非作者新固定c397→7f素材读取严格14已发送；两窗口顺序新任务，非重发已有报告读取，不导入当前未提交stage12。主窗口继续完成保存客户端11/根450/静态及凝聚提交，原窗口报告主动读取汇报，真人/管理员缺口只阻对应范围。
+
+原stage5 QA完整63行SHAa2ffbfa552376d7aec49fff0aec9e91c767202857926bd3b77456d7b03817a4a已全文读取/限定双new0/remaining0；原14/复用6/OS1/更正port7过，QA新oracle0、错误首7依然6PASS1FAIL，历史34vs新增path-status第35项计数及过早读日志诊断保留，39来源SHA不变、自有35dirs/snapshot精确清理，无PG/root428。原非作者c397仍收尾，不用进度交QA；读取完整报告后安排同原QA。主窗口素材读取7f08c79严格14已提交/待接原非作者下批，继续[保存客户端](WP-15-stage12.md)原会话/原key仅运营POST，作者11/根450/静态过，首次10/根449及加固前源码保留；没有新UI/业务写/真实Web或真机验收。原三窗口模式、保护脚本/父/真人资源边界保持，后续按固定读取→保存逐批门禁，不重新发起已完成报告读取。
+
+原QA第四525完整63行全文读，SHAabee7a2a6a1b4d3f423a042f5d03a606337026fd5ff09787e02fcc015c5563f1，限定双new0/remaining0，原8/复用6/OS EACCES1/PG12/最小PG1首过，QA新oracle0/root未重跑/3own lint warning保留、自有02c8 PG/卷/snapshot全身份精确清理。原复核第五4e完整43行全文读，SHA2c34628c82e59d5b0b94db770c58aa0972b14a50bc24bcf455ebb10dedd8c111，new0/remaining0，原14/复用6/EACCES1/最终新port7过，首6PASS1FAIL错误save预期与只更正一项后的最终7分开保留；全默认源码等价/原断言与指纹保持、35 own dirs/snapshot精确清理，无PG本轮。两个完整结论已向用户汇报。
+
+原QA新固定525→4e1827e、同原非作者新固定4e1827e→c397e6c均严格10路径已发送，不新建/打断/换模式或重发旧报告读取，不混现场未来实现。主窗口已继续[WP15 stage11](WP-15-stage11.md)：原设计图/prompt/spec核对，但image-to-code/design-qa暂停新UI门禁仍有效，仅四个运营GET客户端、作者8/根439/静态过，非UI工程不能代真实Web/手机或全开发验收。本批固定提交后排原窗，不因待复核结束主任务；人工/管理员输入职责及解除/补验沿用下表，父pending1/Developeraf14/SEC/保护脚本路径状态保持。以下均此前历史状态。
+
+原stage4报告46行/SHA9ccff673f852f3a18bf1852628b20e4bcf9abf938c49d29d3e989cc0cc87ca10全文读：有限新0/剩余0，原8/新6/真实EACCES晚期1/原PG12/最小1表PG1分别首过，首工具诊断和lint warning保留，原资源清理。已交原QA c147→525严格10、同原非作者525→4e1827e严格10，现均运行，不凭进度签过或发本未来内容。主窗口[stage6](WP-27-stage6.md)新3/真实PG4/root431/静态过，自有新32879全守卫精确清理，不触他窗32878；同快照采集与只读COMMIT后返回、dump清零/原包独立保存，不替生产灾备或当前fence。分批工程/原完整报告接续继续，真人输入仅阻对应范围。
+
+原QA B完整报告全文读（SHA63cf830d99a93cbcb610baa48b30cd00f3686d2807933d1db41f584a5f43f279）：原1921同oracle3PASS1RED保持，最小组合实际PG12/同oracle4/declaration1过、新0/剩余0/有限双闭合，资源清理。原非作者只固定c147→525第四阶段严格10，首自有快照缓冲区失败零产品检查日志保留并修取证，非产品结论。新[第五阶段](WP-27-stage5.md)不混范围，作者fs14/root428/静态过、首TS2322类型诊断保留。凝聚提交→同窗完整报告/整改→原QA→下一固定批，主窗口继续无依赖工程/汇报，不等用户催。下方早期待验为历史。
+
+后续完整结果已由主窗口读取并向用户汇报：原QA backup546与calendar-a761均有限new0/remaining0，日历P3同oracle双清零；原A继承非作者/QA双P2实际清零，原首红/错误SQLSTATE及hook错误源保持。原B非作者原1921仍保留历史继承RED、最小两文件组合new0/remaining0，原QA A完成后已接B。固定SHA/数量/范围与[第四阶段](WP-27-stage4.md)同步，B仅进度不当最终签收。主窗口同时已真实实施加密文件store/load，新8/PG12/根422过并精确清理自有资源；不以“交给窗口”作为结束点，接续完整读取/整改/新独立工程，人工资源仅阻其对应门禁，不绕控制或签全开发完成。
+
+cc41881原QA完整报告已全文读取，SHA7227ae9f4a4950a50b490063e796ecf971734ae394a97f98bc3bcd30d518ad24，2/旧14/真实PG-Redis13/原独立12分别首次过、新0/阶段remaining0，有限双工程。原非作者前三批完整报告已读：backup546新0、calendar-a761原P3同oracle清零/新0，已交原QA对应两个新固定批次（严格8及日历限定原546基底并集7），与本清单整改并行不受其依赖阻停；未改窗口模式、不重发已完成报告读取。
+
+第三批inventory63发现REV-WP27-INHERIT-01 P2/remaining1：真实普通继承边改变而指纹未变。原独立4首2PASS2FAIL中的另一项是复核方snapshot失效SQLSTATE错期待，必须分开保留，不计第二产品缺陷。第四批v2尚未复核、等价依赖暂不签。[整改](WP-27-inheritance-remediation.md)作者拒绝所有涉及域内父或子的继承（跨schema也关闭），相同真实PG12首9PASS3FAIL→12PASS、根414；固定凝聚提交交同原复核，先原oracle清零再接第四批，之后按完整报告提原QA。作者自检不能自签P2关闭。
+
+上一主窗口结束是交接后的推进疏漏，不是所有开发的技术阻断；此记录明确继续读取→整改→原窗复验，人工/平台/环境缺口只阻各自范围，其他工程继续。下方“已发送/待接续”为前次状态，原报告和首失败均保留，父pending1/Developeraf14/browser/SEC及真实资源待办不变。
+
+## 原完整报告已读取
+
+cc41881原非作者完整67行`artifacts/review/wp16-pending-outbox-cc41881.md`全文已读，SHA1e75a457f1280c06fad5d752055b7bba501bcb1026dc1583904f9d441ba71128：严格9文件新增0/阶段remaining0，pure2/旧registry14/实际PG-Redis13/独立12最终分别通过。首独立12=11PASS1FAIL因非法fixture enum youtube_short，改为合法youtube_shorts且原FACT_VERSION_STALE与全正文断言不变；后续CAS当时未执行，不说九绑定子例均失败。旧14两次CJS/ESM入口加载零业务断言、快照未解包安装等辅助诊断保留；40作者/145c32+24/9f28+10指纹及所有RED不改，不认领作者391/全PG256。
+
+独立12覆盖十个RETURN NULL五写回滚、最终DBclock/撤销、实际save/claim/Redis发送/PG ACK提交后丢ACK、锁外真实并发修订/撤权、clone/旧nonce ACK0行、早期完整history损坏关闭及1000连续合成pending数字排序；不是已准入Task/配额/媒体资格。ownPG a863e73f41d233852454c45fea9cc1256cec59490d5d7470d325d85b614e8c9c/92ed88卷/cluster7691526652783116321，ownRedis b57375a6b1e266b662f425a142748b4b37255b7aeb778a04dd88a6afb3ad2e45/a2f56b卷/runIDbb052fd90，全身份/TCP守卫后PG0|0|0/Redis0/clients1/AOFyes/noeviction/everysec，精确清理两CID卷及32876/32910关闭，原服务未动。
+
+cc固定parent仍含历史URL P2；9f已由原非作者47行/QA59行完整报告有限双实际清零，cc报告中QA待接续保留为当时状态不改。父WP10原13未执行/来源pending1与Developeraf14不清，较晚绿色不替父链。此交接初次apply_patch猜错WP16stage5标题导致整包校验失败、新队列卡未落地，核对实际标题后分开准确补写；仅文档工具诊断，不改产品/原报告/断言。
+
+## 已实际发送的分批协作
+
+原QA收到新固定145c..cc41881严格9文件复验；原非作者在cc完整报告完成且已读取后收到下列四批顺序新任务，没有打断运行任务、换窗口/模型/模式或重新发起旧报告读取。每批独立快照/首失败/完整报告/自己的资源。遇实质问题仅报告不代修，依赖批不假签通过，可继续无依赖批；逐份完整报告由开发窗口再读、修复→同窗复核→原QA，不能只凭聊天进度合并。
+
+| 顺序/实施与门禁职责 | 固定增量/允许清单 | 作者证据与后续重点 |
+| --- | --- | --- |
+| 1 OPS/BE→原非作者→原QA | cc41881→546d35b，WP27stage1严格8 | 395/纯4/实际PG5/66表；trusted archive/AES/真实dump/三个具体CHECK等价，首3PASS1FAIL保留，不当生产恢复fence |
+| 2 BE→原非作者→原QA；BIZ日政策待签 | 546d35b→ccc4707六路径＋63b9cae→a761ea4七路径整改，最终a761/并集七允许路径 | 原403/8与整改409/10及首9PASS1RED分开；六区/label及civil年范围/ICU版本/历史DST/fraction/gap-overlap，批准来源/真实pub另验 |
+| 3 OPS/BE→原非作者→原QA | 9f5812f→63b9cae，WP27stage2严格9 | 407/纯3/actualPG8/66表7类指纹，首5PASS1FAIL夹具42703保留；same snapshot/结构/RLS/行bytes超限/异常池释放，非跨cluster/globals/ACL/全catalog容量 |
+| 4 OPS/BE→原非作者→原QA | a761ea4→1921d58，WP27stage3严格10 | 414/新5纯＋v1未改4/actualPG9；v1-v2互拒/同AAD/manifest明文认证/篡改不restore，不把MAC当SQL来源/同snapshot/当前权 |
+
+全SHA见各任务卡及固定Git tip。各批NUL清单在archive前排除保护脚本，不读/diff/hash/stage/执行该脚本；日历限定原546路径＋范围整改卡，不纳中间未知代码。后续文档状态只是上下文不等于评判实现。默认授权自己的新隔离fixture，历史CID/卷均已删除不可复用，空端口/full身份/独占卷→TCP DB/user/cluster或RedisrunID完全匹配→每reset/restore守卫→精确收尾；不碰9000/nestar/他窗或外来Env/数据。不执行生产backup/公开发布/付款/额外账号操作，原恢复2次300000ms不变。
+
+## 真人与真实环境需求
+
+| 责任/缺口 | 实际输入与解除条件 | 补验边界 |
+| --- | --- | --- |
+| TL/应用管理员；WP10父门禁/RES-WP14-03 | 平台明确允许原来源13及浏览器策略校验可用的实际状态 | 同原窗口未改13及原QA实际Playwright入口/反馈；不换模型/窗口/CLI/端口绕过，不用414非UI或旧截图替代 |
+| BIZ/AI/BE；RES-WP24-01～04 | 真实平台日/cutoff/批准config历史、可信Task/pub/path与指标来源/观察判据/真人签收 | 时钟转换不是平台政策/真实发布时间；可比不足只阻比较，模型/UI按原设计图片及prompt补验 |
+| OPS/TL；RES-WP27-01～02 | 部署/最低维护权限/key使用轮换保管/存储访问、频率retention/事前RPO-RTO/容量/联合恢复样本 | 明文认证manifest访问保护；单cluster合成恢复非跨cluster/globals/ACL/Redis-S3-device灾备，技术护栏非SLO |
+| EX/BE/AND/QA；RES-WP27-03/WP16-01～03 | 当前暂停/撤权/分配/累计预算/平台未知、对象真实、权威Task准入和实际consumer/fence；Artemis样本与APK签名升级回滚 | 默认隔离服务/已连Samsung授权不等于公开发布/撤下/支付/生产部署，UUID/FK/ACK不当执行或批准事实 |
+| 资料/安全owner；SEC-WP14-01 | 候选凭据安全处置/日志需求/责任与真实完成证据 | 本窗口不读/复述/使用/探测/轮换，不因无新迹象就签事件已解决 |
+
+职责不是真人姓名/已签收/承诺时间；缺真实资源写入RES与台账，继续独立工程。单元/构建/实际隔离SQL只补充，不替代真实Web登录/Artemis/平台成功；R109旧远程证据保留其环境/覆盖，不重列全未验证。所有WP与G3未完整交付、Developeraf14保持，默认服务/Samsung联调授权有效。

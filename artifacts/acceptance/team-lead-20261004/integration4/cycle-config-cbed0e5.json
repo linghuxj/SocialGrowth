@@ -1,0 +1,86 @@
+{
+  "testedHead": "cbed0e5b78a1c1a08bb101e7f4037a64fb2811a4",
+  "acceptance": {
+    "testedHead": "cbed0e5b78a1c1a08bb101e7f4037a64fb2811a4",
+    "scope": "existing planning UI; one temporary project; one real model-confirmed synthetic direction; current/next cycle config, unknown recovery, stale conflict, actor boundary, mobile read-only",
+    "cycleConfigAcceptanceExecuted": true,
+    "actualModelAttempts": 1,
+    "playwrightExitCode": 0,
+    "directionProposalGeneratedAndConfirmed": true,
+    "transportLoss": {
+      "serverStatus": 201,
+      "originalReceiptOutcome": "confirmed",
+      "deliveredToBrowser": false
+    },
+    "explicitSameActorReplay": {
+      "sameBodyAndKey": true,
+      "receiptOutcome": "confirmed",
+      "replayed": true
+    },
+    "staleVersionRejectedInUi": true,
+    "differentOperatorCommandReads": 0,
+    "currentCyclePreserved": true,
+    "confirmedNextConfiguration": {
+      "businessTimeZone": "Asia/Tokyo",
+      "reviewIntervalDays": 14,
+      "trafficMinimumPerCycle": 2,
+      "effectiveStartsAtMatchesCurrentEnd": true,
+      "latestConfigRevision": 1
+    },
+    "nextCycleMaterialized": false,
+    "executionAllowed": false,
+    "publicationAllowed": false,
+    "taskCount": 0,
+    "outboxCount": 0,
+    "cleanup": {
+      "servicesExited": true,
+      "containersRemoved": 2,
+      "temporaryCredentialsRemoved": true
+    },
+    "sensitiveValuesRecorded": false,
+    "evidenceFiles": [
+      "planning/cycle-config-safe-facts.json",
+      "business-plan-readonly-facts.json",
+      "planning/planning-cycle-mobile.png",
+      "cleanup.json"
+    ]
+  },
+  "transportFacts": {
+    "firstPostStatus": 201,
+    "lostResponse": true,
+    "commandReadsByDifferentOperator": 0,
+    "sameOriginalBodyAndKeyReplay": true,
+    "postFacts": [
+      {
+        "sequence": 1,
+        "bodySha256": "ed730f4e70b14d25affd32351ff99ede9fd8e144a481f499df9f95724c6e6661",
+        "idempotencyKeySha256": "de8c79e71f90d998d1542d49c588543c25802daf4091e969c87e3207c470cd4c",
+        "status": 201,
+        "outcome": "confirmed",
+        "replayed": false,
+        "responseLost": true
+      },
+      {
+        "sequence": 2,
+        "bodySha256": "ed730f4e70b14d25affd32351ff99ede9fd8e144a481f499df9f95724c6e6661",
+        "idempotencyKeySha256": "de8c79e71f90d998d1542d49c588543c25802daf4091e969c87e3207c470cd4c",
+        "status": 201,
+        "outcome": "confirmed",
+        "replayed": true,
+        "responseLost": false
+      }
+    ],
+    "staleVersionRejectedInUi": true,
+    "currentCyclePreserved": true,
+    "configuredNext": {
+      "businessTimeZone": "Asia/Tokyo",
+      "reviewIntervalDays": 14,
+      "trafficMinimumPerCycle": 2,
+      "effectiveStartsAtMatchesCurrentEnd": true,
+      "latestConfigRevision": 1
+    },
+    "nextCycleMaterialized": false,
+    "executionAllowed": false,
+    "publicationAllowed": false
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "tasks": [
+    {
+      "task_id": "4638fa50-05bf-4d2b-963d-7b8f578562a5",
+      "task_version": 1,
+      "state": "waiting_resources",
+      "selected_account_id": null,
+      "selected_device_id": null,
+      "check_history_count": 2
+    },
+    {
+      "task_id": "fbbc8f85-0d53-4026-98a6-a8001aa21cac",
+      "task_version": 0,
+      "state": "waiting_resources",
+      "selected_account_id": null,
+      "selected_device_id": null,
+      "check_history_count": 1
+    }
+  ],
+  "reviews": [
+    {
+      "review_id": "505216f8-1516-45f2-b5a7-41877857624d",
+      "task_id": "4638fa50-05bf-4d2b-963d-7b8f578562a5",
+      "task_version": 0,
+      "review_sequence": 1,
+      "state": "blocked",
+      "dispatch_created": false,
+      "action_permission_granted": false,
+      "blockers": [
+        "RESOURCE_ASSIGNMENT_REQUIRED",
+        "CURRENT_ADB_TARGET_AUTHORIZATION_REQUIRED",
+        "CURRENT_LOCAL_PARTICIPATION_CONFIRMATION_REQUIRED",
+        "CURRENT_HOLDER_TASK_SCOPE_REQUIRED",
+        "CURRENT_DEVICE_ACTION_FENCE_REQUIRED",
+        "PREPARATION_EXECUTOR_NOT_CONNECTED",
+        "TRUSTED_PLATFORM_EVIDENCE_CONSUMER_REQUIRED"
+      ]
+    }
+  ],
+  "audits": [
+    {
+      "action": "account_preparation.execution_review",
+      "count": 1
+    },
+    {
+      "action": "account_preparation.recheck",
+      "count": 1
+    },
+    {
+      "action": "account_preparation.request",
+      "count": 2
+    }
+  ],
+  "artemisLaunchIntents": 0,
+  "phonePermissionGranted": false,
+  "platformIdentityVerified": false,
+  "publications": 0
+}

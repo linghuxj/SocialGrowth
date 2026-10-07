@@ -1,0 +1,53 @@
+
+> @socialgrowth/product-executor@0.0.0 test /Users/linghuxj/Documents/myproject/project/SocialGrowth/product/executor
+> tsx --test src/*.test.ts
+
+✔ preparation checks app then parent then publishing identity; registration alone is not readiness (8.807986ms)
+✔ missing Page/channel selects creation only with exact prerequisite inputs (1.81626ms)
+✔ check-only and separate install/creation scopes cannot become creation authority (0.614869ms)
+✔ unknown device task, unknown or prior creation never lead to another creation (0.532725ms)
+✔ existing binding and missing expected identity require review, not replacement (0.952444ms)
+✔ account mismatch, ambiguity or changed allocation stop before creation (0.580083ms)
+✔ creation report requires separate readback; valid existing identity is reused (0.949373ms)
+✔ unsubstantiated readiness and extra action/secret fields are rejected (2.551947ms)
+✔ all library operations are bounded Artemis instructions; browsing is optional (0.823169ms)
+✔ absent ports and invalid prepared files cannot issue any Artemis RPC (27.822543ms)
+✔ committed launch intent is followed by a fresh guard; Pro receives exact serial/file and forbids final submission (4.178879ms)
+✔ lost launch acknowledgement never relaunches the same original attempt (1.234572ms)
+✔ concurrent duplicate start claims issue exactly one autonomous launch (1.238477ms)
+✔ permission withdrawn after committed intent cannot launch and cannot be reset by another start (1.039403ms)
+✔ lost trace-binding acknowledgement is unknown now, but later original reconciliation only polls its bound trace (1.662067ms)
+✔ reported ready needs actual corroboration; engine completed never becomes published or verified (1.628763ms)
+✔ a forged caller trace cannot read/stop another task or create a new launch intent (0.885543ms)
+✔ current permission loss requests stop but never pretends actions stopped or publication did not occur (0.886243ms)
+✔ identity mismatch, submitted/forged/missing evidence, wrong serial and invalid result remain human/unknown (6.211923ms)
+✔ default runtime and invalid next operation cannot call any Artemis tool (14.833085ms)
+✔ one original attempt performs one scoped autonomous launch after two guard checks (2.512978ms)
+✔ lost launch acknowledgement is unknown and another start cannot relaunch (1.187598ms)
+✔ guard denial after committed intent does not launch or reset the original attempt (1.007196ms)
+✔ forged trace is rejected; permission loss requests stop and remains unconfirmed (1.402776ms)
+✔ completed reports need scoped evidence and never establish verified identity or permission (2.421473ms)
+✔ executor accepts the current QR version and installation view (4.213327ms)
+✔ executor rejects old QR versions, unknown fields and contradictory state (1.496156ms)
+✔ WP-00 executor stays disabled and states that it consumes no queue (3.16135ms)
+✔ WP-00 executor rejects an enabled mode (1.004709ms)
+✔ first contact is fenced; confirmation and holder installation start no transport (37.919382ms)
+✔ two ledger connections share one in-flight slot; stop blocks reads without claiming quiescence (10.727511ms)
+✔ pause arriving while central authorization waits prevents transport handoff (8.153124ms)
+✔ unknown transport outcome survives restart and is not cleared by stop, expiry or new holder (8.648808ms)
+✔ lost receipt acknowledgement never repeats the physical action (7.727789ms)
+✔ scope, generation, forbidden kinds, extra fields, lease expiry and authority loss fail before transport (6.892772ms)
+✔ a stale or false stop probe and an old-generation holder cannot reopen the fence (8.251136ms)
+✔ one physical serial cannot be rebound to another logical device in the same ledger (10.711138ms)
+✔ original unknown can be reconciled only by matching recovery evidence; control stays revoked (10.766161ms)
+✔ independent OS workers share the local call fence and observe pause while a call is running (563.268866ms)
+✔ a probe taken before the last call ended cannot confirm stop (8.864767ms)
+✔ replayed central begin, future ticket, expired ticket and wrong physical serial never grant handoff (7.168673ms)
+ℹ tests 41
+ℹ suites 0
+ℹ pass 41
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1160.752181

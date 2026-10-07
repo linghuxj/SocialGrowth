@@ -1,0 +1,34 @@
+{
+  "originalTaskId": "d634e4c6-4266-4cc7-a784-3a31a1737cac",
+  "originalTraceId": "c41af179-58fd-4628-a227-20e777f6db70",
+  "archiveStatus": "completed",
+  "finalResultEmpty": true,
+  "tests": {
+    "passed": 5,
+    "failed": 0,
+    "inconclusive": 0,
+    "unchecked": 0,
+    "failed_items": [],
+    "retired": 0,
+    "retired_items": []
+  },
+  "lastChecks": [
+    {
+      "status": "passed",
+      "item": "Caption matches verbatim, audience is Public, and AI label is false"
+    },
+    {
+      "status": "passed",
+      "item": "finalSubmitClicked == false and publishStatus == \"not_submitted\""
+    },
+    {
+      "status": "passed",
+      "item": "Workflow halts strictly at the final confirmation screen with all parameters verified and mutations logged"
+    }
+  ],
+  "originalFinalScreenshotSha256": "2d794dc2e6e924869bb76ce310d54bedb4f4160ba4a480e056a24eb18b870642",
+  "manualScreenshotObservation": "FB new post preview with enabled publish button, no public post URL visible",
+  "publicOutcomeConfirmed": false,
+  "unknownPreserved": true,
+  "phoneStopProven": false
+}

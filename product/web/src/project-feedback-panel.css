@@ -1,0 +1,57 @@
+.project-feedback { display: grid; gap: 18px; }
+.project-feedback > .section-heading { align-items: flex-start; }
+.project-feedback > .section-heading p { max-width: 760px; margin-bottom: 0; }
+.project-feedback__state,
+.project-feedback__attribution,
+.project-feedback__metric,
+.project-feedback__review { border: 1px solid #dce2ea; border-radius: 8px; background: #fff; }
+.project-feedback__state { display: flex; align-items: flex-start; gap: 12px; padding: 18px 20px; }
+.project-feedback__state > svg { flex: 0 0 auto; margin-top: 2px; color: #2459c4; }
+.project-feedback__state h3,
+.project-feedback__state p,
+.project-feedback__state small { margin: 0; }
+.project-feedback__state h3 { font-size: 17px; }
+.project-feedback__state p { margin-top: 4px; }
+.project-feedback__state small { display: block; margin-top: 8px; color: #526176; overflow-wrap: anywhere; }
+.project-feedback__state--not_configured,
+.project-feedback__state--unknown { border-color: #e5c987; background: #fffaf0; }
+.project-feedback__state--not_configured > svg,
+.project-feedback__state--unknown > svg { color: #8a5a00; }
+.project-feedback__state--unavailable,
+.project-feedback__state--error { border-color: #e1a8a8; background: #fff7f7; }
+.project-feedback__state--unavailable > svg,
+.project-feedback__state--error > svg { color: #a52828; }
+.project-feedback__state--error { display: flex; justify-content: space-between; align-items: center; gap: 14px; }
+.project-feedback__state--error p { margin: 0; }
+.project-feedback__attribution { display: flex; align-items: flex-start; gap: 10px; padding: 14px 16px; background: #f7f9fc; }
+.project-feedback__attribution svg { flex: 0 0 auto; color: #526176; margin-top: 2px; }
+.project-feedback__attribution p { margin: 0; }
+.project-feedback h3 { margin: 0 0 10px; color: #172b4d; font-size: 18px; }
+.project-feedback__metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 390px), 1fr)); gap: 14px; }
+.project-feedback__metric { min-width: 0; padding: 18px; }
+.project-feedback__metric-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.project-feedback__metric-heading h3 { margin: 0; font-size: 16px; overflow-wrap: anywhere; }
+.project-feedback__metric-heading p { margin: 4px 0 0; color: #526176; overflow-wrap: anywhere; }
+.project-feedback__badge { flex: 0 0 auto; padding: 3px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.project-feedback__badge--available { color: #14532d; background: #e7f5eb; }
+.project-feedback__badge--missing { color: #7a3a10; background: #fff0dc; }
+.project-feedback__badge--delayed { color: #694d00; background: #fff6d7; }
+.project-feedback__facts { display: grid; grid-template-columns: minmax(115px, 155px) minmax(0, 1fr); gap: 8px 12px; margin: 16px 0 0; }
+.project-feedback__facts > div { display: contents; }
+.project-feedback__facts dt { color: #526176; }
+.project-feedback__facts dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.project-feedback__footnote { margin: 14px 0 0; color: #64748b; font-size: 12px; overflow-wrap: anywhere; }
+.project-feedback__empty { padding: 16px; border-radius: 8px; background: #f7f9fc; color: #526176; }
+.project-feedback__review { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 18px; }
+.project-feedback__review > h3 { grid-column: 1 / -1; margin: 0; }
+.project-feedback__review > div { min-width: 0; padding: 14px; border-radius: 6px; background: #f7f9fc; }
+.project-feedback__review h4 { margin: 0 0 6px; font-size: 14px; }
+.project-feedback__review p { margin: 0; color: #526176; }
+@media (max-width: 700px) {
+  .project-feedback > .section-heading { flex-direction: column; align-items: stretch; }
+  .project-feedback__facts { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .project-feedback__facts dd { margin-bottom: 8px; }
+  .project-feedback__review { grid-template-columns: minmax(0, 1fr); }
+  .project-feedback__review > h3 { grid-column: auto; }
+  .project-feedback__state--error { align-items: flex-start; flex-direction: column; }
+}

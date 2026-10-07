@@ -1,0 +1,4 @@
+
+> @socialgrowth/product-web@0.0.0 lint /Users/linghuxj/Documents/myproject/project/SocialGrowth/product/web
+> oxlint src vite.config.ts
+

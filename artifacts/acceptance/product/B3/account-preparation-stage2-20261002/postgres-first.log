@@ -1,0 +1,40 @@
+✔ GET is read-only; real request durably reports missing resources with no permission or fake success (1050.07492ms)
+✔ transport ACK loss and process reconstruction recover same original task without another check (143.603305ms)
+✔ concurrent same-scope requests create one central task and one check; changed scope cannot replace it (101.30362ms)
+✔ same key cannot change payload/kind; forged evidence/permissions and wrong paths are rejected (52.343731ms)
+✔ recheck changes original task version once; replay and stale retry cannot generate a new attempt (76.088689ms)
+✔ real reserved allocation selects app inspection, but physical execution remains closed (75.831206ms)
+✔ unassigned original task can attach only matching centrally reserved resources without replacing intent (72.962838ms)
+✖ CSRF, expired session and audit failure are atomic and do not leak raw DB details (15.957414ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 7
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3599.939567
+
+✖ failing tests:
+
+test at src/account-preparation-api.pg-test.ts:118:1
+✖ CSRF, expired session and audit failure are atomic and do not leak raw DB details (15.957414ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  401 !== 403
+  
+      at code (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend/src/account-preparation-api.pg-test.ts:56:99)
+      at TestContext.<anonymous> (/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend/src/account-preparation-api.pg-test.ts:120:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 401,
+    expected: 403,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+undefined
+/Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: tsx --test --test-concurrency=1 src/account-preparation-api.pg-test.ts

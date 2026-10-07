@@ -1,0 +1,33 @@
+{
+  "name": "@socialgrowth/product-executor",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prebuild": "pnpm --filter @socialgrowth/product-contracts build",
+    "build": "tsc -p tsconfig.json",
+    "precheck": "pnpm --filter @socialgrowth/product-contracts build",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint src",
+    "start": "node dist/main.js",
+    "pretest": "pnpm --filter @socialgrowth/product-contracts build",
+    "test": "tsx --test --test-concurrency=1 src/*.test.ts src/runtime/*.test.ts src/runtime/domain/*.test.ts",
+    "agent:once": "tsx src/runtime/agent-cli.ts",
+    "agent:worker": "tsx src/runtime/worker-cli.ts",
+    "test:device": "tsx --test src/runtime/*.device-test.ts",
+    "test:storage": "tsx --test --test-concurrency=1 src/runtime/*.storage-test.ts"
+  },
+  "dependencies": {
+    "@socialgrowth/product-contracts": "workspace:*",
+    "zod": "4.6.5",
+    "@modelcontextprotocol/sdk": "1.26.0",
+    "ws": "8.18.0",
+    "zod-v3": "npm:zod@3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.4",
+    "tsx": "4.23.13",
+    "typescript": "5.9.3",
+    "@types/ws": "8.18.1"
+  }
+}

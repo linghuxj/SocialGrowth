@@ -1,0 +1,8 @@
+.automation-orchestrator .section-heading { align-items: flex-start; gap: 16px; }
+.operations-section { margin-top: 24px; padding-top: 16px; border-top: 1px solid #dce2ea; }
+.operations-section p { max-width: 75ch; overflow-wrap: anywhere; }
+.automation-orchestrator td { vertical-align: top; }
+.automation-orchestrator td:first-child { min-width: 150px; }
+.automation-orchestrator td:last-child { min-width: 170px; }
+.automation-orchestrator .text-button { white-space: normal; }
+@media (max-width: 700px) { .automation-orchestrator .section-heading { flex-direction: column; } }

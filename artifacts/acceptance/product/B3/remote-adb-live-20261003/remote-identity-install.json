@@ -1,0 +1,17 @@
+{
+  "checkedAt": "2026-10-02T18:21:29.813047+00:00",
+  "remoteEndpoint": "127.0.0.1:34321",
+  "physicalSerialMatches": true,
+  "remoteModel": "SM-S9110",
+  "originalApkSha256": "b5a5c1e687e211ba23a96b6fa60905817930c17af46a848f1842352bd50a7f15",
+  "installedApkSha256": "2bc63937968fcc350272ebc461e46c35d706214b172e17969d0c40ebfc85deec",
+  "installSucceeded": true,
+  "installationTransport": "USB preparation only",
+  "remoteReverseSucceeded": true,
+  "reversePort": 4320,
+  "remoteControlFallback": false,
+  "remoteBackupAttempt": "timeout after 30s before installation",
+  "existingCenterAdbAuthorizationReused": true,
+  "firstPairingCodeFlowVerified": false,
+  "route": "Tailscale daemon nc \u2192 Samsung port 38299 \u2192 wireless TLS ADB"
+}

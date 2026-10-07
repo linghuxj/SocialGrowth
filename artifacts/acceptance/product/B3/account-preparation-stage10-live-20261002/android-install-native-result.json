@@ -1,0 +1,45 @@
+{
+  "checkedAt": "2026-10-02T15:10:30.008154+00:00",
+  "serial": "RFCW40MYYCV",
+  "dataClearRequested": false,
+  "mainPackageRemoved": false,
+  "foregroundTaskEndedBeforeInstall": true,
+  "commands": [
+    {
+      "operation": "install -r",
+      "package": "com.socialgrowth.product",
+      "exitCode": 0,
+      "output": "Performing Streamed Install\nSuccess"
+    },
+    {
+      "operation": "install -r",
+      "package": "com.socialgrowth.product.test",
+      "exitCode": 0,
+      "output": "Performing Streamed Install\nSuccess"
+    }
+  ],
+  "apks": [
+    {
+      "path": "product/android/app/build/outputs/apk/debug/app-debug.apk",
+      "sha256": "ac92a28d5bd40ac1516d8b9e20453ede293273618b1ca50cb1b50146de56e38a",
+      "size": 5370896
+    },
+    {
+      "path": "product/android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk",
+      "sha256": "454c53643a34de46e49f4f659df97c915e605d0f6dea28971b49327bb3c99c48",
+      "size": 22560
+    }
+  ],
+  "crypto": {
+    "commandExitCode": 0,
+    "passed": 10,
+    "failed": 0,
+    "testKeysRemoved": true,
+    "uiAcceptance": false,
+    "participationAccepted": false
+  },
+  "testApkRemoved": true,
+  "packageUidPreserved": true,
+  "lastUpdateTime": "2026-10-02 23:10:32",
+  "participationServiceRunning": false
+}

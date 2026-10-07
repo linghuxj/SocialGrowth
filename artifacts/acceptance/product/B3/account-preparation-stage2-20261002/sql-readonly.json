@@ -1,0 +1,31 @@
+{
+  "tasks": [
+    {
+      "task_id": "ca67640a-c789-440f-8bb4-eaf65f7a763c",
+      "task_version": "0",
+      "state": "waiting_resources",
+      "selected_account_id": null,
+      "selected_device_id": null
+    },
+    {
+      "task_id": "d79e3a0d-22e1-4f6d-bfe3-93503fde62af",
+      "task_version": "1",
+      "state": "waiting_resources",
+      "selected_account_id": null,
+      "selected_device_id": null
+    }
+  ],
+  "checks": [
+    {
+      "task_id": "ca67640a-c789-440f-8bb4-eaf65f7a763c",
+      "count": 1
+    },
+    {
+      "task_id": "d79e3a0d-22e1-4f6d-bfe3-93503fde62af",
+      "count": 2
+    }
+  ],
+  "artemisLaunchIntents": 0,
+  "phonePermissionsGranted": false,
+  "platformIdentityVerified": false
+}

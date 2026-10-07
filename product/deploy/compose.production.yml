@@ -1,0 +1,83 @@
+name: socialgrowth
+
+services:
+  postgres:
+    image: postgres:17.11-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: socialgrowth_product
+      POSTGRES_USER: socialgrowth_product
+      POSTGRES_PASSWORD: ${SG_PRODUCT_POSTGRES_PASSWORD:?required}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  redis:
+    image: redis:8.2.1-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  backend:
+    image: socialgrowth-backend:${SG_PRODUCT_REVISION:?required}
+    build:
+      context: ../..
+      dockerfile: product/deploy/Dockerfile
+      target: backend
+      args:
+        REVISION: ${SG_PRODUCT_REVISION:?required}
+    restart: unless-stopped
+    init: true
+    env_file:
+      - ${SG_PRODUCT_ENV_FILE:-.env.production}
+    environment:
+      SG_PRODUCT_BACKEND_HOST: 0.0.0.0
+      SG_PRODUCT_BACKEND_PORT: "4320"
+      SG_PRODUCT_TRUST_PROXY_HOPS: "1"
+    volumes:
+      - type: bind
+        source: ${SG_PRODUCT_PRIVATE_DIR:?required}
+        target: /run/socialgrowth-private
+        read_only: true
+        bind:
+          create_host_path: false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    stop_grace_period: 30s
+  web:
+    image: socialgrowth-web:${SG_PRODUCT_REVISION:?required}
+    build:
+      context: ../..
+      dockerfile: product/deploy/Dockerfile
+      target: web
+      args:
+        REVISION: ${SG_PRODUCT_REVISION:?required}
+    restart: unless-stopped
+    environment:
+      SG_PRODUCT_SITE_ADDRESS: ${SG_PRODUCT_SITE_ADDRESS:?required}
+    ports:
+      - "${SG_PRODUCT_BIND_ADDRESS:-127.0.0.1}:${SG_PRODUCT_HTTP_PORT:-80}:80"
+      - "${SG_PRODUCT_BIND_ADDRESS:-127.0.0.1}:${SG_PRODUCT_HTTPS_PORT:-443}:443"
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  redis-data:
+  caddy-data:
+  caddy-config:

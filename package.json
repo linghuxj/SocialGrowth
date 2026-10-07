@@ -2,14 +2,43 @@
   "name": "socialgrowth-monorepo",
   "version": "1.0.0",
   "private": true,
-  "workspaces": [
-    "apps/*",
-    "services/*"
-  ],
+  "packageManager": "pnpm@8.14.0",
+  "engines": {
+    "node": ">=22.13.0",
+    "pnpm": "8.14.0"
+  },
   "scripts": {
-    "dev": "npm run --prefix apps/web-console dev",
-    "build": "npm run --prefix apps/web-console build",
-    "lint": "npm run --prefix apps/web-console lint",
-    "test:first-loop": "tsx --test tests/first-loop-integration.test.ts"
+    "start": "pnpm run dev",
+    "dev": "pnpm run env:check && pnpm --filter @socialgrowth/product-contracts build && pnpm --filter @socialgrowth/product-backend build && tsx scripts/product-local-live.mts serve",
+    "dev:product": "pnpm run dev",
+    "dev:web": "pnpm --filter @socialgrowth/product-web run dev",
+    "dev:backend": "pnpm --filter @socialgrowth/product-backend run dev",
+    "env:check": "node scripts/check-node.mjs",
+    "serve:public-phone": "pnpm run env:check && tsx scripts/public-phone-access.mts",
+    "build": "pnpm --filter @socialgrowth/product-contracts run build && pnpm --filter './product/**' --workspace-concurrency=1 run build",
+    "build:product": "pnpm --filter './product/**' --workspace-concurrency=1 run build",
+    "check:product": "pnpm run check:layout && pnpm --filter @socialgrowth/product-contracts run build && pnpm --filter './product/**' --workspace-concurrency=1 run check",
+    "lint:product": "pnpm --filter './product/**' --workspace-concurrency=1 run lint",
+    "test:product": "pnpm --filter @socialgrowth/product-contracts run build && pnpm --filter './product/**' --workspace-concurrency=1 run test",
+    "lint": "pnpm run lint:product",
+    "test": "pnpm run test:all",
+    "test:acceptance": "tsx --test tests/core-process-acceptance.test.ts",
+    "test:all": "pnpm run test:product && tsx --test tests/core-process-acceptance.test.ts",
+    "test:playwright": "node scripts/run-playwright-target.mjs",
+    "test:playwright:product": "SG_WEB_TARGET=product node scripts/run-playwright-target.mjs",
+    "executor:setup": "tsx product/executor/src/runtime/setup-local.ts",
+    "executor:start": "pnpm run env:check && node --env-file=.env.runtime --import tsx product/executor/src/main.ts",
+    "executor:agent": "node --env-file=.env.agent --import tsx product/executor/src/runtime/agent-cli.ts",
+    "executor:worker": "node --env-file=.env.agent --import tsx product/executor/src/runtime/worker-cli.ts",
+    "executor:check-artemis": "node --env-file=.env.agent --import tsx product/executor/src/runtime/check-artemis.ts",
+    "executor:check-apps": "node --env-file=.env.agent --import tsx product/executor/src/runtime/check-apps.ts",
+    "test:executor": "pnpm --filter @socialgrowth/product-executor test",
+    "check:layout": "node scripts/check-product-layout.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.4",
+    "oxlint": "1.76.0",
+    "playwright": "^1.63.0",
+    "tsx": "4.23.13"
   }
 }

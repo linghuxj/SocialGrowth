@@ -1,0 +1,14 @@
+{
+  "checkedAt": "2026-10-03T13:59:21.478Z",
+  "taskId": "62fa59b5-1a17-49a7-8648-2df0dc8b1302",
+  "traceId": "6e401a53-0eb2-42b3-947d-c922c4ac7cb2",
+  "result": "Web 验收任务：62fa59b5-1a17-49a7-8648-2df0dc8b1302\nfinished · CLIENT_TEST_COMPLETED\n\n目标：SocialGrowth 自有客户端 / com.socialgrowth.product；模式：client_test；平台：socialgrowth\n\n本次首次参与：未授权；端口上报：未授权开启；参与撤回：未授权，保持参与\n\nArtemis 检查：completed；通过 4，失败 0，待确认 0。执行结束不代表业务完成。\n\nArtemis：6e401a53-0eb2-42b3-947d-c922c4ac7cb2；登录提交：0；内容提交：未点击\n\n查看最终真机截图",
+  "cleanupConfirmed": true,
+  "initiatedThrough": "pnpm test:playwright / actual Demo Web",
+  "backendWithdrawalIndependentlyRequired": false,
+  "backendParticipationRetentionRequired": true,
+  "businessQueueConsumed": false,
+  "oldUnknownResolved": false,
+  "physicalStopConfirmed": false,
+  "publicationAttempted": false
+}

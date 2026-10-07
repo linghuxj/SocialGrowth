@@ -1,0 +1,49 @@
+{
+  "checkedAt": "2026-10-03T14:58:22.165Z",
+  "originalSha256": "86ed07ee3b120f200af02f9a075948e5d10eb477fd3294b971cf4d41047e2a9f",
+  "candidateSha256": "bfbb1f3321b03f1ebb2492c0051b2a7883aefaca602ec313e8cf75022673e535",
+  "replacedUnconditionalBroadGrants": 1,
+  "candidateGrantCount": 2,
+  "existingTestsPreserved": 0,
+  "generatedTestCount": 8,
+  "pendingAddresses": [
+    "100.118.89.89",
+    "fd7a:115c:a1e0::da2f:595a"
+  ],
+  "verifierAddresses": [
+    "100.75.25.72",
+    "fd7a:115c:a1e0::653b:1948"
+  ],
+  "preservedAddresses": [
+    "100.75.25.72",
+    "fd7a:115c:a1e0::653b:1948"
+  ],
+  "verifierPort": 9443,
+  "inventoryFrozen": true,
+  "futureNodesRequireExplicitPolicy": true,
+  "policyTestScope": "sampled_ports_and_protocols_not_exhaustive_live_paths",
+  "externalMutationPerformed": false,
+  "isolationVerified": false,
+  "networkAdmissionGranted": false,
+  "actionPermissionGranted": false,
+  "originalEtag": "\"292f967442d21637982e0ac8487658f972ec6a8bfa787b505bf729853c227821\"",
+  "officialValidation": {
+    "passed": true,
+    "errorCount": 0,
+    "warningCount": 0
+  },
+  "livePolicyUnchanged": true,
+  "privateReviewDirectory": "/Users/linghuxj/Documents/myproject/project/SocialGrowth/.runtime/tailnet-control/proposal-0aeb959d-c978-4aeb-9ba6-efc5fd59dcd6",
+  "sourceNodesObserved": [
+    "nRwHVsp3dt11CNTRL",
+    "nki637A3at11CNTRL"
+  ],
+  "deploymentReady": false,
+  "pendingRequirements": [
+    "trusted_verifier_listener_acceptance",
+    "controlled_policy_write_and_approval",
+    "actual_restricted_path_checks",
+    "server_owned_network_revision"
+  ],
+  "evidenceScope": "actual_readonly_control_plane_validation_not_live_network_acceptance"
+}

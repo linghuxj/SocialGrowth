@@ -1,0 +1,13 @@
+{
+  "checkedAt": "2026-10-03T15:08:27.825Z",
+  "actualMacServeTransportPassed": true,
+  "tlsTrustRequired": true,
+  "tlsHostnameRequired": true,
+  "forgedLoopbackProxyRejected": true,
+  "claimedForwardedHeaderIgnored": true,
+  "unavailableAdmissionRouteBlocked": true,
+  "phoneIncomingSourceVerified": false,
+  "networkAdmissionGranted": false,
+  "actionPermissionGranted": false,
+  "evidenceScope": "supplemental_actual_mac_transport_protocol_probe_not_phone_or_business_acceptance"
+}

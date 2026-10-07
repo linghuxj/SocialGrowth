@@ -1,0 +1,27 @@
+✔ GET is read-only; real request durably reports missing resources with no permission or fake success (939.96882ms)
+✔ transport ACK loss and process reconstruction recover same original task without another check (128.212579ms)
+✔ concurrent same-scope requests create one central task and one check; changed scope cannot replace it (109.328813ms)
+✔ same key cannot change payload/kind; forged evidence/permissions and wrong paths are rejected (81.312582ms)
+✔ recheck changes original task version once; replay and stale retry cannot generate a new attempt (110.940101ms)
+✔ real reserved allocation selects app inspection, but physical execution remains closed (112.128127ms)
+✔ unassigned original task can attach only matching centrally reserved resources without replacing intent (153.789239ms)
+✔ CSRF, expired session and audit failure are atomic and do not leak raw DB details (97.259727ms)
+✔ real journal requires exact central task/allocation; concurrent original claim has one winner (138.927024ms)
+✔ durable original trace survives reconstruction; forged binding/observation and history edits fail (123.962861ms)
+✔ rechecking after a committed launch preserves original uncertainty and prevents another launch version (146.436658ms)
+✔ concurrent execution admission reviews persist once, create no dispatch and never alter the original task (205.885622ms)
+✔ review keys cannot be reused across commands, scope or versions; forged permissions and CSRF cannot create a review (177.201348ms)
+✔ original SDK completion stays unverified; review uses current pause and preserves the original attempt (175.621674ms)
+✔ read-only original-operation projection preserves bound trace after lost ACK and rejects corrupt receipt scope (174.815745ms)
+✔ execution review audit failure rolls back; committed history cannot be rewritten (91.703557ms)
+✔ a later recheck does not erase the saved older review or allow its key to create a new review (132.885406ms)
+✔ reviews with identical timestamps use committed sequence, not UUID order, to project the latest facts (123.87278ms)
+✔ current installed-client pulse removes only its own review blocker; epoch change restores it without dispatch (300.946377ms)
+ℹ tests 19
+ℹ suites 0
+ℹ pass 19
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5149.057058

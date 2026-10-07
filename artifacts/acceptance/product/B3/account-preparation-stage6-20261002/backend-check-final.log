@@ -1,0 +1,4 @@
+
+> @socialgrowth/product-backend@0.0.0 check /Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend
+> tsc -p tsconfig.json --noEmit
+

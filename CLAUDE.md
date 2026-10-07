@@ -1,37 +1,48 @@
-# SocialGrowth 开发规范与工程基准指南 (CLAUDE.md)
+# SocialGrowth 工程规范
 
-本文记录仓库工程规范与当前技术路线。业务语义以最新用户确认的[业务决策](docs/handoff/2026-09-19-business-flow-proposal.md)为准；[产品能力路线](docs/product-roadmap.md)按最终目的与能力依赖推进，商业交付数量和效果不构成开发上限或启动门槛。本轮仅同步文档，未更换既有技术路线或开展实现。
+2026-10-06：产品以最新对齐需求为准。只维护 `product/` 正式工程，已取消 Demo 并列入口。既有模块、技术栈及局部结果不构成完整验收结论；历史记录只按原证据范围追溯。
 
----
+- 当前需求：[需求基线](docs/current-requirements-summary.md)
+- 来源与修订：[确认记录](docs/requirements-alignment.md)
+- 当前实现：[正式工程与接线](docs/current-implementation.md)
 
-## 一、 核心架构五大铁律（强制执行）
+## 简化开发与验证（2026-10-05 用户确认）
 
-任何代码实现、接口定义与架构设计严禁违反以下既定业务基线：
+**不要过度设计。开发、修复和验证应以当前实际问题及验收条件为边界，采用能满足要求的最小改动。**
 
-1. **执行底座锁定**：
-   - 100% 采用 **Google Artemis 纯物理真机设备池**（如 Samsung Galaxy S23 等）；
-   - **彻底废除并严禁引入任何 Android 模拟器或虚拟化实例**；
-   - 内容发布与端侧交互必须驱动原生 App 走端到端 UI 自动化，不采用官方发布 API。
-2. **阶段平台收敛**：
-   - 前期核心阶段仅开放 **Facebook (FB)** 与 **YouTube (YT)** 双平台；
-   - **Instagram (INS)** 作为战略储备平台，系统预留接口枚举与槽位，但在前 3 个月业务周期内**禁止引入对 INS 的硬性运行依赖**。
-3. **1:1 设备账号强绑定（单机跨平台隔离）**：
-   - 单台真机在同一时期内，同一平台仅登录并绑定 1 个专属账号（单机承载上限为 1 个 FB Page + 1 个 YT 频道）；
-   - **严禁在同一 App 内切换多个账号**，以减少身份混用与错误路由；该绑定不证明平台不会关联账号。
-4. **切片素材排他独占锁（Exclusive Lock）**：
-   - 漫剧切片资产经人工确认后，系统强制加注唯一目标账号独占锁；
-   - 同一内容的语言版本共用身份，只选一个版本发布一次，原账号也不得另行重发。取消释放与少量剧情衔接依 G-03 系列处理；独占规则不替代内容权利或平台原创性判断。
-5. **数据来源与评价边界**：
-   - 官方与第三方数据按指标核验权限、可得性和可比性；来源变化、缺失及原因必须可见，第三方不保证提供全部私有指标。
-   - 按 G-05 在试验前明确主指标与判据；主指标不可用时保留未知或证据不足，不静默更换评分强制选赢家。完整复盘、策略效果、商业目标与推广权限分别记录。
-
----
+- 一次处理一个明确的用户操作流程，先明确问题、预期结果与验收条件；优先修改和复用现有实现，不顺带扩展功能或重构无关模块。
+- 只有当前需求或实际复用需要时才增加抽象、接口、状态、数据库表或框架；不为假设中的未来场景提前建设通用机制。外部条件缺失时明确记录阻断，不仅为表达阻断而新增一套系统。
+- 小改动默认由一个负责人完成；有独立模块可并行处理，或涉及发布、凭据、数据安全等风险时，才按需要引入协作与独立审查。不为每个小改动新建分支、合同、台账或报告体系。
+- 验证与影响范围匹配：运行受影响的检查，涉及 Web 操作时用可复现的真实 Playwright 流程验证；共享基础能力变化或存在具体回归风险时再扩大回归。通过后收尾，只有新改动、失败或未解决的问题才追加或重复检查。
+- 简化仍须保留权限边界、敏感信息保护、未知提交不重发及真实结果核验；不以假数据、模拟成功或省略必要检查降低验证成本。
+- 若一个小问题开始需要跨系统框架或明显增加长期维护负担，先说明必要性、代价与更简单的方案，收敛范围后再推进。
 
 ## 二、 本地开发与运行纪律
 
 > [!CAUTION]
-> **严禁在本地环境下由自动化工具/Agent 主动启动常驻后台服务！**
-> 本地环境的所有服务（如 `npm run dev`、守护进程启动、常驻测试服务等）均由人类开发者**手动启动与调试**。测试脚本与构建验证必须执行单次运行并正常退出的命令（如 `npm run build`、`npm test`、`python3 script.py`）。
+> Agent 可按当前任务需要直接启动或重启本地服务，无需另行取得启动授权；先核验现有实例、端口及在途任务，优先复用可用实例，避免重复启动或中断未决业务，不自行安装后台守护服务。测试脚本与构建验证使用单次运行并退出的命令（如 `pnpm build`、`pnpm test`、`python3 script.py`）。
+
+### 包管理与统一启动
+
+- 使用 pnpm 8.14.0，项目 `.npmrc` 自动下载并选择 Node.js 24.16.0（首次需要联网），不修改全局 Node。从仓库根目录 `pnpm install --frozen-lockfile`；仅维护 `pnpm-lock.yaml`，工作区范围由 `pnpm-workspace.yaml` 指定。`pnpm env:check` 输出实际 Node 路径并检查 SQLite；安装时严格校验 engines，统一启动前检查运行环境。全局 `node -v` 不代表项目脚本使用的版本。
+- `pnpm dev` / `pnpm start`：启动正式 Web（3100）与后端（4320）；配置执行服务时复用已认证的正式执行器或启动本轮自有实例。Ctrl+C 或自有服务退出时停止自有服务组，不误停复用实例。不存在另一套 Web 入口。
+- `pnpm dev:web` / `pnpm dev:backend`：独立启动正式服务。`pnpm executor:start` 使用已有 `.env.runtime` 启动 `product/executor`；数据库和任务 ID 不变，不重新导入或重放历史状态。
+- `pnpm executor:setup <Artemis路径> <真机序列号>` 仅供首次初始化，已有配置时跳过。设备 Agent / worker 由 `pnpm executor:agent` / `pnpm executor:worker` 单独运行；统一入口不自动操作手机。
+- `pnpm test:playwright` 只支持正式 Web，默认 `identity` 范围，通过 `SG_PRODUCT_WEB_SCOPE` 选择流程。`executor-console` 检查正式执行与人工协助入口。根 `lint`、`test`、`build` 均针对正式工程；`pnpm check:layout` 防止恢复旧目录、包或 Web 入口。
+
+### 测试与验证规范（强制）
+
+- Android 真机通过 USB 连接且 `adb devices` 显示为 `device` 时，Agent 可直接在当前任务范围内进行设备操作与测试，无需另行申请真机使用授权。操作前核对序列号、目标 App 与在途任务；多设备时显式指定目标，未授权／离线设备不视为可用。保持现有业务执行引擎、当前手机授权与任务范围要求，记录实际操作、结果及必要恢复。
+
+- **不使用独立 E2E 测试方式进行项目验收，统一使用 Playwright 进行真实浏览器测试与验证。** 不新增或运行其他 E2E 测试套件来替代 Playwright 验证。
+- Playwright 必须从实际 Web 入口操作页面、填写表单、点击按钮，并断言页面反馈和最终状态；不得通过直接调用后端接口、修改数据库、预置成功状态或 Mock 业务结果绕过待验收流程。接口、日志及数据库的只读检查只能作为补充证据。
+- Playwright 也能覆盖跨页面完整流程；这里指定的是验证工具与真实操作方式，并非禁止完整业务链路验证。不能仅凭脚本名包含 `e2e` 判断是否合规，也不能仅通过改名宣称完成迁移。
+- 保留可复现的 Playwright 脚本、执行命令、环境、断言结果及必要截图；截图和日志须保护密码、验证码、令牌等敏感信息。页面能打开、截图成功或脚本未报错，不等于业务验收通过。
+- 运行正式 Web 发起 → Artemis 执行 → 人工介入 → 最终回执验证时，须通过 Web 发起任务及提交人工反馈。Playwright 负责 Web 操作，Artemis 负责真机 App 的识别、决策与执行，不得以固定手机操作脚本替代 Agent 决策。没有真实设备或外部条件时，记录阻断，不能用模拟结果宣称链路跑通。首期已按 R-106 明确选用 Google Artemis 作为手机执行引擎，但 Demo 的接口、部署和其他技术栈不自动成为最终方案；用户按 R-109 补充确认既有远程执行已验证，应复用原证据并注明环境及覆盖范围；当前重点是网络共存、新设备客户端与未覆盖的恢复能力，不将既有链路重新列为全未验证。不满足条件时重新对齐，不自动替换引擎。
+- 单元测试、非 UI 集成测试、类型检查、lint 和构建可作为补充检查，不能替代 Playwright 的 Web 验收，也不能证明真实登录、真机操作或公开发布成功。未获得明确授权，不得点击最终发布按钮或扩大任务权限。
+- 遵守服务管理纪律：优先使用已启动的服务；不可用或当前验证需要时，可直接启动／重启，并核验现有实例及在途任务。验证命令单次运行后退出，结束时清理本轮自有临时进程，不误停他人服务。报告明确区分通过、失败、阻断和未验证。
+
+上述规则与 [AGENTS.md](AGENTS.md) 保持同步；历史文档中的 E2E 描述不构成绕过本规则的依据。
 
 ---
 
@@ -49,50 +60,13 @@
 - 数据输出统一使用 UTF-8 编码格式的 JSON 或 Markdown。
 
 ### 3. Git 提交与分支规范
-- **分支命名**：
-  - 特性开发：`feature/<task-id>-<description>`（例如 `feature/task-01-scheduler-route`）
-  - 缺陷修复：`fix/<issue-id>-<description>`
-  - 规范重构：`refactor/<scope>-<description>`
+- **分支与版本（2026-10-06 用户确认）**：
+  - 只保留 `main` 和 `dev`。日常开发、修复、文档及验证修改均在 `dev`；不再沿用 `Developer` 或长期 feature/team/stage 分支。
+  - `main` 用于可部署版本管理。仅将完成对应检查、真实业务验收及必要审查的固定 `dev` 候选合入 `main`，再按发布版本创建标签；分支合并、CI 通过或 Debug APK 不等于发布验收。
+  - 默认单负责人操作 `dev`。确需并行时使用从固定 `dev` SHA 创建的独立 detached worktree，记录候选 SHA，由负责人集成回 `dev`；不增加常驻分支，不共享写入目录。
+  - 清理前保存名称、完整 SHA 和恢复备份，核对远端 tip、工作树及在途工作；只有已被 `dev` 保留的历史才删除分支。保留历史审查、失败和阻断记录，不以收拢分支关闭验收门禁。
+  - 未提交修改留在原工作目录，未经对应任务核验不批量提交；不将私密配置、运行数据或凭据随分支整理提交。
 - **Commit Message 格式**：
   `[<模块名>] <动作>: <简明说明>`（例如 `[artemis-controller] fix: 严格限制 1:1 设备账号路由，杜绝串号派发`）。
 
 ---
-
-## 四、 仓库工程架构导航
-
-```
-SocialGrowth/
-├── apps/                               # 终端应用与人机界面层
-│   ├── web-console/                    # 统一现代 Web 运营管理控制台 (Next.js + shadcn UI)
-│   └── artemis-controller/             # Artemis 纯真机群控调度端
-├── services/                           # 核心中枢与计算服务层
-│   ├── ai-engine/                      # AI 策略生成、规则解析与 A/B 评估中枢
-│   └── shortlink-service/              # 导流短链服务 (302 跳转、三层日志与爬虫过滤)
-├── docs/                               # 权威规划与交付规范
-│   ├── delivery-specification.md       # 【核心基准】7 大核心交付模块与系统规格说明书
-│   ├── business-requirements.md        # 业务需求与技术规划讨论全记录
-│   ├── monthly-delivery.md             # 连续 12 个月逐月交付表与里程碑
-│   ├── budget-summary.md               # 年度五类技术预算汇总
-│   ├── platform-rules.md               # 平台官方规则核查记录
-│   └── handoff/                        # 研发交接台账与整改任务看板
-├── scripts/                            # 自动化脚本层 (数据测算与报告构建)
-├── artifacts/                          # 最终成果物输出 (数据模型与正式汇报文档)
-├── CONTEXT.md                          # 全局业务术语表与边界约定
-└── CLAUDE.md                           # 本规范文档 (开发最高准则)
-```
-
----
-
-## 五、 核心基准文档索引
-
-- **开发规格及 Issue 跟踪**：[`docs/specs/README.md`](docs/specs/README.md)。个人公开仓库 `linghuxj/SocialGrowth` 使用 GitHub Issues；规格标签 `ready-for-agent`，同编号优先更新已有 Issue。任务范围与依赖以首批总规格及 FL 清单为准，标签不替代真实接入或生产动作授权。
-- 7 大交付模块完整规格：[`docs/delivery-specification.md`](docs/delivery-specification.md)
-- 最新业务细节对齐规格书：[`docs/handoff/2026-09-19-aligned-business-spec.md`](docs/handoff/2026-09-19-aligned-business-spec.md)
-- 研发交接任务书与整改看板：[`docs/handoff/README.md`](docs/handoff/README.md)
-- 本轮业务审计处理结果：[`docs/handoff/2026-09-19-business-audit-closure.md`](docs/handoff/2026-09-19-business-audit-closure.md)
-- **原项目文档审计报告（历史发现）**：[`docs/handoff/2026-09-19-document-audit-report.md`](docs/handoff/2026-09-19-document-audit-report.md)
-- **需求与规划文档全面审计报告（原发现及复核标注）**：[`docs/handoff/2026-09-19-full-document-audit.md`](docs/handoff/2026-09-19-full-document-audit.md)
-- **44 项复核、修复及待核证据**：[`docs/handoff/2026-09-19-audit-verification.md`](docs/handoff/2026-09-19-audit-verification.md)
-- **开发实施准备度审查（原意见及复核标注）**：[`docs/handoff/2026-09-19-implementation-readiness-audit.md`](docs/handoff/2026-09-19-implementation-readiness-audit.md)；首次事实判断见[逐项复核](docs/handoff/2026-09-19-readiness-verification.md)，最新规格修复与待实现事项见[修复台账](docs/handoff/2026-09-19-readiness-remediation.md)；不能将原 5 项一概视为全局开工阻断，也不能把规格修复等同应用验收。
-- 业务术语字典：[`CONTEXT.md`](CONTEXT.md)
-- 测算数据基准：[`artifacts/data/3至20台真机设备-前三个月发布与准入测算.md`](artifacts/data/3至20台真机设备-前三个月发布与准入测算.md)

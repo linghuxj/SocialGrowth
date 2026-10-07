@@ -1,0 +1,315 @@
+{
+  "generatedAt": "2026-10-02T08:11:21.329863+00:00",
+  "baseCommit": "57ac7c248311226942e693b583a4d691976ec08c",
+  "branch": "codex/core-automation-loop-stage1",
+  "candidate": "scoped account-preparation stage 1 and stage 2 increment; source hashes describe condensed Git checkpoint",
+  "scope": "R-158 execution library, authenticated formal Web requests, durable central tasks and internal Artemis session/journal ports",
+  "sourceFiles": [
+    {
+      "path": "docs/current-requirements-summary.md",
+      "bytes": 38685,
+      "sha256": "dae7d09633ec04a4355d0ab838ce1329181eb75b7e16418e03d00888a91421d8"
+    },
+    {
+      "path": "docs/requirements-alignment.md",
+      "bytes": 171065,
+      "sha256": "8c5c3948330f7c0f8c5a85369d22ec2e4c52bd711bc1eb6a931aacf635e2c740"
+    },
+    {
+      "path": "docs/specs/2026-10-02-account-preparation-execution-library.md",
+      "bytes": 6594,
+      "sha256": "0da05c7eeb2798f910afc8ddf6386f9a829f356d7c3ea0676987d7434f124855"
+    },
+    {
+      "path": "docs/engineering/delivery/records/account-preparation-library-20261002.md",
+      "bytes": 4523,
+      "sha256": "43f2125db4de4530076a9ac52e4789d3be84756b9ee367e4fc941a0339d5a4ab"
+    },
+    {
+      "path": "docs/engineering/delivery/records/account-preparation-stage2-20261002.md",
+      "bytes": 8004,
+      "sha256": "efb3551d4071b374b503fba528b3d570309fafb0090610c66eb7144636b58851"
+    },
+    {
+      "path": "product/backend/migrations/0026_account_preparation_tasks.sql",
+      "bytes": 4278,
+      "sha256": "d8a0c2b6fd002f31d756c124084b1aa801c21dd76d1d9bf58064af15f1253da5"
+    },
+    {
+      "path": "product/backend/migrations/0027_artemis_preparation_journal.sql",
+      "bytes": 2687,
+      "sha256": "6c0f1ee897f90ac03b795aaae5779dd455889e1774c25e836d8c8cd821a0a52c"
+    },
+    {
+      "path": "product/backend/src/account-preparation-api.pg-test.ts",
+      "bytes": 18633,
+      "sha256": "83d3fbd87b78e12563a2f8fd0c67ff2209c78f88bc531cab6d5e0a2aaaf5c5f5"
+    },
+    {
+      "path": "product/backend/src/account-preparation-service.ts",
+      "bytes": 15663,
+      "sha256": "31792a9ca1f71f78dcbb27670077761ddc61dc22b8d9be1b7cc49a5504a48f96"
+    },
+    {
+      "path": "product/backend/src/account-preparation.controller.ts",
+      "bytes": 2273,
+      "sha256": "4c1f65d9ee168b551560abf29a7b838bc79a203357dd2c4d0b5e9a2acf19878f"
+    },
+    {
+      "path": "product/backend/src/artemis-preparation-journal.ts",
+      "bytes": 6593,
+      "sha256": "e844600f56adaa7e82d7b8f93f5eefb5d95738b312b0bab328b4e6c5eba34bfe"
+    },
+    {
+      "path": "product/backend/src/app.module.ts",
+      "bytes": 8599,
+      "sha256": "4612472d5c261791b5f35d67c2dbcdcbd83c5cdec1f0446e4816db1e17358f68"
+    },
+    {
+      "path": "product/contracts/src/account-preparation-plan.ts",
+      "bytes": 4251,
+      "sha256": "4cf6d788bb3104d6f1ea2867edb38e6ccea584ed40688afb7f3cd39d0958b1da"
+    },
+    {
+      "path": "product/contracts/src/account-preparation.ts",
+      "bytes": 2767,
+      "sha256": "83134e1d0a69e6f83d6e5e37929e751f924483c033049a1426a1ac810f824c0b"
+    },
+    {
+      "path": "product/contracts/src/artemis-preparation.ts",
+      "bytes": 1969,
+      "sha256": "80067751ceb68250f602ce2ebcd1d4c7e81c32f217afe32fdef37b663d6616fe"
+    },
+    {
+      "path": "product/contracts/src/execution-library.ts",
+      "bytes": 7731,
+      "sha256": "895ba56daac4a21f571bbd8451d92350a5666c8de99a828e8688217086d62923"
+    },
+    {
+      "path": "product/contracts/src/index.ts",
+      "bytes": 1344,
+      "sha256": "159a0d16a7dd0e2f15b135f52aa56ca805a522a741bcf9b586327965003fdd49"
+    },
+    {
+      "path": "product/executor/src/account-preparation-plan.test.ts",
+      "bytes": 7270,
+      "sha256": "43f81f34da4f71fc81dd5455968afe89fe513176c0a93fa1a558d0e6519de5e9"
+    },
+    {
+      "path": "product/executor/src/account-preparation-plan.ts",
+      "bytes": 774,
+      "sha256": "a06ddd0b508da4dc769dbcaeb2e74dfad18d5a38a9c7b45f3a90c9c90aee38db"
+    },
+    {
+      "path": "product/executor/src/artemis-preparation-session.test.ts",
+      "bytes": 5629,
+      "sha256": "713383b31ab91bbf5baaebf7019767446443253e122eede8cdde19bd188c26da"
+    },
+    {
+      "path": "product/executor/src/artemis-preparation-session.ts",
+      "bytes": 6621,
+      "sha256": "f0affadac5e58c809f7564e38819b61f6e3fa4d3ab2c3d7dbc643de0eb715c94"
+    },
+    {
+      "path": "product/web/src/account-preparation-api.ts",
+      "bytes": 1837,
+      "sha256": "eeae054ef1cd3b4f1786f40871d5ecb914edaf442900dbbd149ef3cd05a398f5"
+    },
+    {
+      "path": "product/web/src/account-preparation-panel.tsx",
+      "bytes": 10303,
+      "sha256": "174a2cfd8a200224ad31c9a48450a0bf99f1cf244970e21304c794f7b97db7cb"
+    },
+    {
+      "path": "product/web/src/project-panel.tsx",
+      "bytes": 16497,
+      "sha256": "378e4cd543ebf047366e80d048a4d3cd88323138acafddae5348d1d1392d3ef3"
+    },
+    {
+      "path": "product/web/src/style.css",
+      "bytes": 26212,
+      "sha256": "7357d6adc2c0b3b587aa532e590b2482ba7f96f68fdb950a82288ced66e999e3"
+    },
+    {
+      "path": "scripts/run-playwright-target.mjs",
+      "bytes": 1931,
+      "sha256": "1ea68c0d5a5674f7840c756816f3d8bbff810bdd8f814c882921e1529308f314"
+    },
+    {
+      "path": "scripts/verify-product-account-preparation-playwright.mts",
+      "bytes": 8542,
+      "sha256": "1eccea8a87c222fad59f22177dcc623856d7572ceb2aac04ded7c2d5fce94669"
+    }
+  ],
+  "evidenceFiles": [
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-library-20261002/contracts-test.log",
+      "bytes": 7333,
+      "sha256": "6873153917d8d18713824a42046d33e7168b438cba789811d6a6ec58a98011d2"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-library-20261002/executor-test.log",
+      "bytes": 2524,
+      "sha256": "06f1c74a244c7abff184ec7f7c4a712a731004cc62b0eafc5cd0eef395fa6caa"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-library-20261002/manifest.json",
+      "bytes": 2302,
+      "sha256": "54d5bf87a5bd80e92dec8819646f2a9f45e762e2fc71e4642a350eeb9d9b6b13"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage2-20261002/environment.log",
+      "bytes": 224,
+      "sha256": "fa7ea2631eeebb77628bb0609323a0b4f71a0bb88e1c33cff824f8bda368a5a1"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage2-20261002/postgres-final.log",
+      "bytes": 1021,
+      "sha256": "7249e74ec019586f28339595cf59637f0bfdd5e8cc92b89783123b3bd2018a6b"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage2-20261002/postgres-first.log",
+      "bytes": 2181,
+      "sha256": "71f0c564c086b0164b00813d4851a8ed9830901104528c02009f62ea7404ab3e"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage2-20261002/postgres-journal-final.log",
+      "bytes": 1372,
+      "sha256": "0a843d1a8229dd12aa87683edf56ffb1b8a11df17fd3d4f6c2bc7a9a647c9d5c"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage2-20261002/product-build.log",
+      "bytes": 1323,
+      "sha256": "8e936aeeb09ed1e10a2aa3415ee0e8450be9c9dacae03be502ad3ee48529f15d"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage2-20261002/product-check.log",
+      "bytes": 1393,
+      "sha256": "2c88c5d3eb13ea6a2724ef1ded3aacfef8b2140d6e2c08859401efd1e2b60e6f"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage2-20261002/product-lint.log",
+      "bytes": 1459,
+      "sha256": "0a46326ec0c10d4cd9c6e881e7cd921ccccea928e7863c6606ff8675583de7f9"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage2-20261002/product-tests.log",
+      "bytes": 57661,
+      "sha256": "792590ae77b743adee1704eaeef89c7b0ad5fcca3efab47ec999b7535073d858"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage2-20261002/resource-closure.json",
+      "bytes": 646,
+      "sha256": "07b954818dac8a4ac36eed4c1fd6dc2dc81da02dc1e06fb6ba79d5edd5dedbee"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage2-20261002/sql-readonly.json",
+      "bytes": 716,
+      "sha256": "0f667ed681be7b17ccaad1e97affca548897d32eedbe10ebf3ada4e4d7a8d402"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage2-20261002/ui-diagnostic/failure-panel.png",
+      "bytes": 89909,
+      "sha256": "dbb41d1d0e97feeb0b0d8f27ff1bff3a65fb513b53164df8967c58d92fcc2afc"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage2-20261002/ui-diagnostic/result.json",
+      "bytes": 392,
+      "sha256": "562c1eba0da57b5d74707388a136f2dc743ba338bfc8a8942d650fbb4e9ea6ac"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage2-20261002/ui-final/preparation-desktop.png",
+      "bytes": 158661,
+      "sha256": "63dfc8148ad9d5aa1d0a11f4c3fa64eb0ff0c3612c612999e9c211f2d29a3d45"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage2-20261002/ui-final/preparation-mobile.png",
+      "bytes": 64576,
+      "sha256": "6b7b6761704243d6263706e6e7132c318221674fbf6259550456de7daf62e8c1"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage2-20261002/ui-final/result.json",
+      "bytes": 707,
+      "sha256": "17478b03e06f5d1715b7f66afde610c8fd87ddaf25621e537d5ac5583c973d99"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage2-20261002/ui-first/result.json",
+      "bytes": 392,
+      "sha256": "562c1eba0da57b5d74707388a136f2dc743ba338bfc8a8942d650fbb4e9ea6ac"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage2-20261002/ui-visual-final/preparation-desktop.png",
+      "bytes": 159043,
+      "sha256": "5a6954695dff605bc6f5fc3f47bdee3e7ba073d253757fafa504dc785a2c51cd"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage2-20261002/ui-visual-final/preparation-mobile.png",
+      "bytes": 64056,
+      "sha256": "b4e433f953dd1f4fdd2e5e21e37ad3eef14d2dd2a7424e234687f65ed38560fe"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage2-20261002/ui-visual-final/result.json",
+      "bytes": 707,
+      "sha256": "63ac9e3fd2ce9701dbac4f586520d2b3d17f8f665a4111535a78a156b02a58da"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/account-preparation-stage2-20261002/web-build-final.log",
+      "bytes": 492,
+      "sha256": "48b17f05ced22c7afcc6fbb52093a1f39a2455cea30e921c1b614e3b2f8cdc48"
+    }
+  ],
+  "checks": {
+    "productTypeCheck": "passed",
+    "productLint": "passed with 2 pre-existing backend warnings",
+    "productBuild": "passed",
+    "finalWebBuild": "passed",
+    "productTests": {
+      "contractsTypescript": 66,
+      "contractsPython": 38,
+      "backend": 339,
+      "executor": 29,
+      "web": 86,
+      "totalPassed": 558,
+      "failed": 0
+    },
+    "isolatedPostgresHttpSupplemental": {
+      "passed": 11,
+      "failed": 0,
+      "notRealPhoneAcceptance": true
+    },
+    "playwrightWeb": {
+      "results": [
+        "默认仅检查；必要输入缺少时真实表单阻止提交",
+        "实际提交保存原任务，页面展示资源阻断，无虚构就绪",
+        "重新检查同一任务，原身份和历史保留，检查版本递增",
+        "实际保存后丢响应：锁输入、读记录、原键接续，无重复任务",
+        "重载保留两平台任务与原检查状态",
+        "390px 可读、写操作关闭，无横向溢出"
+      ],
+      "errors": [],
+      "taskIds": [
+        "ca67640a-c789-440f-8bb4-eaf65f7a763c",
+        "d79e3a0d-22e1-4f6d-bfe3-93503fde62af"
+      ],
+      "checkVersion": 1,
+      "phoneOperations": 0,
+      "createdPlatformAssets": 0,
+      "publications": 0,
+      "platformReadinessVerified": false
+    }
+  },
+  "acceptance": {
+    "formalWebPersistenceRecoveryVerified": true,
+    "centralArtemisDispatchConnected": false,
+    "perActionPhysicalPermissionConnected": false,
+    "trustedEvidenceConsumerConnected": false,
+    "realArtemisInvocations": 0,
+    "createdPlatformAssets": 0,
+    "publications": 0,
+    "platformReadinessVerified": false,
+    "independentReviewSigned": false
+  },
+  "resourceClosure": "resource-closure.json",
+  "historicalManifest": "account-preparation-library-20261002/manifest.json is the earlier working-tree snapshot, not the final source list",
+  "formatCheck": "Source diff whitespace check passed after removing one terminal blank line; raw tool logs retain original whitespace"
+}

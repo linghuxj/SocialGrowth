@@ -1,0 +1,28 @@
+{
+  "tasks": [
+    {
+      "task_id": "304d8733-ae78-4008-afb9-855fcce85574",
+      "task_version": "1",
+      "state": "waiting_resources"
+    },
+    {
+      "task_id": "f3752121-3f6f-4133-9ec1-a63fb4bdb6ae",
+      "task_version": "0",
+      "state": "waiting_resources"
+    }
+  ],
+  "reviews": [
+    {
+      "task_id": "304d8733-ae78-4008-afb9-855fcce85574",
+      "task_version": "0",
+      "dispatch_created": "false",
+      "permission_granted": "false"
+    }
+  ],
+  "counts": {
+    "phone_control_holder_grants": 0,
+    "phone_control_journals": 0,
+    "artemis_preparation_intents": 0,
+    "artemis_preparation_observations": 0
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "sdkHead": "371aa6df56880643da57b30da936e9812fb0ec66",
+  "platform": "darwin",
+  "sdkForeignWorkUnmodified": true,
+  "sdkFiles": {
+    "artemis/__init__.py": "010cfba4f27f1853acde719a81fb322616cbadd89042ecf8add2d6fe26f0f319",
+    "artemis/context.py": "27d612b574e727c9f8a929627725804878017a5319c26ba7e3f94f98ff07a9c7",
+    "artemis/sdk/agent.py": "b287c39ef334a6e42ba7292502e93ab3e60040c8a764e87ac9b72f6c33fde343",
+    "artemis/agents/operator/operator.py": "755d8c975e91c2ad09c2c67ec1b60e0b175f7110691c170378fb34089b3d2eab",
+    "artemis/drivers/factory.py": "83941b9cc21f430082eedff347e892e5f8204c350537c60786d963390a78877d",
+    "artemis/drivers/base.py": "7cf8d36ff06dcd11ac11529413e43cb43df63c1dee1eda9b9cd45527cf16467f",
+    "artemis/drivers/android/adb_driver.py": "3f2b55fefd99cc5edf84f173ba788b5077fc1df375ac9a98b0a2ca4aa7353230",
+    "artemis/clients/ui_automator_client.py": "3a398acffe3bc88de911dbe4137c0a11a5644b1c82bdf821a46389ebb7910ae6",
+    "artemis/runtime/adb_endpoint.py": "98985bee696c979eddf5c47acd149845afcbbbfd1ae0458a1c337ba5f63eb864",
+    "artemis/config/paths.py": "069bfec2d0ef6f97089d3808067a0a70c3d649b0cba9647dabb124ca13f4b18e",
+    "artemis/platform/darwin.py": "413fef1e2ff3872c968abb6ae3c3eabf8198c1b3410e1ca10aaa64c356299eb8"
+  },
+  "pythonExecutable": {
+    "path": "/usr/local/Cellar/python@3.12/3.12.12/Frameworks/Python.framework/Versions/3.12/bin/python3.12",
+    "sha256": "9b671a740f255fb19c74132143910fd10c5fb367058f4d2e190f7abd9a404624"
+  },
+  "pythonRuntime": {
+    "path": "/usr/local/Cellar/python@3.12/3.12.12/Frameworks/Python.framework/Versions/3.12/Resources/Python.app/Contents/MacOS/Python",
+    "sha256": "85af6042be5bc29e769ba6ce5f9e61d3a4b0adb38ad79974664602961f42bad7"
+  },
+  "modelConfigurationUnmodified": true,
+  "modelCalls": 0,
+  "coverage": "actual installed SDK; dedicated context/operator construction only; synthetic authority and screenshot executable; not default Agent task or phone acceptance"
+}

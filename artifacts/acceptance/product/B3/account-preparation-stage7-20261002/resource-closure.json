@@ -1,0 +1,29 @@
+{
+  "checkedAt": "2026-10-02T13:23:39.464338+00:00",
+  "ownedContainer": {
+    "id": "ec61882d568a8410cf3bfd9c1820dadd1cc2acd459ec4216bcaa23362337798e",
+    "name": "sg-read7-20261002",
+    "verifiedOwnerLabel": "read7-20261002",
+    "removedWithOwnedVolumes": true,
+    "clusterId": "7692058598354739238"
+  },
+  "ownedWebAndBackendExited": true,
+  "portsWithoutListeners": [
+    3100,
+    4320,
+    32923
+  ],
+  "ephemeralCredentialsDiscarded": true,
+  "ownFailedFixtureDirectoriesRemoved": 8,
+  "preservedContainers": [
+    "nestar-music-backend-20261001",
+    "nestar-stage1-20261001",
+    "minio-test"
+  ],
+  "newArtemisCalls": 0,
+  "deviceOperations": 0,
+  "createdPlatformAssets": 0,
+  "publications": 0,
+  "sdkModified": false,
+  "protectedPublicationScriptReadOrStagedOrExecuted": false
+}

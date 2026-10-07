@@ -1,0 +1,10 @@
+{
+  "checkedAt": "2026-10-03T15:36:30.555Z",
+  "stage": "main_package_upgrade",
+  "code": "PHONE_TRANSPORT_PROBE_FAILED",
+  "actualPhoneIncomingSourceVerified": false,
+  "networkAdmissionGranted": false,
+  "actionPermissionGranted": false,
+  "originalTestPackagePresent": true,
+  "testPackageRestored": false
+}

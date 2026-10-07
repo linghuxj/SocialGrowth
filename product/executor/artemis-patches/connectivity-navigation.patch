@@ -1,0 +1,60 @@
+--- a/artemis/tools/socialgrowth_supervision.py
++++ b/artemis/tools/socialgrowth_supervision.py
+@@ -52,0 +53,4 @@
++    scope = request("session")
++    native = scope["control"]["policy"]["mode"] in {"client_test", "connectivity_test"} and scope["packageName"] == "com.socialgrowth.product"
++    permitted_actions = set(action_names) - ({"manage_app"} if native else set())
++    permitted_helpers = SAFE_TOOLS - ({"human_password_input", "human_otp_input", "ensure_trusted_app"} if native else set())
+@@ -54 +58 @@
+-    return [t for t in tools if t.name.split(":")[-1] in SAFE_TOOLS | set(action_names)]
++    return [t for t in tools if t.name.split(":")[-1] in permitted_helpers | permitted_actions]
+@@ -79,0 +84,4 @@
++        if any(v in {"使用配对码配对设备", "使用二维码配对设备", "pair device with pairing code", "pair device with qr code"} for v in labels):
++            return "unmanaged" # Pairing secrets belong only in the management-phone controlled form.
++        if any(v == "撤回本机参与" for v in labels):
++            return "participation_withdrawal"
+@@ -120,0 +129,9 @@
++        # Read-only retries across a foreground transition; never tap without
++        # a real package observation and never reuse a previous package.
++        for _ in range(2):
++            if curr_pkg:
++                break
++            await asyncio.sleep(0.25)
++            curr_pkg = (await driver.get_current_package() or "").lower()
++        if not curr_pkg:
++            raise RuntimeError("SOCIALGROWTH_FOREGROUND_UNAVAILABLE")
+@@ -125 +142,5 @@
+-        if curr_pkg != scope["packageName"].lower() and not is_launcher_or_system:
++        connectivity_packages = {"com.socialgrowth.product", "com.tailscale.ipn", "com.android.settings"} if (
++            control["policy"]["mode"] == "connectivity_test" and scope["packageName"] == "com.socialgrowth.product"
++            and scope.get("mode") == "diagnostic"
++        ) else {scope["packageName"].lower()}
++        if curr_pkg not in connectivity_packages and not is_launcher_or_system:
+@@ -128,0 +150,2 @@
++    if category == "participation_withdrawal":
++        category = "navigate" if (control["policy"].get("allowParticipationWithdrawal") is True and control["policy"]["mode"] == "client_test" and scope["packageName"] == "com.socialgrowth.product" and scope.get("mode") == "diagnostic") else "unmanaged"
+@@ -145,0 +146,5 @@
++        if (control["policy"]["mode"] == "connectivity_test"
++                and scope["packageName"] == "com.socialgrowth.product"
++                and scope.get("mode") == "diagnostic"
++                and control["policy"].get("allowNetworkCoexistenceCheck") is True):
++            connectivity_packages = {"com.socialgrowth.product", "io.nekohasekai.sfa", "com.follow.clash", "com.facebook.katana", "com.google.android.youtube"}
+--- a/artemis/tools/socialgrowth_supervision.py
++++ b/artemis/tools/socialgrowth_supervision.py
+@@ -115,6 +115,16 @@
+     driver = get_driver(ctx)
+     if driver.device_id != scope["serial"]:
+         raise RuntimeError("SOCIALGROWTH_DEVICE_MISMATCH")
++    # A diagnostic may start while a previous task left another app foreground.
++    # Permit only the exact system Home key to leave it; all app actions stay gated.
++    if (name == "press_key" and str(args.get("key", "")).lower() in {"home", "keycode_home", "3"}
++            and control["policy"]["mode"] == "connectivity_test"
++            and scope["packageName"] == "com.socialgrowth.product"
++            and scope.get("mode") == "diagnostic"):
++        if control.get("credentialReady"):
++            raise RuntimeError("SOCIALGROWTH_PROTECTED_INPUT_PENDING")
++        await asyncio.to_thread(request, "gate", {"action": name, "category": "navigate"})
++        return
+     if name == "manage_app":
+         app = str(args.get("app_name") or args.get("package_name") or args.get("package") or "").strip()
+         allowed_apps = {scope["packageName"].lower()}

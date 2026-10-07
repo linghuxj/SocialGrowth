@@ -1,0 +1,29 @@
+{
+  "checkedAt": "2026-10-02T17:41:58.649750+00:00",
+  "traceId": "2df07606-9fce-4602-99b2-7c85ae7783d5",
+  "taskStatus": "completed",
+  "tests": {
+    "passed": 3,
+    "failed": 2,
+    "inconclusive": 0,
+    "unchecked": 0,
+    "failed_items": [
+      {
+        "item_text": "Re-launched app confirms current participation prior to tapping withdrawal",
+        "kind": "assert",
+        "evidence": "Precondition met: com.socialgrowth.product was re-launched in Step 3 and the facts screen was reached prior to tapping withdrawal in Step 4. However, the pre-action screenshot for Step 4 contradicts the expectation: instead of confirming current participation ('本机参与已确认'), the screen stated '当前确认已过期；等待下一次中心确认。'."
+      },
+      {
+        "item_text": "Note `client-test-result` records test outcome with resultCode CLIENT_TEST_COMPLETED",
+        "kind": "assert",
+        "evidence": "Precondition met: note 'client-test-result' was saved at Step 5. However, inspection of the note content via read_note reveals it records a plain-text summary and does not contain 'resultCode' or 'CLIENT_TEST_COMPLETED' (the JSON payload was returned in the final message rather than recorded inside the note)."
+      }
+    ],
+    "retired": 0,
+    "retired_items": []
+  },
+  "acceptance": "failed",
+  "modelClaimOverriddenForAcceptance": true,
+  "historicalResultRewritten": false,
+  "backgroundStillRequiresReproduction": true
+}

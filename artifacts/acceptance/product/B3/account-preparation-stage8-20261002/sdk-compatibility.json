@@ -1,0 +1,16 @@
+{
+  "checkedAt": "2026-10-02T14:07:16.842290+00:00",
+  "sdkHead": "371aa6df56880643da57b30da936e9812fb0ec66",
+  "scope": "Actual local SDK class compatibility; on-disk sources include pre-existing foreign work. No model invocation or device test.",
+  "sources": {
+    "artemis/drivers/base.py": "7cf8d36ff06dcd11ac11529413e43cb43df63c1dee1eda9b9cd45527cf16467f",
+    "artemis/drivers/factory.py": "83941b9cc21f430082eedff347e892e5f8204c350537c60786d963390a78877d",
+    "artemis/drivers/android/adb_driver.py": "3f2b55fefd99cc5edf84f173ba788b5077fc1df375ac9a98b0a2ca4aa7353230",
+    "artemis/clients/ui_automator_client.py": "3a398acffe3bc88de911dbe4137c0a11a5644b1c82bdf821a46389ebb7910ae6",
+    "artemis/runtime/adb_endpoint.py": "98985bee696c979eddf5c47acd149845afcbbbfd1ae0458a1c337ba5f63eb864"
+  },
+  "sdkFilesEdited": false,
+  "overlaysCopiedToSdk": false,
+  "osIsolationVerified": false,
+  "allPathsFenced": false
+}

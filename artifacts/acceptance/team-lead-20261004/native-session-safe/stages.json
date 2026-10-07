@@ -1,0 +1,287 @@
+[
+  {
+    "stage": "session-input",
+    "process": {
+      "candidate": "821f3156552fa85363cc7317d46378ba5f76c03f",
+      "stage": "session-input",
+      "exitCode": 1,
+      "timeout": false,
+      "durationSeconds": 58.0,
+      "scope": "actual_native_ui"
+    },
+    "checker": {
+      "sessionId": "5bc652e2-d948-497f-8692-439ba53b5569",
+      "sessionStatus": "failed",
+      "checkerVerdicts": {}
+    }
+  },
+  {
+    "stage": "session-input-short",
+    "process": {
+      "candidate": "821f3156552fa85363cc7317d46378ba5f76c03f",
+      "stage": "session-input-short",
+      "exitCode": 0,
+      "timeout": false,
+      "durationSeconds": 101.84,
+      "scope": "actual_native_ui"
+    },
+    "checker": {
+      "sessionId": "15eb4fd8-0029-44b8-99a1-40d64af8b2ff",
+      "sessionStatus": "completed",
+      "checkerVerdicts": {
+        "passed": 2
+      },
+      "noUnmetSubgoals": true
+    }
+  },
+  {
+    "stage": "session-unknown-save",
+    "process": {
+      "candidate": "821f3156552fa85363cc7317d46378ba5f76c03f",
+      "stage": "session-unknown-save",
+      "exitCode": 0,
+      "timeout": false,
+      "durationSeconds": 60.76,
+      "scope": "actual_native_ui"
+    },
+    "checker": {
+      "sessionId": "7b6e70d2-0326-448d-a7b6-0bc2d907ddb8",
+      "sessionStatus": "completed",
+      "checkerVerdicts": {
+        "passed": 2
+      },
+      "noUnmetSubgoals": true
+    },
+    "facts": {
+      "readOnly": true,
+      "originalNameCurrent": true,
+      "temporaryBCurrent": false,
+      "factVersion": "5",
+      "state": "associated_pending_access",
+      "counts": {
+        "control_commands": "0",
+        "holder_grants": "0"
+      }
+    }
+  },
+  {
+    "stage": "session-leave-editor",
+    "process": {
+      "candidate": "821f3156552fa85363cc7317d46378ba5f76c03f",
+      "stage": "session-leave-editor",
+      "exitCode": 0,
+      "timeout": false,
+      "durationSeconds": 84.13,
+      "scope": "actual_native_ui"
+    },
+    "checker": {
+      "sessionId": "a33eca64-dde3-4730-a3c7-c80cdd1c50d3",
+      "sessionStatus": "completed",
+      "checkerVerdicts": {
+        "passed": 2
+      },
+      "noUnmetSubgoals": true
+    }
+  },
+  {
+    "stage": "session-return-list",
+    "process": {
+      "candidate": "821f3156552fa85363cc7317d46378ba5f76c03f",
+      "stage": "session-return-list",
+      "exitCode": 0,
+      "timeout": false,
+      "durationSeconds": 68.3,
+      "scope": "actual_native_ui"
+    },
+    "checker": {
+      "sessionId": "6323aa20-42a7-4b52-bf1f-a6bbc531d040",
+      "sessionStatus": "completed",
+      "checkerVerdicts": {
+        "passed": 2
+      },
+      "noUnmetSubgoals": true
+    }
+  },
+  {
+    "stage": "session-open-profile",
+    "process": {
+      "candidate": "821f3156552fa85363cc7317d46378ba5f76c03f",
+      "stage": "session-open-profile",
+      "exitCode": 0,
+      "timeout": false,
+      "durationSeconds": 379.59,
+      "scope": "actual_native_ui"
+    },
+    "checker": {
+      "sessionId": "38040977-c84a-4dd9-8b03-93df56e39f4d",
+      "sessionStatus": "completed",
+      "checkerVerdicts": {
+        "passed": 2,
+        "inconclusive": 2
+      },
+      "noUnmetSubgoals": true
+    }
+  },
+  {
+    "stage": "session-logout",
+    "process": {
+      "candidate": "821f3156552fa85363cc7317d46378ba5f76c03f",
+      "stage": "session-logout",
+      "exitCode": 0,
+      "timeout": false,
+      "durationSeconds": 115.3,
+      "scope": "actual_native_ui"
+    },
+    "checker": {
+      "sessionId": "3a9fdf05-d674-4972-972d-59cbe50a4819",
+      "sessionStatus": "completed",
+      "checkerVerdicts": {
+        "passed": 3
+      },
+      "noUnmetSubgoals": true
+    },
+    "pendingEquality": {
+      "originalPendingRawValueUnchangedAfterLogout": true,
+      "pendingStringCount": 1
+    }
+  },
+  {
+    "stage": "session-request-code",
+    "process": {
+      "candidate": "821f3156552fa85363cc7317d46378ba5f76c03f",
+      "stage": "session-request-code",
+      "exitCode": 0,
+      "timeout": false,
+      "durationSeconds": 100.75,
+      "scope": "actual_native_ui"
+    },
+    "checker": {
+      "sessionId": "a668bdc0-18ba-4a3d-a8bb-105ad67054de",
+      "sessionStatus": "completed",
+      "checkerVerdicts": {
+        "passed": 3
+      },
+      "noUnmetSubgoals": true
+    }
+  },
+  {
+    "stage": "session-submit-login",
+    "process": {
+      "candidate": "821f3156552fa85363cc7317d46378ba5f76c03f",
+      "stage": "session-submit-login",
+      "exitCode": 0,
+      "timeout": false,
+      "durationSeconds": 91.62,
+      "scope": "actual_native_ui"
+    },
+    "checker": {
+      "sessionId": "20dc4016-bfb9-482b-bb3b-f9b5289a32c1",
+      "sessionStatus": "completed",
+      "checkerVerdicts": {
+        "passed": 2
+      },
+      "noUnmetSubgoals": true
+    }
+  },
+  {
+    "stage": "session-reopen-pending",
+    "process": {
+      "candidate": "821f3156552fa85363cc7317d46378ba5f76c03f",
+      "stage": "session-reopen-pending",
+      "exitCode": 0,
+      "timeout": false,
+      "durationSeconds": 76.67,
+      "scope": "actual_native_ui"
+    },
+    "checker": {
+      "sessionId": "806efb63-0eba-470c-b860-f7def78a6c7d",
+      "sessionStatus": "completed",
+      "checkerVerdicts": {
+        "passed": 2
+      },
+      "noUnmetSubgoals": true
+    },
+    "facts": {
+      "readOnly": true,
+      "originalNameCurrent": true,
+      "temporaryBCurrent": false,
+      "factVersion": "5",
+      "state": "associated_pending_access",
+      "counts": {
+        "control_commands": "0",
+        "holder_grants": "0"
+      }
+    },
+    "receipt": {
+      "readOnly": true,
+      "originalKeyReceiptCount": 0,
+      "receiptStatus": null,
+      "receiptTargetMatches": false,
+      "receiptVersion": null
+    },
+    "pendingEquality": {
+      "originalPendingRawValueUnchangedAfterFreshLogin": true
+    },
+    "pendingUI": {
+      "originalDesiredTextVisible": true,
+      "allInputsFrozen": true,
+      "unknownOrUnconfirmedVisible": true
+    }
+  },
+  {
+    "stage": "session-current-facts",
+    "process": {
+      "candidate": "821f3156552fa85363cc7317d46378ba5f76c03f",
+      "stage": "session-current-facts",
+      "exitCode": 0,
+      "timeout": false,
+      "durationSeconds": 77.76,
+      "scope": "actual_native_ui"
+    },
+    "checker": {
+      "sessionId": "cb293140-fc0f-42d4-ac3d-0667e962ee2a",
+      "sessionStatus": "completed",
+      "checkerVerdicts": {
+        "passed": 2
+      },
+      "noUnmetSubgoals": true
+    }
+  },
+  {
+    "stage": "session-samekey-retry",
+    "process": {
+      "candidate": "821f3156552fa85363cc7317d46378ba5f76c03f",
+      "stage": "session-samekey-retry",
+      "exitCode": 0,
+      "timeout": false,
+      "durationSeconds": 90.03,
+      "scope": "actual_native_ui"
+    },
+    "checker": {
+      "sessionId": "03b304f7-c77a-4f78-8d4e-24d187bd367a",
+      "sessionStatus": "completed",
+      "checkerVerdicts": {
+        "passed": 3
+      },
+      "noUnmetSubgoals": true
+    },
+    "facts": {
+      "readOnly": true,
+      "originalNameCurrent": false,
+      "temporaryBCurrent": false,
+      "factVersion": "6",
+      "state": "associated_pending_access",
+      "counts": {
+        "control_commands": "0",
+        "holder_grants": "0"
+      }
+    },
+    "receipt": {
+      "readOnly": true,
+      "originalKeyReceiptCount": 1,
+      "receiptStatus": "succeeded",
+      "receiptTargetMatches": true,
+      "receiptVersion": 6
+    }
+  }
+]

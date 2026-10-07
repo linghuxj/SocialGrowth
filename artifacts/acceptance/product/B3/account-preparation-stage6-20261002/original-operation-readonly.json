@@ -1,0 +1,22 @@
+{
+  "checkedAt": "2026-10-02T12:49:00.150Z",
+  "taskId": "d634e4c6-4266-4cc7-a784-3a31a1737cac",
+  "attemptId": "4920b891-f2aa-4ecc-bb3e-6c1df7dff7fc",
+  "traceId": "c41af179-58fd-4628-a227-20e777f6db70",
+  "centralTask": {
+    "id": "d634e4c6-4266-4cc7-a784-3a31a1737cac",
+    "status": "unknown"
+  },
+  "archive": {
+    "status": "completed",
+    "device_serial": "RFCW40MYYCV",
+    "model": "Pro",
+    "pid": 97609,
+    "start_time": 1790135897.363286,
+    "end_time": 1790136354.826398
+  },
+  "newDeviceAction": false,
+  "stopConfirmed": false,
+  "archivedProcessState": "not_found",
+  "processCheckedAt": "2026-10-02T12:57:02.908Z"
+}

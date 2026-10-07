@@ -1,0 +1,5 @@
+
+> @socialgrowth/product-backend@0.0.0 operator:admin /Users/linghuxj/Documents/myproject/project/SocialGrowth/product/backend
+> tsx src/operator-admin.ts "initialize" "--login-name" "core-local-operator" "--display-name" "合成验收运营" "--request-id" "init-2825cd0b-f4e9-4645-b6ea-21f153ba31bc"
+
+{"operator":{"operatorId":"84e39c0a-20f0-4572-95ab-028b95601901","loginName":"core-local-operator","displayName":"合成验收运营","factVersion":0,"createdAt":"2026-10-02T03:53:00.155Z","updatedAt":"2026-10-02T03:53:00.155Z","status":"active","disabledAt":null}}

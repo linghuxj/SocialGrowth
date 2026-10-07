@@ -1,0 +1,16 @@
+{
+  "codeCandidate": "fd9e0dd3c9aa8e0ec9500cfc03578164ef62d48e",
+  "closureCommit": "commit containing this manifest",
+  "recordedAt": "2026-10-02T06:35:49.144195+00:00",
+  "fixedCandidateManifestVerifiedFromGit": true,
+  "files": [
+    {
+      "path": "docs/engineering/delivery/records/core-automation-loop-direction-artemis-20261002.md",
+      "sha256": "bfe3b85caf2aeb08f31ba47859aa6b5a039d88b0fc532db26c1da329e2b5e9df"
+    },
+    {
+      "path": "artifacts/acceptance/product/B3/core-loop-stage3-takeover/takeover-resource-closure.json",
+      "sha256": "72aede09415e03a8bd29b12d30557c3e7ae400cd26917d822d953e710bae78fc"
+    }
+  ]
+}

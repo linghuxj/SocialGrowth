@@ -1,0 +1,401 @@
+{
+  "positive": {
+    "postflight.json": {
+      "readOnly": true,
+      "labelEqualsPreflight": true,
+      "deviceVersion": "1",
+      "deviceState": "associated_pending_access",
+      "scope": "failed_model_run_postflight_not_native_acceptance"
+    },
+    "process.json": {
+      "candidate": "821f3156552fa85363cc7317d46378ba5f76c03f",
+      "emulator": "emulator-5554",
+      "exitCode": 1,
+      "timeout": false,
+      "durationSeconds": 59.11,
+      "scope": "actual_native_label_edit_and_restore_no_participation"
+    }
+  },
+  "unknown-samekey-retry": {
+    "original-key-receipt.json": {
+      "readOnly": true,
+      "originalKeyReceiptCount": 1,
+      "receiptStatus": "succeeded",
+      "receiptTargetMatches": true,
+      "receiptVersion": 4
+    },
+    "safe-checker-summary.json": {
+      "sessionId": "f802c292-585a-4465-944c-53922956ce60",
+      "sessionStatus": "completed",
+      "checkerVerdicts": {
+        "passed": 2,
+        "inconclusive": 2
+      },
+      "noUnmetSubgoals": true
+    },
+    "postflight.json": {
+      "readOnly": true,
+      "originalNameCurrent": false,
+      "temporaryBCurrent": true,
+      "factVersion": "4",
+      "state": "associated_pending_access",
+      "counts": {
+        "control_commands": "0",
+        "holder_grants": "0"
+      }
+    },
+    "process.json": {
+      "candidate": "821f3156552fa85363cc7317d46378ba5f76c03f",
+      "stage": "unknown-samekey-retry",
+      "exitCode": 0,
+      "timeout": false,
+      "durationSeconds": 79.37,
+      "scope": "actual_native_ui"
+    }
+  },
+  "final-restore-save": {
+    "safe-checker-summary.json": {
+      "sessionId": "fbb5bf37-8b40-4f0d-bf16-bb1e93a40f47",
+      "sessionStatus": "completed",
+      "checkerVerdicts": {
+        "passed": 2
+      },
+      "noUnmetSubgoals": true
+    },
+    "postflight.json": {
+      "readOnly": true,
+      "originalNameCurrent": true,
+      "temporaryBCurrent": false,
+      "factVersion": "5",
+      "state": "associated_pending_access",
+      "counts": {
+        "control_commands": "0",
+        "holder_grants": "0"
+      }
+    },
+    "pending-safe-summary.json": {
+      "readOnly": true,
+      "unresolvedCommandCount": 0,
+      "historyCount": 0
+    },
+    "process.json": {
+      "candidate": "821f3156552fa85363cc7317d46378ba5f76c03f",
+      "stage": "final-restore-save",
+      "exitCode": 0,
+      "timeout": false,
+      "durationSeconds": 64.46,
+      "scope": "actual_native_ui"
+    }
+  },
+  "unknown-factcheck": {
+    "original-key-receipt.json": {
+      "readOnly": true,
+      "originalKeyReceiptCount": 0,
+      "receiptStatus": null,
+      "receiptTargetMatches": false,
+      "receiptVersion": null
+    },
+    "safe-checker-summary.json": {
+      "sessionId": "8ae34df3-73bd-4e79-a7ab-e1464329ff87",
+      "sessionStatus": "completed",
+      "checkerVerdicts": {
+        "passed": 3
+      },
+      "noUnmetSubgoals": true
+    },
+    "safe-ui-state.json": {
+      "readOnly": true,
+      "temporaryBInActualInput": true,
+      "inputEnabled": [
+        "false"
+      ],
+      "unknownVisible": false,
+      "currentFactCheckVisible": true,
+      "sameRequestRetryVisible": true,
+      "factUnchangedMessageVisible": true
+    },
+    "process.json": {
+      "candidate": "821f3156552fa85363cc7317d46378ba5f76c03f",
+      "stage": "unknown-factcheck",
+      "exitCode": 0,
+      "timeout": false,
+      "durationSeconds": 77.65,
+      "scope": "actual_native_ui"
+    },
+    "request-lock-safe.json": {
+      "readOnly": true,
+      "originalBodyAndKeysUnchanged": true,
+      "pendingCount": 1,
+      "scope": "after_fact_check_before_same_key_retry"
+    }
+  },
+  "restore-input": {
+    "safe-checker-summary.json": {
+      "sessionId": "46ace7e8-f727-4ae8-8238-b9c0c1a9ff87",
+      "sessionStatus": "completed",
+      "checkerVerdicts": {
+        "passed": 4
+      },
+      "noUnmetSubgoals": true
+    },
+    "process.json": {
+      "candidate": "821f3156552fa85363cc7317d46378ba5f76c03f",
+      "exitCode": 0,
+      "timeout": false,
+      "durationSeconds": 80.5,
+      "scope": "actual_native_original_label_input_only_no_save"
+    }
+  },
+  "restore-save": {
+    "safe-checker-summary.json": {
+      "sessionId": "e6cce474-8ac6-4506-9b50-05a32e112019",
+      "sessionStatus": "completed",
+      "checkerVerdicts": {
+        "passed": 3
+      },
+      "noUnmetSubgoals": true
+    },
+    "postflight.json": {
+      "readOnly": true,
+      "labelEqualsPreflight": true,
+      "deviceVersion": "3",
+      "deviceState": "associated_pending_access",
+      "scope": "actual_native_original_label_restore_readback"
+    },
+    "process.json": {
+      "candidate": "821f3156552fa85363cc7317d46378ba5f76c03f",
+      "exitCode": 0,
+      "timeout": false,
+      "durationSeconds": 90.53,
+      "scope": "actual_native_save_original_label"
+    }
+  },
+  "unknown-input": {
+    "safe-ui-state.json": {
+      "readOnlyUiSnapshot": true,
+      "temporaryBInActualInput": true,
+      "editFields": [
+        {
+          "isTargetTemporaryB": true,
+          "enabled": true
+        }
+      ],
+      "saveButtonsEnabled": [
+        true
+      ],
+      "unknownMarkerVisible": false,
+      "retryMarkerVisible": false
+    },
+    "process.json": {
+      "candidate": "821f3156552fa85363cc7317d46378ba5f76c03f",
+      "exitCode": 1,
+      "timeout": false,
+      "durationSeconds": 43.23,
+      "scope": "native_unknown_case_input_only_no_save"
+    }
+  },
+  "unknown-rebuild-text": {
+    "original-key-receipt.json": {
+      "readOnly": true,
+      "originalKeyReceiptCount": 0,
+      "receiptStatus": null,
+      "receiptTargetMatches": false,
+      "receiptVersion": null
+    },
+    "safe-checker-summary.json": {
+      "sessionId": "57449855-c775-4715-8420-460a44b9f5d5",
+      "sessionStatus": "completed",
+      "checkerVerdicts": {
+        "passed": 7
+      },
+      "noUnmetSubgoals": true
+    },
+    "postflight.json": {
+      "readOnly": true,
+      "originalNameCurrent": true,
+      "temporaryBCurrent": false,
+      "factVersion": "3",
+      "state": "associated_pending_access",
+      "counts": {
+        "control_commands": "0",
+        "holder_grants": "0"
+      }
+    },
+    "safe-ui-state.json": {
+      "readOnly": true,
+      "temporaryBInActualInput": true,
+      "inputEnabled": [
+        "false"
+      ],
+      "unknownVisible": true,
+      "currentFactCheckVisible": true,
+      "sameRequestRetryVisible": true,
+      "factUnchangedMessageVisible": false
+    },
+    "process.json": {
+      "candidate": "821f3156552fa85363cc7317d46378ba5f76c03f",
+      "stage": "unknown-rebuild-text",
+      "exitCode": 0,
+      "timeout": false,
+      "durationSeconds": 115.72,
+      "scope": "actual_native_ui"
+    }
+  },
+  "unknown-reopen": {
+    "postflight.json": {
+      "readOnly": true,
+      "originalNameCurrent": true,
+      "temporaryBCurrent": false,
+      "factVersion": "3",
+      "state": "associated_pending_access",
+      "counts": {
+        "control_commands": "0",
+        "holder_grants": "0"
+      }
+    },
+    "safe-ui-state.json": {
+      "temporaryBInActualInput": true,
+      "inputEnabled": [
+        "false"
+      ],
+      "unknownVisible": true,
+      "currentFactCheckVisible": true,
+      "sameRequestRetryVisible": true,
+      "readUnavailableVisible": false
+    },
+    "process.json": {
+      "candidate": "821f3156552fa85363cc7317d46378ba5f76c03f",
+      "stage": "unknown-reopen",
+      "exitCode": null,
+      "timeout": true,
+      "durationSeconds": 480.06,
+      "scope": "actual_native_ui"
+    },
+    "invalid-goal-invocation.json": {
+      "scope": "verification_setup_only",
+      "validBusinessEvidence": false,
+      "reason": "CLI expects goal text; wrapper supplied a file path",
+      "resolution": "pass exact private goal text to CLI, retain old run; no business state reset"
+    }
+  },
+  "unknown-rebuild": {
+    "pending-safe-summary.json": {
+      "readOnly": true,
+      "pendingCommandCount": 1,
+      "noCredentialFields": true,
+      "targetBPresent": true,
+      "expectedVersion": 3
+    },
+    "process.json": {
+      "candidate": "821f3156552fa85363cc7317d46378ba5f76c03f",
+      "stage": "unknown-rebuild",
+      "exitCode": 130,
+      "timeout": false,
+      "durationSeconds": 193.28,
+      "scope": "actual_native_ui"
+    },
+    "invalid-goal-invocation.json": {
+      "scope": "verification_setup_only",
+      "validBusinessEvidence": false,
+      "reason": "CLI expects goal text; wrapper supplied a file path",
+      "resolution": "pass exact private goal text to CLI, retain old run; no business state reset"
+    }
+  },
+  "final-restore-input": {
+    "safe-checker-summary.json": {
+      "sessionId": "ca346a9d-d19f-4bfa-b5db-5000b40b3127",
+      "sessionStatus": "completed",
+      "checkerVerdicts": {
+        "passed": 3
+      },
+      "noUnmetSubgoals": true
+    },
+    "process.json": {
+      "candidate": "821f3156552fa85363cc7317d46378ba5f76c03f",
+      "stage": "final-restore-input",
+      "exitCode": 0,
+      "timeout": false,
+      "durationSeconds": 68.29,
+      "scope": "actual_native_ui"
+    }
+  },
+  "unknown-save": {
+    "safe-checker-summary.json": {
+      "sessionId": "fee10b24-f989-4673-b449-ba62729e1f70",
+      "sessionStatus": "completed",
+      "checkerVerdicts": {
+        "passed": 3
+      },
+      "noUnmetSubgoals": true
+    },
+    "postflight.json": {
+      "readOnly": true,
+      "originalNameCurrent": true,
+      "temporaryBCurrent": false,
+      "factVersion": "3",
+      "state": "associated_pending_access",
+      "counts": {
+        "control_commands": "0",
+        "holder_grants": "0"
+      }
+    },
+    "safe-ui-state.json": {
+      "temporaryBInActualInput": true,
+      "inputEnabled": [
+        "false"
+      ],
+      "saveEnabled": [],
+      "unknownVisible": true,
+      "currentFactCheckVisible": true,
+      "sameRequestRetryVisible": true
+    },
+    "process.json": {
+      "candidate": "821f3156552fa85363cc7317d46378ba5f76c03f",
+      "exitCode": 0,
+      "timeout": false,
+      "durationSeconds": 143.82,
+      "scope": "actual_native_network_failure_unknown_freeze"
+    }
+  },
+  "save-temp": {
+    "safe-checker-summary.json": {
+      "artemisSession": "1f28c5d2-898c-4690-ab2a-f7729c75b25d",
+      "sessionStatus": "completed",
+      "lastCheckerVerdicts": [
+        {
+          "kind": "verify",
+          "status": "passed"
+        },
+        {
+          "kind": "verify",
+          "status": "passed"
+        },
+        {
+          "kind": "assert",
+          "status": "passed"
+        }
+      ],
+      "counts": {
+        "passed": 3
+      },
+      "unmetSubgoalsEmpty": true,
+      "nativeSourceCandidate": "821f3156552fa85363cc7317d46378ba5f76c03f",
+      "scope": "actual_native_current_label_save"
+    },
+    "postflight.json": {
+      "readOnly": true,
+      "labelEqualsPreflight": false,
+      "temporaryLabelMatches": true,
+      "deviceVersion": "2",
+      "deviceState": "associated_pending_access",
+      "scope": "actual_native_save_readback_supplemental_db"
+    },
+    "process.json": {
+      "candidate": "821f3156552fa85363cc7317d46378ba5f76c03f",
+      "exitCode": 0,
+      "timeout": false,
+      "durationSeconds": 89.87,
+      "scope": "actual_native_save_current_typed_label"
+    }
+  }
+}

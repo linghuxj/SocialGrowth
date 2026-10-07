@@ -1,0 +1,27 @@
+{
+  "name": "@socialgrowth/product-contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && pnpm generate:check",
+    "check": "tsc -p tsconfig.json --noEmit && pnpm generate:check",
+    "generate": "tsx src/generate-contracts.ts && tsx src/generate-participation-contract.ts && tsx src/generate-admission-api.ts",
+    "generate:check": "tsx src/generate-contracts.ts --check && tsx src/generate-participation-contract.ts --check && tsx src/generate-admission-api.ts --check",
+    "lint": "oxlint src",
+    "test": "tsx --test src/*.test.ts && python3 -m unittest discover -s python/tests -p 'test_*.py'"
+  },
+  "dependencies": {
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "tsx": "4.23.13",
+    "typescript": "5.9.3"
+  }
+}

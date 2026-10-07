@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.bottomnavigation.BottomNavigationView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/provider_navigation"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:minHeight="64dp"
+    android:background="#FFFFFF"
+    app:elevation="2dp"
+    app:itemIconSize="24dp"
+    app:labelVisibilityMode="labeled"
+    app:itemHorizontalTranslationEnabled="false"
+    app:menu="@menu/provider_navigation" />

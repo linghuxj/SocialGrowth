@@ -1,0 +1,104 @@
+{
+  "checkedAt": "2026-10-03T05:20:07.530719+00:00",
+  "previousPort": 42805,
+  "newPort": 43883,
+  "hardwareSerial": "RFCW40MYYCV",
+  "reusedHostAuthorization": true,
+  "newPairingAttempted": false,
+  "manualPortInsertion": false,
+  "usbDetached": false,
+  "transitions": [
+    {
+      "at": "2026-10-03T05:16:36.040020+00:00",
+      "state": [
+        "candidate",
+        42805,
+        "connected_target_verified",
+        42805,
+        true
+      ]
+    },
+    {
+      "at": "2026-10-03T05:16:37.044986+00:00",
+      "state": [
+        "candidate",
+        42805,
+        "connecting_with_existing_host_authorization",
+        42805,
+        false
+      ]
+    },
+    {
+      "at": "2026-10-03T05:16:39.053726+00:00",
+      "state": [
+        "candidate",
+        42805,
+        "connected_target_verified",
+        42805,
+        true
+      ]
+    },
+    {
+      "at": "2026-10-03T05:18:32.530285+00:00",
+      "state": [
+        "candidate",
+        42805,
+        "connecting_with_existing_host_authorization",
+        42805,
+        false
+      ]
+    },
+    {
+      "at": "2026-10-03T05:18:34.539432+00:00",
+      "state": [
+        "lost",
+        null,
+        "connecting_with_existing_host_authorization",
+        42805,
+        false
+      ]
+    },
+    {
+      "at": "2026-10-03T05:18:35.543998+00:00",
+      "state": [
+        "lost",
+        null,
+        "waiting_for_fresh_connect_report",
+        null,
+        false
+      ]
+    },
+    {
+      "at": "2026-10-03T05:18:51.610370+00:00",
+      "state": [
+        "candidate",
+        43883,
+        "waiting_for_fresh_connect_report",
+        null,
+        false
+      ]
+    },
+    {
+      "at": "2026-10-03T05:18:52.614864+00:00",
+      "state": [
+        "candidate",
+        43883,
+        "connecting_with_existing_host_authorization",
+        43883,
+        false
+      ]
+    },
+    {
+      "at": "2026-10-03T05:18:54.623824+00:00",
+      "state": [
+        "candidate",
+        43883,
+        "connected_target_verified",
+        43883,
+        true
+      ]
+    }
+  ],
+  "acceptance": "diagnostic_automatic_rotation_passed",
+  "formalAdmission": false
+}

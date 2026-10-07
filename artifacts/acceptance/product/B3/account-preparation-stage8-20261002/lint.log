@@ -1,0 +1,5 @@
+
+> @socialgrowth/product-executor@0.0.0 lint /Users/linghuxj/Documents/myproject/project/SocialGrowth/product/executor
+> oxlint src
+
+src/artemis-read-screen-bridge.ts:115:24: warning unicorn(no-useless-spread): `Promise.all` accepts an iterable, so it's unnecessary to convert the iterable to an array. help: Consider removing the spread operator.

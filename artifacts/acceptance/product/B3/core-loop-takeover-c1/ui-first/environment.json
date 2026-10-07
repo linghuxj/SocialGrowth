@@ -1,0 +1,47 @@
+{
+  "scope": "synthetic local UI only",
+  "containers": [
+    {
+      "cid": "2736eec9f4633294c9fc4cff5035f41d465c2f6d54731e313a32ea27258d0140",
+      "owner": "sg-core-local-a3828267-f7f1-4941-953d-3a52b49283e4",
+      "kind": "pg",
+      "port": "32870",
+      "imageId": "sha256:212aeeeb8faaef6c46498d86cbec6b9344d8d9492996b174664ff82c562ab685"
+    },
+    {
+      "cid": "d3616146feec4f59ce9ed9f5283b2e091ee918987cc26de960862d2dcf7fdbb2",
+      "owner": "sg-core-local-a3828267-f7f1-4941-953d-3a52b49283e4",
+      "kind": "storage",
+      "port": "32871",
+      "imageId": "sha256:f5d82361e10f3edd134431963a3082001f85f99613a345eb6756dd49dd9007e7"
+    }
+  ],
+  "migrations": [
+    "0001_identity_and_device.sql",
+    "0002_provider_phone_auth.sql",
+    "0003_provider_auth_recovery.sql",
+    "0004_installation_bootstrap_admission.sql",
+    "0005_network_admission.sql",
+    "0006_phone_control_journal.sql",
+    "0007_task_recovery_budget.sql",
+    "0008_project_basics.sql",
+    "0009_resource_reservations.sql",
+    "0010_project_planning_drafts.sql",
+    "0011_unassigned_device_todos.sql",
+    "0012_device_assistance_feed_index.sql",
+    "0013_device_assistance_notes_index.sql",
+    "0014_tracking_link_requests.sql",
+    "0015_endpoint_report_journal.sql",
+    "0016_connection_maintenance_budget.sql",
+    "0017_joint_recovery_reservations.sql",
+    "0018_commission_income_journal.sql",
+    "0019_material_registry.sql",
+    "0020_material_upload_tickets.sql",
+    "0021_task_recheck_outbox.sql",
+    "0022_media_registry_commands.sql",
+    "0023_media_credentials.sql"
+  ],
+  "web": "http://127.0.0.1:3100",
+  "sourceReferences": "synthetic UUIDs, not verified rights",
+  "browserAdmission": "actual IAB localhost navigation succeeded before runner"
+}

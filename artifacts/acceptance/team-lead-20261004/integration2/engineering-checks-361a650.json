@@ -1,0 +1,17 @@
+{
+  "candidate": "361a650",
+  "approvedSourceFixture": "35d7ac2804feb6e71dfc432a6d08435313ad96e9",
+  "scope": "backend unit regression after exact approved downstream fixture correction",
+  "command": "pnpm --filter @socialgrowth/product-backend test",
+  "result": "passed",
+  "tests": 394,
+  "passed": 394,
+  "failed": 0,
+  "durationMs": 6356.498262,
+  "rawLogLocal": "artifacts/acceptance/team-lead-20261004/integration2/backend-unit-35d7ac2.log",
+  "limitations": [
+    "Prior681e34f393/394 failure retained, not overwritten",
+    "No real metrics, browser, physical action or production acceptance inferred",
+    "Raw unit log kept local and not included in this safe metadata commit"
+  ]
+}

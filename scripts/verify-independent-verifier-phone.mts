@@ -1,0 +1,95 @@
+import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { createRequire } from "node:module";
+import { mkdir, open, writeFile, chmod } from "node:fs/promises";
+import { constants } from "node:fs";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+import { randomUUID } from "node:crypto";
+
+// Supplemental native transport check. Instrumentation has no UI/credentials/
+// business commands. Preserve the already-installed test package and main APK.
+assert.equal(process.env.SG_PRODUCT_VERIFIER_PHONE_PROBE, "authorized");
+const serial = "RFCW40MYYCV", deviceId = "0fef3177-636c-4b82-8209-1af38134e00f";
+const run = promisify(execFile), output = resolve("artifacts/acceptance/product/B3/tailnet-proposal-20261003");
+await mkdir(output, { mode: 0o700, recursive: true });
+const privateDir = resolve(".runtime", `verifier-phone-probe-${randomUUID()}`);
+await mkdir(privateDir, { mode: 0o700 });
+const adb = async (args: string[], timeout = 10000) => (await run("adb", ["-s", serial, ...args], { timeout, maxBuffer: 1_048_576, shell: false })).stdout;
+const { loadCurrentLocalParticipation } = await import(pathToFileURL(resolve("product/backend/dist/local-participation-service.js")).href) as typeof import("../product/backend/src/local-participation-service.js");
+interface ProbePool {
+  connect(): Promise<Parameters<typeof loadCurrentLocalParticipation>[0]>;
+  end(): Promise<void>;
+}
+const { Pool } = createRequire(resolve("product/backend/package.json"))("pg") as {
+  Pool: new (options: { connectionString: string; max: number }) => ProbePool;
+};
+async function privateConfig() {
+  try {
+    const fd = await open(resolve(".runtime/product-local-live/config.json"), constants.O_RDONLY | constants.O_NOFOLLOW);
+    try {
+      const stat = await fd.stat();
+      assert.ok(stat.isFile() && stat.uid === process.getuid?.() && (stat.mode & 0o077) === 0 && stat.size <= 16384);
+      const raw: unknown = JSON.parse(await fd.readFile("utf8"));
+      assert.ok(raw && typeof raw === "object" && "databasePassword" in raw && typeof raw.databasePassword === "string");
+      return { databasePassword: raw.databasePassword };
+    } finally { await fd.close(); }
+  } catch { throw new Error("LOCAL_PROBE_CONFIGURATION_UNAVAILABLE"); }
+}
+const config = await privateConfig();
+const pool = new Pool({ connectionString: `postgresql://socialgrowth:${config.databasePassword}@127.0.0.1:55432/sg_product_local_live`, max: 1 });
+async function participationFresh() {
+  const client = await pool.connect();
+  try { return !!await loadCurrentLocalParticipation(client, deviceId, new Date()); }
+  finally { client.release(); }
+}
+let stage = "actual_device", original: string | null = null, installed = false, restored = false, result: Record<string, unknown>;
+try {
+  assert.equal((await adb(["shell", "getprop", "ro.serialno"])).trim(), serial);
+  assert.equal((await adb(["shell", "getprop", "ro.product.model"])).trim(), "SM-S9110");
+  assert.equal((await adb(["shell", "getprop", "ro.build.version.sdk"])).trim(), "36");
+  stage = "current_participation";
+  assert.equal(await participationFresh(), false); // Do not interrupt a fresh active acceptance run.
+  const processes = await adb(["shell", "dumpsys", "activity", "processes"]);
+  assert.ok(!/Active instrumentation/.test(processes));
+  stage = "test_package_backup";
+  const path = (await adb(["shell", "pm", "path", "com.socialgrowth.product.test"])).trim();
+  if (path) {
+    assert.match(path, /^package:\/data\/app\/[^\n]+\/base\.apk$/);
+    original = resolve(privateDir, "original-test.apk");
+    await adb(["pull", path.slice(8), original]); await chmod(original, 0o600);
+  }
+  stage = "test_package_install";
+  const candidate = resolve("product/android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk");
+  assert.match(await adb(["install", "-r", candidate], 30000), /Success/); installed = true;
+  stage = "actual_native_transport";
+  const text = await adb(["shell", "am", "instrument", "-w", "-r", "com.socialgrowth.product.test/com.socialgrowth.product.VerifierTransportInstrumentation"], 30000);
+  const value = (name: string) => text.match(new RegExp(`^INSTRUMENTATION_RESULT: ${name}=(.*)$`, "m"))?.[1]?.trim();
+  assert.equal(value("failed"), "0"); assert.equal(value("passed"), "9");
+  assert.equal(value("actualPhoneIncomingSourceVerified"), "true");
+  assert.equal(value("networkAdmissionGranted"), "false"); assert.equal(value("actionPermissionGranted"), "false");
+  assert.match(text, /INSTRUMENTATION_CODE: -1/);
+  result = { checkedAt: new Date().toISOString(), deviceModel: "SM-S9110", androidApi: 36,
+    deliveryTransport: "usb_adb_instrumentation", httpsSourceTransport: "actual_phone_tailnet_to_pinned_serve",
+    actualPhoneIncomingSourceVerified: true, nativeChecksPassed: 9, nativeChecksFailed: 0,
+    mainApkUpdated: false, participationFreshBefore: false, participationFreshAfter: await participationFresh(),
+    noParticipationCommandIssued: true, networkAdmissionGranted: false, actionPermissionGranted: false,
+    evidenceScope: "supplemental_native_tls_and_source_not_usb_free_or_business_acceptance" };
+} catch {
+  process.exitCode = 2; result = { checkedAt: new Date().toISOString(), stage, code: "PHONE_TRANSPORT_PROBE_FAILED",
+    actualPhoneIncomingSourceVerified: false, networkAdmissionGranted: false, actionPermissionGranted: false };
+} finally {
+  try {
+    if (installed) {
+      if (original) assert.match(await adb(["install", "-r", original], 30000), /Success/);
+      else assert.match(await adb(["uninstall", "com.socialgrowth.product.test"]), /Success/);
+      restored = true;
+    }
+  } catch { process.exitCode = 2; }
+  await pool.end();
+}
+result.originalTestPackagePresent = !!original;
+result.testPackageRestored = restored;
+await writeFile(resolve(output, "verifier-phone-probe.json"), JSON.stringify(result, null, 2), { mode: 0o600 });
+console.log(JSON.stringify(result));

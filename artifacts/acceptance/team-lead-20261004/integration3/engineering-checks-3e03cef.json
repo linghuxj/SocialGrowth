@@ -1,0 +1,64 @@
+{
+  "source": "3e03cef493126db5eef698119262744caeb6f482",
+  "checkedAt": "2026-10-04T00:00:40.557325+00:00",
+  "commands": {
+    "pnpm test:product": {
+      "exitCode": 0,
+      "groups": [
+        {
+          "tests": 80,
+          "pass": 80,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0,
+          "duration_ms": 2702.196596,
+          "package": "contracts_typescript"
+        },
+        {
+          "tests": 395,
+          "pass": 395,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0,
+          "duration_ms": 6501.380126,
+          "package": "backend"
+        },
+        {
+          "tests": 61,
+          "pass": 61,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0,
+          "duration_ms": 14331.852549,
+          "package": "executor"
+        },
+        {
+          "tests": 86,
+          "pass": 86,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0,
+          "duration_ms": 8530.303071,
+          "package": "web"
+        }
+      ],
+      "contracts_python": {
+        "tests": 39,
+        "passed": true
+      }
+    },
+    "pnpm check:product": {
+      "exitCode": 0,
+      "packages": 4
+    }
+  },
+  "scope": "root complete product unit regression and type checks",
+  "limits": [
+    "No real platform source, physical execution, browser, production or full product acceptance claimed",
+    "Future source changes require their affected checks again"
+  ]
+}
