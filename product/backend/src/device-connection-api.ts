@@ -1,3 +1,5 @@
+import type { BootstrapManagement } from "./bootstrap-management.js";
+import { BootstrapRelay, type BootstrapNetwork, type BootstrapScope } from "./bootstrap-relay.js";
 import { createHash, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
@@ -22,6 +24,7 @@ const providerStateRequestSchema = metadataSchema.extend({ deviceId: z.string().
 const pairRequestSchema = metadataSchema.extend({ idempotencyKey: z.string().regex(/^[A-Za-z0-9_-]{16,128}$/), deviceId: z.string().uuid(),
   expectedFactVersion: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER), pairingCode: z.string().regex(/^\d{6}$/) });
 
+type ConnectionNetwork = CurrentDeviceNetwork | BootstrapNetwork;
 type DeviceScope = PilotDeviceNetworkScope & { deviceState: string; associationId: string };
 interface ConnectionRow {
   device_id: string; provider_id: string; installation_id: string; association_id: string; authority_mode: string; network_binding_digest: Buffer;
@@ -33,7 +36,7 @@ interface ConnectionRow {
   pairing_state: "not_started" | "awaiting_code" | "pairing" | "paired" | "expired" | "unknown";
   pairing_expires_at: Date | null; pairing_attempt_id: string | null;
   connection_state: "not_connected" | "connecting" | "connected" | "stale" | "unknown";
-  connected_endpoint_revision: string | null; connected_at: Date | null; blocker_code: string | null;
+  verified_hardware_serial: string | null; connected_endpoint_revision: string | null; connected_at: Date | null; blocker_code: string | null;
 }
 interface PairAttemptRow { device_id: string; installation_id: string; expected_fact_version: string; network_binding_digest: Buffer; attempt_id: string; status: "processing" | "paired" | "connected" | "unknown" | "blocked"; blocker_code: string | null }
 
@@ -52,16 +55,17 @@ function freshDeviceObservation(value: string, now: number): boolean {
   const at = Date.parse(value);
   return Number.isFinite(at) && at <= now + 5000 && now - at <= 15_000;
 }
-function freshNetwork(network: CurrentDeviceNetwork | null, scope: DeviceScope): network is CurrentDeviceNetwork {
+function freshNetwork(network: ConnectionNetwork | null, scope: DeviceScope): network is ConnectionNetwork {
   return !!network && network.deviceId === scope.deviceId && network.providerId === scope.providerId
     && network.installationId === scope.installationId && network.installationGeneration === scope.installationGeneration
     && network.ownershipVersion === scope.ownershipVersion && network.factVersion === scope.factVersion
-    && (network.mode === "pilot_verified" || network.mode === "formal_admitted")
+    && (network.mode === "bootstrap" ? /^[a-f0-9-]{36}$/.test(network.sessionId) && freshTime(network.observedAt, 3000) : (network.mode === "pilot_verified" || network.mode === "formal_admitted" || network.mode === "managed_verified")
     && tailnetAddress(network.tailnetAddress) === network.tailnetAddress && freshTime(network.observedAt, 3000)
     && /^[A-Za-z0-9_-]{1,128}$/.test(network.tailnetNodeId)
-    && /^nodekey:[a-f0-9]{64}$/.test(network.tailnetNodeKey);
+    && /^nodekey:[a-f0-9]{64}$/.test(network.tailnetNodeKey));
 }
-function bindingDigest(network: CurrentDeviceNetwork): Buffer {
+function bindingDigest(network: ConnectionNetwork): Buffer {
+  if (network.mode === "bootstrap") return digest({ ...network, observedAt: undefined });
   return digest({ deviceId: network.deviceId, providerId: network.providerId, installationId: network.installationId,
     installationGeneration: network.installationGeneration, ownershipVersion: network.ownershipVersion, factVersion: network.factVersion,
     mode: network.mode, tailnetNodeId: network.tailnetNodeId, tailnetNodeKey: network.tailnetNodeKey,
@@ -87,8 +91,74 @@ export class DeviceConnectionApi {
   private readonly connectRetries = new Map<string, { target: string; nextAt: number }>();
   constructor(private readonly pool: Pool, private readonly installationAuth: InstallationAuthService,
     private readonly providerAuth: ProviderAuthService, private readonly network: DeviceConnectionNetworkAuthority | null,
-    private readonly adb: DeviceConnectionAdb | null) {}
+    private readonly adb: DeviceConnectionAdb | null, private readonly bootstrap: BootstrapRelay | null = null, private readonly management: BootstrapManagement | null = null) {}
 
+  async bootstrapScope(token: string): Promise<BootstrapScope> {
+    const scope = await this.installationScope(token);
+    if (!this.bootstrap?.enabled || !this.adb || !["associated_pending_access", "access_ready"].includes(scope.deviceState)) throw denied();
+    return scope;
+  }
+  async bootstrapDevices(): Promise<{ deviceId: string; connected: boolean; mode: "bootstrap" | "managed_verified" }[]> {
+    const rows = (await this.pool.query<{ device_id: string; provider_id: string }>(
+      `SELECT device_id,provider_id FROM ${schema}.device_connection_states WHERE authority_mode IN ('bootstrap','managed_verified') ORDER BY updated_at DESC LIMIT 100`)).rows;
+    const result: { deviceId: string; connected: boolean; mode: "bootstrap" | "managed_verified" }[] = [];
+    for (const row of rows) {
+      const scope = await this.providerScopeByIdentity(row.provider_id, row.device_id);
+      if (!scope) continue;
+      const fact = await this.projectState(randomUUID(), scope);
+      if (fact.networkState === "bootstrap" || fact.networkState === "managed_verified") result.push({ deviceId: row.device_id, connected: fact.connectionState === "connected", mode: fact.networkState });
+    }
+    return result;
+  }
+  async bootstrapTarget(deviceId: string): Promise<{ deviceId: string; serial: string; hardwareSerial: string; sessionId: string }> {
+    const row = await this.currentConnectionState(deviceId);
+    if (!row || !row.verified_hardware_serial || row.connection_state !== "connected" || !freshTime(row.connected_at) || !row.connect_port) throw denied();
+    const scope = await this.providerScopeByIdentity(row.provider_id, deviceId);
+    const network = scope ? await this.readNetwork(scope) : null;
+    if (!network || network.mode !== "bootstrap" || !bindingDigest(network).equals(row.network_binding_digest)) throw denied();
+    const target = this.target(network, "connect", row.connect_port);
+    return { deviceId, serial: `${target.address}:${target.port}`, hardwareSerial: row.verified_hardware_serial, sessionId: network.sessionId };
+  }
+  async preparationTarget(deviceId: string): Promise<{ deviceId: string; serial: string; hardwareSerial: string; sessionId: string }> {
+    const row = await this.currentConnectionState(deviceId);
+    const scope = row ? await this.providerScopeByIdentity(row.provider_id, deviceId) : null;
+    const network = scope ? await this.readNetwork(scope) : null;
+    if (!row || !row.verified_hardware_serial || !network || !["bootstrap", "managed_verified"].includes(network.mode)
+      || row.connection_state !== "connected" || !freshTime(row.connected_at) || !freshTime(row.endpoint_observed_at)
+      || !row.connect_port || !bindingDigest(network).equals(row.network_binding_digest)) throw denied();
+    const target = this.target(network, "connect", row.connect_port);
+    return { deviceId, serial: `${target.address}:${target.port}`, hardwareSerial: row.verified_hardware_serial, sessionId: row.source_epoch };
+  }
+  async handoffBootstrap(deviceId: string, address: string): Promise<void> {
+    if (!this.management || !this.adb || !this.bootstrap) throw denied();
+    const release = await this.lockDevice(deviceId);
+    try {
+      const original = await this.bootstrapTarget(deviceId);
+      const row = await this.currentConnectionState(deviceId);
+      const scope = row ? await this.providerScopeByIdentity(row.provider_id, deviceId) : null;
+      const network = scope ? this.bootstrap.current(scope) : null;
+      if (!row?.connect_port || !scope || !network) throw denied();
+      const node = await this.management.observe(address);
+      const verified = await this.adb.connectAndVerify(address, row.connect_port);
+      if (verified.state !== "connected" || verified.hardwareSerial !== original.hardwareSerial) throw denied();
+      const current = await this.providerScopeByIdentity(row.provider_id, deviceId);
+      const now = await this.currentConnectionState(deviceId);
+      const confirmed = await this.management.observe(address);
+      if (!current || !sameScope(current, scope) || !now || now.source_epoch !== row.source_epoch || now.connect_port !== row.connect_port
+        || confirmed.nodeId !== node.nodeId || confirmed.nodeKey !== node.nodeKey || !this.bootstrap.current(current)) throw stale();
+      await this.management.save(scope, address, node, original.hardwareSerial);
+      // Only a verified path can end the bootstrap relay. A failed check leaves
+      // it running; the App restarts a fresh endpoint epoch on the new path.
+      this.bootstrap.handoff(network);
+    } finally { await release(); }
+  }
+  private target(network: ConnectionNetwork, purpose: "pairing" | "connect", port: number) {
+    if (network.mode === "bootstrap") {
+      if (!this.bootstrap) throw denied();
+      return this.bootstrap.target(network, purpose, port);
+    }
+    return { address: network.tailnetAddress, port };
+  }
   onModuleDestroy(): void { this.adb?.close(); }
 
   async installationState(token: string, raw: unknown) {
@@ -188,7 +258,9 @@ export class DeviceConnectionApi {
           connectionState, connectedRevision, connectedAt, connectionState === "stale" ? "CONNECT_ENDPOINT_PENDING" : null]);
       return { duplicate: false, revision };
     });
-    if (!result.duplicate) await this.reconnectCurrent(scope.deviceId);
+    if (network.mode === "bootstrap") this.bootstrap!.report(network, request.pairing.port, request.connect.port);
+    // Discovery heartbeats must not wait for an unavailable ADB handshake.
+    if (!result.duplicate) void this.reconnectCurrent(scope.deviceId).catch(() => { /* State remains unconfirmed. */ });
     return { protocolVersion: deviceConnectionProtocolVersion, deviceId: scope.deviceId, sourceEpoch: request.sourceEpoch,
       sequence: request.sequence, acceptedAt: now.toISOString(), endpointRevision: result.revision };
   }
@@ -239,7 +311,8 @@ export class DeviceConnectionApi {
           [current.deviceId, attemptId]);
       });
 
-      const target: AdbTarget = { address: network.tailnetAddress, pairingPort: state.pairing_port, connectPort: state.connect_port };
+      const pairTarget = this.target(network, "pairing", state.pairing_port), connectTarget = this.target(network, "connect", state.connect_port);
+      const target: AdbTarget = { address: pairTarget.address, pairingPort: pairTarget.port, connectPort: connectTarget.port };
       const paired = await this.adb!.pair(target, request.pairingCode);
       if (paired !== "paired") {
         await this.finishPairAttempt(attemptId, "unknown", "ADB_PAIR_RESULT_UNKNOWN", false);
@@ -256,7 +329,8 @@ export class DeviceConnectionApi {
         const attempt = await this.pairAttemptById(attemptId);
         return this.pairResponse(request.requestId, current.deviceId, attempt, latest, request.expectedFactVersion);
       }
-      const connected = await this.adb!.connectAndVerify(freshNetwork.tailnetAddress, latest.connect_port);
+      const resolved = this.target(freshNetwork, "connect", latest.connect_port);
+      const connected = await this.adb!.connectAndVerify(resolved.address, resolved.port);
       const verifyScope = await this.providerScope(token, request.deviceId), verifyNetwork = await this.readNetwork(verifyScope);
       const finalState = await this.completeConnection(attemptId, current, verifyScope, verifyNetwork, latest, connected.state === "connected");
       const completed = await this.pairAttemptById(attemptId);
@@ -296,8 +370,13 @@ export class DeviceConnectionApi {
       factVersion };
   }
 
-  private async readNetwork(scope: DeviceScope): Promise<CurrentDeviceNetwork | null> {
-    if (!this.network || !["associated_pending_access", "access_ready"].includes(scope.deviceState)) return null;
+  private async readNetwork(scope: DeviceScope): Promise<ConnectionNetwork | null> {
+    if (!["associated_pending_access", "access_ready"].includes(scope.deviceState)) return null;
+    const bootstrap = this.bootstrap?.current(scope);
+    if (bootstrap && freshNetwork(bootstrap, scope)) return bootstrap;
+    const managed = await this.management?.readCurrent(scope);
+    if (managed && freshNetwork(managed, scope)) return managed;
+    if (!this.network) return null;
     try {
       const result = await this.network.readCurrent({ ...scope, factVersion: scope.ownershipVersion }, AbortSignal.timeout(2500));
       return freshNetwork(result, { ...scope, factVersion: scope.ownershipVersion }) ? result : null;
@@ -372,18 +451,19 @@ export class DeviceConnectionApi {
     const release = await this.lockDevice(deviceId);
     try {
       const state = await this.currentConnectionState(deviceId);
-      if (!state || state.pairing_state === "pairing" || state.connect_status !== "candidate" || !state.connect_port
+      if (!state || state.pairing_state === "pairing" || (state.pairing_state === "awaiting_code" && !state.verified_hardware_serial) || state.connect_status !== "candidate" || !state.connect_port
         || !freshTime(state.endpoint_observed_at)) return;
       const scope = await this.providerScopeByIdentity(state.provider_id, deviceId);
       if (!scope || scope.deviceState === "paused") return;
       const network = await this.readNetwork(scope);
       if (!network || !bindingDigest(network).equals(state.network_binding_digest)) return;
-      await this.adb.renewTransport(network.tailnetAddress, state.connect_port);
+      const resolved = this.target(network, "connect", state.connect_port);
+      await this.adb.renewTransport(resolved.address, resolved.port);
       const target = `${state.source_epoch}/${state.connect_port}`;
       const retry = this.connectRetries.get(deviceId);
       if (retry?.target === target && Date.now() < retry.nextAt) return;
       this.connectRetries.set(deviceId, { target, nextAt: Date.now() + 30_000 });
-      const result = await this.adb.connectAndVerify(network.tailnetAddress, state.connect_port);
+      const result = await this.adb.connectAndVerify(resolved.address, resolved.port);
       this.connectRetries.set(deviceId, { target, nextAt: Date.now() + (result.state === "connected" ? 8000 : 30_000) });
       const latestScope = await this.providerScopeByIdentity(state.provider_id, deviceId), latestNetwork = latestScope ? await this.readNetwork(latestScope) : null;
       const latest = await this.currentConnectionState(deviceId);
@@ -393,11 +473,11 @@ export class DeviceConnectionApi {
         const locked = await this.connectionRow(client, deviceId, true);
         if (!locked || locked.source_epoch !== state.source_epoch || locked.endpoint_revision !== state.endpoint_revision
           || locked.connect_port !== state.connect_port || locked.pairing_state === "pairing") return;
-        const isConnected = result.state === "connected";
+        const isConnected = result.state === "connected" && (!locked.verified_hardware_serial || result.hardwareSerial === locked.verified_hardware_serial);
         await client.query(`UPDATE ${schema}.device_connection_states SET connection_state=$2,connected_endpoint_revision=$3,connected_at=$4,blocker_code=$5,
           pairing_state=CASE WHEN $2='connected' THEN 'paired' ELSE pairing_state END,verified_hardware_serial=$6,updated_at=clock_timestamp() WHERE device_id=$1`,
           [deviceId, isConnected ? "connected" : "unknown", isConnected ? Number(locked.endpoint_revision) : null, isConnected ? new Date() : null,
-            isConnected ? null : "CENTER_ADB_UNAVAILABLE", result.state === "connected" ? result.hardwareSerial : null]);
+            isConnected ? null : "CENTER_ADB_UNAVAILABLE", isConnected && result.state === "connected" ? result.hardwareSerial : locked.verified_hardware_serial]);
         if (isConnected) await client.query(`UPDATE ${schema}.device_connection_pair_attempts SET status='connected',blocker_code=NULL,updated_at=clock_timestamp()
           WHERE device_id=$1 AND installation_id=$2 AND status IN ('processing','unknown','paired') AND network_binding_digest=$3`,
           [deviceId,latestScope.installationId,state.network_binding_digest]);
@@ -415,7 +495,7 @@ export class DeviceConnectionApi {
         ownershipVersion: row.fact_version, factVersion: row.fact_version, associationId: row.association_id, deviceState: row.device_state } as DeviceScope : null;
     } catch { return null; }
   }
-  private async completeConnection(attemptId: string, original: DeviceScope, scope: DeviceScope, network: CurrentDeviceNetwork | null, old: ConnectionRow, connected: boolean): Promise<ConnectionRow | null> {
+  private async completeConnection(attemptId: string, original: DeviceScope, scope: DeviceScope, network: ConnectionNetwork | null, old: ConnectionRow, connected: boolean): Promise<ConnectionRow | null> {
     const stillCurrent = sameScope(original, scope) && network && freshNetwork(network, scope) && bindingDigest(network).equals(old.network_binding_digest);
     return transaction(this.pool, async client => {
       const attempt = (await client.query<{ device_id: string }>(`SELECT device_id FROM ${schema}.device_connection_pair_attempts WHERE attempt_id=$1 FOR UPDATE`, [attemptId])).rows[0];

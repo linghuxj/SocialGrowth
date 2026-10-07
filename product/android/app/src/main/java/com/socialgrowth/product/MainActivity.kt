@@ -1032,55 +1032,22 @@ class MainActivity : ComponentActivity() {
             root.addView(box, matchWrap().apply { topMargin = dp(14) })
             return box
         }
-        val network = section("1 · 连接管理网络", "先连接能够上网的稳定 Wi-Fi，再返回完成本机关联。手机与平台不需要在同一个 Wi-Fi。首次接入按下面的说明连接；已使用 SFA 的手机请保留现有配置。")
+        val network = section("1 · 建立首次接入", "连接能够上网的稳定 Wi-Fi，完成本机关联后，App 会建立首次接入通道。此时不需要安装 Tailscale 或 SFA。请允许通知并保持连接服务运行。")
         val networkStatus = label("正在检查网络…", 14f, secondary)
         network.addView(networkStatus, matchWrap().apply { topMargin = dp(10) })
-        val wifi = secondaryButton("连接 Wi-Fi").apply {
-            setOnClickListener { openPreparationSetting(android.provider.Settings.ACTION_WIFI_SETTINGS, "请在系统设置中打开 Wi-Fi，并连接可用网络。") }
-        }
-        network.addView(wifi, matchHeight(50).apply { topMargin = dp(10) })
-        val openTailscale = primaryButton("打开 Tailscale").apply { setOnClickListener { openTailscaleSetup() } }
-        network.addView(openTailscale, matchHeight(52).apply { topMargin = dp(8) })
-        network.addView(label("无需自行注册 Tailscale 账号。完成关联后，点击“获取并复制接入密钥”，再打开 Tailscale；点击右上角齿轮进入 Settings（设置），选择 Accounts（账号），再点右上角三点菜单 → Use an auth key（使用接入密钥）。长按输入框粘贴，点击 Add account（添加账号）。如果首页显示 Connect（连接），再点击它，并按系统提示允许 VPN 连接。返回这里后，App 会自动检查结果；只有显示平台已确认本机网络节点，才能继续。", 14f, secondary), matchWrap().apply { topMargin = dp(10) })
-        network.addView(label("以上 Tailscale 步骤仅用于首次管理接入。已使用 SFA 时，不要重新连接官方 Tailscale 或再次领取密钥。业务上网由手机订阅提供；请按第 4 步完成。", 14f, secondary), matchWrap().apply { topMargin = dp(10) })
-
-        val copyKey = secondaryButton("获取并复制接入密钥")
-        copyKey.isEnabled = state?.deviceId != null
-        copyKey.alpha = if (copyKey.isEnabled) 1f else 0.45f
-        network.addView(copyKey, matchHeight(50).apply { topMargin = dp(8) })
-        val keyStatus = label("", 14f, secondary).apply { visibility = View.GONE }
-        network.addView(keyStatus, matchWrap().apply { topMargin = dp(8) })
-        if (state?.deviceId == null) {
-            keyStatus.visibility = View.VISIBLE
-            keyStatus.text = "尚未确认本机关联，接入密钥和连接检查暂不可用。请返回完成关联；如果始终无法联系平台，请联系邀请你的运营人员核对接入服务地址。"
-            network.addView(secondaryButton("返回完成本机关联").apply {
-                setOnClickListener { goBack() }
-            }, matchHeight(50).apply { topMargin = dp(8) })
-        }
-        copyKey.setOnClickListener {
-            copyKey.isEnabled = false
-            runNetwork(action = {
-                val token = installationStore.load()?.activeSessionToken() ?: error("Inactive installation")
-                val result = JSONObject(api.post("/api/installation/network-setup/key",
-                    JSONObject().put("contractVersion", "android-network-setup-v1"), token))
-                require(result.getString("contractVersion") == "android-network-setup-v1")
-                require(result.getString("usage") == "pilot_shared")
-                if (!result.isNull("expiresAt")) require(Instant.parse(result.getString("expiresAt")).isAfter(Instant.now()))
-                result.getString("key").also { require(it.startsWith("tskey-auth-") && it.length <= 512) }
-            }, success = { key ->
-                copyKey.isEnabled = true
-                if (screen != screenGeneration) return@runNetwork
-                PilotKeyClipboard.copy(this, key)
-                keyStatus.visibility = View.VISIBLE
-                keyStatus.text = "密钥已复制，请及时粘贴。App 会尝试在 1 分钟后清除。请打开 Tailscale，按“齿轮设置 → Accounts → 三点菜单 → Use an auth key”进入输入页，粘贴后点击 Add account；首页若显示 Connect，再点击连接，然后返回这里检查。"
-            }, failure = {
-                copyKey.isEnabled = true
-                if (screen == screenGeneration) {
-                    keyStatus.visibility = View.VISIBLE
-                    keyStatus.text = "暂时无法获取本机接入密钥。请重新检查平台连接；仍失败时，联系邀请你的运营人员核对本机接入配置。已有 VPN 连接不代表本机已准入。"
-                }
-            })
-        }
+        network.addView(secondaryButton("连接 Wi-Fi").apply {
+            setOnClickListener { openPreparationSetting(android.provider.Settings.ACTION_WIFI_SETTINGS, "请连接可用 Wi-Fi。") }
+        }, matchHeight(50).apply { topMargin = dp(10) })
+        network.addView(primaryButton("准备配对通知").apply {
+            setOnClickListener {
+                EndpointReportingService.setAutomaticEnabled(this@MainActivity, true)
+                if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this@MainActivity, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    connectionPermissionScreen = screenGeneration
+                    connectionNotificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                } else startConnectionChecking()
+            }
+        }, matchHeight(52).apply { topMargin = dp(8) })
+        network.addView(label("先确认通知栏出现 SocialGrowth 保持连接通知，再打开下面的系统设置。首次配对期间，始终保留系统配对弹窗，在通知内提交配对码。", 14f, secondary), matchWrap().apply { topMargin = dp(10) })
 
         val debugging = section("2 · 允许远程连接", "平台需要通过系统的“无线调试”连接本机。此项必须由你在这台执行手机上开启。")
         debugging.addView(label("首次接入需要你按提示完成设置和配对。平台连接成功前，Artemis 无法替你操作这台手机；无需第二台手机或连接电脑。", 14f, secondary), matchWrap().apply { topMargin = dp(8) })
@@ -1175,21 +1142,13 @@ class MainActivity : ComponentActivity() {
             val checks = DevicePreparationChecks.read(this)
             guideIntroduction.text = if (remoteConnected) "连接正常，无需重复配对。下方设置可用于检查与恢复连接；返回设备管理不会启动或停止任务。" else "按下面的步骤完成首次设置。每次从设置返回，我们会自动检查进度。"
             updateConnectionControl(keepConnected, state)
-            wifi.visibility = if (checks.wifiConnected) View.GONE else View.VISIBLE
-            openTailscale.text = when { checks.sfaInstalled -> "打开 SFA"; checks.tailscaleInstalled -> "打开 Tailscale"; else -> "安装 Tailscale" }
-            copyKey.visibility = if (checks.sfaInstalled) View.GONE else View.VISIBLE
             networkStatus.text = when {
-                networkVerified -> "平台已确认本机网络节点；平台上网和执行资格仍需后续核验。"
-                !checks.wifiConnected -> "请先连接 Wi-Fi。"
-                state?.deviceId == null -> "请先返回完成本机关联，再按平台提供的接入信息连接。"
-                checks.sfaInstalled && !checks.vpnPresent -> "请打开 SFA 并启动平台为本机提供的配置；App 不会改为连接官方 Tailscale。"
-                checks.sfaInstalled && !checks.clashInstalled -> "已安装 SFA；业务代理尚缺 FlClash，请联系运营提供可信安装包。"
-                !checks.networkClientInstalled -> "Wi-Fi 已连接，请安装配套 Tailscale。"
-                !checks.vpnPresent -> "App 会尝试恢复已有 Tailscale 连接；首次登录或系统授权请打开 Tailscale 完成。"
-                else -> "已检测到 VPN；正在等待平台确认本机入网。"
+                !checks.discoverySupported -> "当前首次接入需要 Android 14 或更高版本。"
+                !checks.wifiConnected -> "请连接稳定的 Wi-Fi。"
+                networkVerified -> "平台已确认当前连接通道。"
+                EndpointReportingService.running -> "首次接入服务已启动，正在联系平台。"
+                else -> "请完成本机关联，并点击“准备配对通知”。"
             }
-            developerHelp.visibility = if (checks.developerOptions == true) View.GONE else View.VISIBLE
-            about.visibility = developerHelp.visibility
             debuggingStatus.text = when {
                 !checks.discoverySupported -> "当前版本的自动检查需要 Android 14 或更高版本，请联系运营确认支持机型。"
                 checks.developerOptions == false -> "请先开启开发者选项。"
@@ -1199,7 +1158,7 @@ class MainActivity : ComponentActivity() {
             }
             val found = Build.VERSION.SDK_INT >= 34 && discovery?.snapshot()?.connect?.status == EndpointObservationStatus.CANDIDATE
             pairingStatus.text = when {
-                remoteConnected -> "平台已连接到这台手机，无需再次配对。"
+                remoteConnected -> "平台已连接到这台手机，无需再次配对。可由运营从 Web 继续手机准备。"
                 !networkVerified -> "请先完成本机关联和平台网络确认。"
                 !checks.discoverySupported -> "当前手机暂不能自动完成连接检查。"
                 checks.wirelessDebugging == false -> "请先完成上一步。"
@@ -1208,7 +1167,7 @@ class MainActivity : ComponentActivity() {
             }
             progress.text = when {
                 remoteConnected -> "本机已连接到平台"
-                !networkVerified || !checks.wifiConnected || !checks.networkClientInstalled || !checks.vpnPresent -> "当前步骤：连接管理网络"
+                !networkVerified || !checks.wifiConnected -> "当前步骤：建立首次接入"
                 checks.wirelessDebugging != true -> "当前步骤：允许远程连接"
                 else -> "当前步骤：等待连接确认"
             }
@@ -1228,7 +1187,7 @@ class MainActivity : ComponentActivity() {
                 if (current() && visible && sequence == checkSequence) {
                     lastServerSuccess = android.os.SystemClock.elapsedRealtime()
                     remoteConnected = fact.connected
-                    networkVerified = fact.networkState in setOf("admitted", "pilot_verified")
+                    networkVerified = fact.networkState in setOf("admitted", "managed_verified", "pilot_verified", "bootstrap")
                     serverStatus.text = DeviceConnectionBoundary.message(fact)
                     connectionSummary.accept(fact)
                     updateLocal()
@@ -1829,7 +1788,7 @@ class MainActivity : ComponentActivity() {
                 current = fact
                 status.text = DeviceConnectionBoundary.message(fact)
                 submit.visibility = if (fact.connected || local) View.GONE else View.VISIBLE
-                submit.isEnabled = fact.networkState in setOf("admitted", "pilot_verified") && fact.pairingState == "awaiting_code"
+                submit.isEnabled = fact.networkState in setOf("admitted", "managed_verified", "pilot_verified", "bootstrap") && fact.pairingState == "awaiting_code"
             }, failure = {
                 busy = false
                 if (screen != screenGeneration) return@runNetwork

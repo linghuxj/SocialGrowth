@@ -54,13 +54,13 @@ internal class AutomaticConnectionMonitor(
         if (busy) { schedule(1_000); return }
         if (!EndpointReportingService.automaticEnabled(activity)) { schedule(); return }
         val local = DevicePreparationChecks.read(activity)
-        if (!local.discoverySupported || !local.wifiConnected || !local.networkClientInstalled) {
+        if (!local.discoverySupported || !local.wifiConnected) {
             schedule(); return
         }
         val stored = identities.load()
         // A phone used only for management must never claim or create a device.
         if (stored?.installationId == null || stored.generation == null) { schedule(); return }
-        if (local.vpnPresent && EndpointReportingService.running && stored.activeSessionToken() != null) { schedule(); return }
+        if (EndpointReportingService.running && stored.activeSessionToken() != null) { schedule(); return }
         if (deniedToken != null && stored.sessionToken == deniedToken) { schedule(30_000); return }
         val attempt = generation
         busy = true
@@ -86,6 +86,7 @@ internal class AutomaticConnectionMonitor(
                 require(state.installationId.toString() == identity.installationId)
                 if (state.deviceId != null && state.state in setOf("associated_pending_access", "access_ready")) {
                     val scope = "${identity.installationId}/${identity.generation}/${state.deviceId}"
+                    eligible = true // Explicit current association; bootstrap needs no external VPN app.
                     if (!local.vpnPresent) {
                         // Restore only a previously server-verified current binding.
                         // First login/consent and switching another VPN are never automated.
@@ -95,8 +96,8 @@ internal class AutomaticConnectionMonitor(
                     } else {
                         val network = DeviceConnectionApiClient(http).installationState(token, state.deviceId)
                         require(network.factVersion == state.factVersion)
-                        eligible = network.networkState in setOf("admitted", "pilot_verified")
-                        if (eligible) verifiedScope = scope
+                        val managed = network.networkState in setOf("admitted", "managed_verified", "pilot_verified")
+                        if (managed) verifiedScope = scope
                     }
                 }
             } catch (error: ProviderApiException) {
@@ -120,7 +121,7 @@ internal class AutomaticConnectionMonitor(
                                 .addFlags(Intent.FLAG_RECEIVER_FOREGROUND))
                         }.onFailure { transientFailure = true }
                     }
-                    if (eligible && now.wifiConnected && now.vpnPresent && now.wirelessDebugging == true && !EndpointReportingService.running) {
+                    if (eligible && now.wifiConnected && !EndpointReportingService.running) {
                         runCatching {
                             ContextCompat.startForegroundService(activity, Intent(activity, EndpointReportingService::class.java).setAction(EndpointReportingService.START))
                         }.onFailure { transientFailure = true }

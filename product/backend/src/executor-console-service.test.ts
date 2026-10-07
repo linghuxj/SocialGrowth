@@ -18,7 +18,7 @@ test("executor bridge rejects unauthenticated reads and missing/wrong CSRF befor
 });
 test("unconfigured execution is explicit and does not fabricate tasks", async () => {
   const service = new ExecutorConsoleService(auth, null);
-  assert.deepEqual(await service.read("valid-session"), { configured: false, available: false, tasks: [], holds: [], jobs: [], requests: [], challenges: [] });
+  assert.deepEqual(await service.read("valid-session"), { configured: false, available: false, bootstrapDevices: [], tasks: [], holds: [], jobs: [], requests: [], challenges: [] });
 });
 test("authenticated projection preserves unknown task/hold facts and strips internal capabilities", async () => {
   // Synthetic HTTP fixture, supplementary projection test; no phone or acceptance claim.

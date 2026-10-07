@@ -80,7 +80,7 @@ export class DeviceConnectionAdb {
   }
   private async transportEndpoint(address: string, port: number): Promise<string> {
     const target = adbEndpoint(address, port);
-    if (!this.tailscaleCli) return target;
+    if (!this.tailscaleCli || address === "127.0.0.1") return target;
     const cli = this.tailscaleCli;
     const binary = await lstat(cli);
     if (!binary.isFile() || binary.isSymbolicLink() || (binary.mode & 0o022) !== 0

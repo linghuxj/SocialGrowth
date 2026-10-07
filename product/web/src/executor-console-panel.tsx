@@ -76,6 +76,26 @@ export function ExecutorConsolePanel({ active, refreshVersion, readOnly, onExpir
         <div className="table-wrap"><table><thead><tr><th>原执行任务</th><th>当前状态</th></tr></thead><tbody>{facts.tasks.map(task => <tr key={task.id}><td>{task.id}</td><td>{task.status}</td></tr>)}</tbody></table></div>
       </>}
     </section>
+    {facts && <section className="panel" aria-labelledby="bootstrap-title">
+      <h2 id="bootstrap-title">手机接入与准备</h2><p>首次配对成功后，申请人工接管，再发起 Artemis 手机准备。此操作不启用业务任务；系统安装和 VPN 授权仍需机主确认。</p>
+      {!facts.bootstrapDevices.length && <p>尚无可准备的手机。请在 App 完成本机关联并开启配对通知；平台核验真实连接后会显示在这里。</p>}
+      {facts.bootstrapDevices.map(device => <article key={device.deviceId}>
+        <p>设备：{device.deviceId} · {device.connected ? device.mode === "managed_verified" ? "管理连接已核验" : "首次连接已核验" : "等待首次配对或重新连接"}</p>
+        {!readOnly && <div className="header-actions">
+          <button type="button" disabled={busy || !device.connected} onClick={() => void mutate("hold", { deviceId: device.deviceId, held: true })}>接管这台新手机</button>
+          <button type="button" disabled={busy || !!pending || !device.connected || !facts.holds.some(h => h.device === device.deviceId)} onClick={() => {
+            const requestId = crypto.randomUUID(), key = pendingKey(); if (!key) return;
+            sessionStorage.setItem(key, requestId); setPending(requestId);
+            void mutate("bootstrap-verifications", { deviceId: device.deviceId, requestId, acknowledgePreparation: true });
+          }}>开始手机准备（不执行业务）</button>
+        </div>}
+        {!readOnly && device.mode === "bootstrap" && <form onSubmit={e => { e.preventDefault(); const data = new FormData(e.currentTarget); void mutate("bootstrap-handoff", { deviceId: device.deviceId, address: String(data.get("address")) }); }}>
+          <label>准备完成后的手机管理网络 IP<input name="address" required maxLength={128} placeholder="100.x.x.x" /></label>
+          <button type="submit" disabled={busy || !device.connected || facts.jobs.some(j => j.deviceId === device.deviceId && j.status === "running")}>核验并切换管理连接</button>
+          <p className="muted">平台会独立核对在线节点和实际手机身份。未通过时保留当前通道。</p>
+        </form>}
+      </article>)}
+    </section>}
     <section className="panel" aria-labelledby="executor-check-title"><h2 id="executor-check-title">受控执行检查</h2><p className="muted">Artemis 按已确认范围操作指定手机。此入口不授予公开发布权限。先核对目标并申请人工接管。</p>
       {!readOnly && <form onSubmit={event => void start(event)}>
         <fieldset disabled={busy || !!pending || !facts?.available} className="invitation-form">

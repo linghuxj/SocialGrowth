@@ -25,6 +25,7 @@ export const executorChallengeSchema = z.object({
   resultCode: z.string().optional(), workflowResult: z.string().optional(),
 });
 export const executorConsoleSchema = z.strictObject({
+  bootstrapDevices: z.array(z.strictObject({ deviceId: z.uuid(), connected: z.boolean(), mode: z.enum(["bootstrap", "managed_verified"]) })).default([]),
   configured: z.boolean(), available: z.boolean(), deviceId: key.optional(),
   tasks: z.array(z.object({ id: key, status: key })),
   holds: z.array(z.object({ device: key, actor: key, since: z.string() })),

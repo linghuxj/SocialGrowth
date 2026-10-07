@@ -180,6 +180,7 @@ kotlin {
 }
 
 dependencies {
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("androidx.activity:activity:1.10.1")
     implementation("androidx.core:core:1.15.0")
     implementation("com.google.android.material:material:1.13.0")

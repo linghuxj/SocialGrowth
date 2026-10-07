@@ -27,6 +27,14 @@ export function configReport(env: NodeJS.ProcessEnv, profile: "local" | "product
   const executable = (name: string) => (env.PATH ?? process.env.PATH ?? "").split(delimiter).some(dir => {
     try { accessSync(join(dir, name), constants.X_OK); return true; } catch { return false; }
   });
+  check("phone_bootstrap", () => {
+    const enabled = env.SG_PRODUCT_BOOTSTRAP_ENABLED ?? "false";
+    if (enabled === "false") return null;
+    if (enabled !== "true") throw new Error();
+    const required = profile === "executor" ? ["SG_ARTEMIS_ROOT"] : ["SG_PRODUCT_CENTER_ADB", "SG_PRODUCT_CENTER_ADB_USER_HOME", "SG_PRODUCT_EXECUTION_RUNTIME_URL", "SG_PRODUCT_EXECUTION_RUNTIME_TOKEN"];
+    if (required.some(name => !env[name])) throw new Error();
+    return true;
+  }, "配置不代表首次配对或管理切换验收");
   if (profile !== "executor") {
     check("backend", () => readBackendConfig(env));
     check("database_auth_and_keys", () => readOperatorRuntimeConfig(env));

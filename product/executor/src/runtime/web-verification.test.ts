@@ -417,3 +417,16 @@ test("one successful check cannot replace all four network coexistence checks", 
     } finally { await f.close(); }
   }
 });
+
+test("bootstrap launch rejects arbitrary targets and cannot bypass a device hold", async () => {
+  const f = fixture({}, "connectivity_test");
+  const target = { deviceId: randomUUID(), requestId: randomUUID(), sessionId: randomUUID(), hardwareSerial: "RFC_TEST", serial: "127.0.0.1:41234" };
+  try {
+    assert.throws(() => f.verification.start({ ...f.input, goal: "BOOTSTRAP_PHONE_PREPARATION" }), /BOOTSTRAP_AUTHORITY_REQUIRED/);
+    for (const serial of ["example.com:22", "10.0.0.1:5555", "127.0.0.1:70000", "100.128.0.1:5555", "RFC_USB"]) {
+      assert.throws(() => f.verification.startBootstrap({ ...target, serial }, "/opt/artemis", "http://127.0.0.1:4318"));
+    }
+    assert.throws(() => f.verification.startBootstrap(target, "/opt/artemis", "http://127.0.0.1:4318"), /DEVICE_HOLD_REQUIRED/);
+    assert.equal(f.verification.list().length, 0);
+  } finally { await f.close(); }
+});

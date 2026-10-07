@@ -18,7 +18,7 @@ export interface CurrentDeviceNetwork {
   tailnetNodeKey: string;
   tailnetAddress: string;
   observedAt: string;
-  mode: "pilot_verified" | "formal_admitted";
+  mode: "pilot_verified" | "formal_admitted" | "managed_verified";
   enrollmentId: string | null;
   enrollmentGeneration: string | null;
   enrollmentVersion: number | null;

@@ -1,3 +1,5 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { randomUUID, createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { lstat, readFile, realpath } from "node:fs/promises";
@@ -30,8 +32,9 @@ export interface VerificationConfig {
   artemisRoot: string;
   deviceId: string;
   serial: string;
-  mediaPath: string;
-  mediaSha256: string;
+  mediaPath?: string;
+  mediaSha256?: string;
+  bootstrap?: { hardwareSerial: string; sessionId: string };
   runtimeUrl: string;
 }
 export const verificationConfigSchema = z
@@ -159,14 +162,22 @@ export class WebVerification {
       .prepare("UPDATE web_verifications SET body=? WHERE id=?")
       .run(JSON.stringify(job), job.id);
   }
-  start(raw: unknown) {
-    const input = verificationInput.parse(raw),
-      cfg = this.config;
+  startBootstrap(raw: unknown, artemisRoot: string, runtimeUrl: string) {
+    const target = z.object({ deviceId: z.string().uuid(), serial: z.string().regex(/^(?:127\.0\.0\.1|100\.(?:6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.(?:25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})\.(?:25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})):[1-9][0-9]{0,4}$/),
+      hardwareSerial: z.string().regex(/^[A-Za-z0-9_-]{4,128}$/), sessionId: z.string().uuid(), requestId: z.string().uuid() }).strict().parse(raw);
+    requireFact(Number(target.serial.split(":")[1]) <= 65535 && artemisRoot.startsWith("/"), "BOOTSTRAP_TARGET_INVALID");
+    return this.start({ requestId: target.requestId, expectedName: "新手机准备", expectedProfileId: "com.socialgrowth.product",
+      platform: "socialgrowth", mode: "connectivity_test", goal: "BOOTSTRAP_PHONE_PREPARATION", caption: "首次接入后的管理网络准备，不执行业务", acknowledgeNoPublication: true },
+      { artemisRoot, runtimeUrl, deviceId: target.deviceId, serial: target.serial, bootstrap: { hardwareSerial: target.hardwareSerial, sessionId: target.sessionId } });
+  }
+  start(raw: unknown, bootstrapConfig?: VerificationConfig) {
+    const input = verificationInput.parse(raw), cfg = bootstrapConfig ?? this.config;
+    requireFact(!input.goal.includes("BOOTSTRAP_PHONE_PREPARATION") || !!bootstrapConfig?.bootstrap, "BOOTSTRAP_AUTHORITY_REQUIRED");
     requireFact(cfg, "WEB_VERIFICATION_NOT_CONFIGURED");
     const previous = this.list().find((j) => j.requestId === input.requestId);
     if (previous) {
       requireFact(
-        previous.expectedName === input.expectedName &&
+        previous.deviceId === cfg.deviceId && previous.expectedName === input.expectedName &&
           previous.expectedProfileId === input.expectedProfileId &&
           previous.caption === input.caption &&
           previous.mode === input.mode &&
@@ -220,7 +231,7 @@ export class WebVerification {
     requireFact(!networkCoexistence || input.mode === "connectivity_test" && input.platform === "socialgrowth"
       && !input.allowLocalParticipationStart && !input.allowEndpointReportingStart && !input.allowParticipationWithdrawal,
       "NETWORK_COEXISTENCE_SCOPE_INVALID");
-    const bytes = input.mode !== "preflight" ? Buffer.alloc(0) : readFileSync(cfg.mediaPath);
+    const bytes = input.mode !== "preflight" ? Buffer.alloc(0) : readFileSync(cfg.mediaPath ?? "");
     requireFact(
       input.mode !== "preflight" ||
         (bytes.subarray(4, 8).toString() === "ftyp" &&
@@ -276,13 +287,19 @@ export class WebVerification {
     const deadline = Date.now() + 840000;
     let terminal = false;
     try {
+      if (cfg.bootstrap) {
+        const exec = promisify(execFile);
+        await exec("adb", ["connect", cfg.serial], { timeout: 8000, maxBuffer: 8192 });
+        const hardware = await exec("adb", ["-s", cfg.serial, "shell", "getprop", "ro.serialno"], { timeout: 8000, maxBuffer: 8192 });
+        requireFact(hardware.stdout.trim() === cfg.bootstrap.hardwareSerial, "BOOTSTRAP_HARDWARE_MISMATCH");
+      }
       const media =
         job.mode !== "preflight"
           ? ""
           : await this.ports.device.prepare(
               cfg.serial,
               bytes,
-              cfg.mediaSha256,
+              cfg.mediaSha256!,
               "com.facebook.katana",
               false,
             );
@@ -300,7 +317,9 @@ export class WebVerification {
             model: "Pro",
             verification_level: job.mode === "connectivity_test" && (job.goal.includes("VERIFY_OFFLINE_GUIDE_ONLY") || job.goal.includes("VERIFY_ANDROID_CONNECTION_UI") || job.goal.includes("VERIFY_AUTOMATIC_CONNECTION") || job.goal.includes("VERIFY_PHONE_NETWORK_COEXISTENCE") || job.goal.includes("CHECK_NETWORK_PREPARATION_GUIDE")) ? "checkpoints" : "final",
             task_desc:
-              job.mode === "connectivity_test" && job.goal.includes("VERIFY_PHONE_NETWORK_COEXISTENCE")
+              cfg.bootstrap
+                ? `ONE Web-authorized first-phone preparation over THIS exact authenticated reverse ADB transport. Do not switch transport, stop SocialGrowth, close its ongoing notification, disable Wi-Fi or wireless debugging, or re-pair. Only use Artemis visual decisions and ordinary UI in SocialGrowth, launcher, system installer/settings, browser, SFA and FlClash. No shell, arbitrary downloads, credentials in notes, business apps, media accounts, login, publishing, or participation changes. First inspect which required network clients are installed and the SocialGrowth initial-connection status. Use the existing SFA single-VPN plus FlClash non-VPN design; never activate two VPN services or use an exit node. If verified installation packages or device-specific configuration are absent, request human assistance in this same task with the precise missing item; use only operator-supplied verified package/config references, do not search for substitutes or invent configuration. Install/configure SFA and FlClash only within that supplied scope, preserving existing configurations and business unknowns. The phone owner must perform system installation/VPN consent that needs their action; request human assistance and wait. Never disclose or persist access keys, subscription URLs or clipboard content. Verify the clients' actual status with current screenshots. Keep bootstrap connected throughout preparation. Do not terminate it or claim management handoff, formal admission, business readiness or successful recovery; these need independent server verification. If the connection or device authority is lost stop UNCONFIRMED. End with exact JSON {"resultCode":"CONNECTIVITY_SETUP_COMPLETED" or "UNCONFIRMED","loginSubmitCount":0,"finalSubmitClicked":false}, based only on observed setup, and save the same secret-free JSON in connectivity-test-result.`
+                : job.mode === "connectivity_test" && job.goal.includes("VERIFY_PHONE_NETWORK_COEXISTENCE")
                 ? `${networkPreparationInstructions("verify_network_coexistence")}\nONE Web-authorized phone network coexistence READ-ONLY test. This task must use the configured remote ADB transport to Samsung RFCW40MYYCV; no USB fallback. Only ordinary launcher/navigation UI in SFA (io.nekohasekai.sfa), FlClash (com.follow.clash), Facebook and YouTube. To switch apps use the actual Android system Home button to reach the launcher; never press Back to exit the FlClash main activity and never swipe it away from Recents. Do not tap service run/stop controls or VPN/TUN switches while inspecting them. No shell/ADB tools, manage_app, launch_app, delegation, network changes, stopping services, settings changes, configuration editors, credentials, login, account switching, pairing, identity creation, upload, comments, reactions, draft or publication. Observe SFA service is running. IMPORTANT: SFA can resume its Service settings page (服務, battery permission card) when its launcher icon is tapped. Use the ordinary Android Back button INSIDE SFA to return to its Dashboard (儀表盤) and observe 已啟動. This is navigation only; do not change any setting. Home then reopening SFA resumes the same settings page, so do not repeat that loop. Observe FlClash core is running with VPN option off, without opening subscription/profile editors. Through the launcher open Facebook, refresh the current home feed once, then use ordinary Facebook search for NASA Artemis and verify actual newly loaded online search results; cached feed alone is insufficient. Never touch composer or accounts. Through the launcher open YouTube, use ordinary search for NASA, open one public NASA video, wait 20 seconds, and verify actual moving playback with advancing time rather than a thumbnail/spinner. Do not subscribe, like, comment or publish. If app login/consent is required or any requested fact cannot be observed, stop UNCONFIRMED; do not fix it. At EACH corresponding currently visible app screen declare and check its actual UI assertion before leaving that app: running non-VPN FlClash, running SFA, Facebook newly loaded online search results, YouTube moving playback with advancing time. Use verify checkpoint items at these actual UI milestones and mark each observed milestone complete while its screen is visible, so the SDK checks its anchored evidence; do not defer checks of historical screens to the final video screen. No assertions comparing note strings. Retain one final assertion for the currently playing YouTube video. End on the playing public video. Only if ALL requested facts are observed save exact unescaped JSON {"resultCode":"CONNECTIVITY_SETUP_COMPLETED","loginSubmitCount":0,"finalSubmitClicked":false} in connectivity-test-result and return it; otherwise UNCONFIRMED. Remote transport, VPN owner and absence of exit node are independently verified by the controller. This proves only networking, never login/business/publication acceptance.`
                 : job.mode === "connectivity_test" && job.goal.includes("VERIFY_AUTOMATIC_CONNECTION")
                 ? `ONE Web-authorized automatic-connection UI test on the already-associated Samsung SM-S9110. Only SocialGrowth and launcher, ordinary UI. No shell/ADB, manage_app, launch_app, other apps/settings, login, association, keys, pairing codes, new pairing, participation or publishing. The user explicitly authorizes ONE pause and ONE resume of CONNECTION AUTOMATION ONLY. First open existing SocialGrowth via its launcher icon if needed. If on 本机准备 go Back to 我的设备. Without tapping any connection start/resume/refresh control, wait up to 60 seconds for the own local card to show 平台已连接, 网络节点 已确认, 调试配对 已配对 and 检查于 time. Check actual home at this checkpoint. Use bottom tabs 分佣 and 我的, wait 15 seconds there, then return 设备; require own current connected card again without any repair tap. Now open 继续本机准备, scroll to 暂停自动连接 and tap it ONCE. Require 恢复自动连接 appears. Go Back to 我的设备 and require 自动连接已暂停. Press the Android system Home key (explicitly permitted) to reach the launcher; never use Back to exit to a previous unrelated task. Reopen ONLY SocialGrowth by its launcher icon, wait 10 seconds on home and require 自动连接已暂停 remains. Check actual paused home at this checkpoint. Open 继续本机准备 and tap 恢复自动连接 ONCE. Do not tap any other connection button. Wait up to 60 seconds, then scroll to TOP and require 平台已连接, 网络节点 已确认, 调试配对 已配对 and 检查于 time. Declare exactly three actual UI assertions: automatic connected home without repair taps; explicit pause persists after App reopen; one explicit resume recovers current platform connection. Keep checkpoints and final verification, no JSON/note comparison assertions. End on the connected preparation summary with automation enabled. Only if all checks pass save unescaped JSON {"resultCode":"CONNECTIVITY_SETUP_COMPLETED","loginSubmitCount":0,"finalSubmitClicked":false} to connectivity-test-result and return it; otherwise UNCONFIRMED. Do not change business state. This is current-phone UI verification; independent runtime facts must verify real remote connection.`

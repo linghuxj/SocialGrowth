@@ -1,12 +1,15 @@
+import type { DeviceConnectionApi } from "./device-connection-api.js";
+import { z } from "zod";
 import { executorConsoleSchema, executorJobSchema, executorRequestSchema, executorChallengeSchema, type ExecutorConsole } from "@socialgrowth/product-contracts";
 import { ProductTransactionError } from "./product-transaction-error.js";
 import type { OperatorAuthService } from "./operator-auth-service.js";
 
 type ConsoleAuth = Pick<OperatorAuthService, "authenticateSession">;
-type Mutation = "verifications" | "verifications/stop" | "supervision/respond" | "assistance/submit" | "assistance/cancel" | "device-control";
+type Mutation = "bootstrap-handoff" | "bootstrap-verifications" | "verifications" | "verifications/stop" | "supervision/respond" | "assistance/submit" | "assistance/cancel" | "device-control";
 type Screenshot = "supervision" | "verifications" | "assistance";
 export class ExecutorConsoleService {
-  constructor(private readonly auth: ConsoleAuth, private readonly config: { url: string; token: string } | null) {}
+  private readonly preparationOperations = new Set<string>();
+  constructor(private readonly auth: ConsoleAuth, private readonly config: { url: string; token: string } | null, private readonly connections?: DeviceConnectionApi) {}
   private async request(path: string, body?: unknown): Promise<Response> {
     if (!this.config) throw new ProductTransactionError("FACT_VERSION_STALE", "执行服务尚未配置");
     try {
@@ -27,7 +30,7 @@ export class ExecutorConsoleService {
   }
   async read(token: string): Promise<ExecutorConsole> {
     await this.auth.authenticateSession(token);
-    const empty = { configured: !!this.config, available: false, tasks: [], holds: [], jobs: [], requests: [], challenges: [] };
+    const empty = { configured: !!this.config, bootstrapDevices: this.connections ? await this.connections.bootstrapDevices() : [], available: false, tasks: [], holds: [], jobs: [], requests: [], challenges: [] };
     if (!this.config) return executorConsoleSchema.parse(empty);
     const raw = await this.value(await this.request("status"));
     if (!raw || typeof raw !== "object") throw new Error("EXECUTOR_STATUS_INVALID");
@@ -50,8 +53,24 @@ export class ExecutorConsoleService {
   async mutate(token: string, csrf: string, path: Mutation, input: unknown): Promise<{ accepted: true }> {
     if (!csrf) throw new ProductTransactionError("AUTHORIZATION_DENIED", "需要当前登录的操作凭据");
     await this.auth.authenticateSession(token, csrf);
-    await this.value(await this.request(path, input));
+    const deviceId = path.startsWith("bootstrap-") ? z.object({ deviceId: z.string().uuid() }).parse(input).deviceId : null;
+    if (deviceId && this.preparationOperations.has(deviceId)) throw new ProductTransactionError("FACT_VERSION_STALE", "该设备操作处理中，请查询原任务");
+    if (deviceId) this.preparationOperations.add(deviceId);
+    try {
+    if (path === "bootstrap-handoff") {
+      const request = z.strictObject({ deviceId: z.string().uuid(), address: z.string().max(128) }).parse(input);
+      const state = await this.read(token);
+      if (!this.connections || state.jobs.some(j => j.deviceId === request.deviceId && j.status === "running") || state.tasks.some(t => t.status === "running"))
+        throw new ProductTransactionError("FACT_VERSION_STALE", "请先等待设备任务结束，再切换管理连接");
+      await this.connections.handoffBootstrap(request.deviceId, request.address);
+    } else if (path === "bootstrap-verifications") {
+      const request = z.strictObject({ deviceId: z.string().uuid(), requestId: z.string().uuid(), acknowledgePreparation: z.literal(true) }).parse(input);
+      if (!this.connections) throw new ProductTransactionError("FACT_VERSION_STALE", "首次接入尚未配置");
+      const target = await this.connections.preparationTarget(request.deviceId);
+      await this.value(await this.request(path, { ...target, requestId: request.requestId }));
+    } else await this.value(await this.request(path, input));
     return { accepted: true };
+    } finally { if (deviceId) this.preparationOperations.delete(deviceId); }
   }
   async screenshot(token: string, kind: Screenshot, id: string, result: boolean): Promise<Buffer> {
     await this.auth.authenticateSession(token);

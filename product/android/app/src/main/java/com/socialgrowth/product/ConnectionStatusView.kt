@@ -70,11 +70,12 @@ internal class ConnectionStatusView(context: Context, private val expanded: Bool
             fact == null -> if (checkedWall == 0L) "正在检查连接" else "连接状态待更新"
             deviceState == "paused" -> "执行已暂停"
             deviceState in setOf("exited", "exit_pending") -> "设备已退出或退出中"
+            fact.connected && fact.networkState == "bootstrap" -> "首次连接已建立"
             fact.connected -> "平台已连接"
             fact.blockerCode == "NETWORK_AUTHORITY_UNAVAILABLE" -> "平台网络待确认"
             fact.networkState == "not_configured" -> "等待网络配置"
             fact.networkState == "blocked" -> "网络接入待处理"
-            fact.networkState !in setOf("admitted", "pilot_verified") -> "网络尚未确认"
+            fact.networkState !in setOf("admitted", "managed_verified", "pilot_verified", "bootstrap") -> "网络尚未确认"
             fact.pairingState == "pairing" -> "正在配对"
             fact.pairingState in setOf("awaiting_code", "expired", "not_started") -> "待完成配对"
             fact.connectionState == "connecting" -> "正在连接"
@@ -89,7 +90,8 @@ internal class ConnectionStatusView(context: Context, private val expanded: Bool
         }
         headline.setTextColor(color)
         network.text = if (fact?.blockerCode == "NETWORK_AUTHORITY_UNAVAILABLE") "待确认" else when (fact?.networkState) {
-            "admitted", "pilot_verified" -> "已确认"
+            "bootstrap" -> "首次接入通道（待管理网络切换）"
+            "admitted", "managed_verified", "pilot_verified" -> "已确认"
             "blocked" -> "暂未通过"
             "not_configured" -> "未配置"
             "pending" -> "接入中"
@@ -114,6 +116,7 @@ internal class ConnectionStatusView(context: Context, private val expanded: Bool
             automaticPaused -> "你已暂停自动连接。请在本机准备中恢复；不会因此恢复业务任务。"
             failed -> "暂时联系不上平台，请重新检查。现在无法判断手机是否离线。"
             fact == null -> "正在重新确认当前连接，不会因此重复配对或启动任务。"
+            fact.connected && fact.networkState == "bootstrap" -> "可由运营从 Web 发起手机准备，管理网络和执行资格仍需核验。"
             fact.connected -> if (expanded) "连接正常。执行资格和任务状态由平台另行核验。" else "网络已确认 · 已配对。连接正常不代表任务已经开始。"
             else -> DeviceConnectionBoundary.message(fact)
         }
