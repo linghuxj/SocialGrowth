@@ -15,6 +15,8 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.text.InputType
+import android.text.Editable
+import android.text.TextWatcher
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -135,9 +137,8 @@ class MainActivity : ComponentActivity() {
         deviceLabelCommandStore = ProviderDeviceLabelCommandStore(this)
         automaticConnectionMonitor = AutomaticConnectionMonitor(this, executor)
         lifecycle.addObserver(automaticConnectionMonitor)
-        invitationCode = intent?.data?.getQueryParameter("invitation")
-            ?: intent?.data?.getQueryParameter("code")
-            ?: intent?.getStringExtra("invitation")
+        invitationCode = (intent?.data?.toString() ?: intent?.getStringExtra("invitation"))
+            ?.let { ProviderInvitation.parse(it, BuildConfig.API_BASE_URL) }
         if (installationStore.exists() && sessionStore.load() == null) {
             showInstallationLoading()
             return
@@ -150,6 +151,19 @@ class MainActivity : ComponentActivity() {
             return
         }
         if (invitationCode != null) showAuthForm() else showUseChoice()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val incoming = intent.data?.toString()?.let { ProviderInvitation.parse(it, BuildConfig.API_BASE_URL) }
+        if (incoming == null) return
+        sessionStore.load()?.let { showManagement(it); return }
+        invitationCode = incoming
+        registrationMode = true
+        challenge = null
+        resetAttemptKeys()
+        showAuthForm()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -247,6 +261,18 @@ class MainActivity : ComponentActivity() {
             background = rounded(Color.WHITE, 12)
             elevation = dp(2).toFloat()
         }
+        val invitationInput = if (registrationMode) editText("粘贴邀请码或邀请链接", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE).apply {
+            id = R.id.provider_invitation
+            contentDescription = "邀请码或邀请链接"
+            isSaveEnabled = false
+            minHeight = dp(64)
+            maxLines = 3
+            setText(invitationCode.orEmpty())
+        } else null
+        if (invitationInput != null) {
+            card.addView(fieldLabel("邀请码或邀请链接"))
+            card.addView(invitationInput, matchWrap().apply { topMargin = dp(8); bottomMargin = dp(18) })
+        }
         val phone = editText("请输入手机号", InputType.TYPE_CLASS_PHONE).apply {
             id = R.id.provider_phone
             contentDescription = "手机号"
@@ -278,6 +304,21 @@ class MainActivity : ComponentActivity() {
             visibility = View.GONE
         }
         card.addView(error, matchWrap().apply { topMargin = dp(10) })
+        invitationInput?.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(text: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(text: CharSequence?, start: Int, before: Int, count: Int) {
+                invitationCode = ProviderInvitation.parse(text?.toString().orEmpty(), BuildConfig.API_BASE_URL)
+                challenge = null
+                code.setText("")
+                resetAttemptKeys()
+                requestCode.text = "获取验证码"
+                requestCode.isEnabled = invitationCode != null
+                error.visibility = View.GONE
+                setStatus(status, if (invitationCode != null) "邀请待校验" else "需要有效邀请",
+                    if (invitationCode != null) "完成验证后才能注册。" else "请粘贴运营发给你的邀请码或邀请链接。", invitationCode == null)
+            }
+            override fun afterTextChanged(text: Editable?) = Unit
+        })
         val submitLabel = if (registrationMode) "注册并进入管理" else "登录并进入管理"
         val submit = primaryButton(submitLabel).apply {
             id = R.id.provider_submit
@@ -411,6 +452,7 @@ class MainActivity : ComponentActivity() {
         root.addView(label("一台手机，管理与执行", 30f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(28) })
         root.addView(label("登录后可直接接入这台手机，不需要另一台手机扫码。", 15f, secondary), matchWrap().apply { topMargin = dp(8) })
         val management = vertical(14).apply {
+            id = R.id.home_management
             background = rounded(Color.WHITE, 12)
             isClickable = true
             isFocusable = true
@@ -423,6 +465,7 @@ class MainActivity : ComponentActivity() {
         management.minimumHeight = dp(112)
         root.addView(management, matchWrap().apply { topMargin = dp(28) })
         val execution = vertical(14).apply {
+            id = R.id.home_execution
             background = rounded(Color.WHITE, 12)
             isClickable = true
             isFocusable = true
@@ -433,7 +476,16 @@ class MainActivity : ComponentActivity() {
         execution.addView(label("查看本机接入", 20f, ink, Typeface.BOLD))
         execution.addView(label("准备网络连接与执行设置，也可随时返回管理", 14f, secondary))
         execution.minimumHeight = dp(112)
-        root.addView(execution, matchWrap())
+        root.addView(execution, matchWrap().apply { topMargin = dp(16) })
+        root.addView(secondaryButton("受邀加入").apply {
+            id = R.id.home_invitation
+            setOnClickListener {
+                registrationMode = true
+                challenge = null
+                resetAttemptKeys()
+                sessionStore.load()?.let(::showManagement) ?: showAuthForm()
+            }
+        }, matchHeight(52).apply { topMargin = dp(24) })
         root.addView(label("你决定是否关联本机。切换页面不会自动开始或停止任务。", 14f, secondary), matchWrap().apply { topMargin = dp(8) })
         setContentView(ScrollView(this).apply {
             isFillViewport = true

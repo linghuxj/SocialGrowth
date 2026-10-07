@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./app.js";
+import { InvitationEntry } from "./invitation-entry.js";
 import "./business-plan.css";
 import "./task-readiness-panel.css";
 import "./operator-todos.css";
@@ -18,6 +19,6 @@ if (!root) {
 
 createRoot(root).render(
   <StrictMode>
-    <App />
+    {window.location.pathname === "/register" ? <InvitationEntry /> : <App />}
   </StrictMode>,
 );

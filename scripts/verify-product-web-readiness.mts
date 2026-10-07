@@ -87,6 +87,27 @@ try {
     throw new Error("Invitation response-loss retry did not preserve its idempotency key");
   }
   const code = await primary.getByLabel("共享码").inputValue();
+  const actualInvitationLink = await primary.getByLabel("注册链接").inputValue();
+  for (const mobile of [false, true]) {
+    const visitorContext = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 }, isMobile: mobile, hasTouch: mobile });
+    const visitor = await visitorContext.newPage();
+    await visitor.goto(actualInvitationLink);
+    await visitor.getByRole("heading", { name: "受邀加入", exact: true }).waitFor();
+    if (await visitor.getByLabel("邀请码", { exact: true }).inputValue() !== code) throw new Error("Generated invitation link lost its credential");
+    if (await visitor.getByRole("link", { name: "打开 Android App", exact: true }).getAttribute("href") !== `socialgrowth://provider/register?invitation=${code}`) throw new Error("Invitation App handoff mismatch");
+    if (await visitor.getByLabel("登录名", { exact: true }).count()) throw new Error("Invitation visitor was routed to operator login");
+    if (await visitor.getByRole("link", { name: "下载 Android APK", exact: true }).getAttribute("href") !== "/downloads/socialgrowth.apk") throw new Error("Invitation download path missing");
+    if (await visitor.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)) throw new Error("Invitation page overflowed");
+    if (screenshotPath) await visitor.screenshot({ path: screenshotPath.replace(/\.png$/, `-invitation-${mobile ? "mobile" : "desktop"}.png`), fullPage: true, mask: [visitor.getByLabel("邀请码", { exact: true })] });
+    await visitor.goto(new URL("/register", baseUrl).toString());
+    await visitor.getByLabel("邀请码或邀请链接", { exact: true }).fill("invalid");
+    await visitor.getByRole("button", { name: "使用邀请", exact: true }).click();
+    await visitor.getByRole("status").getByText("邀请码或链接格式不正确，请复制运营发给你的完整内容。", { exact: true }).waitFor();
+    await visitor.getByLabel("邀请码或邀请链接", { exact: true }).fill(actualInvitationLink);
+    await visitor.getByRole("button", { name: "使用邀请", exact: true }).click();
+    if (await visitor.getByLabel("邀请码", { exact: true }).inputValue() !== code) throw new Error("Manual invitation-link entry lost its credential");
+    await visitorContext.close();
+  }
   const link = await primary.getByLabel("注册链接").inputValue();
   if (!/^[A-Za-z0-9_-]{43}$/.test(code) || !link.includes(encodeURIComponent(code))) {
     throw new Error("Invitation access code and link are inconsistent");

@@ -121,3 +121,9 @@ Tailscale 在服务器宿主机运行，持久化节点身份；容器调用挂�
 `SG_PRODUCT_SMS_MODE=temporary_api` 显式开启临时模式。Android 点击获取验证码时，原请求通过邀请/账号/限流校验后响应带 `temporaryCode`，App 自动填入输入框，用户仍须点击注册或登录，继续原验证码有效期、尝试次数和一次性证明校验。不调用短信服务，不代表手机号码持有验证。默认关闭；切回 `aliyun` 并重建后端容器后不再返回验证码，已有阿里云字段可保留。开发后台取码端点仍关闭，APK 不内置后台取码令牌。
 
 验证码仅保留在后端进程的有界短期缓存、当前响应和 App 输入状态中，不写入数据库或审计正文；请求响应使用 `Cache-Control: no-store`。后端重启丢失临时缓存，需重新发起有效请求；旧验证码不得重新发送或伪造成功。审计标记 `deliveryMode=temporary_api`。注册和登录均支持，Web 不自动填写。
+
+## Android 安装与邀请分发（2026-10-07）
+
+`/register` 是公开受邀落地页，与运营登录页面分别显示。已安装的手机通过用户点击打开 `socialgrowth://provider/register`，传入同一邀请码；未安装时先复制邀请码，下载后在 App 首页选择“受邀加入”继续。链接及凭证格式不证明邀请有效，最终注册沿用服务器的有效期、名额和手机号核验。
+
+`SG_PRODUCT_PUBLIC_DIR` 默认 `/opt/socialgrowth/public`，只读挂载至 Web；启动前创建其中的 `android` 目录。将已校验证书、版本和 SHA256 的正式 APK 原子更新为 `android/socialgrowth.apk`，公开下载地址为 `/downloads/socialgrowth.apk`。下载不走 SPA 回退，文件缺失返回 404；禁止在该目录保存凭据、私密素材或签名 keystore。素材文件仍使用原配置的云 OSS/S3。

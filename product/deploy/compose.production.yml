@@ -72,6 +72,12 @@ services:
     volumes:
       - caddy-data:/data
       - caddy-config:/config
+      - type: bind
+        source: ${SG_PRODUCT_PUBLIC_DIR:-/opt/socialgrowth/public}
+        target: /srv/public
+        read_only: true
+        bind:
+          create_host_path: false
     depends_on:
       backend:
         condition: service_healthy

@@ -7,6 +7,13 @@
   handle @backend {
     reverse_proxy backend:4320
   }
+  handle_path /downloads/* {
+    root * /srv/public/android
+    header Cache-Control "no-store"
+    file_server
+  }
+  @invitation path /register
+  header @invitation Cache-Control "no-store"
   handle {
     root * /srv
     try_files {path} /index.html
