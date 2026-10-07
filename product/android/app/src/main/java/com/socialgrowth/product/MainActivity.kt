@@ -1145,7 +1145,7 @@ class MainActivity : ComponentActivity() {
                 checks.wirelessDebugging == true -> "无线调试已开启，接下来确认平台连接。"
                 else -> "暂时无法读取开关，请按系统页面完成设置后返回。"
             }
-            val found = discovery?.snapshot()?.connect?.status == EndpointObservationStatus.CANDIDATE
+            val found = Build.VERSION.SDK_INT >= 34 && discovery?.snapshot()?.connect?.status == EndpointObservationStatus.CANDIDATE
             pairingStatus.text = when {
                 remoteConnected -> "平台已连接到这台手机，无需再次配对。"
                 !networkVerified -> "请先完成本机关联和平台网络确认。"
