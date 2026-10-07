@@ -18,6 +18,7 @@ on:
       - "CONTEXT.md"
       - "DESIGN.md"
       - "scripts/run-playwright-target.mjs"
+      - "scripts/verify-product-deployment-playwright.mts"
       - "scripts/verify-product-web-readiness.mts"
 
 permissions:

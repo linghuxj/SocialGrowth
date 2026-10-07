@@ -61,7 +61,7 @@ docker compose --env-file /opt/socialgrowth/config/.env.production -f product/de
 
 迁移脚本只接受仓库现有事务 SQL。存在未登记的历史业务库时不自动接管；须核对版本与备份。升级前保存 `pg_dump`、云端对象及对应版本配置/历史密钥；不得删除命名卷。SQL 不保证可逆，不能只换旧镜像宣称数据库已回滚。已有任务、未知回执或手机占用不得随部署重放或清空。
 
-首次操作员初始化复用后端 `dist/operator-admin.js initialize --login-name ... --display-name ... --request-id ...`，密码仅通过标准输入提供，不放在参数或日志。浏览器验收从正式 Web 登录验证，`/health/live` 仅证明进程存活。短信默认 `unavailable`，不能据此宣称供应商短信注册、手机执行或公开发布已就绪。
+首次操作员初始化复用后端 `dist/operator-admin.js initialize --login-name ... --display-name ... --request-id ...`，密码仅通过标准输入提供，不放在参数或日志。部署浏览器检查复用 `pnpm test:playwright`：设置 `SG_PRODUCT_WEB_SCOPE=deployment`、`SG_PRODUCT_WEB_URL` 和 `SG_PRODUCT_DEPLOYMENT_LOGIN_FILE`（保护 JSON 文件，包含 loginName/password），验证登录、项目页面、刷新后的会话及退出，不创建业务记录。浏览器验收从正式 Web 登录验证，`/health/live` 仅证明进程存活。短信默认 `unavailable`，不能据此宣称供应商短信注册、手机执行或公开发布已就绪。
 
 ## 云对象存储：OSS 与 S3
 

@@ -12,6 +12,7 @@ productScripts["media-accounts"] = "scripts/verify-product-media-accounts-playwr
 productScripts["public-phone-access"] = "scripts/verify-public-phone-access-playwright.mts";
 const target = process.env.SG_WEB_TARGET ?? "product";
 const scope = process.env.SG_PRODUCT_WEB_SCOPE ?? "identity";
+productScripts["deployment"] = "scripts/verify-product-deployment-playwright.mts";
 productScripts["executor-console"] = "scripts/verify-product-executor-console-playwright.mts";
 productScripts["network-coexistence"] = "scripts/verify-product-network-coexistence-playwright.mts";
 if (target !== "product" || !(scope in productScripts)) {
