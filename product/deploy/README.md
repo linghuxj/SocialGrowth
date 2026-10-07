@@ -42,7 +42,7 @@ Release 和包含 release 变体的聚合任务要求以下显式环境输入，
 
 [compose.production.yml](compose.production.yml)运行 Web（Caddy）、后端、PostgreSQL 与 Redis，**不运行 MinIO**。手机执行服务先保留现有运行位置和 SQLite 状态；未配置可信执行器时执行能力关闭。Caddy 转发 `/api/*` 与 `/health/live`，其余请求进入正式 Web。只有 Caddy 暴露端口；数据库、Redis 和后端均不发布宿主机端口。
 
-使用已检查的固定 `main` SHA 将源码归档到 `/opt/socialgrowth/releases/<SHA>`，镜像标签及 `SG_PRODUCT_REVISION` 均使用该完整 SHA。先核对该 SHA 的 GitHub Actions；失败时在 `dev` 修复并重新晋级，不部署另一个未经检查的 HEAD。不自动部署任意分支。
+使用已检查的固定 `main` SHA 将源码归档到 `/opt/socialgrowth/releases/<SHA>`，镜像标签及 `SG_PRODUCT_REVISION` 均使用该完整 SHA。先核对该 SHA 的 GitHub Actions；失败时在 `dev` 修复并重新晋级，不部署另一个未经检查的 HEAD。不自动部署任意分支。干净 CI 的文档检查使用 `--allow-missing-private-evidence`，单独报告被 Git 忽略的 `artifacts/acceptance`、`artifacts/review` 引用不可用；其他缺失链接仍失败，该模式不证明历史证据存在或产品验收完成。
 
 配置模板：[.env.production.example](.env.production.example)。实际配置放在 `/opt/socialgrowth/config/.env.production`（目录 0700、文件 0600）；不要提交 Git 或输出展开后的 Compose 配置。`SG_PRODUCT_ENV_FILE` 填此绝对路径，`SG_PRODUCT_PRIVATE_DIR=/opt/socialgrowth/private`。数据库密码和认证 pepper 使用两个独立随机值，数据库 URL 的密码须与 PostgreSQL 一致（建议十六进制避免 URL 转义）。对外部署设置 `SG_PRODUCT_BIND_ADDRESS=0.0.0.0`，`SG_PRODUCT_SITE_ADDRESS=mhtm.top`；域名 A 记录须指向服务器，80/443 入站可达后 Caddy 自动申请 TLS。DNS 未完成时可先用 `http://:80` 及回环绑定检查容器，不作为公网 HTTPS 验收。
 

@@ -48,7 +48,7 @@ def find_cycle(graph: dict[str, set[str]]) -> list[str]:
     return []
 
 
-def check(root: Path) -> dict[str, object]:
+def check(root: Path, allow_missing_private_evidence: bool = False) -> dict[str, object]:
     folder = root / "docs/engineering/delivery"
     paths = sorted(folder.glob("*.md"))
     docs = {path.name: path.read_text(encoding="utf-8") for path in paths}
@@ -112,6 +112,8 @@ def check(root: Path) -> dict[str, object]:
         errors.append(f"acceptance group has no work package: {orphan}")
 
     link_count = 0
+    unavailable_private_evidence: list[str] = []
+    private_roots = [(root / "artifacts/acceptance").resolve(), (root / "artifacts/review").resolve()]
     entry_paths = [root / name for name in ["README.md", "AGENTS.md", "CLAUDE.md", "CONTEXT.md", "DESIGN.md"]]
     product_paths = [path for path in (root / "product").rglob("*.md")
                      if not {"node_modules", "build", "dist", ".gradle"}.intersection(path.relative_to(root).parts)]
@@ -125,7 +127,10 @@ def check(root: Path) -> dict[str, object]:
             destination = path.parent / target_path if target_path else path
             link_count += 1
             if not destination.exists():
-                errors.append(f"{path.relative_to(root)}: missing link {target}")
+                if allow_missing_private_evidence and any(destination.resolve().is_relative_to(base) for base in private_roots):
+                    unavailable_private_evidence.append(f"{path.relative_to(root)}: unavailable private evidence {target}")
+                else:
+                    errors.append(f"{path.relative_to(root)}: missing link {target}")
             elif fragment and destination.suffix == ".md" and fragment not in heading_anchors(destination.read_text(encoding="utf-8")):
                 errors.append(f"{path.relative_to(root)}: missing anchor {target}")
     return {
@@ -138,18 +143,20 @@ def check(root: Path) -> dict[str, object]:
         "contracts": len(definitions["CT"]),
         "risks": len(definitions["ER"]),
         "local_links_checked": link_count,
+        "private_evidence_unavailable": unavailable_private_evidence,
         "errors": errors,
         "passed": not errors,
-        "limitations": "不证明语义完整、开发完成或业务验收；不检查外部链接、服务及真机。",
+        "limitations": "不证明语义完整、开发完成或业务验收；不检查外部链接、服务及真机；CI 可报告缺失的私有验收/审查证据，但不据此证明证据存在或验收通过。",
     }
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[3])
+    parser.add_argument("--allow-missing-private-evidence", action="store_true", help="Report unavailable ignored artifacts/acceptance and artifacts/review evidence separately in clean CI checkouts; all other missing links still fail")
     args = parser.parse_args()
     try:
-        report = check(args.root.resolve())
+        report = check(args.root.resolve(), args.allow_missing_private_evidence)
     except (OSError, KeyError, UnicodeError) as error:
         print(json.dumps({"scope": "documentation_structure_only", "passed": False, "error": str(error)}, ensure_ascii=False, indent=2))
         return 1
