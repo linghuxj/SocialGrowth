@@ -1,5 +1,7 @@
 # WP-15 第四阶段：认证对象上传票据与持久核验
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-01后续原非作者完整报告`artifacts/review/wp15-upload-be02bd7.md`已全文读取：固定747..be02十五文件新增0/remaining0，指定4unit/11真实联合＋新独立8、static通过；manifest首轮错误把test script算consumer的失败及初始诊断保留后仅修自身脚本。未重跑作者338/全253，旧SQL守卫未单独断言端口，实际完整实例归属另核验。已交原QA同固定增量（未来stage5完全排除），尚不作者自签双G1/父来源pending1或业务通过。
 
 随后原QA完整报告`artifacts/acceptance/product/B3/20260930T224743Z-wp15-upload-be02bd7/acceptance-report.md`全文已读，同15文件/4unit/11联合/原8 guard-only增量0、新oracle0，不认领338/253/747原9或父13。每次reset前完整CID/端口/卷独占/网络DB与容器clusterIdentifier另核验；QA实际17.11 Debian与原复核17.10 Alpine分开，两容器/唯一卷/2合成桶/快照自身精确清理，旧诊断/RED保留。双有限工程通过不解除正式资源/准入/Task/手机/父来源pending1，Developer仍af14。

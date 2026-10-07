@@ -1,5 +1,7 @@
 # WP-08 阶段四：接入失效扫描与事务回收
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 更新：2026-09-30。基线`7f95e5e`，执行分支`feature/wp-08-reconciliation-stage4`；BE/EX由Codex阶段代理实施，OPS负责后续周期调度与真实网络资源，原非作者／QA窗口分别监督。需求R-143/148/150/151、CT-05、AC-11/12，沿用[任务卡与资源表](WP-08.md)、[质量门禁](../quality-gates.md)；无新增页面，不替换设计图片／原始提示词。
 
 ## 实际交付边界
@@ -8,7 +10,7 @@
 - 扫描不先锁接入；各行按既有provider→installation→association/device→enrollment锁序，取得全部锁后取数据库墙钟、重读当前事实。锁前过时结果不直接回收，恢复资格或竞争处理后无变化则保留。
 - 进入回收待处理、候选节点保留、命令摘要、撤权两分项意图、取消未投递升级和审计同事务；任何写失败整体回滚。仅在真正首次进入回收时新增意图，不反复撤权。
 - 一行失败返回固定码及接入ID，不输出原查询／URL／驱动cause；继续其他独立设备，游标推进。失败记录占用仍在，不清历史、不假装成功，后续完整扫描重新尝试。每行锁等待5秒为候选防挂保护，不是性能验收线。
-- `admission:reconcile`默认关闭，须明确`SG_PRODUCT_ADMISSION_RECONCILE_ENABLED=1`和受控`SG_PRODUCT_DATABASE_URL`，单批执行后退出，不装守护、不写真实网络或消费设备队列。命令见[后端说明](../../../../product/backend/README.md#wp-08-接入失效回收维护)。定期调度、实际外部意图处理／查询和WP-20异常待办尚未实现，不能称自动网络回收完成。
+- `admission:reconcile`默认关闭，须明确`SG_PRODUCT_ADMISSION_RECONCILE_ENABLED=1`和受控`SG_PRODUCT_DATABASE_URL`，单批执行后退出，不装守护、不写真实网络或消费设备队列。命令见[后端说明](../../../../product/backend/src/network-admission-store.ts)。定期调度、实际外部意图处理／查询和WP-20异常待办尚未实现，不能称自动网络回收完成。
 
 ## 检查与环境
 

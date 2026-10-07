@@ -1,6 +1,6 @@
 import { ArrowClockwise, ChartLineUp, Info } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
-import { ProductApiError } from "./operator-api.js";
+import { ProductApiError, prepareOperatorPost, readOperatorResource } from "./operator-api.js";
 import { readProjectFeedback } from "./project-feedback-api.js";
 import type { MetricSnapshot, ProjectFeedbackResponse } from "@socialgrowth/product-contracts";
 
@@ -31,6 +31,13 @@ const missingReasonLabel: Record<NonNullable<MetricSnapshot["missingReason"]>, s
   unknown_cutoff: "统计截止时间未知",
   unknown_coverage: "数据覆盖范围未知",
 };
+type Collection = { operationId: string; projectId: string; state: "running" | "completed" | "failed" | "unknown"; errorCode: string | null };
+function collectionParser(projectId: string) { return { parse(raw: unknown): Collection | null {
+  if (raw === null) return null;
+  const value = raw as Partial<Collection>;
+  if (!value || value.projectId !== projectId || typeof value.operationId !== "string" || !["running", "completed", "failed", "unknown"].includes(value.state ?? "")) throw new Error("COLLECTION_RESPONSE_INVALID");
+  return value as Collection;
+} }; }
 
 function timestamp(value: string | null): string {
   if (!value) return "未知";
@@ -93,6 +100,50 @@ export function ProjectFeedbackPanel(props: Props) {
   const [refreshVersion, setRefreshVersion] = useState(0);
   const requestSequence = useRef(0);
   const currentProjectId = projectId.toLowerCase();
+  const [collection, setCollection] = useState<Collection | null>(null);
+  const [collectionMessage, setCollectionMessage] = useState("");
+  const [collecting, setCollecting] = useState(false);
+  const collectionProject = useRef(currentProjectId), initiated = useRef<string | null>(null);
+  collectionProject.current = currentProjectId;
+  const readCollection = async () => {
+    const owner = currentProjectId;
+    const result = await readOperatorResource(`/api/operator/projects/${owner}/feedback/collection`, { parse(raw: unknown) {
+      if (!raw || typeof raw !== "object" || !("collection" in raw)) throw new Error("COLLECTION_RESPONSE_INVALID");
+      return collectionParser(owner).parse(raw.collection);
+    } });
+    if (collectionProject.current === owner) { setCollection(result); setCollectionMessage(""); }
+    return result;
+  };
+  useEffect(() => {
+    initiated.current = null; setCollection(null); setCollectionMessage("");
+    if (active) void readCollection().catch(() => { if (collectionProject.current === currentProjectId) setCollectionMessage("采集状态暂时无法读取；请先查询原状态，不重复启动。"); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, currentProjectId]);
+  const saveCollection = async (operationId: string) => {
+    const owner = currentProjectId;
+    await prepareOperatorPost(`/api/operator/projects/${owner}/feedback/collect/${operationId}/sync`, "{}", { parse: (raw: unknown) => raw })();
+    if (collectionProject.current === owner) { setCollectionMessage("实际采集结果已保存；缺少口径的指标不能用于效果比较。"); setRefreshVersion(value => value + 1); }
+  };
+  useEffect(() => {
+    if (!active || collection?.state !== "running") return;
+    const timer = setInterval(() => { void readCollection().then(async result => {
+      if (result?.state === "completed" && initiated.current === result.operationId && !props.readOnly) {
+        initiated.current = null; await saveCollection(result.operationId);
+      }
+    }).catch(() => setCollectionMessage("采集或保存结果待核对；请查询原状态，不重新派发。")); }, 5000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, currentProjectId, collection?.state, props.readOnly]);
+  async function collect() {
+    if (props.readOnly || collecting) return;
+    setCollecting(true); setCollectionMessage("");
+    const operationId = initiated.current ?? crypto.randomUUID(); initiated.current = operationId;
+    try {
+      const result = await prepareOperatorPost(`/api/operator/projects/${currentProjectId}/feedback/collect`, JSON.stringify({ operationId }), collectionParser(currentProjectId))();
+      if (collectionProject.current === currentProjectId) setCollection(result);
+    } catch { setCollectionMessage("未确认采集启动结果。先查询原状态；若 Page 尚未绑定，请先完成身份核验。"); }
+    finally { setCollecting(false); }
+  }
 
   useEffect(() => {
     const sequence = ++requestSequence.current;
@@ -126,6 +177,15 @@ export function ProjectFeedbackPanel(props: Props) {
         <ArrowClockwise size={18} />{loading ? "读取中…" : "刷新反馈事实"}
       </button>
     </div>
+    <section className="project-feedback__state" aria-label="手机效果采集">
+      <div><h3>从手机读取 Page 效果</h3><p>由 Artemis 打开已绑定 Page 的数据面板，只读取账号汇总，不发布内容。缺少的指标保留为空。</p>
+        {collection && <p role="status">{collection.state === "running" ? "Artemis 正在读取手机数据，请等待。" : collection.state === "completed" ? "手机采集已结束，可核对已保存的效果快照。" : collection.state === "unknown" ? "原采集结果未知，不能重复启动。" : "本次未取得完整采集回执；已有数据保留。"}</p>}
+        {collectionMessage && <p role="status">{collectionMessage}</p>}
+        {!props.readOnly && !collectionMessage && !["running", "unknown"].includes(collection?.state ?? "") && <button type="button" className="outline-button" disabled={collecting} onClick={() => void collect()}>{collecting ? "正在启动…" : "读取 Page 效果"}</button>}
+        <button type="button" className="text-button" disabled={collecting} onClick={() => void readCollection().catch(() => setCollectionMessage("原采集状态暂时无法读取，请稍后重试。"))}>查询原采集状态</button>
+        {!props.readOnly && collection?.state === "completed" && <button type="button" className="text-button" onClick={() => void saveCollection(collection.operationId).catch(() => setCollectionMessage("结果保存未确认，请继续核对原采集结果。"))}>保存已核验结果</button>}
+      </div>
+    </section>
     {loading && <p role="status">正在读取本项目效果事实…</p>}
     {error && <div className="project-feedback__state project-feedback__state--error" role="alert">
       <p>{"反馈事实暂时无法读取；没有把读取失败解释为零值或无效果。"}</p>

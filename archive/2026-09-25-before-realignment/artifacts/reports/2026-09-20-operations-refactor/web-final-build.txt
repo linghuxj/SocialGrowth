@@ -1,45 +1,0 @@
-
-> @socialgrowth/web-console@0.1.0 build
-> vinext build
-
-
-  vinext build  (Vite 8.0.13)
-
-(node:37404) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:37404) ExperimentalWarning: glob is an experimental feature and might change at any time
-[1/5] analyze client references...
-[2Ktransforming...✓ 225 modules transformed.
-rendering chunks...
-✓ built in 919ms
-[2/5] analyze server references...
-[2Ktransforming...✓ 109 modules transformed.
-rendering chunks...
-✓ built in 306ms
-[3/5] build rsc environment...
-[2Ktransforming...✓ 222 modules transformed.
-rendering chunks...
-computing gzip size...
-✓ built in 759ms
-[4/5] build client environment...
-[2Ktransforming...✓ 1913 modules transformed.
-rendering chunks...
-computing gzip size...
-✓ built in 2.35s
-[5/5] build ssr environment...
-[2Ktransforming...✓ 115 modules transformed.
-rendering chunks...
-computing gzip size...
-✓ built in 633ms
-[0m
-  Route (app)
-  ─ ? /
-
-  ? Unknown
-
-  ? Some routes could not be classified. vinext currently uses static analysis
-    and cannot detect dynamic API usage (headers(), cookies(), etc.) at build time.
-    Automatic classification will be improved in a future release.
-
-  Build complete. Run `vinext start` to start the production server.
-

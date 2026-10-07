@@ -221,6 +221,17 @@ export class BusinessPlanService {
     await this.workflowPortStatus?.queryOriginal?.(projectId, task);
     return this.workflow(token, projectId);
   }
+  async retryAudit(token: string, csrf: string, projectInput: string, taskInput: string) {
+    const projectId = uuidSchema.parse(projectInput).toLowerCase(), taskId = uuidSchema.parse(taskInput).toLowerCase();
+    await this.tx(token, csrf, async c => {
+      const checks = await this.currentChecksInTransaction(c, projectId);
+      if (!checks.tasks.some(task => task.taskId.toLowerCase() === taskId && task.attempt))
+        throw new ProductTransactionError("FACT_VERSION_STALE", "原任务或素材范围已变化");
+    });
+    if (!this.workflowPortStatus?.retryAudit) throw unavailable();
+    try { return await this.workflowPortStatus.retryAudit(projectId, taskId); }
+    catch { throw new ProductTransactionError("FACT_VERSION_STALE", "原核验仍在运行、包含内容操作或当前条件已变化；未重复启动，请查询原核查状态", true); }
+  }
 
   async workflow(token: string, projectInput: string): Promise<BusinessPlanWorkflowResponse> {
     const project = uuidSchema.safeParse(projectInput);

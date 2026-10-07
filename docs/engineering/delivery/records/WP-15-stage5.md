@@ -1,5 +1,7 @@
 # WP-15 第五阶段：受控存储运行时与认证票据 API
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-01；基线be02bd7，feature/wp-15-authenticated-material-api-stage5。BE/OPS实施代理Codex；原非作者/QA，WEB/EX/BIZ真人待签。[上传票据](WP-15-stage4.md)、[质量手册](../quality-gates.md)，R-007/022～025/125、AC27～29。
 
 领取显式server-only存储配置/生命周期、真实operator Cookie＋CSRF的prepare及当前票据read、最小TS/JSON/Python契约和AppModule接线；不将生产配置缺口伪造为已配置。业务请求不提供endpoint/bucket/key/secret/location或verified状态，响应不返内部descriptor定位；未配置写入关闭、历史只读单独区分。字节HTTP传输及完整素材登记HTTP是下一切片，不用此阶段宣称已跑通上传页面。

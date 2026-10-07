@@ -38,6 +38,7 @@ export * from "./registry.js";
 export * from "./resource-preparation.js";
 export * from "./status.js";
 export * from "./task-dispatch.js";
+export * from "./executor-console.js";
 
 export const productEnvironmentSchema = z.literal("product");
 

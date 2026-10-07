@@ -1,21 +1,8 @@
 name: Product checks
 
 on:
-  pull_request:
-    branches: [main, dev]
-    paths:
-      - ".github/workflows/product-checks.yml"
-      - "scripts/verify-product-core-loop-local.mjs"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "product/**"
-      - "docs/engineering/delivery/**"
-      - "memory.md"
-      - "scripts/run-playwright-target.mjs"
-      - "scripts/verify-product-web-readiness.mts"
   push:
-    branches: [main, dev]
+    branches: [main]
     paths:
       - ".github/workflows/product-checks.yml"
       - "scripts/verify-product-core-loop-local.mjs"
@@ -23,8 +10,12 @@ on:
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
       - "product/**"
-      - "docs/engineering/delivery/**"
-      - "memory.md"
+      - "docs/**"
+      - "README.md"
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - "CONTEXT.md"
+      - "DESIGN.md"
       - "scripts/run-playwright-target.mjs"
       - "scripts/verify-product-web-readiness.mts"
 
@@ -33,6 +24,7 @@ permissions:
 
 jobs:
   typescript:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -62,6 +54,7 @@ jobs:
           pnpm exec node scripts/verify-product-core-loop-local.mjs
 
   android:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

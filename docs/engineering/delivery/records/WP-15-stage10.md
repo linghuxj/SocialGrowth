@@ -1,5 +1,7 @@
 # WP-15 第十阶段：上传票据恢复列表
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-01；基线e006851，feature/wp-15-upload-inventory-api-stage10。BE实施代理Codex，原复核/QA独立固定门禁；WEB/OPS/BIZ/EX真人协作待签。[第九阶段](WP-15-stage9.md)、[质量手册](../quality-gates.md)、[需求基线](../../../current-requirements-summary.md)。
 
 领取认证项目上传票据稳定objectId分页，重载后找回原ID/字节描述和pending状态，不以新object重复上传恢复；默认20/最多50，显式同project cursor、最小视图。只读历史，不需要配置或SDK，不返回存储地址/密钥/actor/原幂等key，不替客户保存本地文件；重传仍需原真实字节和显式命令key，verified_bytes也不是当前物理对象存在、媒体或发布资格。原运营同权，不新增成员权限、提供者或公开下载入口。

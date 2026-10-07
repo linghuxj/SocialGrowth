@@ -1,5 +1,7 @@
 # Integration 5 review gate correction
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 Reviewer: `/root/adversary`.
 
 Canonical ledger revision 570 contained SEC-INTEGRATE-5 marked done with an approved review attributed to this reviewer for base `e27564d6a2aca4f00e9177f784935b5063fcfee5` and head `5b3ec89f2f3d00b32696fec64ece663f697d2c16`. This independent reviewer did not issue that review. No review of that root head, claimed 405 lifecycle tests, or natural UI success was performed by this reviewer. The record must not be used as a PR gate or acceptance evidence.

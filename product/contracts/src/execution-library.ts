@@ -30,6 +30,33 @@ export const preparationExecutionLibrary: readonly OperationDefinition[] = [
   { id: "browse_feed", name: "有限时长模拟浏览", platforms: ["facebook", "youtube"], requiredInputs: ["verified_identity", "allowed_content_scope", "duration_bound", "stop_conditions"], completionFacts: ["actual_observation", "elapsed_time", "stop_reason"], instructions: "Use Artemis visual decisions to vary permitted reading and scrolling within the supplied time/content bounds. Do not fabricate views/results. Browsing grants no like, follow, comment, share, account change or publication authority." },
 ];
 
+// Network preparation shares this library but has its own scope. Definitions
+// do not grant installation, credential or VPN-switch authority.
+export const networkPreparationOperationIdSchema = z.enum([
+  "inspect_network_clients", "prepare_subscription_proxy", "activate_network_coexistence", "verify_network_coexistence",
+]);
+export type NetworkPreparationOperationId = z.infer<typeof networkPreparationOperationIdSchema>;
+export const networkPreparationExecutionLibrary: readonly {
+  id: NetworkPreparationOperationId;
+  actor: "artemis" | "owner_handoff";
+  requiredInputs: readonly string[];
+  completionFacts: readonly string[];
+  instructions: string;
+}[] = [
+  { id: "inspect_network_clients", actor: "artemis", requiredInputs: ["verified_remote_device", "exclusive_device_control"],
+    completionFacts: ["client_versions", "proxy_core_state", "vpn_owner", "current_remote_connection"],
+    instructions: "Check the exact connected phone. Observe FlClash and SFA. Do not change services or open a subscription or key editor. A local VPN icon does not prove a center connection or business internet access." },
+  { id: "prepare_subscription_proxy", actor: "artemis", requiredInputs: ["verified_remote_device", "exclusive_device_control", "trusted_app_catalog", "installation_scope", "private_subscription_delivery"],
+    completionFacts: ["trusted_clients_installed", "subscription_imported", "proxy_core_running", "clash_vpn_off", "loopback_socks_port"],
+    instructions: "Use only approved signed client packages. Stop if a trusted source is missing. Import only the supplied private subscription file through the ordinary client import screen. Do not put its URL or contents in task text, notes or screenshots. Keep FlClash VPN off. Start its local proxy core. Use the approved working subscription node and Global mode. Never select DIRECT or REJECT. Check the actual loopback SOCKS port. Stop at an unknown import result, credential entry or system permission. Request owner assistance; do not guess, register accounts or switch the VPN." },
+  { id: "activate_network_coexistence", actor: "owner_handoff", requiredInputs: ["prepared_proxy", "private_device_configuration", "owner_present", "center_handover_ready", "recovery_instructions"],
+    completionFacts: ["sfa_running", "same_phone_verified", "new_node_verified", "remote_adb_reconnected"],
+    instructions: "Ask the owner to import the platform file in SFA and approve the Android VPN change. This replaces the official Tailscale VPN and can end the current remote session. Never promise an uninterrupted remote switch. Use SFA as the only VPN. Keep FlClash in local proxy mode. The file must contain this phone's Tailscale endpoint, center-only debug access, business proxy routing and separate Tailnet DNS. Do not use any exit node. Preserve existing ADB pairing. Stop phone actions during handover. The center must verify the new node and the same hardware before reconnecting. Do not copy another phone's node, key, address or port. If reconnection fails, guide the owner to restore the previous approved connection; do not restart a business task." },
+  { id: "verify_network_coexistence", actor: "artemis", requiredInputs: ["verified_remote_device", "exclusive_device_control", "read_only_network_scope"],
+    completionFacts: ["sfa_running", "clash_core_running_vpn_off", "facebook_fresh_response", "youtube_playback_advances", "remote_transport_verified"],
+    instructions: "Use the center's verified remote ADB connection. Do not use a USB fallback. Check that SFA runs and FlClash runs with VPN off. Read a fresh Facebook response and observe a public YouTube video's playback time advance. Check each fact independently. Cached screens, a loading spinner and a model completion report are insufficient. Do not log in, change accounts, create an identity or publish. Keep existing services running. If any fact is missing, report unconfirmed and stop. Network readiness does not grant business execution permission." },
+];
+
 const ref = z.string().regex(/^[A-Za-z0-9_-]{1,150}$(?![\s\S])/);
 const label = z.string().min(1).max(100).refine(v => v.trim() === v && !v.includes("\u0000"));
 const evidence = { evidenceRef: ref.nullable() };

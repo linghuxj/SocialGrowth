@@ -1,6 +1,8 @@
 # 正式执行器边界
 
-主入口仍只说明配置，保持 disabled；组件存在不等于允许运行手机。既有 Google Artemis 的已验证能力保留原环境和覆盖范围。
+2026-10-06：既有执行服务已并入 `src/runtime/`，必要共享规则和回执契约在 `src/runtime/domain/`。主入口默认启动这一个正式执行服务；显式 `disabled` 可关闭启动。入口不自动启动设备 worker。组件存在不等于手机获得业务动作许可，Google Artemis 的原证据仍按原环境和范围保留。
+
+从根目录运行 `pnpm executor:start`；复用原 `.env.runtime`、`.env.agent` 和 `.runtime`，不要重新初始化、迁移数据库或重放未知任务。Web 操作统一在正式运营端“执行与人工协助”。`pnpm --filter @socialgrowth/product-executor test` 为不操作手机的补充回归；`test:device` 需要核对真实设备和在途任务，`test:storage` 需要真实 MinIO，两者不替代 Playwright 验收。
 
 ## 受控读屏 transport
 
@@ -28,6 +30,6 @@
 
 绑定同时在该 Python 进程内拒绝已核对的 raw Android driver／UIAutomator／adbutils connection／AdbSession 调用，并用 Python audit hook 拒绝新 subprocess／os.system／exec／fork。拒绝采用 `PhysicalPathDenied(BaseException)`，越过 SDK 捕获 `Exception` 后的 raw／headless 回退，不能把拒绝转换成假的 PNG。这个 hook 永久作用于专属进程，不能在共享 MCP／daemon 进程上原地绑定。它不是 OS sandbox，不能封闭其他进程、预先捕获的原始方法、任意 native library 或全部网络路径；不产生 `allPathsFenced=true`。
 
-本仓库 supervision／human_input／observer overlay 已增加受绑定上下文分支：只暴露获准读屏／等待及 note 工具；层级、保护输入、人工补图／刷新、安装和写操作均不暴露／拒绝；observer 使用相同 bridge，拒绝后无 ADB fallback。未绑定的既有 Demo 分支保留其原行为。**没有将这些 overlay 复制到现有 SDK checkout 或注册正式 worker**，SDK 上原有外来修改不被覆盖。实际接入前还须专属进程及完整 OS／网络／目标边界、当前参与和原未决停止证明，不能仅凭这些类或 hook 放行 executor。
+本仓库 supervision／human_input／observer overlay 已增加受绑定上下文分支：只暴露获准读屏／等待及 note 工具；层级、保护输入、人工补图／刷新、安装和写操作均不暴露／拒绝；observer 使用相同 bridge，拒绝后无 ADB fallback。未绑定的既有执行适配保留其原行为。**没有将这些 overlay 复制到现有 SDK checkout 或注册正式 worker**，SDK 上原有外来修改不被覆盖。实际接入前还须专属进程及完整 OS／网络／目标边界、当前参与和原未决停止证明，不能仅凭这些类或 hook 放行 executor。
 
 补充 SDK 组合检查：根执行 `pnpm --filter @socialgrowth/product-executor exec tsx --test src/artemis-read-screen-bridge.sdk-test.ts`，使用本地 SDK `.venv/bin/python` 和真实 SDK 类型／factory、私有 socket、ledger 及有界 transport，但 authority／可执行文件／pixels 均为合成 fixture；不会启动模型、实际 adb 或手机。Python codec 拒绝检查使用 `PYTHONPATH=integrations/artemis PYTHONDONTWRITEBYTECODE=1 integrations/google-artemis/.venv/bin/python -m unittest test_read_screen`。

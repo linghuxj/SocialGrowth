@@ -15,8 +15,9 @@ const receipt = { projectId: uuidA, outcome: "confirmed", configurationRevision:
 test("next config DTO separates operator confirmation from materialized cycle and strict command continuation", () => {
   const read = projectCycleConfigurationReadResponseSchema.parse({ contractVersion, projectId: uuidA, observedAt: config.confirmedAt,
     configurationRevision: 1, currentCycle: { cycleId: uuidA, cycleNumber: 1, configVersion: 3, businessTimeZone: "UTC",
-      reviewIntervalDays: 7, trafficMinimumPerCycle: 1, startsAt: "2026-10-04T00:00:00.000000Z", endsAt: config.effectiveStartsAt },
-    nextConfiguration: config, nextCycle: null, executionAllowed: false, publicationAllowed: false });
+      reviewIntervalDays: 7, trafficMinimumPerCycle: 1, startsAt: "2026-10-04T00:00:00.000000Z", endsAt: config.effectiveStartsAt,
+      recordedAt: config.confirmedAt, origin: { kind: "initial_direction_approval", approvalId: uuidB } },
+    nextConfiguration: { ...config, application: { state: "pending", materializedCycleId: null, reason: null } }, nextCycle: null, executionAllowed: false, publicationAllowed: false });
   assert.equal(read.nextConfiguration?.effectiveStartsAt, read.currentCycle?.endsAt);
   assert.equal(read.nextCycle, null);
   assert.equal(projectCycleConfigurationCommandReadResponseSchema.parse({ status: "found", projectId: uuidA,

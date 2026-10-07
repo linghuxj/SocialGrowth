@@ -1,5 +1,7 @@
 # WP-16 第四阶段：隔离 Redis/BullMQ 只读重新核对通知适配
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-01原固定复核新增WP16-145C-01/P2/remaining1，完整55行报告已读；原独立10首9PASS+1RED保留，无效URL异常可能含原endpoint。[最小整改](WP-16-queue-config-remediation.md)作者3配置/完整404通过，待同一原非作者复验及原QA，不自清P2；以下原作者389/Redis8通过不抵销该发现。原lock实际19新条目（含平台optional）、本机安装14项，不能将安装数写成锁条目数。
 
 2026-10-01；基线b0b8cb2，feature/wp-16-recheck-queue-stage4。BE实施代理Codex，OPS/EX/原非作者/QA协作真人待签。[上一阶段](WP-16-stage3.md)、[ADR-0007](../../../adr/0007-redis-bullmq-task-queue.md)、[质量手册](../quality-gates.md)。

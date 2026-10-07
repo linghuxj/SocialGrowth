@@ -1,6 +1,6 @@
 # 开发工作包
 
-更新：2026-09-30。本文维护工作包定义及依赖，不作为实时状态；部分正式工程阶段已实施，已有 Demo／诊断原型仍只作可核对的复用输入。职责代码见[执行手册](README.md)，实际人名、状态和证据只在[台账](delivery-tracker.md)维护。需求对应见[追踪表](requirement-coverage.md)，验收编号见[执行矩阵](acceptance-matrix.md)。
+更新：2026-09-30。本文维护工作包定义及依赖，不作为实时状态；部分正式工程阶段已实施，正式执行能力和有效历史证据按当前实现复用，不再保留另一套工程。职责代码见[执行手册](README.md)，实际人名、状态和证据只在[台账](delivery-tracker.md)维护。需求对应见[追踪表](requirement-coverage.md)，验收编号见[执行矩阵](acceptance-matrix.md)。
 
 ## 领取及拆分规则
 
@@ -52,7 +52,7 @@ WP-14 的项目及分配基础需提前到 B2 支撑 WP-13，完整项目能力�
 - 主责：OPS；协作：TL、BE、WEB、AND、QA；批次：B0。
 - 输入：编码依赖 无；交付另需 无。相关需求、已有契约与当前代码版本须写入实际任务卡。
 - 交付物：按技术设计的 product/web、backend、executor、android、contracts、deploy 建立明确目录；正式 TS 包接入根 workspace 与唯一锁文件；固定依赖、Gradle/JDK/Python/Artemis 兼容记录；CI 分路径执行，配置示例无真实秘密。
-- 完成标准：从干净安装可构建；Demo 与正式数据库、队列、存储及启动入口隔离；根 test:playwright 有明确正式目标选择且不绕过真实页面；正式测试命令未实现前不填通过。
+- 完成标准：从干净安装可构建；只保留正式 workspace、Web 入口与执行器，原状态和未知结果保持；根 test:playwright 有明确正式目标选择且不绕过真实页面；命令存在不代替实际断言与业务验收。
 - 验证与证据：AC-00, AC-53；按[质量门禁](quality-gates.md)提交代码／迁移／测试命令、实际结果、限制及复核记录。
 
 ### WP-01 首批权威模型与跨端契约

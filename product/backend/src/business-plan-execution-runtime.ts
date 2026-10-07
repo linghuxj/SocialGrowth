@@ -90,7 +90,7 @@ export class BusinessPlanExecutionRuntime {
         // a fingerprint mismatch; caller supplies the same value on execution below.
         const started = await request("/api/runtime/business-plan-executions", { method: "POST", headers: { "content-type": "application/json" },
           body: JSON.stringify({ operationId, claimId, scopeFingerprint, scope, ...facts, assetSha256: file.sha256 }) }) as RuntimeResult;
-        const deadline = Date.now() + 16 * 60_000;
+        const deadline = Date.now() + 31 * 60_000;
         let result = started;
         while (result.state === "running" && Date.now() < deadline) {
           await new Promise(resolve => setTimeout(resolve, 1500));
@@ -111,14 +111,23 @@ export class BusinessPlanExecutionRuntime {
         const prepared = sameOperation && result.evidenceVerified === true && result.state === "completed"
           && result.receipt?.executionStatus === "completed" && result.receipt.evidenceRefs.length > 0 && identityValid;
         const phase = result.diagnostic?.phase;
+        const retryAvailable = sameOperation && result.state === "unknown"
+          ? await request(`/api/runtime/business-plan-executions/${operationId}/retry-audit`).then(() => true).catch(() => false) : false;
         const diagnosticBlockers = sameOperation && result.state !== "running" && result.diagnostic
           ? [result.diagnostic.reason === "EXECUTION_TIMEOUT"
             ? phase === "identity_audit" ? "identity_audit_timeout" : phase === "content_preflight" ? "content_preflight_timeout" : "preflight_timeout"
             : phase === "identity_audit" ? "identity_audit_incomplete" : phase === "content_preflight" ? "content_preflight_failed" : "preflight_failed"] : [];
         return { verificationEventId: randomUUID(), payloadDigest: createHash("sha256").update(JSON.stringify(result)).digest("hex"),
           decision: prepared ? "prepared" : result.state === "blocked" ? "unknown" : "unknown",
-          resultId: prepared ? operationId : null, verifiedAt: prepared ? new Date().toISOString() : null, blockers: prepared ? [] : diagnosticBlockers };
+          resultId: prepared ? operationId : null, verifiedAt: prepared ? new Date().toISOString() : null,
+          blockers: prepared ? [] : [...diagnosticBlockers, ...(retryAvailable ? ["identity_audit_stopped_retryable"] : [])] };
       } },
+      readOnlyAuditRetry: {
+        check: operationId => request(`/api/runtime/business-plan-executions/${operationId}/retry-audit`).then(() => true).catch(() => false),
+        resume: async (operationId, scopeFingerprint) => {
+          await request(`/api/runtime/business-plan-executions/${operationId}/retry-audit`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ scopeFingerprint }) });
+        },
+      },
       originalAttemptReconciler: { reconcileOriginalAttempt: async ({ scope, claimId, scopeFingerprint }) => {
         const jobs = await request("/api/runtime/business-plan-executions") as RuntimeResult[];
         const match = jobs.find(item => item.operationId && item.claimId === claimId && item.scopeFingerprint === scopeFingerprint);

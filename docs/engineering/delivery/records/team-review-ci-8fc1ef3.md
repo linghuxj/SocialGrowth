@@ -1,5 +1,7 @@
 # 独立安全复核：推进分支CI触发
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 - reviewer：`/root/adversary`
 - base：`6d899fe3d08cc5498db69c153c787b860cd17137`
 - head：`8fc1ef3b1234799ba2f314a2d1762426f1033ca9`

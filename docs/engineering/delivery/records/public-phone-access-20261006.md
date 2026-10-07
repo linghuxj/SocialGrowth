@@ -1,5 +1,7 @@
 # 公开手机接入 HTTP 服务
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-06。用户明确先完成公开 HTTP 接入服务，其他环节暂不推进。
 
 **本项已部署并通过验证。** 地址：[https://macbook-pro.tail3656e0.ts.net:8443/](https://macbook-pro.tail3656e0.ts.net:8443/)。HTTP 服务通过公网 HTTPS 提供，访问方不必先加入 Tailnet。

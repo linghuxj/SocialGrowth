@@ -1,5 +1,7 @@
 # Historical impact Playwright increment review
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 - Reviewer: `/root/adversary`
 - Base: `bf4fee09f6632242a6fc77d76b95ca834d7417fd`
 - Head: `f08b205778cb61ef1c52151e1e667ebd836afd5c`

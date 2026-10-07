@@ -54,7 +54,7 @@ internal class AutomaticConnectionMonitor(
         if (busy) { schedule(1_000); return }
         if (!EndpointReportingService.automaticEnabled(activity)) { schedule(); return }
         val local = DevicePreparationChecks.read(activity)
-        if (!local.discoverySupported || !local.wifiConnected || !local.tailscaleInstalled) {
+        if (!local.discoverySupported || !local.wifiConnected || !local.networkClientInstalled) {
             schedule(); return
         }
         val stored = identities.load()
@@ -89,7 +89,9 @@ internal class AutomaticConnectionMonitor(
                     if (!local.vpnPresent) {
                         // Restore only a previously server-verified current binding.
                         // First login/consent and switching another VPN are never automated.
-                        restoreVpn = recovery.getString("verified_scope", null) == scope
+                        // SFA owns the coexistence VPN. Even while it is stopped,
+                        // restoring the official client could replace that network.
+                        restoreVpn = !local.sfaInstalled && recovery.getString("verified_scope", null) == scope
                     } else {
                         val network = DeviceConnectionApiClient(http).installationState(token, state.deviceId)
                         require(network.factVersion == state.factVersion)
@@ -110,7 +112,7 @@ internal class AutomaticConnectionMonitor(
                     val now = DevicePreparationChecks.read(activity)
                     verifiedScope?.let { recovery.edit().putString("verified_scope", it).apply() }
                     val elapsed = android.os.SystemClock.elapsedRealtime()
-                    if (restoreVpn && now.wifiConnected && !now.vpnPresent && elapsed - lastVpnAttempt >= 30_000) {
+                    if (restoreVpn && !now.sfaInstalled && now.wifiConnected && !now.vpnPresent && elapsed - lastVpnAttempt >= 30_000) {
                         lastVpnAttempt = elapsed
                         runCatching {
                             activity.sendBroadcast(Intent("com.tailscale.ipn.CONNECT_VPN")

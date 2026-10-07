@@ -1,5 +1,7 @@
 # Operator assistance impact history security review
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 - Reviewer: `/root/adversary`
 - Base: `4bcc2fd4bc055d3de2e2e2a9f46e3199d2f915b0`
 - Head: `d4b4c2354d095cb67d54ca18aff6864a5601dd22`

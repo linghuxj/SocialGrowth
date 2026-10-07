@@ -1,5 +1,7 @@
 # 真机网络验证执行记录（2026-09-28）
 
+2026-10-06 追溯说明：旧工程已按[迁移记录](engineering/delivery/records/demo-removal-migration-20261006.md)删除或迁入正式执行器。源码链接指向迁移位置；历史实测结论仍限于原日期和范围，迁移不代表风险关闭。
+
 **最新结果（22:07）**：电脑 Tailscale 恢复后，在没有 USB transport 的情况下重新运行原生 NSD 诊断，20 秒自动发现唯一连接候选端口 `46457`，错误为空；中心使用本轮候选经 Tailscale IPv6 核对到同一台 S23，ADB 为 device。单机前台发现与当前网络 ADB 身份核验通过；IPv4 TCP 仍超时，配对端点未知。报告经 ADB 取回，认证上报、多机及后台仍未验证。诊断进程已停止，原型及分轮证据见文末。
 
 **最新复核（21:44）**：用户提供当前连接端口 `46457` 后，Tailscale IPv6 TCP、ADB 既有密钥认证及目标身份核对通过；网络 transport 为 `device`，型号与此前核验的 S23 一致。当前没有 USB transport，未用 USB 替代网络验证。同端口 IPv4 TCP 超时仍待定位。端口由用户提供，本次不覆盖新客户端自动上报、首次配对、多机并发或 Web 业务验收；详细分轮证据见文末。
@@ -136,7 +138,7 @@ SOCIALGROWTH_VERIFICATION_OUTPUT=artifacts/acceptance/connectivity-2026-09-28/we
 
 ## 下一步：原生端点发现原型（21:56）
 
-用户要求继续推进后，实现了[隔离诊断原型与操作说明](../prototypes/android-endpoint-probe/README.md)。它使用系统 NSD 在本机 Wi-Fi 上观察连接及配对服务，以本机地址筛选候选，处理未知／多个候选／网络变化／离开前台，20 秒结束并写入私有报告。没有设备 shell、中心上报或配对码逻辑；候选地址匹配不当作可信设备绑定。
+用户要求继续推进后，实现了[隔离诊断原型与操作说明](engineering/delivery/records/demo-removal-migration-20261006.md)。它使用系统 NSD 在本机 Wi-Fi 上观察连接及配对服务，以本机地址筛选候选，处理未知／多个候选／网络变化／离开前台，20 秒结束并写入私有报告。没有设备 shell、中心上报或配对码逻辑；候选地址匹配不当作可信设备绑定。
 
 构建使用本机 SDK 36、Build Tools 36.0.0、JDK 17；原型 minSdk 34 / targetSdk 36，只有 INTERNET、ACCESS_NETWORK_STATE 两项普通权限。编译及 APK 签名验证通过；构建存在 Java 8 引导类路径与弃用 API 提示，不影响本次生成 APK，不因此宣称正式兼容性通过。本地生成诊断签名密钥，仅用于此 APK，存于 Git 忽略的证据输出目录，未生成或变更 tailnet 凭据。
 

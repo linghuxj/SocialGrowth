@@ -35,11 +35,11 @@ export async function queryBusinessPlanPreflight(projectId: string, taskId: stri
   session(); if (!sameId(result.projectId, project.data)) throw new BusinessPlanClientError("BUSINESS_PLAN_RESPONSE_INVALID");
   return result;
 }
-export function startBusinessPlanPreflight(projectId: string, taskId: string) {
+export function startBusinessPlanPreflight(projectId: string, taskId: string, retryAudit = false) {
   const project = uuidSchema.safeParse(projectId), task = uuidSchema.safeParse(taskId);
   if (!project.success || !task.success) throw new BusinessPlanClientError("BUSINESS_PLAN_INPUT_INVALID");
   const session = captureOperatorWriteSession();
-  return prepareOperatorPost(`${path(project.data)}/tasks/${task.data}/preflight`, JSON.stringify({}), { parse(response: unknown) {
+  return prepareOperatorPost(`${path(project.data)}/tasks/${task.data}/${retryAudit ? "retry-audit" : "preflight"}`, JSON.stringify({}), { parse(response: unknown) {
     session();
     if (!response || typeof response !== "object" || !("taskId" in response) || !sameId(String((response as { taskId: unknown }).taskId), task.data)
       || !("state" in response) || !["blocked","queued","claimed","running","submission_unknown","prepared","verified","not_published","failed"].includes(String((response as { state: unknown }).state))) {

@@ -1,5 +1,7 @@
 # WP-27 恢复清单继承漏检整改
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-01补齐：原QA B完整63cf830d99a93cbcb610baa48b30cd00f3686d2807933d1db41f584a5f43f279已全文读；原1921继承RED不改，最小两文件组合PG12/同oracle4/真实declaration1过、新0/剩余0/QA新oracle0，与原非作者有限双闭合。A原P2双实际清零保持，[第五阶段](WP-27-stage5.md)未改清单SQL/PG测试或清父门禁，下方QA B执行中为历史。
 
 2026-10-01最新：已全文读取A完整原非作者与QA报告，原REV-WP27-INHERIT-01 P2双实际清零/new0/remaining0。原63首RED、错SQLSTATE、A工具hook首错误及正确新源均保留。B原完整非作者报告也已全文读，原1921继承RED历史不改，1921+c147两文件最小组合new0/remaining0、PG12/同oracle4通过；原QA B正在独立复验，不由A或作者自签B通过。报告SHA/分层与[下一文件阶段](WP-27-stage4.md)记录，下面pending为此前历史状态。

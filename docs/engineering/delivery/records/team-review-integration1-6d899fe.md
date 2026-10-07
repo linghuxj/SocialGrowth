@@ -1,5 +1,7 @@
 # 独立安全复核：首批集成候选
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 - reviewer：`/root/adversary`
 - base：`f583f184891bd3d0406c43821cb3d36e2eb1233a`
 - head：`6d899fe3d08cc5498db69c153c787b860cd17137`

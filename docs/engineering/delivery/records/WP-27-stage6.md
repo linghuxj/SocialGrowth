@@ -1,5 +1,7 @@
 # WP-27 第六阶段：同快照备份采集接线
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-01原QA完整57行`artifacts/acceptance/product/B5/20261001T111918Z-wp27-capture-c397/acceptance-report.md`已全文读取/confirmed完成，SHA42f0cf18f951f2a4a5d3093f0c6fcc6ec13a485dc12a1a243755706759f603d8，限定new0/rem0/双方有限工程闭合。原unit3及导出退出后同正文3重跑不双计、两实际PG4首过，QA新oracle0；顺序/helper三处路径/动态status假设首诊断、own整目录unused show deny-warnings exit1 warning保留，产品check/lint/build仍过。37来源/旧215/自身前QA217指纹保持；new ceb58PG32881/62ff卷/cluster7691658486722490406三库0|0|0|0后精确CID卷/两文件/snapshot清理。非生产灾备或Web真机/全部开发签收，下方QA中为历史。原QA接素材读取7f；原非作者接保存49f。
 
 2026-10-01原非作者完整50行`artifacts/review/wp27-capture-c397.md`已全文读取，SHA0f07c7359bb060deab567793ac3f0ab797dd05b80d2e128118905b3df699f45b，new0/remaining0；原3/真实原PG4/新独立最小1表PG4分别首次过，未跑root431/旧PG12/fs14。真实只读COMMIT丢ACK代码UNAVAILABLE（工程未知不是新增UNKNOWN enum），provider仅转交Buffer view清零、拒绝前自清；ACK gate后才显式保存/恢复/snapshot失效42704等，非生产可信源/当前fence。新746801 PG32880/2f870卷/cluster7691652632562597926、两文件目录及固定snapshot精确清理，33own/21author与旧215指纹保持，作者编译首诊断/boot等待保留。已交原QA新固定4e→c397严格10，本批QA仍待最终；同原非作者已接7f素材读取strict14，下方收尾进度为历史。

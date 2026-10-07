@@ -1,5 +1,7 @@
 # WP-27 第五阶段：真实文件晚期故障与原 ID 接续
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-01原QA完整63行`artifacts/acceptance/product/B5/20261001T105718Z-wp27-file-fault-4e18/acceptance-report.md`已全文读取，SHAa2ffbfa552376d7aec49fff0aec9e91c767202857926bd3b77456d7b03817a4a，限定new0/remaining0，双方有限工程闭合。原14/复用6/真实EACCES1/已更正port7分别过，QA新oracle0，错误首7仍6PASS1FAIL；自有证据首误计后来35为历史34与过早只读日志诊断另存，仅补path-status计数校验，原业务断言不改。39来源before/after保持，35新目录和私有snapshot精确身份清理，无服务/PG/根428本轮。下方QA中为历史；未签生产灾备/Web真机/全部开发，原复核现检查stage6，主窗口继续素材客户端。
 
 2026-10-01最新完整43行原非作者报告`artifacts/review/wp27-file-fault-4e18.md`已全文读，SHA2c34628c82e59d5b0b94db770c58aa0972b14a50bc24bcf455ebb10dedd8c111，新增0/阶段remaining0。原14/复用6/真实OS EACCES1过，新port7首6PASS1FAIL为自有save错误预期UNAVAILABLE、既有策略为intent后UNKNOWN；另存只更正一个预期后7PASS，首源5ee957…/日志118f47…保持，load仍UNAVAILABLE；不是产品finding，也不把首次写全绿。默认实现逆剥离port逐字525、原8正文不改，156旧BE/21SQL/93schema保持；34own/12author及旧169指纹保持，35个新私有目录及固定snapshot按身份清理，无PG/service本轮。已向原QA发新固定525→4e18严格10复验，当前只待该门禁，不自签QA/生产/AC；下方前次执行中为历史。

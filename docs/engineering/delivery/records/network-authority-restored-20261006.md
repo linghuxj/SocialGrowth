@@ -1,5 +1,7 @@
 # 平台网络待确认：原因与恢复
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 日期：2026-10-06。用户要求解决 Android 的“平台网络待确认”，并区分状态展示问题与 Web 运营处理问题。
 
 ## 原因
@@ -28,15 +30,6 @@ Web → Artemis 验收通过：task `70a3aca3-0fb6-478c-af72-9ff412706b48`，tra
 
 复现入口（已有任务先 reconcile，不覆盖结果或重复派发）：
 
-```sh
-pnpm dev
-
-SG_WEB_TARGET=demo SG_DEMO_WEB_SCOPE=client \
-SG_DEMO_REAL_CLIENT_TEST=authorized SG_DEMO_CLIENT_MODE=connectivity_test \
-SG_DEMO_REAL_CONNECTIVITY_TEST=authorized SG_DEMO_VERIFY_CONNECTED_GUIDE_ONLY=authorized \
-SG_DEMO_REQUIRE_CENTER_CONNECTION=authorized SG_DEMO_ENDPOINT_REPORTER_START=authorized \
-SOCIALGROWTH_VERIFICATION_OUTPUT=output/playwright/network-authority-restored-20261006 \
-pnpm test:playwright
-```
+该历史操作命令已失效并从说明中移除。原候选和结果保留；现行入口见[当前实现](../../../current-implementation.md)。
 
 范围：恢复当前内测手机的网络核验与真实远程连接，不等于新手机逐设备正式网络准入、业务执行授权或发布成功。[前轮连接 UI 记录](android-connection-ui-20261006.md)保留其检查时平台未加载配置的事实。

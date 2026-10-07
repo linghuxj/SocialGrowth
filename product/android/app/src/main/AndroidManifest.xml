@@ -10,6 +10,8 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <queries>
         <package android:name="com.tailscale.ipn" />
+        <package android:name="io.nekohasekai.sfa" />
+        <package android:name="com.follow.clash" />
     </queries>
     <application
         android:allowBackup="false"

@@ -1,10 +1,10 @@
 # SocialGrowth 工程规范
 
-2026-09-27：产品以最新对齐需求为准，现有实现仅为 Demo 验证参考，既有模块、技术栈及演示结果不构成最终设计或验收结论。以下工程规范适用于操作现有仓库，不要求最终方案沿用 Demo 架构。
+2026-10-06：产品以最新对齐需求为准。只维护 `product/` 正式工程，已取消 Demo 并列入口。既有模块、技术栈及局部结果不构成完整验收结论；历史记录只按原证据范围追溯。
 
 - 当前需求：[需求基线](docs/current-requirements-summary.md)
 - 来源与修订：[确认记录](docs/requirements-alignment.md)
-- 旧版全文：[历史 CLAUDE.md](archive/2026-09-25-before-realignment/CLAUDE.md)
+- 当前实现：[正式工程与接线](docs/current-implementation.md)
 
 ## 简化开发与验证（2026-10-05 用户确认）
 
@@ -25,10 +25,10 @@
 ### 包管理与统一启动
 
 - 使用 pnpm 8.14.0，项目 `.npmrc` 自动下载并选择 Node.js 24.16.0（首次需要联网），不修改全局 Node。从仓库根目录 `pnpm install --frozen-lockfile`；仅维护 `pnpm-lock.yaml`，工作区范围由 `pnpm-workspace.yaml` 指定。`pnpm env:check` 输出实际 Node 路径并检查 SQLite；安装时严格校验 engines，统一启动前检查运行环境。全局 `node -v` 不代表项目脚本使用的版本。
-- `pnpm dev` / `pnpm start`：当前通过 `scripts/product-local-live.mts serve` 启动正式产品 Web（3100）与后端（4320）；Ctrl+C 或任一服务退出时停止本轮启动的服务组。历史 Demo 使用 `pnpm dev:demo`（Web 3000、execution-runtime 4318），不可混同两个入口的验收结果。
-- `pnpm dev:web` / `pnpm dev:backend`：独立启动正式产品服务；已有实例时勿重复启动统一入口。历史 Demo 可用 `pnpm runtime:web` / `pnpm runtime:start` 单独运行；execution-runtime 直接加载已有 `.env.runtime`，避免代理凭据丢失。
-- `pnpm runtime:setup <Artemis路径> <真机序列号>` 仅供首次初始化，已有配置时跳过。设备 Agent / worker 仍由 `pnpm runtime:agent` / `pnpm runtime:worker` 单独运行。
-- 根入口 `pnpm test:playwright` 验证真实 Web 页面；`pnpm test` 为补充回归，`pnpm build` 构建 Web，`pnpm build:runtime` 检查运行时类型。
+- `pnpm dev` / `pnpm start`：启动正式 Web（3100）与后端（4320）；配置执行服务时复用已认证的正式执行器或启动本轮自有实例。Ctrl+C 或自有服务退出时停止自有服务组，不误停复用实例。不存在另一套 Web 入口。
+- `pnpm dev:web` / `pnpm dev:backend`：独立启动正式服务。`pnpm executor:start` 使用已有 `.env.runtime` 启动 `product/executor`；数据库和任务 ID 不变，不重新导入或重放历史状态。
+- `pnpm executor:setup <Artemis路径> <真机序列号>` 仅供首次初始化，已有配置时跳过。设备 Agent / worker 由 `pnpm executor:agent` / `pnpm executor:worker` 单独运行；统一入口不自动操作手机。
+- `pnpm test:playwright` 只支持正式 Web，默认 `identity` 范围，通过 `SG_PRODUCT_WEB_SCOPE` 选择流程。`executor-console` 检查正式执行与人工协助入口。根 `lint`、`test`、`build` 均针对正式工程；`pnpm check:layout` 防止恢复旧目录、包或 Web 入口。
 
 ### 测试与验证规范（强制）
 
@@ -38,7 +38,7 @@
 - Playwright 必须从实际 Web 入口操作页面、填写表单、点击按钮，并断言页面反馈和最终状态；不得通过直接调用后端接口、修改数据库、预置成功状态或 Mock 业务结果绕过待验收流程。接口、日志及数据库的只读检查只能作为补充证据。
 - Playwright 也能覆盖跨页面完整流程；这里指定的是验证工具与真实操作方式，并非禁止完整业务链路验证。不能仅凭脚本名包含 `e2e` 判断是否合规，也不能仅通过改名宣称完成迁移。
 - 保留可复现的 Playwright 脚本、执行命令、环境、断言结果及必要截图；截图和日志须保护密码、验证码、令牌等敏感信息。页面能打开、截图成功或脚本未报错，不等于业务验收通过。
-- 运行现有 Demo 的 Web 发起 → Artemis 执行 → 人工介入 → 最终回执验证时，须通过 Web 发起任务及提交人工反馈。Playwright 负责 Web 操作，Artemis 负责真机 App 的识别、决策与执行，不得以固定手机操作脚本替代 Agent 决策。没有真实设备或外部条件时，记录阻断，不能用模拟结果宣称链路跑通。首期已按 R-106 明确选用 Google Artemis 作为手机执行引擎，但 Demo 的接口、部署和其他技术栈不自动成为最终方案；用户按 R-109 补充确认既有远程执行已验证，应复用原证据并注明环境及覆盖范围；当前重点是网络共存、新设备客户端与未覆盖的恢复能力，不将既有链路重新列为全未验证。不满足条件时重新对齐，不自动替换引擎。
+- 运行正式 Web 发起 → Artemis 执行 → 人工介入 → 最终回执验证时，须通过 Web 发起任务及提交人工反馈。Playwright 负责 Web 操作，Artemis 负责真机 App 的识别、决策与执行，不得以固定手机操作脚本替代 Agent 决策。没有真实设备或外部条件时，记录阻断，不能用模拟结果宣称链路跑通。首期已按 R-106 明确选用 Google Artemis 作为手机执行引擎，但 Demo 的接口、部署和其他技术栈不自动成为最终方案；用户按 R-109 补充确认既有远程执行已验证，应复用原证据并注明环境及覆盖范围；当前重点是网络共存、新设备客户端与未覆盖的恢复能力，不将既有链路重新列为全未验证。不满足条件时重新对齐，不自动替换引擎。
 - 单元测试、非 UI 集成测试、类型检查、lint 和构建可作为补充检查，不能替代 Playwright 的 Web 验收，也不能证明真实登录、真机操作或公开发布成功。未获得明确授权，不得点击最终发布按钮或扩大任务权限。
 - 遵守服务管理纪律：优先使用已启动的服务；不可用或当前验证需要时，可直接启动／重启，并核验现有实例及在途任务。验证命令单次运行后退出，结束时清理本轮自有临时进程，不误停他人服务。报告明确区分通过、失败、阻断和未验证。
 

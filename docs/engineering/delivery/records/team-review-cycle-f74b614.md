@@ -1,5 +1,7 @@
 # Independent review: first review-cycle persistence
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 Reviewer: `/root/adversary`.
 Base: `259bdb62243b936d938c1229bdcbffc47d805dff`.
 Head: `f74b6142348dc738a1a083028a4a746595b2bdc8`.

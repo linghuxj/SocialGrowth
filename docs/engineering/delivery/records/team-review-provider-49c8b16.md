@@ -1,5 +1,7 @@
 # Provider rename follow-up review — 2026-10-04
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 - Reviewer: `/root/adversary`.
 - Base: `b56429aa824f1d40709921d9ca5ed2a84cc067a1`.
 - Head: `49c8b16283df4eefcd5cea83d2a3cb327582b80b`.

@@ -977,7 +977,7 @@ class MainActivity : ComponentActivity() {
             root.addView(box, matchWrap().apply { topMargin = dp(14) })
             return box
         }
-        val network = section("1 · 连接业务网络", "先连接能够上网的稳定 Wi-Fi，再返回完成本机关联。手机与平台不需要在同一个 Wi-Fi；确认关联后，按下面的说明安装连接工具并使用平台提供的接入信息。")
+        val network = section("1 · 连接管理网络", "先连接能够上网的稳定 Wi-Fi，再返回完成本机关联。手机与平台不需要在同一个 Wi-Fi。首次接入按下面的说明连接；已使用 SFA 的手机请保留现有配置。")
         val networkStatus = label("正在检查网络…", 14f, secondary)
         network.addView(networkStatus, matchWrap().apply { topMargin = dp(10) })
         val wifi = secondaryButton("连接 Wi-Fi").apply {
@@ -987,7 +987,7 @@ class MainActivity : ComponentActivity() {
         val openTailscale = primaryButton("打开 Tailscale").apply { setOnClickListener { openTailscaleSetup() } }
         network.addView(openTailscale, matchHeight(52).apply { topMargin = dp(8) })
         network.addView(label("无需自行注册 Tailscale 账号。完成关联后，点击“获取并复制接入密钥”，再打开 Tailscale；点击右上角齿轮进入 Settings（设置），选择 Accounts（账号），再点右上角三点菜单 → Use an auth key（使用接入密钥）。长按输入框粘贴，点击 Add account（添加账号）。如果首页显示 Connect（连接），再点击它，并按系统提示允许 VPN 连接。返回这里后，App 会自动检查结果；只有显示平台已确认本机网络节点，才能继续。", 14f, secondary), matchWrap().apply { topMargin = dp(10) })
-        network.addView(label("平台负责提供业务上网配置，你无需自行购买 VPN 订阅。另一款 VPN 与 Tailscale 不能同时开启；临时 VPN 连接成功也不代表手机已接入平台。安装、登录或连接失败时，请联系邀请你的运营人员，不要自行换账号或重复注册。", 14f, secondary), matchWrap().apply { topMargin = dp(10) })
+        network.addView(label("以上 Tailscale 步骤仅用于首次管理接入。已使用 SFA 时，不要重新连接官方 Tailscale 或再次领取密钥。业务上网由手机订阅提供；请按第 4 步完成。", 14f, secondary), matchWrap().apply { topMargin = dp(10) })
 
         val copyKey = secondaryButton("获取并复制接入密钥")
         copyKey.isEnabled = state?.deviceId != null
@@ -1088,6 +1088,12 @@ class MainActivity : ComponentActivity() {
             }
             visibility = if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this@MainActivity, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) View.VISIBLE else View.GONE
         }, matchHeight(50).apply { topMargin = dp(8) })
+        val businessNetwork = section("4 · 准备业务上网", "平台连接确认后，Artemis 才能协助安装可信客户端、导入平台提供的私有文件和检查上网结果。安装确认、系统 VPN 授权和连接切换仍需你按提示处理。")
+        businessNetwork.addView(label("使用手机订阅：FlClash 关闭 VPN，运行本地代理，保留平台确认的可用节点和 Global 模式。SFA 是唯一开启 VPN 的客户端，负责管理连接和业务分流。不要同时开启官方 Tailscale 或 FlClash VPN，不要选择 Macmini 或其他出口节点。", 14f, secondary), matchWrap().apply { topMargin = dp(10) })
+        businessNetwork.addView(label("首次切换请等待运营确认配置已准备好。只导入平台为本机提供的文件，不要复制另一台手机的配置。打开 SFA，按提示导入文件并允许 VPN 连接，再返回这里检查。切换可能暂时断开远程操作；只有重新显示“平台已连接到这台手机”，且平台确认 Facebook 和 YouTube 能正常读取，才算完成。", 14f, secondary), matchWrap().apply { topMargin = dp(10) })
+        businessNetwork.addView(secondaryButton("打开 SFA").apply { setOnClickListener { openNetworkClient("io.nekohasekai.sfa", "SFA") } }, matchHeight(50).apply { topMargin = dp(10) })
+        businessNetwork.addView(secondaryButton("打开 FlClash").apply { setOnClickListener { openNetworkClient("com.follow.clash", "FlClash") } }, matchHeight(50).apply { topMargin = dp(8) })
+        businessNetwork.addView(label("连接失败时，先检查 SFA 是否已启动、FlClash 核心是否运行且 VPN 关闭。不要删除配置、重新配对或更换账号。仍无法连接时联系运营，按指导恢复此前可用的连接；不要重复执行业务任务。订阅、密码和接入密钥不要发送到普通聊天或截图中。", 14f, secondary), matchWrap().apply { topMargin = dp(10) })
         val serverStatus = label("正在检查平台连接…", 14f, secondary)
         if (state?.deviceId == null) serverStatus.text = "当前尚未确认本机关联。请点击“返回完成本机关联”，确认后再继续平台连接。"
         root.addView(serverStatus, matchWrap().apply { topMargin = dp(18) })
@@ -1115,12 +1121,15 @@ class MainActivity : ComponentActivity() {
             guideIntroduction.text = if (remoteConnected) "连接正常，无需重复配对。下方设置可用于检查与恢复连接；返回设备管理不会启动或停止任务。" else "按下面的步骤完成首次设置。每次从设置返回，我们会自动检查进度。"
             updateConnectionControl(keepConnected, state)
             wifi.visibility = if (checks.wifiConnected) View.GONE else View.VISIBLE
-            openTailscale.text = if (checks.tailscaleInstalled) "打开 Tailscale" else "安装 Tailscale"
+            openTailscale.text = when { checks.sfaInstalled -> "打开 SFA"; checks.tailscaleInstalled -> "打开 Tailscale"; else -> "安装 Tailscale" }
+            copyKey.visibility = if (checks.sfaInstalled) View.GONE else View.VISIBLE
             networkStatus.text = when {
                 networkVerified -> "平台已确认本机网络节点；平台上网和执行资格仍需后续核验。"
                 !checks.wifiConnected -> "请先连接 Wi-Fi。"
                 state?.deviceId == null -> "请先返回完成本机关联，再按平台提供的接入信息连接。"
-                !checks.tailscaleInstalled -> "Wi-Fi 已连接，请安装配套 Tailscale。"
+                checks.sfaInstalled && !checks.vpnPresent -> "请打开 SFA 并启动平台为本机提供的配置；App 不会改为连接官方 Tailscale。"
+                checks.sfaInstalled && !checks.clashInstalled -> "已安装 SFA；业务代理尚缺 FlClash，请联系运营提供可信安装包。"
+                !checks.networkClientInstalled -> "Wi-Fi 已连接，请安装配套 Tailscale。"
                 !checks.vpnPresent -> "App 会尝试恢复已有 Tailscale 连接；首次登录或系统授权请打开 Tailscale 完成。"
                 else -> "已检测到 VPN；正在等待平台确认本机入网。"
             }
@@ -1144,7 +1153,7 @@ class MainActivity : ComponentActivity() {
             }
             progress.text = when {
                 remoteConnected -> "本机已连接到平台"
-                !networkVerified || !checks.wifiConnected || !checks.tailscaleInstalled || !checks.vpnPresent -> "当前步骤：连接业务网络"
+                !networkVerified || !checks.wifiConnected || !checks.networkClientInstalled || !checks.vpnPresent -> "当前步骤：连接管理网络"
                 checks.wirelessDebugging != true -> "当前步骤：允许远程连接"
                 else -> "当前步骤：等待连接确认"
             }
@@ -1239,6 +1248,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun openTailscaleSetup() {
+        if (DevicePreparationChecks.read(this).sfaInstalled) {
+            openNetworkClient("io.nekohasekai.sfa", "SFA")
+            return
+        }
         val launch = packageManager.getLaunchIntentForPackage("com.tailscale.ipn")
         if (launch == null) {
             AlertDialog.Builder(this)
@@ -1252,6 +1265,17 @@ class MainActivity : ComponentActivity() {
         }
         else runCatching { startActivity(launch) }.onFailure {
             Toast.makeText(this, "暂时无法打开，请从手机应用列表打开 Tailscale。", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun openNetworkClient(packageName: String, name: String) {
+        val launch = packageManager.getLaunchIntentForPackage(packageName)
+        if (launch == null) {
+            AlertDialog.Builder(this).setTitle("准备 $name")
+                .setMessage("请联系邀请你的运营人员提供已核验的安装包和本机配置。安装时按系统提示确认来源；不要下载来源不明的文件。安装完成后返回本页检查。")
+                .setPositiveButton("知道了", null).show()
+        } else runCatching { startActivity(launch) }.onFailure {
+            Toast.makeText(this, "暂时无法打开，请从手机应用列表打开 $name。", Toast.LENGTH_LONG).show()
         }
     }
 

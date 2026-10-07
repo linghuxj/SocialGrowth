@@ -1,5 +1,7 @@
 # 新手机从零接入：流程修正与当前验证
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 日期：2026-10-06。需求依据：[R-160](../../../requirements-alignment.md#r-160新手机从零准备通过-android-app-引导异地接入)，沿用 R-124、R-148～151。当前结论：**完整异地新手机流程阻断，不能交付为已完成。** 后续按用户单独指示，公开 HTTPS 接入服务已部署并通过手机与真实浏览器验证，见[独立实施记录](public-phone-access-20261006.md)；下表保留此前整轮检查时的条件。
 
 ## 起始条件与顺序
@@ -45,13 +47,7 @@ USB：Samsung SM-S9110，Android 16，序列号 RFCW40MYYCV。既有提供者、
 
 复现入口：
 
-```sh
-SG_WEB_TARGET=demo SG_DEMO_WEB_SCOPE=client \
-SG_DEMO_REAL_CLIENT_TEST=authorized SG_DEMO_CLIENT_MODE=connectivity_test \
-SG_DEMO_REAL_CONNECTIVITY_TEST=authorized SG_DEMO_VERIFY_OFFLINE_GUIDE_ONLY=authorized \
-SOCIALGROWTH_VERIFICATION_OUTPUT=output/playwright/new-phone-20261006/offline-guide-ui \
-pnpm test:playwright
-```
+该历史操作命令已失效并从说明中移除。原候选和结果保留；现行入口见[当前实现](../../../current-implementation.md)。
 
 实际结果存放在 `output/playwright/new-phone-20261006/`；原始私有日志与凭据响应保留在 `.runtime/new-phone-20261006/`，不提交凭据。尚未启动的新检查须使用独立输出目录；已经发起的原任务须先核对原结果，不能覆盖未知结果后重发。
 
@@ -78,13 +74,7 @@ pnpm test:playwright
 
 本轮新增复现入口：
 
-```sh
-SG_WEB_TARGET=demo SG_DEMO_WEB_SCOPE=client \
-SG_DEMO_REAL_CLIENT_TEST=authorized SG_DEMO_CLIENT_MODE=connectivity_test \
-SG_DEMO_REAL_CONNECTIVITY_TEST=authorized SG_DEMO_VERIFY_SINGLE_PHONE_GUIDE=authorized \
-SOCIALGROWTH_VERIFICATION_OUTPUT=output/playwright/single-phone-association-20261006 \
-pnpm test:playwright
-```
+该历史操作命令已失效并从说明中移除。原候选和结果保留；现行入口见[当前实现](../../../current-implementation.md)。
 
 原目录已有任务，复核时按脚本 `SG_DEMO_CLIENT_PHASE=reconcile` 读取原回执，不覆盖或重发关联。需要新检查时使用新输出目录，且先确认原任务终态。
 
@@ -112,12 +102,6 @@ pnpm test:playwright
 
 复现命令（已有目录须 reconcile，新的真实任务使用新输出目录；先核对当前 Tailnet serial 和新鲜私有证明）：
 
-```sh
-SG_WEB_TARGET=demo SG_DEMO_WEB_SCOPE=client \
-SG_DEMO_REAL_CLIENT_TEST=authorized SG_DEMO_CLIENT_MODE=connectivity_test \
-SG_DEMO_REAL_CONNECTIVITY_TEST=authorized SG_DEMO_VERIFY_SINGLE_PHONE_REMOTE=authorized \
-SOCIALGROWTH_VERIFICATION_OUTPUT=output/playwright/single-phone-remote-20261006 \
-pnpm test:playwright
-```
+该历史操作命令已失效并从说明中移除。原候选和结果保留；现行入口见[当前实现](../../../current-implementation.md)。
 
 本轮临时 Demo 进程在原任务终态及人工接管清理确认后停止。保留产品 Web／后端、公开接入服务和手机本人开启的连接检查。首次未信任主机的配对及零预装完整接入仍未验收，不把已有配对恢复当作首次接入通过。

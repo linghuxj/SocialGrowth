@@ -1,5 +1,7 @@
 # WP-16 第五阶段：认证待核对任务引用与同事务通知 outbox
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-01原QA完整报告已全文读取：`artifacts/acceptance/product/B3/20261001T032458Z-wp16-pending-outbox-cc41881/acceptance-report.md`，SHA7227ae9f4a4950a50b490063e796ecf971734ae394a97f98bc3bcd30d518ad24，固定9文件新增0/阶段remaining0；纯2/旧14PG/原13joint/复用原独立12分别首次通过，QA新oracle0，有限双工程门禁通过。原指纹/所有RED保留，own新e7dec2 PG与3f7e56 Redis/CID卷及快照已精确清理；aux安装未结束缺pg零业务诊断保留。不是已准入Task/配额/真实Web/真机/AC/G3，不清父pending1/Developeraf14；原cc含旧URL而9f另双清零，下面“QA待接续”为此前历史不改写。接续独立backup/calendar QA与清单继承整改见[交接队列](B4-B5-review-queue-20261001.md)。
 
 2026-10-01原非作者完整67行报告wp16-pending-outbox-cc41881.md已全文读取，SHA1e75a457f1280c06fad5d752055b7bba501bcb1026dc1583904f9d441ba71128：阶段新增0/remaining0，pure2/旧14PG/原13联合/独立12最终分别通过，首独立11PASS1FAIL非法enum夹具仅纠正合法值不改断言、ESM零业务加载诊断与40作者等指纹保留，自有双资源精确清理。已交原QA固定9文件复验；不是实际Task准入/配额/发布，不清父pending1/Developer。后续分批职责与门禁见[交接队列](B4-B5-review-queue-20261001.md)，原QA9f双清零是独立后续整改，不回写到本固定cc源码或原报告。

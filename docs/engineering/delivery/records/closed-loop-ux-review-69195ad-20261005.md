@@ -1,5 +1,7 @@
 # Closed-loop UX independent review
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 Reviewer `/root/ops_fix_adversary`; base `05f8cf587a9c8f482da92263d194c06250f088ed`; head `69195ad7baf0f4c12970fe8f7e92905b8fa3fa6e`. Verdict: **changes_requested**.
 
 Initially reviewed four requested paths: project-workflow-panel.tsx/.css, workflow-api.ts, operator-todos-panel.tsx. Correction during re-review: the fifth changed path is `operator-todos.css`, not the request's `operator-todos-panel.css`; that small style delta was subsequently read in full and has no findings. Contracts CLOSED-LOOP-WORKFLOW-READ-V1 rev2 and CLOSED-LOOP-ASSISTANCE-DETAIL-V1 rev2 were checked against the shared accepted records. Scoped diff-check passed. No build, browser, service or device validation was run by the reviewer; peer schema/route dependencies are not included in this isolated candidate.

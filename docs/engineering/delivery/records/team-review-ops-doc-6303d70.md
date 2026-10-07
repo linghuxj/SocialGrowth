@@ -1,5 +1,7 @@
 # Full-migration rehearsal note review
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 - Reviewer: `/root/adversary`
 - Base: `353889c9094e8efa08f34059885892a8a2567520`
 - Head: `6303d700bc3f5605bcf43d3dcd4ab62642af8bc3`

@@ -4,10 +4,10 @@ import { createHash, randomUUID } from "node:crypto";
 import { rmSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ExecutionRuntime } from "../services/execution-runtime/src/runtime.ts";
-import { RuntimeStore } from "../services/execution-runtime/src/store.ts";
-import { executeDeviceTask } from "../services/execution-runtime/src/device-executor.ts";
-import type { Binding, PublishSettings } from "../services/execution-runtime/src/contracts.ts";
+import { ExecutionRuntime } from "../product/executor/src/runtime/runtime.ts";
+import { RuntimeStore } from "../product/executor/src/runtime/store.ts";
+import { executeDeviceTask } from "../product/executor/src/runtime/device-executor.ts";
+import type { Binding, PublishSettings } from "../product/executor/src/runtime/contracts.ts";
 
 function createTestHarness(mediaBytes: Buffer = Buffer.from("test-video-asset-mp4")) {
   const dir = join(tmpdir(), `sg-acceptance-${randomUUID()}`);
@@ -295,6 +295,7 @@ test("验收断言 2: 登录异常处理后自动继续（遇到 2FA/挑战 -> �
                 identityKind: "facebook_page",
                 status: "challenge", // 遭遇验证挑战
                 mutationsPerformed: 0,
+                  publishStatus: "not_submitted",
                 finalSubmitClicked: false,
               },
             };
@@ -450,6 +451,7 @@ test("验收断言 3: 账号变化不误发（检测到个人 Profile 或身份�
                 identityKind: "facebook_profile", // 错误身份类型
                 status: "verified",
                 mutationsPerformed: 0,
+                  publishStatus: "not_submitted",
                 finalSubmitClicked: false,
               },
             };
@@ -490,6 +492,7 @@ test("验收断言 3: 账号变化不误发（检测到个人 Profile 或身份�
                 identityKind: "facebook_page",
                 status: "verified",
                 mutationsPerformed: 0,
+                  publishStatus: "not_submitted",
                 finalSubmitClicked: false,
               },
             };

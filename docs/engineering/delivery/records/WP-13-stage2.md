@@ -1,5 +1,7 @@
 # WP-13 第二阶段：受控媒体凭据与初始化前保护
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 ## 原非作者完整复核接续（2026-10-02）
 
 随后原QAcompleted/cursor88完整报告`artifacts/acceptance/product/B2/20261001T161501Z-wp13-credentials-6555/acceptance-report.md`全文读取，SHA7fd3a8613855387fae22bcfd8366b06228355245a611eac6e192faacbdebfb43。限定新0/余0，复用512+独立11（6PG/5crypto）=523首次过，不和非作者512叠加；独立nonce100/Buffer view/逐byte tamper/UTF8边界、12路竞争/旧AES缺失只旧HMAC重放/16noop/13SQL形状拒绝/COMMIT前回滚均据原源，不签HTTP或真实平台。68来源/旧613+18reports/先前661QA证据与5实际编译副本保真；复用3unused警告exit1、final-helper首unused警告与未执行初稿修正、foreign最初Name/Ports偏宽记录均保留。自有CID39f6a881a8dd84ca74ec2483e8d97dcdb88e22ea419b408fda7a75eef7d2cc30/卷1a877fab67b828eb019d9d07549fbb76aa52fb604a0596f5e5cddc8fd75a8551/32890/cluster7691734786705158182及snapshotZaKwxl/dev16777223/ino177573652/UID501精确gone，原窗只读来源报告不重发。QA报告复现段简写pnpm test，而其实际root-unit486.log header为**pnpm test:product**；本记录明确实际复现命令，不改原报告/日志指纹或执行新报告任务。报告内stage3未提交是开工固定上下文，当前stage3已经3c0提交并在原非作者复核，绝不补齐本stage2固定范围。新stage4作者发现的稀疏key配置/异步copier边界另有RED及修正，不把既有有限0当全边界证明。用户已获汇报，有限双工程门禁闭合，不解除生产key/模型保护/真人/UI/父pending，Developeraf14不前移。

@@ -94,6 +94,19 @@ test("ready ports carrying blockers cannot create a dispatchable queue row", asy
   assert.equal(await store.claim(value.taskId,"must-not-dispatch"),null);
 });
 
+test("stopped audit recovery keeps the original operation and claim and cannot resume another scope", async () => {
+  const value = scope(); await addTask(value); await store.materialize(value, ready(value));
+  const claim = await store.claim(value.taskId, "original-audit"); assert.ok(claim?.claimId);
+  const started = await store.startOperation(value.taskId, claim.claimId, fingerprint(value)); assert.ok(started);
+  await store.recordObservation(value.taskId, started.operationId, { sourceEventId: uuid(), payloadDigest: "9".repeat(64), reportedState: "unknown" });
+  assert.equal(await store.resumeStoppedAudit(value.taskId, uuid(), fingerprint(value)), null);
+  assert.equal(await store.resumeStoppedAudit(value.taskId, started.operationId, "0".repeat(64)), null);
+  const resumed = await store.resumeStoppedAudit(value.taskId, started.operationId, fingerprint(value));
+  assert.equal(resumed?.state, "running"); assert.equal(resumed?.claimId, claim.claimId);
+  assert.equal(resumed?.operationId, started.operationId); assert.equal(resumed?.taskAttemptId, value.taskAttemptId);
+  assert.equal(await store.resumeStoppedAudit(value.taskId, started.operationId, fingerprint(value)), null);
+});
+
 test("a new readiness blocker before dispatch or per-action permit fails closed", async () => {
   const beforeDispatch=scope(); await addTask(beforeDispatch); await store.materialize(beforeDispatch,ready(beforeDispatch));
   let checks=0, dispatches=0;

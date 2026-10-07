@@ -1,5 +1,7 @@
 # Independent review: lifecycle unknown-write status
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 Reviewer: `/root/adversary`.
 Base: `8d19a9bf88d779aa7cf1163babdd0f7e9565d57e`.
 Head: `0ddba591e665c1332b2f7ea592b41600a419a0bd`.

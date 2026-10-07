@@ -1,5 +1,7 @@
 # CI identity environment independent review — 2026-10-04
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 - Reviewer: `/root/adversary`.
 - Base: `b56429aa824f1d40709921d9ca5ed2a84cc067a1`.
 - Head: `73fdb43626b563f7896edcaf58cd8792435190ef`.

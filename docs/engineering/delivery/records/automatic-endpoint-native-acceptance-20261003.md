@@ -1,5 +1,7 @@
 # 独立端口上报与远程 ADB 真机验收（2026-10-03）
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 本记录接续 [上一阶段真机验收](remote-adb-native-acceptance-20261003.md)。用户已补充明确授权 Agent 直接进行测试和手机处理；本轮 Web 仍单独保存首次参与确认与端口上报的授权，默认关闭。用户随后要求暂不测试撤回：后续客户端测试默认保持参与，撤回改为独立授权，执行守卫拒绝未授权的撤回点击。旧轮结果不回写为通过。
 
 ## 候选与边界
@@ -69,13 +71,7 @@ v16 远程观察闭环于 14:05 UTC 完成，任务 `c4816145-26fe-4efd-9f1c-75a
 
 Web 验收统一使用 `pnpm test:playwright`，需要实际已启动 Demo Web／runtime 和实际 Samsung。每次使用新输出目录，保留原任务意图，未知结果先核对或通过 Web 停止，不重发。
 
-```sh
-SOCIALGROWTH_VERIFICATION_OUTPUT=<新的证据目录> \
-SG_WEB_TARGET=demo SG_DEMO_WEB_SCOPE=client \
-SG_DEMO_REAL_CLIENT_TEST=authorized SG_DEMO_CLIENT_MODE=connectivity_test \
-SG_DEMO_REAL_CONNECTIVITY_TEST=authorized SG_DEMO_ENDPOINT_REPORTER_START=authorized \
-pnpm test:playwright
-```
+该历史操作命令已失效并从说明中移除。原候选和结果保留；现行入口见[当前实现](../../../current-implementation.md)。
 
 一次端口切换另加 `SG_DEMO_ROTATE_WIRELESS_PORT=authorized`。客户端参与测试移除 connectivity mode，明确设置 `SG_DEMO_CLIENT_INITIAL_CONFIRM=authorized`；一次初始确认失败或过期后不得自动恢复。默认目标为保持参与，不设置 `SG_DEMO_CLIENT_WITHDRAWAL_TEST`；只有用户后续独立授权撤回验收时，才设置该变量为 authorized。`SG_DEMO_CLIENT_PHASE=cancel` 通过真实 Web 停止原任务，`reconcile` 只核对原结果。
 

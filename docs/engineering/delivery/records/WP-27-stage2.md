@@ -1,5 +1,7 @@
 # WP-27 第二阶段：只读一致快照恢复清单
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-01非作者完整报告已全文读取：REV-WP27-INHERIT-01 P2/remaining1，普通表继承未拒绝/计入指纹，实际结构变化仍sameSchemaAndRows=true；状态退回开发中，不能凭原8/407签完整结构等价。[整改记录](WP-27-inheritance-remediation.md)增加同snapshot早期pg_inherits双端点守卫，任何域内父或子（含另一端在外部schema）关闭；相同实际PG12首9PASS3FAIL→12PASS，根414。作者已修但尚待同原窗口原oracle复验；另一首红是复核方SQLSTATE预期错误，保留不冒充第二产品缺陷或通过。下文是原阶段历史，未知关系声明不能覆盖此新发现。
 
 2026-10-01；基线9f5812f，feature/wp-27-restore-inventory-stage2；OPS/BE实施代理Codex；正式OPS/TL/EX/AND/原非作者/QA真人待签。[第一阶段](WP-27.md)、[质量手册](../quality-gates.md)。

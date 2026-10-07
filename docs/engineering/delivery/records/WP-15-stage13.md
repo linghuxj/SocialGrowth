@@ -1,5 +1,7 @@
 # WP-15 第十三阶段：原对象上传票据准备/读取客户端
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-01本轮原QA完整报告`artifacts/acceptance/product/B3/20261001T122931Z-wp15-ticket-client-430c/acceptance-report.md`全文读取，SHAfd088c1f8b3392d413a8000e42824478547c6036f8c008b2b2cb9e743c5b86ff；原6/复用10/旧30共46首次通过、新0/余0/QA新oracle0，限定双工程0。QA曾prepare尚未实际退出就开checks，早读diagnostics ENOENT保留，后来1198blob/strict8/20旧Web/106links/source35/363旧+7reports及QA382保持，13自有helper lint0；不能写全部辅助首绿。snapshotXHwi5n/dev16777223/ino176992256/UID501精确gone，无服务。已汇报并确认完成后交原QA新字节固定，再随后批量固定；已有报告仅阅读不重发。真实HTTP/bytes/S3/UI/准入和AC保持未验。
 
 最新原非作者完整报告`artifacts/review/wp15-ticket-client-430c.md`已全文读，SHA30fcc6a7d6c540d4cc9b43a418dcfec215c889e001f56913dc8cc63360d714e6，原6/独立10/旧30首过、新0/剩余0；1198允许blob/20实际旧Web全文/106链接/旧363指纹保持，快照LiL4vs按dev16777223/ino176850512/UID501精确清理，无服务/真实对象操作。已向用户汇报并交同原QA49f→430 strict8新固定票据复验；同非作者接430→c8f strict12字节，主窗口[批量客户端](WP-15-stage15.md)不混原快照。真实HTTP/bytes/页面/准入/Task/手机/全AC仍未签。

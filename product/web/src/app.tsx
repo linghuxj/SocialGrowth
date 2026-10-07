@@ -16,9 +16,10 @@ import { OperatorTodosPanel } from "./operator-todos-panel.js";
 import { ProjectPanel } from "./project-panel.js";
 import { OperationsWorkbenchPanel } from "./operations-workbench-panel.js";
 import { MediaAccountsPanel } from "./media-accounts-panel.js";
+import { ExecutorConsolePanel } from "./executor-console-panel.js";
 
 export const productEnvironment = "product" as const;
-type WorkspaceView = "workbench" | "accounts" | "devices" | "media-accounts" | "invitations" | "projects" | "todos";
+type WorkspaceView = "workbench" | "accounts" | "devices" | "media-accounts" | "invitations" | "projects" | "todos" | "execution";
 
 function errorMessage(error: unknown): string {
   if (error instanceof ProductApiError) {
@@ -62,6 +63,7 @@ export function App() {
   const [view, setView] = useState<WorkspaceView>("workbench");
   const [message, setMessage] = useState("");
   const [workbenchRefreshVersion, setWorkbenchRefreshVersion] = useState(0);
+  const [executorRefreshVersion, setExecutorRefreshVersion] = useState(0);
   const [projectEntry, setProjectEntry] = useState<{ projectId: string; revision: number } | null>(null);
   const [todoEntry, setTodoEntry] = useState<{ todoId: string; revision: number } | null>(null);
   const [projectRefreshVersion, setProjectRefreshVersion] = useState(0);
@@ -149,7 +151,8 @@ export function App() {
     selectView("todos");
   }
   function refreshCurrentView(): void {
-    if (view === "workbench") setWorkbenchRefreshVersion(v => v + 1);
+    if (view === "execution") setExecutorRefreshVersion(v => v + 1);
+    else if (view === "workbench") setWorkbenchRefreshVersion(v => v + 1);
     else if (view === "projects") { setProjectRefreshVersion(v => v + 1); void refresh(); }
     else if (view === "media-accounts") setMediaAccountsRefreshVersion(v => v + 1);
     else if (view === "devices") void refreshDeviceFacts();
@@ -248,15 +251,17 @@ export function App() {
       <button className={`nav-item ${view === "media-accounts" ? "selected" : ""}`} onClick={() => selectView("media-accounts")}><ShareNetwork size={21} />媒体平台账号</button>
       <button className={`nav-item ${view === "invitations" ? "selected" : ""}`} onClick={() => selectView("invitations")}><UsersThree size={21} />提供者邀请</button>
       <button className={`nav-item ${view === "todos" ? "selected" : ""}`} onClick={() => openTodos()}><ClipboardText size={21} />设备接入待办</button>
+      <button className={`nav-item ${view === "execution" ? "selected" : ""}`} onClick={() => selectView("execution")}><ShieldCheck size={21} />执行与人工协助</button>
     </nav><div className="sidebar-footer"><div className="operator-chip"><UserCircle size={28} /><div><strong>运营账号</strong><span>正式产品</span></div></div><button className="logout-button" disabled={busy} onClick={() => void onLogout()}><SignOut size={19} />退出登录</button></div></aside>
 
-    <main className={`content-canvas ${view === "projects" ? "project-canvas" : ""}`}><header className="page-header"><div><p className="breadcrumb">{view === "workbench" ? "工作台 / 当前运营事项" : view === "projects" ? "项目 / 筹备与基本信息" : view === "invitations" ? "提供者 / 邀请与接入" : view === "todos" ? "设备接入待办 / 历史协助记录" : view === "media-accounts" ? "项目资源 / 媒体平台账号" : "账号与设备"}</p><h1>{view === "workbench" ? "运营工作台" : view === "projects" ? "项目" : view === "invitations" ? "邀请与接入" : view === "devices" ? "账号与设备" : view === "todos" ? "设备接入待办" : view === "media-accounts" ? "媒体平台账号" : "运营账号管理"}</h1><p className="page-description">{view === "workbench" ? "先查看需处理事项和项目事实，再进入对应页面推进。" : view === "projects" ? "分批保存项目资料，明确实际事实、缺项与后续准备范围。" : view === "invitations" ? "创建可供多人使用的邀请，并查看成功注册与设备接入进展。" : view === "devices" ? "查看提供者与手机当前归属；连接与授权须依实际确认来源判断。" : view === "todos" ? "读取已记录的设备接入协助事项和历史说明；不推断设备当前健康、执行或授权状态。" : view === "media-accounts" ? "录入真实账号资料，并将账号明确分配至项目和已接入手机。" : "开通或停用同权运营账号，停用不会删除业务历史。"}</p></div><div className="header-actions"><button className="outline-button" disabled={busy || (view === "devices" && deviceFactsLoading) || view === "todos"} onClick={refreshCurrentView}><ArrowClockwise size={18} />刷新</button><button className="mobile-logout-button" disabled={busy} onClick={() => void onLogout()}><SignOut size={18} />退出登录</button></div></header>
+    <main className={`content-canvas ${view === "projects" ? "project-canvas" : ""}`}><header className="page-header"><div><p className="breadcrumb">{view === "execution" ? "执行 / 原任务与人工协助" : view === "workbench" ? "工作台 / 当前运营事项" : view === "projects" ? "项目 / 筹备与基本信息" : view === "invitations" ? "提供者 / 邀请与接入" : view === "todos" ? "设备接入待办 / 历史协助记录" : view === "media-accounts" ? "项目资源 / 媒体平台账号" : "账号与设备"}</p><h1>{view === "execution" ? "执行与人工协助" : view === "workbench" ? "运营工作台" : view === "projects" ? "项目" : view === "invitations" ? "邀请与接入" : view === "devices" ? "账号与设备" : view === "todos" ? "设备接入待办" : view === "media-accounts" ? "媒体平台账号" : "运营账号管理"}</h1><p className="page-description">{view === "execution" ? "查看原执行任务，提交范围内的人工协助，并核对实际结果。" : view === "workbench" ? "先查看需处理事项和项目事实，再进入对应页面推进。" : view === "projects" ? "分批保存项目资料，明确实际事实、缺项与后续准备范围。" : view === "invitations" ? "创建可供多人使用的邀请，并查看成功注册与设备接入进展。" : view === "devices" ? "查看提供者与手机当前归属；连接与授权须依实际确认来源判断。" : view === "todos" ? "读取已记录的设备接入协助事项和历史说明；不推断设备当前健康、执行或授权状态。" : view === "media-accounts" ? "录入真实账号资料，并将账号明确分配至项目和已接入手机。" : "开通或停用同权运营账号，停用不会删除业务历史。"}</p></div><div className="header-actions"><button className="outline-button" disabled={busy || (view === "devices" && deviceFactsLoading) || view === "todos"} onClick={refreshCurrentView}><ArrowClockwise size={18} />刷新</button><button className="mobile-logout-button" disabled={busy} onClick={() => void onLogout()}><SignOut size={18} />退出登录</button></div></header>
       {message && <p className="feedback workspace-feedback" role="status">{message}</p>}
       {mobileReadOnly && <div className="mobile-readonly-note" role="note"><DeviceMobile size={20} /><span><strong>手机端为只读模式</strong>可查看项目筹备、邀请、注册和设备事实；创建、撤销及资料修改请转到电脑完成。</span></div>}
       <OperationsWorkbenchPanel active={view === "workbench"} refreshVersion={workbenchRefreshVersion} readOnly={mobileReadOnly} onExpired={handleFailure} onOpenProject={projectId => { setProjectEntry(previous => ({ projectId, revision: (previous?.revision ?? 0) + 1 })); selectView("projects"); }} onOpenTodos={() => openTodos()} onOpenDevices={() => selectView("devices")} />
       <ProjectPanel entry={projectEntry} onOpenTodos={openTodos} onOpenMediaAccounts={() => selectView("media-accounts")} onOpenDevices={() => selectView("devices")} active={view === "projects"} refreshVersion={projectRefreshVersion} operators={operators ?? []} readOnly={mobileReadOnly} onExpired={handleFailure} />
       <OperatorTodosPanel entry={todoEntry} active={view === "todos"} readOnly={mobileReadOnly} onExpired={handleFailure} />
       <MediaAccountsPanel active={view === "media-accounts"} refreshVersion={mediaAccountsRefreshVersion} readOnly={mobileReadOnly} onExpired={handleFailure} />
+      <ExecutorConsolePanel active={view === "execution"} refreshVersion={executorRefreshVersion} readOnly={mobileReadOnly} onExpired={handleFailure} />
       {(view === "accounts" || view === "devices") && <div className="resource-tabs" role="tablist" aria-label="账号与设备分类">
         <button type="button" role="tab" aria-selected={view === "devices"} onClick={() => selectView("devices")}>手机</button>
         <button type="button" role="tab" aria-selected={view === "accounts"} onClick={() => selectView("accounts")}>运营账号</button>

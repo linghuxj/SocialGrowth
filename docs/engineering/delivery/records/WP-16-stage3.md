@@ -1,6 +1,8 @@
 # WP-16 第三阶段：中心任务、队列通知与执行观察契约
 
-2026-10-01；基线2639d7b，feature/wp-16-task-contract-stage3。BE实施代理Codex；EX/OPS/AI/BIZ/原非作者/QA协作真人待签。[WP-16](WP-16.md)、[CT-07](../contract-checklist.md#ct-07-任务队列与外部副作用)、[技术设计](../../../technical-design.md#3-任务契约与发布事实)、[质量手册](../quality-gates.md)。
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
+2026-10-01；基线2639d7b，feature/wp-16-task-contract-stage3。BE实施代理Codex；EX/OPS/AI/BIZ/原非作者/QA协作真人待签。[WP-16](WP-16.md)、[CT-07](../contract-checklist.md#ct-07-任务队列与外部副作用)、[技术设计](../../../technical-design.md#3-权限与真实事实)、[质量手册](../quality-gates.md)。
 
 领取首期四发布形式的中心任务数据边界、最小队列通知与来源执行观察。关系显式绑定任务/安排修订/原尝试/恢复轮/项目/设备/平台身份/批准及分配版本/人工内容unit及language variant/有序对象字节/业务窗口。类型正确不等于中央已生成或有真实批准/素材准入/手机许可；通知仅请求重新核对原任务，绝不携带可执行权限或自然语言扩权。来源执行结束与平台结果分开，未知只核实原关联、不重发或释放名额；报告成功仍需实际证据与当前可信来源核验。
 

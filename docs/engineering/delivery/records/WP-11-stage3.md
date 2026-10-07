@@ -1,5 +1,7 @@
 # WP-11 第三阶段：实时权威来源与动作 broker 接续
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-02领取；基线09146dd7e6490030b3b2ca4deeb38f5c3f76de5c，codex/wp-11-authority-broker-stage3。EX主责Codex实施代理，BE数据库与鉴权/统一锁序，AND可信本机持久意愿和新鲜控制确认，OPS受控引擎包，TL/QA停止判据/真实验收，真人预约待实际签署。依据WP11、CT06、R106/122/123/129/133/137/139/142/146，AC16～20/22/59；不是延伸Demo/绕管理员或换引擎。
 
 已完整重读WP11原任务/阶段二、action-permission-core及phone-control-journal源，核对0001/0004/0005/0006/0015真实SQL。当前Journal只device→journal锁序，begin_call仍借内部trustedFacts；default stop_requested，无holder获取/re-enable/实时authority-loader或物理fence。**这属于工程尚未实现，不得假称已有能力，也不能全部归为需人工后停止编码。** controller/custodian存在不能接任意trustedFacts为真后解密，read Screen/监控/人工补图与写动作都要同当前许可。

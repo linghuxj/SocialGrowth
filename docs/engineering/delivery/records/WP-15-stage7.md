@@ -1,5 +1,7 @@
 # WP-15 第七阶段：认证人工声明单项登记 API
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-01接续：原QA完整报告`artifacts/acceptance/product/B3/20261001T001838Z-wp15-registry-api-14cc7aa/acceptance-report.md`已全文读取，固定8c2..14cc19文件；指定7BE/TS2/Py2/旧真实PG14/new实际AppModule PG-MinIO9/原最终8 guard-only通过，新增0/QA新oracle0、双有限增量通过。QA实际PG17.11 Debian与原非作者17.10 Alpine分开，旧首manifest基线夹具失败SHA/精确401及零登记IO保护不变；own归属/每suite reset前cluster匹配/最终0|0|0与容器卷清理完整。不清父WP10 pending1/Developeraf14、完整WP15/准入/页面/Task/手机/AC G3；固定tip未实现batch/history/list，后续阶段另门禁，不改旧oracle第8把未来功能混入。
 
 2026-10-01；基线8c2bc97，feature/wp-15-material-declaration-api-stage7。BE实施代理Codex；原非作者/原QA固定门禁，WEB/EX/OPS/BIZ真人待签。[内部登记](WP-15-stage3.md)、[字节HTTP](WP-15-stage6.md)、[Cookie统一](operator-cookie-hardening.md)、[质量手册](../quality-gates.md)。

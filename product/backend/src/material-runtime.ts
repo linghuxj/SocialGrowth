@@ -23,8 +23,10 @@ export function readMaterialRuntimeConfig(environment: NodeJS.ProcessEnv = proce
     maxObjectBytes: Number(environment.SG_PRODUCT_MATERIAL_MAX_OBJECT_BYTES), requestTimeoutMs: Number(environment.SG_PRODUCT_MATERIAL_REQUEST_TIMEOUT_MS) });
 }
 export class MaterialRuntime implements OnApplicationShutdown {
+  #pool: Pool;
   #storage: MaterialObjectStorage | null; #uploads: MaterialUploadStore; #registry: MaterialRegistryStore;
-  constructor(private readonly pool: Pool, auth: OperatorAuthService, config: MaterialStorageConfig | null) {
+  constructor(pool: Pool, auth: OperatorAuthService, config: MaterialStorageConfig | null) {
+    this.#pool = pool;
     this.#storage = config ? new MaterialObjectStorage(config) : null;
     this.#uploads = new MaterialUploadStore(pool, auth, this.#storage);
     this.#registry = new MaterialRegistryStore(pool, auth, this.#storage ? this.#uploads.objectVerifier() : null);
@@ -35,7 +37,7 @@ export class MaterialRuntime implements OnApplicationShutdown {
   // Exact manifest facts must match; no URL/path/body-owned storage access.
   async readWorkflowFile(projectId: string, file: { objectId: string; sha256: string; bytes: number; contentType: string }): Promise<Buffer> {
     if (!this.#storage) throw new MaterialStorageError("CONFIGURATION_REQUIRED");
-    const row = (await this.pool.query<{ reference: unknown }>(`SELECT m.reference FROM socialgrowth_product.material_object_manifests m
+    const row = (await this.#pool.query<{ reference: unknown }>(`SELECT m.reference FROM socialgrowth_product.material_object_manifests m
       JOIN socialgrowth_product.material_upload_tickets t USING(object_id,project_id)
       WHERE m.project_id=$1 AND m.object_id=$2 AND t.status='verified_bytes'`, [projectId, file.objectId])).rows[0];
     const ref = materialObjectReferenceSchema.parse(row?.reference);

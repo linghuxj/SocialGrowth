@@ -1,5 +1,7 @@
 # Android 打开 App 自动连接与恢复
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-06，依据用户最新确认 [R-162](../../../requirements-alignment.md#r-162打开-app-自动保持连接已授权范围内自动修复)。旧流程的页面轮询只读取状态，端口发现／上报服务需手动启动，App 更新或进程停止后不会随普通页面恢复；因此用户必须进入本机准备点击检查。
 
 ## 当前实现
@@ -39,20 +41,6 @@ Web → Artemis 重测任务 `4648795f-cd8d-4b1b-b105-06bdb261e26e`，trace `1e9
 
 ## 复现
 
-```sh
-SG_PRODUCT_ANDROID_DEBUG_API_BASE_URL=https://macbook-pro.tail3656e0.ts.net:8443 \
-GRADLE_USER_HOME=/tmp/socialgrowth-product-gradle \
-product/android/gradlew -p product/android assembleDebug --no-daemon
-
-pnpm --filter @socialgrowth/execution-runtime run build
-pnpm exec tsx --test services/execution-runtime/src/web-verification.test.ts
-
-SG_WEB_TARGET=demo SG_DEMO_WEB_SCOPE=client \
-SG_DEMO_REAL_CLIENT_TEST=authorized SG_DEMO_CLIENT_MODE=connectivity_test \
-SG_DEMO_REAL_CONNECTIVITY_TEST=authorized SG_DEMO_VERIFY_AUTOMATIC_CONNECTION=authorized \
-SG_DEMO_ENDPOINT_REPORTER_START=authorized \
-SOCIALGROWTH_VERIFICATION_OUTPUT=output/playwright/automatic-connection-home-20261006 \
-pnpm test:playwright
-```
+该历史操作命令已失效并从说明中移除。原候选和结果保留；现行入口见[当前实现](../../../current-implementation.md)。
 
 原输出目录已有任务时先使用 `SG_DEMO_CLIENT_PHASE=reconcile` 核对，不能覆盖未知结果后重发。当前 UI 检查用 USB，中心连接另核对 Tailnet 通道；不将当前已有授权／配对手机的恢复计为零准备新手机首次登录、首次配对、正式网络准入或业务发布通过。

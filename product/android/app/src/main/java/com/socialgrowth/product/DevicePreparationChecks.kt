@@ -10,11 +10,14 @@ import android.provider.Settings
 internal data class DevicePreparationChecks(
     val wifiConnected: Boolean,
     val tailscaleInstalled: Boolean,
+    val sfaInstalled: Boolean,
+    val clashInstalled: Boolean,
     val vpnPresent: Boolean,
     val developerOptions: Boolean?,
     val wirelessDebugging: Boolean?,
     val discoverySupported: Boolean,
 ) {
+    val networkClientInstalled: Boolean get() = tailscaleInstalled || sfaInstalled
     companion object {
         fun read(context: Context): DevicePreparationChecks {
             val networks = runCatching {
@@ -31,6 +34,8 @@ internal data class DevicePreparationChecks(
             return DevicePreparationChecks(
                 wifiConnected = networks.any { it.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) },
                 tailscaleInstalled = context.packageManager.getLaunchIntentForPackage("com.tailscale.ipn") != null,
+                sfaInstalled = context.packageManager.getLaunchIntentForPackage("io.nekohasekai.sfa") != null,
+                clashInstalled = context.packageManager.getLaunchIntentForPackage("com.follow.clash") != null,
                 vpnPresent = networks.any { it.hasTransport(NetworkCapabilities.TRANSPORT_VPN) },
                 developerOptions = setting(Settings.Global.DEVELOPMENT_SETTINGS_ENABLED),
                 wirelessDebugging = if (Build.VERSION.SDK_INT >= 30) setting("adb_wifi_enabled") else false,

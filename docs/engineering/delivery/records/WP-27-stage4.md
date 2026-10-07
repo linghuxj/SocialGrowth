@@ -1,5 +1,7 @@
 # WP-27 第四阶段：受控加密备份文件存储
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-01最新：原QA完整63行`artifacts/acceptance/product/B5/20261001T102448Z-wp27-file-store-525a/acceptance-report.md`已全文读取，SHA abee7a2a6a1b4d3f423a042f5d03a606337026fd5ff09787e02fcc015c5563f1，限定new0/remaining0，与原非作者有限双工程闭合。原8/复用6/真实OS EACCES1/原PG12/最小PG1分别首次过，QA新oracle0、未运行根422，3自有lint warning和启动诊断/旧零断言导出诊断分开保留；旧报告/首红及指纹不动。自有02c8a4 PG32878/b4d01d卷/cluster7691644460347068454与快照/目录按完整身份精确清理。非生产灾备、真实Web或真机签收；下方待验是历史状态。原QA现接第五阶段新固定4e18。
 
 2026-10-01；基线c147ef8a8e52def2fbe94d0c30a25927698626e9，feature/wp-27-encrypted-file-store-stage4；OPS/BE实施代理Codex；原非作者/QA固定复验，正式OPS/TL真人待签。[v2](WP-27-stage3.md)、[继承整改](WP-27-inheritance-remediation.md)、[质量手册](../quality-gates.md)。

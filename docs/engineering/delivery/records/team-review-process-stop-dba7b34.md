@@ -1,5 +1,7 @@
 # Independent owned process stop review
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 Reviewer: `/root/adversary`
 
 Base: `2c7910eee3d6e597c8310b692b7631e067734e60`

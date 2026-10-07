@@ -1,5 +1,7 @@
 # WP-15 第十四阶段：原字节/原键/原会话上传客户端
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-01原非作者`artifacts/review/wp15-bytes-client-c8f4.md`完整报告已全文读，SHA8dc7ac70c076468a7a90fb425d6283b7600b3f41f116fd28e9e72b76b12bc899，原7/新独立12/旧36共55首次业务通过/new0-rem0；strict12/1201blob/21旧Web及完整operator逆提取/130links/402旧+11reports保持。独立helper首TS7060泛型仅另存<T,>修复，完整逆向还原原断言，原源和首diagnostic保留；快照Da7BBs/dev16777223/ino177060046/UID501精确gone。
 
 原QA`artifacts/acceptance/product/B3/20261001T132641Z-wp15-bytes-client-c8f4/acceptance-report.md`完整报告已全文读，SHA663f275255dbc1f5ad64ec7464a969fed7b8032e18038ef2f0d22c0c23c22759；原7/复用12/旧36同55首过/new0-rem0/QA新oracle0，限定双工程0。prepare实际退出0后install，10辅助工具全文路径适配、driver仅输入final路径，source120秒wrapper原样未执行/active300在首执行前设置；15 own helper lint0/3实际dist对照，source49及402旧+11reports/先前QA434不变。snapshot sYJtcT/dev16777223/ino177137071/UID501精确gone，无服务；旧stage13辅助偏差没有被这批修复后的顺序抹掉。两窗报告已向用户汇报，均无真实HTTP/S3/Browser/File/手机操作或全AC签收；非作者已完成后续批量复核，原QA已接批量新固定，已有报告不重发。

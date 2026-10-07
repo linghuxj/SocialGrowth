@@ -1,5 +1,7 @@
 # WP-13 第三阶段：受控凭据服务接口与安全元数据
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 ## 凝聚交付范围与实绩（2026-10-02，优先于下方历史检查点）
 
 固定基线6555a5aa5cb34dbd781893fe8a9478cb713972cd，codex/wp-13-controlled-credentials-api-stage3。交付4strict共享schema、GET/POST控制器、AppModule默认无钥metadata接线、3TS/2Python/4controller单元与8实际HTTP-PG组、唯一单次PG命令；无新UI/手机/生产key来源、旧97schema/阶段二原语及全部23SQL不改。原非作者阶段二完整有限0已读SHA3b8fbd22109a5d2ca46a1f8e26c21237c22e6f6cd9bef2d1682f64beb40a1d00、512首次过，已实际交同原QA严格13；本阶段另凝聚固定复核，不夹入旧门禁。

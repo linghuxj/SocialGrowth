@@ -1,5 +1,7 @@
 # Operator impact history Web increment review
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 - Reviewer: `/root/adversary`
 - Base: `6c3b30598734bbb4478b3218be140869d6e4e0b2`
 - Head: `bf4fee09f6632242a6fc77d76b95ca834d7417fd`

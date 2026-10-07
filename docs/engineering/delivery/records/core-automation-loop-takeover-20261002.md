@@ -1,5 +1,7 @@
 # 核心主线接手：C1 整改与 C2a 真实页面补验
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 日期：2026-10-02。实施者：Codex 主窗口。用户指令：按盘点顺序接手推进。基线 `52767d8`，继续现有 `codex/core-automation-loop-stage1`；不另造阶段分支。候选为本记录所属提交，源码字节及脚本见 [候选 manifest](../../../../artifacts/acceptance/product/B3/core-loop-takeover-c1/candidate-manifest.json)。当前结果是作者验证，原非作者与独立 QA 尚未对本次候选签结论。
 
 ## 本批实际变更

@@ -1,5 +1,7 @@
 # Independent final Web candidate review — 8211312
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 Reviewer: `/root/adversary`
 Base: `1bde61548310d741bddffca15161e2b2cf2e7175`
 Head: `8211312de68d6890eaf573a488c804c993bad569`

@@ -1,5 +1,7 @@
 # WP-15 第十五阶段：逐项原请求批量声明客户端
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-01随后原QA完整报告`artifacts/acceptance/product/B3/20261001T140255Z-wp15-batch-client-18b7/acceptance-report.md`全文读取，SHAf153a5abd9268ac9e3ab533095362970b3c37bf5dab40ef72eff22403db7dbcb；原9/复用独立14/单项12/旧43=78首次通过、新0/余0/QA新oracle0，限定双非UI工程0。来源43own/20author、当前来源49及旧455/14reports/先前QA494 SHA保持，snapshot3f6lmv/dev16777223/ino177279472/UID501精确gone，3实际build文件保留且原SHA相等。14-helper原稀疏warning保留，deny-warnings exit1/0error；QA计数44≠43、SHA相对路径和两个尾换行proof共4元数据child失败、工具截断parse/patch失败均原source/log留存，最终3元数据helperlint0/有限行+明确单尾换行逆proof0；业务断言未改、未重跑business/build/清理洗绿。不能把首次所有辅助写绿或合成fetch计真实HTTP。完整报告已汇报，原非作者已接后续WP13筹备新固定a42bc15，当前管理员/真资源/Playwright/真机/全ACG3不关闭、Developeraf14保持。
 
 2026-10-01实际独立门禁更新：原非作者`artifacts/review/wp15-batch-client-18b7.md`完整报告全文读取，SHAb7960a5cd078c47d67663c943dc69159a1b19c769c5d2746b38c6c881dd3f1f9，原9/新独立14/复用原单项12/旧operator-read-save-ticket-bytes43共78首次业务PASS/new0-rem0。strict11/1204blob/23旧Web（save完整逆提取）/123links/3实际dist、455旧指纹及14完整报告、43 own/20 author保持；没有root472重跑或真实HTTP。自有稀疏数组负向夹具lint exit0但1warning保留；首evidence误假定0warning、第二另存helper引号语法失败原源/空输出/诊断保留，第三verified-evidence仅修元数据/输出自排除/状态，全文逆向相等，业务断言未改或重跑。只读误路径/截断重读和作者首8/471等所有历史诊断保持。snapshotz91ghP/dev16777223/ino177137151/UID501精确gone，无服务/产品或正式台账写入。用户已获汇报，确认原QA stage14完成且全文读后已实际交同原QA新固定947efef→18b7cbb严格11；非作者有限0只允许工程QA，QA完整结果尚待读取，页面/素材/业务G1-G3未通过，父pending1/Developeraf14不变。

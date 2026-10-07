@@ -1,5 +1,7 @@
 # Android 连接状态与底部导航改进
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-06。用户要求：已关联设备和连接引导必须显示当前连接状态，帮助普通用户判断是否正常；首页“设备／分佣／我的”采用标准 App Tab。
 
 本轮已实现并安装到 Samsung SM-S9110（RFCW40MYYCV，Android 16）。Web → Artemis 的实际真机 UI 验证通过。当前平台网络核验能力不可用，App 如实显示“平台网络待确认”，不把关联、VPN 开关或历史配对视为当前连接正常。
@@ -33,20 +35,7 @@
 
 ## 复现命令
 
-```sh
-SG_PRODUCT_ANDROID_DEBUG_API_BASE_URL=https://macbook-pro.tail3656e0.ts.net:8443 \
-GRADLE_USER_HOME=/tmp/socialgrowth-product-gradle \
-product/android/gradlew -p product/android assembleDebug --no-daemon
-
-pnpm --filter @socialgrowth/execution-runtime run build
-pnpm exec tsx --test services/execution-runtime/src/web-verification.test.ts
-
-SG_WEB_TARGET=demo SG_DEMO_WEB_SCOPE=client \
-SG_DEMO_REAL_CLIENT_TEST=authorized SG_DEMO_CLIENT_MODE=connectivity_test \
-SG_DEMO_REAL_CONNECTIVITY_TEST=authorized SG_DEMO_VERIFY_ANDROID_CONNECTION_UI=authorized \
-SOCIALGROWTH_VERIFICATION_OUTPUT=output/playwright/android-connection-ui-reloaded-20261006 \
-pnpm test:playwright
-```
+该历史操作命令已失效并从说明中移除。原候选和结果保留；现行入口见[当前实现](../../../current-implementation.md)。
 
 上面的输出目录已有终态任务，复核时使用脚本的 `SG_DEMO_CLIENT_PHASE=reconcile`；需要新任务时先核对旧任务终态并使用新目录。当前运行配置为 USB 序列号，旧远程配置留有私有备份，不能将此检查称为异地远程准入验收。
 

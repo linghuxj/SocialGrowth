@@ -271,12 +271,36 @@ async function main(): Promise<void> {
       }
     }
     try {
+      // Reuse an authenticated executor; never start a parallel instance or a phone worker.
+      let executor: Promise<unknown> | null = null;
+      const executorUrl = env.SG_PRODUCT_EXECUTION_RUNTIME_URL, executorToken = env.SG_PRODUCT_EXECUTION_RUNTIME_TOKEN;
+      if (executorUrl && executorToken) {
+        const healthUrl = new URL("/api/runtime/health", executorUrl);
+        assert.ok(["127.0.0.1", "localhost"].includes(healthUrl.hostname), "Local executor must be loopback");
+        let response: Response | null = null;
+        try { response = await fetch(healthUrl, { headers: { authorization: `Bearer ${executorToken}` }, signal: AbortSignal.timeout(2000) }); }
+        catch { /* verify the exact port before starting */ }
+        if (response) {
+          const health: unknown = await response.json();
+          assert.ok(response.ok && health && typeof health === "object" && "service" in health && health.service === "product-executor", "Existing executor requires controlled migration");
+        } else {
+          await free(Number(healthUrl.port || 80));
+          executor = serve("executor", ["exec", "node", "--env-file=.env.runtime", "--import", "tsx", "product/executor/src/main.ts"]);
+          for (let n = 0; n < 100; n++) {
+            try {
+              const check = await fetch(healthUrl, { headers: { authorization: `Bearer ${executorToken}` }, signal: AbortSignal.timeout(2000) });
+              if (check.ok) break;
+            } catch { /* wait only for this executor */ }
+            assert.ok(!stopping && n < 99, "Executor unavailable"); await new Promise(yes => setTimeout(yes, 250));
+          }
+        }
+      }
       const backend = serve("backend", ["--filter", "@socialgrowth/product-backend", "start"]);
       await ready(`http://127.0.0.1:${backendPort}/health/live`);
       const web = serve("web", ["--filter", "@socialgrowth/product-web", "exec", "vite", "--host", "127.0.0.1", "--port", "3100", "--strictPort"]);
       await ready("http://127.0.0.1:3100");
       console.log(`[product-local] Web 3100 / backend ${backendPort} ready; Ctrl+C stops owned services, database retained`);
-      await Promise.all([backend, web]);
+      await Promise.all(executor ? [executor, backend, web] : [backend, web]);
     } finally { stop(); }
   }
 }

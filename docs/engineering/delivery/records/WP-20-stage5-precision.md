@@ -1,5 +1,7 @@
 # WP-20 第五阶段P3整改：说明原始微秒边界
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 后续原窗口结论：fad821c 原非作者报告和原QA 20260930T150329Z-wp20-stage5-fad821c 完整读取，原P3清零、新增/remaining0；QA实际209/151及17 SQL/Nest组65 HTTP断言通过，有限工程G1放行。经工作树/祖先/旧tip CAS，Developer已快进fad821c。以下作者历史保留；并非说明UI/真实来源或全WP通过。
 
 2026-09-30；基线7f0ee97，fix/wp-20-note-timestamp-precision。BE实施代理Codex，原非作者及原QA固定工程门禁，WEB未来消费者及真实业务验收边界不变。依据R-143/150/156、CT-04、AC23/24/57、[说明历史](WP-20-stage5.md)、[质量手册](../quality-gates.md)。原artifacts/review/wp20-stage5-7f0ee97.md完整报告已读：1P3/remaining1，普通209/150通过不能抹除两个实际HTTP RED；不修改原报告或坏历史以伪造通过。

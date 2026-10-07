@@ -1,5 +1,7 @@
 # 0037 配置 schema 恢复测试增量审查
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 - Reviewer: `/root/adversary`
 - Base: `603ace4a9fd03007f23424366c839885f144ae80`
 - Head: `947f58590774f6c0a3e089e7c66a17eb59b840a8`

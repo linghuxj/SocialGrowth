@@ -1,5 +1,7 @@
 # WP-15 第六阶段：有界认证 HTTP 字节传输
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-01；基线1486eaf，feature/wp-15-authenticated-byte-transport-stage6。BE实施代理Codex；原非作者/QA、WEB/OPS/EX/BIZ真人待签。[配置与票据](WP-15-stage5.md)、[上传持久层](WP-15-stage4.md)、[质量手册](../quality-gates.md)。
 
 领取同原object票据的认证HTTP bytes PUT：先认证Cookie/CSRF/当前项目/票据/存储绑定，再读严格长度、有界大小和总时限的原始请求流；网络和storage IO均不持DB锁，完整实际bytes交原upload重新认证/核验/同ID恢复，不向client提供存储URL/秘密。初期HTTP缓冲技术上限16MiB、总读取15秒，不等素材或发布规则；未读完/断开/超时不能记录verified，也不自动删除未知对象或换ID。大型/分片/手机传送另记录资源，不能冒称128MiB全HTTP已支持。

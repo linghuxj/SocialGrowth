@@ -1,9 +1,0 @@
-Use case: ui-mockup. Create one realistic production-quality Chinese SocialGrowth Android provider MANAGEMENT app screen continuing the previously selected design language. Target 390 x 844 logical portrait viewport, same aspect as supplied screenshot. This is a new page in the selected design, not a new direction. Input image is style reference only: gray #F4F6FA background, white grouped surfaces, navy #172B4D text, secondary #526176, solid blue #2459C4, restrained line icons, 16dp page margins,28sp headings,16sp body,14sp secondary, at least52dp main actions, generous whitespace. No gradients, phone frame, crop, tiny text, clutter, ornamental cards. Date anchor 2026-09-28. All users/numbers/statuses are fictional examples. Keep no actual OTP, invitation token, network credentials, full private phone number, real contact address. Scope is basic provider identity and login help, not project operations, company media account settings, payout/bank controls or other people. Do not invent extra functionality or results. Small footer “示例页面 · 2026-09-28”.
-Page “原手机号不可用”, top back “账号与登录帮助”, no bottom navigation. Subtitle “联系原邀请运营，核验后更换登录号码。”
-One calm neutral instruction panel “先联系邀请你的运营” and “请通过你们原有的联系渠道说明情况。” No fake email/phone/contact person, no send message or submitted claim.
-White group title “找回流程”, three simple numbered steps that are NOT completed:
-“人工核验本人” / “运营核对原提供者身份。”
-“验证新手机号” / “核验通过后，再验证新号码。”
-“回到原身份” / “设备与分佣历史保留。”
-Below neutral note “仅验证新号码，不能直接取得旧账号。” and “无需重新注册或重新关联全部设备。”
-Bottom outline action “返回登录”. No success state, no estimated processing time, no upload ID/document form, no support ticket ID, no automatic transfer button, no OTP collection in chat. Do not add account deletion or payment recovery. Make steps explanatory not a fake progress timeline. No messaging takes place.

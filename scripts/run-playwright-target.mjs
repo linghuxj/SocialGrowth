@@ -4,29 +4,21 @@ const productScripts = { "device-live": "scripts/verify-product-device-live-play
 productScripts["operations"] = "scripts/verify-web-automation-orchestrator.mts";
 productScripts["operations-completion"] = "scripts/verify-product-operations-completion-playwright.mts";
 productScripts["core-execution"] = "scripts/verify-product-core-execution-playwright.mts";
+productScripts["core-chain-status"] = "scripts/verify-product-core-chain-status-playwright.mts";
 productScripts["core-preparation"] = "scripts/verify-product-core-preparation-playwright.mts";
 productScripts["core-materials"] = "scripts/verify-product-core-materials-playwright.mts";
 productScripts["closed-loop"] = "scripts/verify-product-closed-loop-playwright.mts";
 productScripts["media-accounts"] = "scripts/verify-product-media-accounts-playwright.mts";
 productScripts["public-phone-access"] = "scripts/verify-public-phone-access-playwright.mts";
-const target = process.env.SG_WEB_TARGET ?? "demo";
+const target = process.env.SG_WEB_TARGET ?? "product";
 const scope = process.env.SG_PRODUCT_WEB_SCOPE ?? "identity";
-const demoScope = process.env.SG_DEMO_WEB_SCOPE ?? "readiness";
-if (target === "demo" && !["readiness", "observation", "client", "core-recovery"].includes(demoScope)) { console.error("[playwright] Unknown demo scope"); process.exit(2); }
-if (target === "product" && !(scope in productScripts)) { console.error("[playwright] Unknown product scope"); process.exit(2); }
-const targets = {
-  demo: ["tsx", demoScope === "core-recovery" ? "scripts/verify-runtime-core-recovery-playwright.mts" : demoScope === "client" ? "scripts/verify-demo-client-playwright.mts" : demoScope === "observation" ? "scripts/verify-demo-observation-playwright.mts" : "scripts/verify-web-publication-readiness.mts"],
-  product: ["tsx", productScripts[scope]],
-};
-
-const command = targets[target];
-
-if (!command) {
-  console.error(
-    `[playwright] Unknown SG_WEB_TARGET=${JSON.stringify(target)}. Expected demo or product.`,
-  );
+productScripts["executor-console"] = "scripts/verify-product-executor-console-playwright.mts";
+productScripts["network-coexistence"] = "scripts/verify-product-network-coexistence-playwright.mts";
+if (target !== "product" || !(scope in productScripts)) {
+  console.error("[playwright] Only product is supported; choose an existing product scope.");
   process.exit(2);
 }
+const command = ["tsx", productScripts[scope]];
 
 console.log(`[playwright] target=${target}`);
 const child = spawn("pnpm", command, {

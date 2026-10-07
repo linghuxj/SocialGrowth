@@ -1,5 +1,7 @@
 # Maintenance restore cumulative candidate security review
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 - Reviewer: `/root/adversary`
 - Base: `6136984de4b325644d35d5850687ec4fa8527ac5`
 - Head: `353889c9094e8efa08f34059885892a8a2567520`

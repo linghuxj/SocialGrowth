@@ -14,7 +14,7 @@ class MediaCredentialContractsTest(unittest.TestCase):
         self.command = {"metadata": {"contractVersion": "2026-09-29.identity-v1",
                                      "requestId": "request-credential", "idempotencyKey": "credential_intent_1"},
                         "credentialId": self.identity, "accountId": self.identity, "platform": "facebook",
-                        "expectedRevision": 0, "operation": "put", "payloadBase64": "AA=="}
+                        "expectedRevision": 0, "operation": "put", "loginIdentifier": "synthetic-account", "payloadBase64": "AA=="}
 
     def test_canonical_ascii_bytes_limit_matches_ts_not_secret_unicode_length(self):
         for size in (1, 2, 3, 8190, 8191, 8192):
@@ -23,7 +23,7 @@ class MediaCredentialContractsTest(unittest.TestCase):
                       base64.b64encode(bytes(8193)).decode("ascii")):
             with self.assertRaises(ContractValidationError):
                 self.contracts.validate("writeMediaCredentialRequest", {**self.command, "payloadBase64": value})
-        without = {key: value for key, value in self.command.items() if key != "payloadBase64"}
+        without = {key: value for key, value in self.command.items() if key not in ("payloadBase64", "loginIdentifier")}
         self.contracts.validate("writeMediaCredentialRequest", {**without, "operation": "invalidate"})
         for patch in ({"accountId": self.identity.upper()}, {"credentialId": self.identity + "\n"},
                       {"expectedRevision": 9007199254740992}, {"actionPermissionGranted": True},

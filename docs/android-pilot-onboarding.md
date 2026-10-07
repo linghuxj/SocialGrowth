@@ -1,18 +1,19 @@
-# Android 内测手机连接准备
+# Android 当前接入与连接操作
 
-本轮范围：少量明确登记的内测手机、官方 Tailscale App、运营保存的固定 Auth Key、中心原有 ADB 身份。先完成连接准备，不扩展 Tailnet 管理平台。手机上的主流程是「连接业务网络 → 允许远程连接 → 完成连接确认」。
+更新：2026-10-07。依据正式 MainActivity、自动连接监控、端点上报及连接 API。首次管理接入可使用官方 Tailscale；当前手机共存采用 SFA 内置 Tailscale endpoint 与 FlClash 非 VPN 订阅代理，操作见[手机网络准备](specs/2026-10-07-phone-network-preparation.md)。该接线不等于正式准入或零准备远端首次接入已验收。
 
 ## 手机操作
 
-首次接入页可先进入「先准备网络与无线调试」；服务不可达时也保留设置检查入口，不需先完成关联。已关联执行手机从「网络连接与准备设置」进入。按提示连接 Wi-Fi、安装或打开 Tailscale。新手机可点击「获取并复制接入密钥」，随后在 Tailscale 登录页右上角菜单选择 **Use an auth key** 并粘贴；系统 VPN 请求仍由用户确认。也支持已有授权账号登录。密钥不会显示在页面，剪贴板标为敏感。App 使用独立于页面的计时器，在一分钟后及页面销毁时尝试清除自己复制的内容；Android 后台读取限制或进程退出时不能承诺系统剪贴板一定按时清空。
-
-点击「打开关于手机」或「打开开发者选项」，由用户开启开发者选项与无线调试。Samsung 在「软件信息」中连续点击版本号七次。返回 App 自动检查；检测到 VPN 不代表已进入本项目网络。当前自动发现适用于 Android 14+ 的选定机型。
-
-点击「开始连接检查」并允许通知。已有中心配对会先尝试恢复连接；首次配对时保持执行手机的系统配对码弹窗打开，在另一台管理手机的设备详情点击「连接这台执行手机」并输入六位配对码。中心完成真实 ADB 连接与 Android 硬件身份读取后，执行手机才显示「平台已连接到这台手机」。配对码只用于这次请求，不保存、不自动重发；不确定的结果先刷新核对。
-
-连接检查由用户主动开启，在通知栏可随时停止，持续报告当前端点。手机重启或进程退出后不会自行启动，需回到 App 重新开启；不能承诺各厂商系统长期保活。停止检查意味着不再维持端点报告，不能用它代替业务暂停或确认真机已停止操作。
+1. 使用有效邀请完成提供者注册，或用原手机号登录。可以在同一台手机进入本机接入，也可添加其他手机。核对本机安装身份并明确确认归属，不能覆盖其他提供者的关联。
+2. 在本机准备页完成管理网络设置。首次接入按 Tailscale 引导；已经使用 SFA 时保留原配置，不重新领取密钥或恢复官方 VPN。配置由平台按已关联身份提供，返回后检查真实状态。VPN 图标不表示平台已连接。缺少资源时联系运营，不要求自行购买订阅或创建平台账号。
+3. 按引导进入系统开发者选项和无线调试，由本人授权。当前原生发现的机型／API 范围以源码和实测为准，不能承诺全部 Android 版本。
+4. 已关联 App 打开时自动检查连接并恢复端点报告；已有授权及中心配对有效时尝试重连。管理页和准备页均显示真实状态及更新时间，不要求每次手动启动。
+5. 首次配对仍须本人提供系统配对码，使用当前设备的连接入口提交。单手机可在系统设置和 App 之间返回，其他手机也可通过本人设备管理入口处理；配对码不保存、不自动重发，结果未知先核对原状态。
+6. 只有中心实际连接并核对硬件身份后才显示平台已连接。连接成功不等于正式准入、业务参与或允许发布。主动暂停自动连接的选择保留；明确恢复后再检查。不能承诺重启或各厂商后台长期保活。
+7. 按第 4 步准备业务上网。先准备 FlClash 本地订阅代理，再由用户按指引导入本机 SFA 文件并允许 VPN 切换。切换后重新核对中心连接和 FB／YT；失败按原配置恢复，不重复未知业务。SFA 安装后 App 不自动恢复官方 Tailscale VPN。
 
 ## 内测部署
+
 
 Auth Key 保存在运营主机的私有文件，例如 `.runtime/tailnet-control/pilot-auth-key.txt`，权限 `0600`；不写入 APK、仓库或日志。固定 key 采用 Reusable、非 Ephemeral；Tailscale 本身判断实际有效性。已知到期日期可填入配置，已知过期时接口不返回 key；未知日期返回 `expiresAt: null`，不承诺 key 有效或永久可用。
 
@@ -43,28 +44,8 @@ Auth Key 保存在运营主机的私有文件，例如 `.runtime/tailnet-control
 
 迁移为 `0045_android_device_connection.sql`。正式安装入口的业务 API 必须能在尚未入网时通过 HTTPS 访问，才可完成安装身份、关联和取 key；只在 Tailnet 内提供 API 的环境，需先由运营在 Tailscale 完成首次入网。本轮开发地址 `https://macbook-pro.tail3656e0.ts.net:8443` 属于后者，不能作为全新远端安装免配置接入的证据。
 
-## 验证与待完善
+## 证据范围
 
-通过实际 Demo Web 发起，Playwright 操作 Web，Artemis 操作 Samsung；保留原始失败结果。`output/android-access-20261006/guide` 已通过三步引导、现有 Tailscale 重连和无线调试检查（5 项通过、0 失败、0 待确认）。`connection` 首轮在修复过程中未完成验收，已从 Web 停止；后续结果另行保存。最终源码候选 `145c70b` / Android 候选 `52e550b` 的 `final-guide` 已通过：实际 Web 发起、Artemis 操作已关联 App，独立检查 2 项通过、0 失败、0 待确认，核实当前页面显示真实平台连接。
+既有网络 Artemis、引导与自动恢复结果按[固定记录](engineering/delivery/records/README.md)的候选、环境和实际 transport 复用。2026-10-07 新指引通过真实 Web／远程 Artemis 检查，见[本轮记录](engineering/delivery/records/network-preparation-core-chain-20261007.md)。零准备远端首次安装、公开 HTTPS 首次联系、首次系统授权／配对、多机和长期后台分别验收；USB 或已有主机信任的恢复不覆盖它们。
 
-本轮核验现有中心授权恢复及端口变化：Samsung 实际连接端口由 46093 变为 34163，中心通过 Tailscale 守护进程通道读回硬件身份 `RFCW40MYYCV`。`final-tailnet-artemis` 显式使用中心网络 ADB transport `127.0.0.1:50312`，通过实际 Web 发起 Artemis，独立检查 3 项通过、0 失败、0 待确认；USB 当时仍物理连接，故证明的是实际选择并使用网络通道，不把它扩大为 USB 拔除、重启或长期后台验收。全新手机 Auth Key 实际注册、双手机首次配对、断开 USB 后的 Artemis 执行须分别留真机证据，不能由接口测试代替。
-
-仅记录后续事项：Android 11–13 的发现支持、单手机通知栏配对操作、VPN 内置方案、重启后的恢复提醒、固定 key 更换提示和正式网络权限管理。当前不扩展这些功能。
-
-### 可复现检查
-
-补充检查：`pnpm --filter @socialgrowth/product-backend check`、`pnpm --filter @socialgrowth/product-backend build`、`pnpm --filter @socialgrowth/execution-runtime build` 均通过。`pnpm --filter @socialgrowth/product-backend exec tsx --test src/device-connection-api.test.ts src/device-connection-adb.test.ts src/network-setup-api.test.ts` 为 14 项通过。Android 使用项目 Gradle 构建，通过 `adb -s RFCW40MYYCV install -r` 保留数据安装。安全审查批准源码候选 `145c70b70af0f1ddfa33d858c0d61057523a71b2`；这些均不能替代真机业务验收。
-
-宽范围的 `reconnect`、`final-connection`、`final-candidate` 运行保留为待确认：执行记录显示完成设置、复制提示与中心连接，但 Artemis 独立检查分别出现请求体超限或未返回可确认结论，Web 按严格条件拒绝完成。调大临时本地检查请求上限也不作为通过依据；最终采用只核验当前客户端真实连接的范围，不重做已覆盖的设置操作。
-
-```sh
-SOCIALGROWTH_VERIFICATION_OUTPUT=output/android-access-20261006/final-guide \
-SG_WEB_TARGET=demo SG_DEMO_WEB_SCOPE=client \
-SG_DEMO_REAL_CLIENT_TEST=authorized SG_DEMO_CLIENT_MODE=connectivity_test \
-SG_DEMO_REAL_CONNECTIVITY_TEST=authorized SG_DEMO_ENDPOINT_REPORTER_START=authorized \
-SG_DEMO_VERIFY_CONNECTED_GUIDE_ONLY=authorized pnpm test:playwright
-```
-
-输出目录每轮必须全新，已有任务使用脚本的 reconcile/cancel 流程，不能覆盖原结果。正常部署必须使用自己的可达 HTTPS API；本地 pilot 的运行配置不提交仓库。
-
-内测交付状态：Samsung 已保留原数据安装该 Debug APK，界面停留在已连接准备页；本地 4320 后端与私有 Tailnet HTTPS 8443 服务保留运行供客户端使用。验收用 Demo 3000/4318 服务已停止，临时 Artemis transport 和请求上限已恢复；没有启动业务 worker 或公开发布。产物和原始结果保存于 `output/android-access-20261006/`，不提交 APK 或凭据。
+实际模块与默认关闭条件见[技术说明](technical-design.md)。旧 Demo 发起命令和重复阶段流水已从本操作说明移除；原结果及失败仍保留在证据记录中。

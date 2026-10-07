@@ -1,5 +1,7 @@
 # WP-25 第三阶段：本人最小只读核对投影
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-01后续双有限门禁：原非作者`artifacts/review/wp25-projection-ab2bc2b.md`及原QA`artifacts/acceptance/product/B4/20260930T215222Z-wp25-projection-ab2bc2b/acceptance-report.md`均已全文读取，原WP25-7CF-01/P1实际清零、新增0/remaining0。QA固定18446..ab23文件，指定3BE/3TS/2Python/31PG＋原11与新7 guard-only复跑通过，不新增独立oracle、不认领作者329/239；实际PG17.11 Debian与非作者17.10 Alpine分开。原RED保留，1000为合成边界非连续1000业务写入。父WP10来源pending1/Developeraf14及真实收入/本人UI/付款资源不被本有限通过解除。
 
 2026-10-01；基线7cf8878，feature/wp-25-provider-projection-stage3。BE实施代理Codex；原非作者/原QA，AND/WEB/BIZ真人未签。[基础规则](WP-25.md)、[内部账本](WP-25-stage2.md)、R-126/144～147、AC-51及[质量手册](../quality-gates.md)。
@@ -22,7 +24,7 @@ RES-WP25-01～03保持：真实income/ownership/rate producer和付款实际记�
 
 实际PG17.10 Alpine/镜像sha256:93aa428db0aeeb71d24dcad1491bef6e1396a4255697e4bfc4c725bfeb981b74；自有sg-wp25-projection-pg完整ID3b034e1975d62a89de4550287712c0231ed9ace0f0923d775103cf91b056f961，回环32866/专用sg_projection，唯一匿名卷e1506642cf3bd1c4e61d4f898107ebae593c4e267718388a9983ad5229fbc9ed/无宿主挂载。最终schema/其他连接/deadlocks=0|0|0，精确身份/卷独占复核后停止删除可重建夹具、保留源码和日志；其他nestar-stage1/minio/原窗口/手机不触碰。没有真实model/income/支付/外发或新的浏览器真机操作。
 
-复现根env/check/lint/test/build及`python3 docs/engineering/delivery/check_consistency.py`；仅明确隔离reset授权URL下`pnpm --filter @socialgrowth/product-backend exec tsx --test --test-concurrency=1 src/commission-income-journal.postgres-test.ts`（31）或`test:postgres`（239）。不得改指真实库，严格保护原证据及用户脏发布脚本。设计原图/提示词已重读：Android[列表原图](../../../design/android/commission-list-v1.png)/[原prompt](../../../design/android/commission-list-prompt.txt)、[详情原图](../../../design/android/commission-detail-v1.png)/[原prompt](../../../design/android/commission-detail-prompt.txt)及工作台[依据prompt](../../../design/workbench/commission-detail-prompt.txt)，只读列表图目视，未新增设计验收；图中的10%、金额、预估、可结算及已付均非生产事实，不能映射本internal状态。新UI仍暂停、未签本人UI/AC51/G3/全部开发。
+复现根env/check/lint/test/build及`python3 docs/engineering/delivery/check_consistency.py`；仅明确隔离reset授权URL下`pnpm --filter @socialgrowth/product-backend exec tsx --test --test-concurrency=1 src/commission-income-journal.postgres-test.ts`（31）或`test:postgres`（239）。不得改指真实库，严格保护原证据及用户脏发布脚本。设计原图/提示词已重读：Android列表原图（过期示例或演示已移除）/原prompt（过期示例或演示已移除）、详情原图（过期示例或演示已移除）/原prompt（过期示例或演示已移除）及工作台依据prompt（过期示例或演示已移除），只读列表图目视，未新增设计验收；图中的10%、金额、预估、可结算及已付均非生产事实，不能映射本internal状态。新UI仍暂停、未签本人UI/AC51/G3/全部开发。
 
 ## 后续原非作者结论
 

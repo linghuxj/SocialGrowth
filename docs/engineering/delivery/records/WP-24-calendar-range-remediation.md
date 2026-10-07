@@ -1,5 +1,7 @@
 # WP-24 日历范围边界整改与历史规则回归
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-01；基线63b9cae4c57473e20d7ac3fd95bd3962b3b58d57；fix/wp-24-calendar-range-boundary；BE实施代理Codex，原非作者/QA固定门禁及BIZ实际日政策待签。[日历原阶段](WP-24-stage3.md)、[质量手册](../quality-gates.md)。
 
 作者继续检查发现范围不一致：schema只核对输入标签年，`2000-01-01T00:00:00+14:00`转UTC民用日期1999-12-31，原代码只在shifted检查范围，可能保留范围外publicationDayStartsAt。不是假年份/时间精度或真实批准漏洞，但违反声明的六区/2000～2099civil范围。新增回归首10=9PASS+1RED、失败Missing expected exception，原8与新历史组通过；范围组在第一条失败，不将未执行的另一个上界case计作首次已过。首日志保留，不改既有8组或用户范围以掩盖。

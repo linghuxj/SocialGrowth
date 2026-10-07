@@ -1,5 +1,7 @@
 # Core workflow independent review
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 Reviewer `/root/ops_fix_adversary`; base `69f6f57eafa4861732e997dcada29adb5331407b`; head `60fda7119f1459711f1f4321b9b846a17a7ad286`. Verdict **changes_requested** for this seven-file increment. No reviewer tests, services, databases, devices or models. Scoped diff-check passed. Producer reports isolated PostgreSQL 3/3, contract tests 4/4, typecheck and contract generation checks; these do not establish real Web or physical execution.
 
 - **CORE-SEC-01 / P2:** `business-plan-workflow-store.ts:227-244` does not protect a terminal verified/not_published state. A concurrent, delayed unknown verification or replay of an earlier unknown verification event can overwrite the terminal result and clear its proof. Event dedup returns normally for an identical existing event, after which the state update still executes. Make terminal results immutable except exact idempotent replay; conflicting decisions and downgrades must fail closed. Validate the interleaving and old-event replay.

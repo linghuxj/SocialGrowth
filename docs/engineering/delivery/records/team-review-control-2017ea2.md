@@ -1,5 +1,7 @@
 # Device control independent review — 2026-10-04
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 - Reviewer: `/root/adversary`.
 - Base: `6136984de4b325644d35d5850687ec4fa8527ac5`.
 - Head: `2017ea2d7102d2c866bac0a13590615910c8664e`.

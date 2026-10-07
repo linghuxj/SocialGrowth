@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { execSync } from "node:child_process";
 import { chromium } from "playwright";
-import { ArtemisMcp } from "../services/execution-runtime/src/artemis.js";
+import { ArtemisMcp } from "../product/executor/src/runtime/artemis.js";
 
 function sql(query: string): string {
   const sanitized = query.replace(/"/g, '\\"');

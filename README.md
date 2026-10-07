@@ -1,25 +1,22 @@
 # SocialGrowth
 
-分支规范（2026-10-06）：所有开发在 `dev`；`main` 管理满足部署条件的版本。仅保留这两个分支，发布条件与历史证据边界见 [CLAUDE.md](CLAUDE.md#3-git-提交与分支规范)。
+远程实体手机媒体运营产品。当前只维护 `product/` 正式工程：React Web、NestJS Backend、共享契约、Artemis 执行器和 Kotlin Android。业务范围由需求确认约束；源码存在、局部检查通过和正式发布分别判断。
 
-面向公司自营与客户代运营的媒体分发系统，通过远程 AI 调控分散部署的实体手机，完成内容安排、发布、结果核验、效果反馈与改进闭环。首期覆盖 Facebook 与 YouTube、产品展示与短剧场景。
+所有开发在 `dev`；`main` 管理满足部署条件的固定版本。当前工作目录包含尚未提交的业务和迁移修改，不等同于 `main` 已部署版本。分支与验证规则见 [CLAUDE.md](CLAUDE.md)。
 
-当前以最新对齐的需求为准。仓库现有实现仅为 Demo，用于验证局部方案或流程；它的页面、模块、技术栈和历史结果不代表最终产品设计或验收结论。
+- [当前正式实现](docs/current-implementation.md)：实际入口、接线、配置条件与未完成范围。
+- [文档索引](docs/README.md)：当前使用顺序和文档用途。
+- [有效需求](docs/current-requirements-summary.md)及[确认来源](docs/requirements-alignment.md)：目标与业务边界，不作为已实现清单。
+- [技术说明](docs/technical-design.md)、[Android 接入操作](docs/android-pilot-onboarding.md)及[开发与验收](docs/engineering/delivery/README.md)。
+- [业务术语](CONTEXT.md)、[工程规范](CLAUDE.md)及[Agent 规范](AGENTS.md)。
 
-首期手机执行引擎已明确选用 Google Artemis（R-106）：业务 AI 决定获准执行内容，Artemis 的执行 AI 完成手机界面判断与操作。用户已补充确认既有远程执行验证完成；当前网络共存与新增客户端能力另行核实，这项选型不代表沿用整套 Demo。
+## 安装与启动
 
-新增设备提供者客户端 App：首期受邀用户可接入多台专用执行手机，使用稳定现有 Wi-Fi；每台独立准入与启停，同一 FB Page/YT 频道同时只由一台当前执行手机承接，按账号收益及承接期间参与分佣。分佣与付款仅保留基本业务，暂不展开完整结算或支付体系；当前重点是设备接入、媒体执行与反馈改进的正确完整闭环。
+```sh
+pnpm install --frozen-lockfile
+pnpm dev
+```
 
-- [当前需求基线](docs/current-requirements-summary.md)：首期范围、业务边界与配置要求。
-- [文档索引](docs/README.md)：业务流程、验收、验证安排及研究资料。
-- [开发分工与质量执行手册](docs/engineering/delivery/README.md)：工作包、依赖、契约、质量门禁、验收与进度台账。
-- [需求确认与修订记录](docs/requirements-alignment.md)：确认来源与变更历史。
-- [业务术语](CONTEXT.md)。
-- [现有 Demo 工程规范](CLAUDE.md)：操作此仓库时适用，不锁定最终技术方案。
-- [旧版归档](archive/2026-09-25-before-realignment/ARCHIVE.md)：仅供追溯。
+正式 Web 为 `http://127.0.0.1:3100`，后端为 4320，配置的执行服务为 4318。使用同一运营登录进入“执行与人工协助”。已有配置和数据库保持原位置；统一启动不自动执行手机任务。验证使用 `pnpm test:playwright`，范围由 `SG_PRODUCT_WEB_SCOPE` 选择。
 
-截至 2026-10-04，需求已对齐至 R-159，主要架构已由 ADR-0001～0011 确认，具备进入系统整体开发、分批实现与验收的条件。正式实现与 Demo 同仓库分目录维护；首批交付“运营邀请 → 提供者注册／登录 → 逐台扫码关联 → 两端状态可见”，见[首批业务流程与最小契约](docs/first-delivery-flow.md)。具体组件、数据与接口随对应模块落实，不再开展全面需求扩展。
-
-已取得单机原生端口发现及既有密钥下 Tailscale IPv6 ADB 身份核对的[实测证据](docs/connectivity-verification-2026-09-28.md)。设备认证、端口上报、首次配对和受控重连随对应模块开发验证；局部通过不代表完整接入、控制或首期验收通过。正式产品工程已在 `product/` 分目录实现多个有限切片，团队正在独立工作树开发和补验；整体开发、首期验收与生产部署仍未完成，具体边界见[2026-10-04 第五批收尾快照](docs/engineering/delivery/records/team-integration5-20261004.md)。早期准入依据保留于[历史审查报告](docs/development-readiness-audit-2026-09-28.md#当前复核2026-09-29)，具体实施边界见[技术设计](docs/technical-design.md)，早期批次规划与资源准备原则见[历史推进安排](docs/next-stage-plan.md)。
-
-媒体账号与真机管理账号的当前规则见 [R-159](docs/requirements-alignment.md#r-159公司社媒账号独占分配与-artemis-受控辅助登录)及[账号管理交接](docs/engineering/delivery/records/media-accounts-web-handoff-20261004.md)。[2026-10-05 实施与验收](docs/engineering/delivery/records/media-accounts-r159-20261005.md)记录账号管理页面通过及数据库约束结果；真实手机分配及 Artemis 辅助登录仍阻断。历史过程文档已标明用途和替代入口，不能将旧设备状态或“下一步”当作当前执行许可。
+当前代码接线与业务验收限制见[实现说明](docs/current-implementation.md)。原未知结果和占用保留；没有据代码清理宣布发布。工程处置见[执行器迁移](docs/engineering/delivery/records/demo-removal-migration-20261006.md)，文档处置见[文档清理](docs/engineering/delivery/records/documentation-cleanup-20261006.md)。

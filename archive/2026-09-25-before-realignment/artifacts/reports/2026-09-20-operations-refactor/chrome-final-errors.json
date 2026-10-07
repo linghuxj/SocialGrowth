@@ -1,8 +1,0 @@
-[
-  {
-    "level": "error",
-    "message": "Immersive Translate ERROR: sync rules error:  fetchError: Failed to fetch\n    at hV (chrome-extension://bpoadfkcbjbfhfodiogcnhhhpibjhbnh/content_main.js:5258:2284)\n    at e.sendFrom (chrome-extension://bpoadfkcbjbfhfodiogcnhhhpibjhbnh/content_main.js:5258:4821)\n    at async I8.sendWithHealth (chrome-extension://bpoadfkcbjbfhfodiogcnhhhpibjhbnh/content_main.js:5258:16711)\n    at async hCe (chrome-extension://bpoadfkcbjbfhfodiogcnhhhpibjhbnh/content_main.js:5258:22285)\n    at async Se (chrome-extension://bpoadfkcbjbfhfodiogcnhhhpibjhbnh/content_main.js:5258:20313)\n    at async Ub (chrome-extension://bpoadfkcbjbfhfodiogcnhhhpibjhbnh/content_main.js:7141:6026)",
-    "timestamp": "2026-09-20T03:22:42.196Z",
-    "url": "chrome-extension://bpoadfkcbjbfhfodiogcnhhhpibjhbnh/content_main.js"
-  }
-]

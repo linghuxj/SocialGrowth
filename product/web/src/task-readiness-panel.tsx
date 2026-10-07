@@ -123,14 +123,14 @@ export function TaskReadinessPanel({ projectId, active, readOnly, onExpired, ref
     });
   }
 
-  async function startPreflight(taskId: string) {
+  async function startPreflight(taskId: string, retryAudit = false) {
     if (preflightBusy || !current) return;
     const currentTask = current.tasks.find(task => task.taskId.toLowerCase() === taskId.toLowerCase());
     if (!currentTask) return;
     const stateNow = workflowStates[taskId.toLowerCase()];
-    setPreflightBusy({ taskId, queryOnly: ["running", "submission_unknown", "response_unknown"].includes(stateNow ?? "") });
+    setPreflightBusy({ taskId, queryOnly: !retryAudit && ["running", "submission_unknown", "response_unknown"].includes(stateNow ?? "") });
     try {
-      if (["running", "submission_unknown", "response_unknown"].includes(stateNow ?? "")) {
+      if (!retryAudit && ["running", "submission_unknown", "response_unknown"].includes(stateNow ?? "")) {
         const workflow = stateNow === "response_unknown" ? await readBusinessPlanWorkflow(projectId) : await queryBusinessPlanPreflight(projectId, taskId);
         showWorkflow(workflow);
         await refresh();
@@ -148,7 +148,7 @@ export function TaskReadinessPanel({ projectId, active, readOnly, onExpired, ref
         }
         await refresh();
       }
-      const request = startBusinessPlanPreflight(projectId, taskId);
+      const request = startBusinessPlanPreflight(projectId, taskId, retryAudit);
       const response = await request();
       setWorkflowStates(value => ({ ...value, [taskId.toLowerCase()]: response.state }));
       void refresh();
@@ -272,6 +272,10 @@ export function TaskReadinessPanel({ projectId, active, readOnly, onExpired, ref
                 }
                 {diagnostics.map(({ title, next }) => <div key={title} role="status"><strong>{title}</strong><p>{next}</p></div>)}
                 {workflowState === "prepared" && <strong role="status">发布准备已核对，尚未发布</strong>}
+                {!readOnly && workflowState === "submission_unknown" && workflowBlockers[task.taskId.toLowerCase()]?.includes("identity_audit_stopped_retryable") && <div>
+                  <p>已确认原任务仅核验身份且已停止，可重新核对 Page 后继续原切片准备；不会创建新尝试或公开发布。</p>
+                  <button type="button" className="outline-button" disabled={!!preflightBusy} onClick={() => void startPreflight(task.taskId, true)}>重新核验 Page 并继续准备</button>
+                </div>}
                 {workflowState === "submission_unknown" && <strong role="alert">原核查结果未知，已冻结；先查询原操作，不会重发。</strong>}
                 {workflowState === "response_unknown" && <strong role="alert">请求响应中断，原核查状态未知；请查询当前状态，不会重新发起。</strong>}
                 {attempt && workflowState === "blocked" && <span role="status">当前仍有条件未通过；请先按上方提示处理，再重新读取。</span>}

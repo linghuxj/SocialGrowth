@@ -1,5 +1,7 @@
 # 第四批交付检查点：真实下周期配置确认
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 本记录冻结于 root 源码组合 `edc3181b883430e334f5849412eed155773a6b53`，基线为 `5c8960f6e74a3e55105693722b3443f95aa312bc`。完整合入获审 Backend `603ace4a9fd03007f23424366c839885f144ae80`、Web `cbed0e5b78a1c1a08bb101e7f4037a64fb2811a4` 及 OPS `e9f975ba0bb91695dd719e2e760d670c1d205b8f` 的依赖。无冲突；整合后 `product/backend`、`product/contracts`、运维记录与 OPS 候选一致，`product/web` 与两份 planning runner/verifier 与实际验收 Web 候选一致。
 
 本切片让运营在真实当前周期内明确确认下周期的时区、间隔和最低引流数。它追加不可变配置与 actor-scoped 原命令回执，当前周期、首起点、历史口径和许可保持原值。它没有物化后继周期、推进业务任务或完成指标评价。

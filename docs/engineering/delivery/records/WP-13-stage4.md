@@ -1,5 +1,7 @@
 # WP-13 第四阶段：显式受控密钥保管与轮换接缝
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-02开工，基线3c0ce79c940dca13c23bf2d7d8c955049794764d，codex/wp-13-controlled-key-custodian-stage4。WP13/CT10/需求基线§6与技术设计§6，BE实施代理Codex，OPS/TL实际key来源/轮换备份保管，EX/AND当前许可及可靠模型前保护，WEB/QA管理员UI解除后真实页面，BIZ实际资源权属；真人姓名/预约仍待签。原非作者固定stage3 strict17，原QA固定stage2 strict13；不混本开发，不换窗口/模型/入口绕过。
 
 计划限定显式可信进程内custodian：新synthetic输入的owned key copies、全ring原子replace与dispose、每次write同步snapshot及owned副本清理，现有静态keys调用兼容，default AppModule依然null key。无文件/env/历史密钥读取、无HTTP管理keys接口、无自动跨worker推送或生产secret-manager/KMS声明。旧digest key缺失必须关闭原key重放，轮换不复活失效secret；全部密钥保留周期/backup/TLS请求日志/实际custodian操作授权由OPS/TL提供并补验。信任服务器内部组件，不把JavaScript callback当沙箱或可靠模型保护。

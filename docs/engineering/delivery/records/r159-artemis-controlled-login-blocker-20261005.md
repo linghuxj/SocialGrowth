@@ -1,5 +1,7 @@
 # R159 Artemis controlled-login integration boundary
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 Checked against the tracked `integrations/google-artemis` HEAD `371aa6df56880643da57b30da936e9812fb0ec66` on 2026-10-05. The external checkout contains user changes; it was inspected read-only and was not edited, patched, or started.
 
 The SocialGrowth candidate implements action-field scoping, exact account-to-device assignment rechecks, and a one-shot secure-input adapter. It does not register that adapter with Artemis or provide an authenticated host-to-device consumer. No credentials were sent and no assisted login was run.

@@ -1,5 +1,7 @@
 # Recovery consumer independent source review
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 Reviewer `/root/ops_fix_adversary`; base `05f8cf587a9c8f482da92263d194c06250f088ed`; head `bf3095896a9f1ee86b253ccb7b9768b4d650c74e`. Verdict: **changes_requested**. Source review only; no reviewer tests, services, database operations, devices or models. The producer has indicated that a further fixed head is forthcoming.
 
 ## Findings

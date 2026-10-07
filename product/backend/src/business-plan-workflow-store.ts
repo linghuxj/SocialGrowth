@@ -32,12 +32,14 @@ export interface OriginalAttemptReconcilerPort {
   reconcileOriginalAttempt(input: { scope: BusinessPlanWorkflowScope; claimId: string; scopeFingerprint: string }): Promise<OriginalAttemptReconciliation>
 }
 export type BusinessPlanWorkflowPorts = { readiness: TaskWorkflowReadinessPort | null; actionGate: TaskWorkflowActionGatePort | null;
-  executor: TaskWorkflowExecutorPort | null; proofVerifier: TrustedPublicationVerifierPort | null; originalAttemptReconciler?: OriginalAttemptReconcilerPort | null };
+  executor: TaskWorkflowExecutorPort | null; proofVerifier: TrustedPublicationVerifierPort | null; originalAttemptReconciler?: OriginalAttemptReconcilerPort | null;
+  readOnlyAuditRetry?: { check(operationId: string): Promise<boolean>; resume(operationId: string, scopeFingerprint: string): Promise<void> } };
 export interface BusinessPlanWorkflowPortStatusReader {
   portStatus(): { executor: "connected" | "unconnected"; proofVerifier: "connected" | "unconnected" };
   refresh?(scope: unknown): Promise<WorkflowJob>;
   start?(scope: unknown, workerId: string): Promise<WorkflowJob>;
   queryOriginal?(projectId: string, taskId: string): Promise<WorkflowJob | null>;
+  retryAudit?(projectId: string, taskId: string): Promise<WorkflowJob | null>;
 }
 export type WorkflowJob = { workflowId: string; projectId: string; taskId: string; taskAttemptId: string;
   scopeFingerprint: string; state: string; submissionState: string; operationId: string | null; operationState: string | null;
@@ -187,6 +189,16 @@ export class BusinessPlanWorkflowStore {
       const changed = await client.query("UPDATE " + schema + ".business_plan_workflow_jobs SET lease_until=clock_timestamp()+($4::int*interval '1 millisecond'),updated_at=clock_timestamp() WHERE workflow_id=$1 AND operation_id=$2 AND claim_id=$3 AND state='running'",
         [job.workflowId, operationId, claimId, leaseMs]);
       return changed.rowCount === 1 ? this.readOne(client, taskId) : null;
+    });
+  }
+  async resumeStoppedAudit(taskId: string, operationId: string, scopeFingerprint: string): Promise<WorkflowJob | null> {
+    return this.tx(async client => {
+      const job = await this.readOne(client, taskId, true);
+      if (!job || job.state !== "submission_unknown" || job.operationId !== operationId || !job.originalClaimId
+        || job.scopeFingerprint !== scopeFingerprint) return null;
+      await client.query("UPDATE " + schema + ".business_plan_workflow_jobs SET state='running',operation_state='running',"
+        + "claim_id=original_claim_id,claim_owner='operator-audit-retry',lease_until=clock_timestamp()+interval '120 seconds',blockers='[]'::jsonb,updated_at=clock_timestamp() WHERE workflow_id=$1", [job.workflowId]);
+      return this.readOne(client, taskId);
     });
   }
   async startOperation(taskId: string, claimId: string, currentScopeHash: string): Promise<{ job: WorkflowJob; operationId: string } | null> {
@@ -341,6 +353,18 @@ export class BusinessPlanWorkflowConsumer implements BusinessPlanWorkflowPortSta
     // responses stay frozen and are never converted into another dispatch.
     if (result.decision !== "prepared" && !(result.decision === "unknown" && result.blockers?.length)) return job;
     return this.store.applyTrustedVerification(job.taskId, job.operationId, result);
+  }
+  async retryAudit(projectId: string, taskId: string) {
+    const job = (await this.store.readProject(projectId)).find(item => item.taskId.toLowerCase() === taskId.toLowerCase());
+    if (!job?.operationId || !this.ports.readOnlyAuditRetry || !this.ports.readiness) throw new BusinessPlanWorkflowError("WORKFLOW_UNAVAILABLE");
+    if (job.state === "running") return job;
+    if (job.state !== "submission_unknown" || !await this.ports.readOnlyAuditRetry.check(job.operationId)) throw new BusinessPlanWorkflowError("SCOPE_CHANGED");
+    const current = await this.ports.readiness.assess(job.scope, job.operationId);
+    if (current.businessState !== "ready" || current.blockers.length || current.scopeFingerprint !== job.scopeFingerprint) throw new BusinessPlanWorkflowError("SCOPE_CHANGED");
+    const resumed = await this.store.resumeStoppedAudit(job.taskId, job.operationId, job.scopeFingerprint);
+    if (!resumed) throw new BusinessPlanWorkflowError("CLAIM_STALE");
+    await this.ports.readOnlyAuditRetry.resume(job.operationId, job.scopeFingerprint);
+    return resumed;
   }
   async start(scopeInput: unknown, workerId: string) {
     const job = await this.refresh(scopeInput);

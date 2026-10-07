@@ -1,5 +1,7 @@
 # Closed-loop implementation security preflight
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 Reviewer: `/root/ops_fix_adversary`. Baseline: `05f8cf587a9c8f482da92263d194c06250f088ed`. This is a source-boundary preflight, not approval of a new candidate or evidence of real execution. No tests, services, devices, models, private configuration or protected script contents were accessed for this preflight.
 
 ## Existing reusable boundary

@@ -1,5 +1,7 @@
 # Independent operations candidate review
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 Reviewer: /root/ops_fix_adversary
 Base: eee006bc3b68bc4429d2720d2069e3f78f8f19a7
 Head: 22f0bada5d49e75c63c07926fcec0ea743f5d0df

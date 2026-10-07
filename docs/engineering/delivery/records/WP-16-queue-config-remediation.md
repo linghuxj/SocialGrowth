@@ -1,5 +1,7 @@
 # WP-16 通知配置 P2 整改
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-01；基线ccc4707980841e4640731264a1d0af412ab5d893；fix/wp-16-queue-config-redaction；BE实施代理Codex，原非作者与原QA门禁，OPS实际签收待定。[原通知阶段](WP-16-stage4.md)、[质量手册](../quality-gates.md)、[原完整报告](../../../../artifacts/review/wp16-recheck-queue-145c3c5.md)。
 
 原固定145c复核WP16-145C-01新增P2/remaining1：Zod发现无效URL后仍进入对象refinement，new URL抛原生异常、input可能含嵌入凭据。三入口parse/read/constructor均受影响；9次纯复现确认合成输入，并非真实凭据泄露证据。原55行报告SHA69b62e840e492b3f874e9e3b618c960eb9774b521ab13a7fad9bfa16a7a71d8b已全文读取，独立10首9PASS+1RED原源/日志及9次缺陷确认保留，不改旧断言。不接触SEC保护脚本、真实endpoint或账户。

@@ -1,5 +1,7 @@
 # WP-24 第三阶段：版本固定的运行时日历边界
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-01作者后续发现输入offset标签年与实际civil日期范围不一致，[范围整改](WP-24-calendar-range-remediation.md)新增一行civil year守卫、两新组：首10=9PASS+1RED→同10GREEN、根409；历史NY2006/2007及Apia2022规则实证。原8/403保留但不覆盖该范围缺陷，原阶段及整改尚待固定原门禁，不作者报问题已独立清零。
 
 2026-10-01；基线546d35b，feature/wp-24-runtime-calendar-stage3，BE实施代理Codex；AI/BIZ/OPS/EX/WEB/原非作者/QA真人待签。[原观察窗](WP-24-stage2.md)、[质量手册](../quality-gates.md)、[CT09](../contract-checklist.md#ct-09-反馈周期与业务-ai)。

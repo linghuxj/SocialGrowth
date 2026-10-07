@@ -1,5 +1,7 @@
 # 接手推进：真实模型方向、持久确认与 Artemis 协作
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 日期：2026-10-02。沿用 `codex/core-automation-loop-stage1`，基线 `c01b64758729fabe33f9eeba52cef45094f21812`。固定代码候选为 `fd9e0dd3c9aa8e0ec9500cfc03578164ef62d48e`；manifest 指纹对应该提交，后续资源收尾文档另留痕；源字节、脚本与证据见 [manifest](../../../../artifacts/acceptance/product/B3/core-loop-stage3-takeover/candidate-manifest.json)。这是作者检查点，未代替原非作者复核或独立 QA，未合入 Developer，父 pending 保留。
 
 用户已确认：Demo 切片及已登记 FB/YouTube 账号可使用；优先停在最终提交前，必要时允许一次测试发布。本批实际公开发布次数为 **0**。用户随后明确确认两份原件此前从未公开发布；这是用户首次使用声明，仍不等于系统核验、Page/频道身份、分成资格或当前物理许可。
@@ -75,11 +77,7 @@ SG_PRODUCT_CORE_OUTPUT=<新输出目录> pnpm exec node scripts/verify-product-c
 
 Demo 复现使用现有配置与已启动的 `pnpm dev`；检查原未知任务/占用，**不启动 worker**。本次只读任务命令：
 
-```sh
-SG_DEMO_WEB_SCOPE=observation SG_DEMO_REAL_OBSERVATION=authorized \
-SG_DEMO_IDENTITY_NAME=<已登记显示名> SG_DEMO_IDENTITY_ID=<实际绑定ID> \
-SOCIALGROWTH_VERIFICATION_OUTPUT=<新私有目录> pnpm test:playwright
-```
+该历史操作命令已失效并从说明中移除。原候选和结果保留；现行入口见[当前实现](../../../current-implementation.md)。
 
 脚本在真实 Artemis 澄清出现后保存本任务私有截图与 waiting.json。操作者核对原图后，在同目录写入含精确 taskId/requestId/text 的 operator-feedback.json；脚本从真实 Web 表单提交，仅该原任务收取回复。不得填写凭据、虚构已处理/已核验，原脚本 finally 通过 Web 停止仍在运行的本次任务并只交还本人新增的接管。真实资源仍不足时明确记录阻断，不用合成许可补齐。
 

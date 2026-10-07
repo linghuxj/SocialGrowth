@@ -1,5 +1,7 @@
 # 独立安全复核：网络核验诊断
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 - reviewer：`/root/adversary`
 - base：`6136984de4b325644d35d5850687ec4fa8527ac5`
 - head：`2a43976e23caa1010d31caadd97a0b6e964f72d1`

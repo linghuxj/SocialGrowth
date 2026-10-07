@@ -1,5 +1,7 @@
 # 运营 Cookie 边界统一整改
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-01；基线bf5c8cf，feature/operator-cookie-boundary-hardening。BE实施代理Codex，原非作者/QA固定门禁。[原配置/API](WP-15-stage5.md)、[局部整改及字节HTTP](WP-15-stage6.md)、[质量手册](../quality-gates.md)。
 
 原1486完整报告artifacts/review/wp15-api-1486eaf.md全文已读：WP15-1486-01一P3/remaining1，独立8为7正常/1 RED（三case同问题），指定5BE/2TS/2Python/6联合不抵消。bf5作者局部修复未原窗清零，本切片进一步统一六类operator Cookie消费者，只接受一个完整43字符base64url值，不再split截断、选首个重复或合并array。格式收紧不改变身份/会话/CSRF/DB权限，不推断无凭据越权或扩展业务权限。

@@ -1,7 +1,5 @@
 packages:
-  - 'apps/*'
   - 'product/backend'
   - 'product/contracts'
   - 'product/executor'
   - 'product/web'
-  - 'services/*'

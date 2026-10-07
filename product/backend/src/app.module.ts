@@ -1,3 +1,5 @@
+import { ExecutorConsoleController } from "./executor-console.controller.js";
+import { ExecutorConsoleService } from "./executor-console-service.js";
 import { NetworkSetupApi } from "./network-setup-api.js";
 import { NetworkSetupController } from "./network-setup.controller.js";
 import { PilotDeviceNetworkAuthority } from "./network-access-authority.js";
@@ -73,8 +75,9 @@ import { DeviceAssistanceRecheckConsumer } from "./device-assistance-recheck-con
 import { DeviceAssistanceRecheckLifecycle } from "./device-assistance-recheck-lifecycle.js";
 import { TrackingLinkService } from "./tracking-link-service.js";
 import { TrackingRedirectController } from "./tracking-redirect.controller.js";
-import { MetricFeedbackController } from "./metric-feedback.controller.js";
+import { MetricFeedbackController, PageMetricAuthorizationController } from "./metric-feedback.controller.js";
 import { MetricSnapshotStore } from "./metric-snapshot-store.js";
+import { PageMetricSource } from "./page-metric-source.js";
 import {
   DevelopmentSmsCapturePort,
   DisabledDevelopmentSmsCodeReader,
@@ -160,7 +163,7 @@ const providerAuthProvider = {
 };
 
 @Module({
-  controllers: [
+  controllers: [ExecutorConsoleController,
     AppController,
     MaterialUploadController,
     MaterialRegistryController,
@@ -194,6 +197,7 @@ const providerAuthProvider = {
     DeviceAssistanceNotesController,
     TrackingRedirectController,
     MetricFeedbackController,
+    PageMetricAuthorizationController,
   ],
   providers: [
     {
@@ -223,6 +227,10 @@ const providerAuthProvider = {
     { provide: AccountPreparationService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new AccountPreparationService(pool, auth) },
     poolProvider,
     operatorAuthProvider,
+    { provide: ExecutorConsoleService, inject: [OperatorAuthService], useFactory: (auth: OperatorAuthService) => {
+      const url = process.env.SG_PRODUCT_EXECUTION_RUNTIME_URL, token = process.env.SG_PRODUCT_EXECUTION_RUNTIME_TOKEN;
+      return new ExecutorConsoleService(auth, url && token ? { url, token } : null);
+    } },
     invitationManagementProvider,
     identityTransactionProvider,
     installationAuthProvider,
@@ -308,7 +316,12 @@ const providerAuthProvider = {
     { provide: TrackingLinkService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new TrackingLinkService(pool, auth, null) },
     // No trusted metric source adapter is configured. The projection reports
     // not_configured and never exposes caller-supplied or inferred observations.
-    { provide: MetricSnapshotStore, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new MetricSnapshotStore(pool, null, auth) },
+    { provide: PageMetricSource, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => {
+      const url = process.env.SG_PRODUCT_EXECUTION_RUNTIME_URL, token = process.env.SG_PRODUCT_EXECUTION_RUNTIME_TOKEN;
+      return new PageMetricSource(pool, auth, url && token ? { url, token } : null);
+    } },
+    { provide: MetricSnapshotStore, inject: [Pool, OperatorAuthService, PageMetricSource],
+      useFactory: (pool: Pool, auth: OperatorAuthService, source: PageMetricSource) => new MetricSnapshotStore(pool, source.configured() ? source : null, auth) },
     DatabaseLifecycle,
   ],
 })

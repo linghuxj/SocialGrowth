@@ -1,5 +1,7 @@
 # Independent Android device-label recovery review
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 Reviewer: `/root/adversary`
 Base: `a3406bd863bcd2288de4b28475dc6060ecca90b6`
 Head: `821f3156552fa85363cc7317d46378ba5f76c03f`

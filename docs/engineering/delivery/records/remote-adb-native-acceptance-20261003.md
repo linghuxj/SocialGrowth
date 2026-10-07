@@ -1,5 +1,7 @@
 # Samsung 无线 ADB 与本机参与真机验收记录
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-03，输入提交 `0586ee1`，沿用 `codex/core-automation-loop-stage1`。承接用户继续真机、远程 ADB 和完整链路验收的授权。以下为作者验证，不代替独立 QA，不清父 pending，不合入 Developer。
 
 ## 当前边界

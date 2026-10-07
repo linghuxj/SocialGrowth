@@ -1,5 +1,7 @@
 # Independent Android release-gate review
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 Reviewer: `/root/adversary`
 
 Base: `d39f9ca70e24d5adf5b1ab8ba31f5c5e70542a8d`

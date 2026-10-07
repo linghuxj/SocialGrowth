@@ -112,8 +112,11 @@ def check(root: Path) -> dict[str, object]:
         errors.append(f"acceptance group has no work package: {orphan}")
 
     link_count = 0
-    entry_paths = [root / name for name in ["README.md", "docs/README.md", "docs/next-stage-plan.md", "docs/first-delivery-flow.md", "docs/acceptance-plan.md"]]
-    for path in paths + entry_paths:
+    entry_paths = [root / name for name in ["README.md", "AGENTS.md", "CLAUDE.md", "CONTEXT.md", "DESIGN.md"]]
+    product_paths = [path for path in (root / "product").rglob("*.md")
+                     if not {"node_modules", "build", "dist", ".gradle"}.intersection(path.relative_to(root).parts)]
+    link_paths = sorted(set((root / "docs").rglob("*.md")) | set(entry_paths) | set(product_paths))
+    for path in link_paths:
         content = path.read_text(encoding="utf-8")
         for target in re.findall(r"\[[^\]\n]*\]\(([^)\n]+)\)", content):
             if re.match(r"[a-z][a-z0-9+.-]*:", target, re.IGNORECASE):
@@ -128,6 +131,7 @@ def check(root: Path) -> dict[str, object]:
     return {
         "scope": "documentation_structure_only",
         "documents": len(paths),
+        "link_documents": len(link_paths),
         "requirements": len(actual_requirements),
         "work_packages": len(wp_set),
         "acceptance_groups": len(definitions["AC"]),

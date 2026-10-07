@@ -1,5 +1,7 @@
 # Business plan producer security review
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 - Reviewer: `/root/adversary`
 - Base: `f583f184891bd3d0406c43821cb3d36e2eb1233a`
 - Head: `fb256e5b4fc7b927262408ffddbd268e340b38ae`

@@ -1,5 +1,7 @@
 # WP13-KC-01 小范围整改
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-02；基线 `09146dd7e6490030b3b2ca4deeb38f5c3f76de5c`。作者：主开发窗口 Codex；非作者：原复核窗口；QA：原验收窗口。范围仅跨 realm 原生 Promise 拒绝消费，非生产密钥/部署能力建设。
 
 完整读取原报告 `artifacts/review/wp13-key-custodian-0914.md`：527 组中 526 PASS / 1 FAIL，P2 WP13-KC-01 尚未由原窗口清零。原报告、反例和首失败不改。阶段三 QA 完整报告 `artifacts/acceptance/product/B2/20261001T171727Z-wp13-credentials-api-3c0/acceptance-report.md`：518 首次通过、新0余0，仅有限工程，不把其结论转给阶段四。

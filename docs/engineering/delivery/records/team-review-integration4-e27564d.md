@@ -1,5 +1,7 @@
 # 第四批根组合独立复核
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 - Reviewer: `/root/adversary`
 - Base: `5c8960f6e74a3e55105693722b3443f95aa312bc`
 - Head: `e27564d6a2aca4f00e9177f784935b5063fcfee5`

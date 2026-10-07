@@ -1,5 +1,7 @@
 # 团队安全扫描 — 2026-10-04
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 范围：固定基线 `f583f184891bd3d0406c43821cb3d36e2eb1233a` 的需求、10月3日交接、权限/未知恢复/秘密/来源与执行边界。审查者 `/root/adversary`，独立工作树 `SocialGrowth-agent-worktrees/adversary`、分支 `codex/team-adversary`。本记录完成 SCAN-SEC 盘点条件，不构成候选提交安全批准或全产品验收。
 
 ## 已核对的当前边界

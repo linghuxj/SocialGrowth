@@ -85,7 +85,21 @@ try {
     };
 
     const firstProjectId = selectedProjectId;
-    const first = await assertProjectFeedback(firstProjectId);
+    let first = await assertProjectFeedback(firstProjectId);
+    if (process.env.SG_PRODUCT_PROJECT_FEEDBACK_COLLECT === "1") {
+      const native = feedbackPanel.getByRole("region", { name: "手机效果采集", exact: true });
+      const accepted = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/feedback/collect"));
+      const saved = page.waitForResponse(response => response.request().method() === "POST" && /\/feedback\/collect\/[^/]+\/sync$/.test(new URL(response.url()).pathname), { timeout: 11 * 60_000 });
+      await native.getByRole("button", { name: "读取 Page 效果", exact: true }).click();
+      const response = await accepted; assert.ok(response.ok(), `Native metrics start HTTP ${response.status()}`);
+      const job = await response.json(); assert.equal(job.projectId, firstProjectId); assert.equal(job.state, "running");
+      const sync = await saved; assert.ok(sync.ok(), `Verified report sync HTTP ${sync.status()}`);
+      first = projectFeedbackResponseSchema.parse(await sync.json()); assert.equal(first.projectId, firstProjectId);
+      assert.ok(first.metrics.length > 0); assert.ok(first.metrics.every(metric => metric.subject.kind === "account"));
+      await native.getByText("实际采集结果已保存；缺少口径的指标不能用于效果比较。", { exact: true }).waitFor();
+      await writeFile(`${output}/actual-collection.json`, JSON.stringify({ operationId: job.operationId, projectId: firstProjectId,
+        actualWebStart: true, publicPublication: false, metrics: first.metrics.length }, null, 2), { mode: 0o600 });
+    }
     await writeFile(`${output}/feedback-facts.json`, JSON.stringify(first, null, 2), { mode: 0o600 });
     const columns = ["project_id", "identity_id", "platform", "subject", "metric_name", "unit", "value", "availability", "missing_reason", "measurement", "source_definition", "coverage_start", "coverage_end", "cutoff", "collected_at", "source_timezone", "source_id", "report_id", "definition_id", "revision", "measurement_metadata_complete"];
     const rows = first.metrics.map(metric => [metric.projectId, metric.identityId, metric.platform, metric.subject.kind,

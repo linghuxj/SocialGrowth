@@ -1,5 +1,7 @@
 # Independent Plan lock-wait fixture findings
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 Reviewer: `/root/adversary`
 
 Base: `34aea3a0a688a8172128b8dfae4b097fcc43cbca`

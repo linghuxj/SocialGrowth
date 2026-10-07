@@ -1,5 +1,7 @@
 # WP-15 第十一阶段：运营素材只读客户端接线
 
+> 固定候选证据：正文中的“当前”、通过和未验证只适用于记录的日期、源码与环境。当前接线见[实现说明](../../../current-implementation.md)，不按本文旧阶段安排或分支指令直接操作。
+
 2026-10-01最新原QA完整报告已全文读取：`artifacts/acceptance/product/B3/20261001T114003Z-wp15-read-client-7f08/acceptance-report.md` SHA82ca92b1bfdb8b8b106b4e0cf35a222edefacfc822e90d8f9394a0ee9e5a366e，原8/复用独立10/旧operator实际11首次通过、new0/remaining0、QA新oracle0，限定双工程闭合。1192允许blob/全实际旧Web/GET seam/121链接、来源41与旧269及QA旧282项指纹不变；own快照canonical XZfeOF/dev16777223/ino176709283/UID501精确清理，3构建产物保留。首静态120秒timeout/status=null未当通过，仅自有元数据wrapper延至300秒后实际exit0；unused repo一warning导致整套deny-warnings exit1、独立oracle三文件零诊断，cleanup早读ENOENT及来源App/styles/early evidence诊断保留，不改产品或历史RED。root439未由QA重跑。已向用户汇报并交同QA新固定保存49f；真实HTTP/UI/Playwright/手机/合法素材与准入仍阻断或未验，下方旧待QA为历史。
 
 2026-10-01原非作者完整37行`artifacts/review/wp15-read-client-7f08.md`已全文读取/确认completed，SHA8f18ba10e4028cc2d6d608e74ec9ecf747abe70ea4339724c4afb9622e0dc130，new0/remaining0；原8/新独立10/旧operator11首过（自有日志名18实际11），root439未本窗口重跑。原旧正文及全Web树逐blob/1192允许blob/121链接/旧269指纹保持，自己的快照按身份精确清理；两误App/styles静态路径与cleanup早汇总ENOENT诊断保留，不改产品或首红。已交原QA固定c397→7f strict14，原非作者接保存49f strict12，不读未来票据/bytes；本客户端QA/真实Web-UI-手机/全部AC仍未签，下方此前待复核为历史。
