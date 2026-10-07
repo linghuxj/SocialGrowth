@@ -46,6 +46,7 @@ internal class BootstrapTunnel(private val token: String) : AutoCloseable {
     @Synchronized fun ensureConnected() {
         if (stopped.get() || handedOff || connecting || socket != null || android.os.SystemClock.elapsedRealtime() < nextAttempt) return
         connecting = true
+        android.util.Log.i("SGConnection", "bootstrap_connecting")
         val origin = BuildConfig.API_BASE_URL.trimEnd('/')
         require(origin.startsWith("https://") || BuildConfig.DEBUG && origin.startsWith("http://"))
         val request = Request.Builder().url(origin.replaceFirst("https://", "wss://").replaceFirst("http://", "ws://") + "/api/installation/bootstrap")
@@ -58,17 +59,21 @@ internal class BootstrapTunnel(private val token: String) : AutoCloseable {
                     val message = JSONObject(text)
                     when (message.getString("type")) {
                         "managed" -> { handedOff = true; disconnected(webSocket) }
-                        "ready" -> { sessionId = UUID.fromString(message.getString("sessionId")).toString(); failures = 0 }
+                        "ready" -> { sessionId = UUID.fromString(message.getString("sessionId")).toString(); failures = 0; android.util.Log.i("SGConnection", "bootstrap_ready") }
                         "open" -> open(message)
                         "close" -> closeStream(message.getString("id"), false)
                         "ack" -> streams[message.getString("id")]?.let { require(it.credit.availablePermits() == 0); it.credit.release() }
                         "data" -> receive(message)
                         else -> error("Protocol rejected")
                     }
-                } catch (_: Exception) { disconnected(webSocket) }
+                } catch (_: Exception) { android.util.Log.w("SGConnection", "bootstrap_frame_rejected"); disconnected(webSocket) }
             }
-            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) { disconnected(webSocket) }
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) { disconnected(webSocket) }
+            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) { android.util.Log.i("SGConnection", "bootstrap_closing code=$code"); disconnected(webSocket) }
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                // Never log throwable messages, URLs, headers or wire content.
+                android.util.Log.w("SGConnection", "bootstrap_failed category=${t.javaClass.simpleName} http=${response?.code ?: 0}")
+                disconnected(webSocket)
+            }
         })
     }
     fun update(snapshot: EndpointDiscoverySnapshot) {

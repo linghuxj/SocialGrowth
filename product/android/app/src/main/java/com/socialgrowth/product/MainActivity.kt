@@ -1253,6 +1253,15 @@ class MainActivity : ComponentActivity() {
 
     private fun startConnectionChecking() {
         // Resuming connection automation is distinct from resuming business participation.
+        // Rechecking alone skips an already running service and never reposts
+        // the notification that Android suppressed before permission was granted.
+        if (EndpointReportingService.running) {
+            runCatching {
+                startService(Intent(this, EndpointReportingService::class.java).setAction(EndpointReportingService.START))
+            }.onFailure {
+                Toast.makeText(this, "连接通知暂未恢复，请稍后再次点击准备配对通知。", Toast.LENGTH_LONG).show()
+            }
+        }
         automaticConnectionMonitor.recheck()
     }
     private fun updateConnectionControl(button: Button, state: InstallationSelfView?) {

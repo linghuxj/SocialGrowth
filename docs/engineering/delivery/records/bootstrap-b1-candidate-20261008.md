@@ -41,3 +41,19 @@
 - 安装启动后，真实 Web 已显示唯一 Samsung 的 bootstrap 连接；数据库有持续端点上报，但当前端口为空、未配对、未连接。此时 USB 仍在，因此只证明新版 App 能主动接通生产 WSS，不计非 USB ADB/Artemis 验收。
 - 可复现生产 UI 脚本：仓库 `scripts/verify-product-executor-console-playwright.mts`、`scripts/verify-product-deployment-playwright.mts`；本次受保护的启动包装及手机准备脚本在 `.runtime/bootstrap-b1-20261007/`，凭据文件不提交 Git。生产证据位于该目录的 `production-console-smoke/`、`production-smoke/`、`production-web/`。
 - 本轮自有本地 Web/backend/executor 已停止，原本地人工占用及业务记录保留。
+
+
+## 通知与断线诊断阶段保存（2026-10-08）
+
+用户要求先提交 Git，再考虑迁移服务器。本节为未完成验收的 dev 阶段保存，不晋级 main，不继续部署或实机排查。
+
+- 修复已运行连接服务在通知授权后未重新发送通知的分支：点击准备/权限回调显式刷新通知，重复 START 仅重发通知，保留当前通道与配对状态；请求前台服务通知立即展示。
+- 添加 `SGConnection` 诊断，仅记录连接阶段、异常类名、HTTP/关闭状态及受限错误码；不记录异常正文、URL、请求/响应内容、令牌或配对码。
+- Android Debug 构建、单元测试和 lint 通过；正式签名候选 `1.0.2-b1.1（5）` 构建通过并覆盖安装 Samsung，保留原数据。APK SHA256：`45bca1270fa49514d520c1470bf022acaa53a519bbeeeee1bdd9b3e2b36e364b`，签名证书与前版一致。APK 和私有诊断证据留在本机，不提交 Git。
+- 手机确认通知权限已允许、服务为前台状态；用户能通过通知输入配对码。但服务器未生成实际配对尝试记录，故不能称为配对码错误或 ADB 配对失败。
+- 诊断候选安装后，生产 WSS 建立并连续上报，01:32:43（北京时间）记录 `SocketTimeoutException`，随后上报返回 `AUTHORIZATION_DENIED`。01:32:48 再次收到连接 ready，但服务器端点记录停留在 01:32:31，说明握手成功不等于恢复持续上报。连接超时与重连后上报未恢复的根因尚未确定。
+- 现有手机启用了 SFA VPN。经用户暂停 SFA 对照，确认无活动 VPN 时该网络下的服务器连接也超时；用户反馈必须启用 VPN 才能正常访问。已请求恢复原 SFA；停止排查时未再次确认其恢复状态。不将当前线路现象推广为所有香港服务器均不能从国内直连，也不把 SFA 直接判为根因。
+- 生产仍为 main `e2b64fb`；本次仅有 Android 与证据文档变动，未改变生产后端、域名或数据。USB 仅用于候选覆盖安装和日志读取，没有通过 USB 创建中心配对信任。
+- 后续应先确认目标用户能直接访问接入入口，再验证通知授权前后、前后台切换、长连接中断恢复，以及非 USB 的通知配对 → 服务器真实核验 → Web/Artemis。新手机无旧信任首次接入仍未验收。
+
+本轮私有检查与签名构建日志位于 `.runtime/bootstrap-notification-20261008/`；最终通知授权场景和连接恢复不能仅凭本地构建/单元测试算通过。

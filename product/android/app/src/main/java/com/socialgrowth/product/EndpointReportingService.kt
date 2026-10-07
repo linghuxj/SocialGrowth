@@ -72,7 +72,12 @@ class EndpointReportingService : Service() {
             shutdown(); return START_NOT_STICKY
         }
         if (stopping) { stopSelf(); return START_NOT_STICKY }
-        if (live.get()) return START_NOT_STICKY
+        if (live.get()) {
+            // The service can predate notification permission. An explicit
+            // prepare/retry must repost it without replacing the live tunnel.
+            refreshNotification()
+            return START_NOT_STICKY
+        }
         try {
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(NotificationChannel("endpoint-reporting", "远程连接检查", NotificationManager.IMPORTANCE_LOW))
@@ -92,6 +97,7 @@ class EndpointReportingService : Service() {
             .setContentTitle("SocialGrowth 正在保持连接")
             .setContentText(pairingFeedback ?: "首次配对：保持系统弹窗打开，在此输入配对码。")
             .setVisibility(Notification.VISIBILITY_PRIVATE).setOnlyAlertOnce(true).setOngoing(true)
+        if (Build.VERSION.SDK_INT >= 31) builder.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
         if (ProviderSessionStore(this).load() != null && !pairing.get()) {
             val reply = PendingIntent.getService(this, 3, Intent(this, EndpointReportingService::class.java).setAction(PAIR), PendingIntent.FLAG_MUTABLE)
             val action = Notification.Action.Builder(null, "输入配对码", reply)
@@ -200,6 +206,7 @@ class EndpointReportingService : Service() {
                 Instant.parse(receipt.getString("acceptedAt"))
                 pending = null; success = true
             } catch (e: ProviderApiException) {
+                if (failures == 0) android.util.Log.w("SGConnection", "report_rejected code=${e.code.takeIf { it.matches(Regex("^[A-Z0-9_]{1,100}$")) } ?: "UNKNOWN"}")
                 if (e.code in setOf("HTTP_409", "FACT_VERSION_STALE")) {
                     epoch = null; pending = null; sequence = 0; epochRequestId = UUID.randomUUID().toString()
                 }
@@ -210,7 +217,9 @@ class EndpointReportingService : Service() {
                     epochRequestId = UUID.randomUUID().toString()
                 }
                 fatal = e.code in setOf("HTTP_401", "HTTP_403", "AUTHENTICATION_REQUIRED", "PILOT_DEVICE_NOT_ALLOWED", "DEVICE_CONNECTION_SCOPE_REJECTED")
-            } catch (_: Exception) { /* No token, body, system cause or pairing code logging. */ }
+            } catch (e: Exception) {
+                if (failures == 0) android.util.Log.w("SGConnection", "report_failed category=${e.javaClass.simpleName}")
+            }
             main.post {
                 busy = false
                 if (!live.get()) return@post
