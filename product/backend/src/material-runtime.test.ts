@@ -31,3 +31,11 @@ test("runtime is nonserializing, missing configuration closes writes, shutdown c
   const configured = new MaterialRuntime(pool, auth, readMaterialRuntimeConfig(env));
   assert.equal(JSON.stringify(configured), "{}"); assert.ok(configured.registry()); configured.onApplicationShutdown();
 });
+
+test("cloud provider is explicit and invalid or partial provider configuration stays closed", () => {
+  assert.equal(readMaterialRuntimeConfig({ ...env, SG_PRODUCT_MATERIAL_PROVIDER: "oss_s3" })?.provider, "oss_s3");
+  assert.equal(readMaterialRuntimeConfig({ ...env, SG_PRODUCT_MATERIAL_PROVIDER: "s3" })?.provider, "s3");
+  for (const input of [{ ...env, SG_PRODUCT_MATERIAL_PROVIDER: "oss" }, { SG_PRODUCT_MATERIAL_PROVIDER: "oss_s3" }]) {
+    assert.throws(() => readMaterialRuntimeConfig(input), e => e instanceof MaterialStorageError && e.code === "CONFIGURATION_REQUIRED");
+  }
+});

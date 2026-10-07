@@ -44,3 +44,6 @@ artifacts/design-qa/
 /.tasks-*
 .codex/
 artifacts/review/
+
+# Protected server deployment configuration
+product/deploy/.env.production

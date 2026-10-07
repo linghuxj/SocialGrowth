@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
-import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetBucketVersioningCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { z } from "zod";
 import { uuidSchema } from "@socialgrowth/product-contracts";
 
@@ -9,6 +9,7 @@ export class MaterialStorageError extends Error {
 }
 const contentType = z.enum(["application/octet-stream", "video/mp4", "image/jpeg", "image/png", "image/webp"]);
 const configSchema = z.strictObject({
+  provider: z.enum(["s3", "oss_s3"]).optional(),
   storageLocationId: uuidSchema, endpoint: z.url(), region: z.string().min(1).max(100).regex(/^[a-z0-9-]+$/),
   bucket: z.string().min(3).max(63).regex(/^[a-z0-9][a-z0-9.-]*[a-z0-9]$/), forcePathStyle: z.boolean(),
   accessKeyId: z.string().min(1), secretAccessKey: z.string().min(1), sessionToken: z.string().min(1).optional(),
@@ -43,10 +44,22 @@ export class MaterialObjectStorage {
     const parsed = parseMaterialStorageConfig(input);
     this.#config = { ...parsed, storageLocationId: parsed.storageLocationId.toLowerCase(), endpoint: new URL(parsed.endpoint).origin };
     const c = this.#config;
-    this.#binding = createHash("sha256").update(JSON.stringify({ endpoint: c.endpoint, region: c.region, bucket: c.bucket, forcePathStyle: c.forcePathStyle })).digest("hex");
+    this.#binding = createHash("sha256").update(JSON.stringify({ endpoint: c.endpoint, region: c.region, bucket: c.bucket, forcePathStyle: c.forcePathStyle,
+      ...(c.provider === "oss_s3" ? { provider: c.provider } : {}) })).digest("hex");
     this.#client = new S3Client({ endpoint: c.endpoint, region: c.region, forcePathStyle: c.forcePathStyle, maxAttempts: 2,
+      ...(c.provider === "oss_s3" ? { requestChecksumCalculation: "WHEN_REQUIRED", responseChecksumValidation: "WHEN_REQUIRED" } : {}),
       // Never fall back to developer ambient credentials/profile/metadata.
       credentials: { accessKeyId: c.accessKeyId, secretAccessKey: c.secretAccessKey, ...(c.sessionToken ? { sessionToken: c.sessionToken } : {}) } });
+    if (c.provider === "oss_s3") this.#client.middlewareStack.add((next, context) => async args => {
+      const request = args.request;
+      if (typeof request !== "object" || request === null || !("headers" in request)
+        || typeof request.headers !== "object" || request.headers === null) throw new MaterialStorageError("STORAGE_UNAVAILABLE");
+      const headers = request.headers as Record<string, string>;
+      // Build precedes signing; buffered bodies avoid OSS-incompatible trailers.
+      headers["x-oss-content-sha256"] = "UNSIGNED-PAYLOAD";
+      if (context.commandName === "PutObjectCommand") headers["x-oss-forbid-overwrite"] = "true";
+      return next(args);
+    }, { step: "build", name: "ossS3Compatibility" });
   }
   close(): void { this.#client.destroy(); }
   binding(): { storageLocationId: string; storageBindingDigest: string; maxObjectBytes: number } {
@@ -68,14 +81,25 @@ export class MaterialObjectStorage {
     const reference = this.validate({ storageLocationId: this.#config.storageLocationId, storageBindingDigest: this.#binding, projectId, objectId,
       key: `projects/${projectId}/objects/${objectId}`, sha256: createHash("sha256").update(body).digest("hex"), bytes: body.length, contentType: parsed.data.contentType });
     try {
+      if (this.#config.provider === "oss_s3") {
+        // OSS ignores forbid-overwrite for both Enabled and Suspended buckets.
+        // An unreadable or unknown versioning setting closes PUT.
+        const versioning = await this.#client.send(new GetBucketVersioningCommand({ Bucket: this.#config.bucket }),
+          { abortSignal: AbortSignal.timeout(this.#config.requestTimeoutMs) });
+        if (versioning.Status !== undefined) throw new MaterialStorageError("CONFIGURATION_REQUIRED");
+      }
       await this.#client.send(new PutObjectCommand({ Bucket: this.#config.bucket, Key: reference.key, Body: body,
-        ContentLength: reference.bytes, ContentType: reference.contentType, ChecksumSHA256: Buffer.from(reference.sha256, "hex").toString("base64"), IfNoneMatch: "*" }),
+        ContentLength: reference.bytes, ContentType: reference.contentType,
+        ...(this.#config.provider === "oss_s3" ? { ContentMD5: createHash("md5").update(body).digest("base64") }
+          : { ChecksumSHA256: Buffer.from(reference.sha256, "hex").toString("base64"), IfNoneMatch: "*" }) }),
       { abortSignal: AbortSignal.timeout(this.#config.requestTimeoutMs) });
     } catch (error) {
+      if (error instanceof MaterialStorageError) throw error;
       const status = typeof error === "object" && error !== null && "$metadata" in error && typeof error.$metadata === "object" && error.$metadata !== null && "httpStatusCode" in error.$metadata ? error.$metadata.httpStatusCode : null;
-      if (status !== 412) throw new MaterialStorageError("STORAGE_UNAVAILABLE", true);
+      const ossConflict = this.#config.provider === "oss_s3" && status === 409 && error instanceof Error && error.name === "FileAlreadyExists";
+      if (!(this.#config.provider !== "oss_s3" && status === 412) && !ossConflict) throw new MaterialStorageError("STORAGE_UNAVAILABLE", true);
       // An earlier same-ID write may have succeeded with its response lost.
-      // 412 alone is NOT success: verify full bytes + size + declared type.
+      // A conflict alone is NOT success: verify full bytes + size + declared type.
       try { await this.readVerified(reference); }
       catch (e) { if (e instanceof MaterialStorageError && e.code === "OBJECT_INTEGRITY_FAILED") throw new MaterialStorageError("OBJECT_CONFLICT"); throw e; }
       return reference;
