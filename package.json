@@ -33,7 +33,9 @@
     "executor:check-artemis": "node --env-file=.env.agent --import tsx product/executor/src/runtime/check-artemis.ts",
     "executor:check-apps": "node --env-file=.env.agent --import tsx product/executor/src/runtime/check-apps.ts",
     "test:executor": "pnpm --filter @socialgrowth/product-executor test",
-    "check:layout": "node scripts/check-product-layout.mjs"
+    "check:layout": "node scripts/check-product-layout.mjs",
+    "config:check": "tsx scripts/check-product-config.mts",
+    "test:config": "tsx --test scripts/product-config.test.mts"
   },
   "devDependencies": {
     "@types/node": "22.20.4",

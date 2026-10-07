@@ -6,7 +6,10 @@
 !.npmrc
 !scripts/
 !scripts/create-product-media-key-file.mjs
+!scripts/artemis-business-model.py
 !product/
+!product/executor/
+!product/executor/**
 !product/backend/
 !product/backend/**
 !product/contracts/
