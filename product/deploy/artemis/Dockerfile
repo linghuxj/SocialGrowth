@@ -32,3 +32,7 @@ RUN git apply --check /tmp/google-client.patch && git apply /tmp/google-client.p
 # Remote helper health probes need a configurable round-trip budget.
 COPY helper-timeout.patch /tmp/helper-timeout.patch
 RUN git apply --check /tmp/helper-timeout.patch && git apply /tmp/helper-timeout.patch && rm /tmp/helper-timeout.patch
+
+# Bound initial planning only in the Web-authorized phone initialization task.
+COPY planner-budget.patch /tmp/planner-budget.patch
+RUN git apply --check /tmp/planner-budget.patch && git apply /tmp/planner-budget.patch && rm /tmp/planner-budget.patch

@@ -231,6 +231,7 @@ export class Supervision {
     if (input.category === "read") return { allowed: true, state: c.state };
     requireFact(c.state === "active", "AGENT_ACTIONS_FROZEN");
     requireFact(c.policy.mode !== "observe", "OBSERVE_ONLY");
+    requireFact(!c.policy.allowPhoneInitialization || !!c.installAttempts, "PHONE_PREPARATION_REQUIRED_BEFORE_NAVIGATION");
     if (c.policy.mode === "client_test" || c.policy.mode === "connectivity_test") {
       requireFact(input.category === "navigate", "CLIENT_TEST_ACTION_NOT_AUTHORIZED");
     }

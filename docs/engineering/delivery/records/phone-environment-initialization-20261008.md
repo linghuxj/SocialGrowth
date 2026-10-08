@@ -113,3 +113,14 @@ SFA／FlClash 已上传到已有私有 OSS 并通过服务器完整 GET 的 SHA-
 可复现的本轮操作保存在受保护 `.runtime/phone-multi-20261009/operate-phone.mts`，通过实际 Web 登录、查询、点击续接和观察，没有直接 API 写入或数据库清锁。`SG_PHONE_OPERATION=resume` 执行本次已授权续接；`observe` 仅查询原任务。运行环境沿用受保护运营登录文件、固定 Samsung 产品设备编号和本轮 SSH 浏览器代理；操作脚本不是验收套件。自动启动恢复分支尚未通过故障注入或多台实机验证，不能从本次明确 Web 续接宣称这些项已验收。
 
 本次 Artemis data engine 已在新会话开始后保存初始手机观察图（会话开始 2026-10-09 07:23:08、观察图 07:23:41，北京时间），此前失败 trace 没有对应初始观察图。这证明新引擎已越过首次屏幕获取；记录步骤仍为 0，尚不能证明模型已执行可信准备工具或安装应用。
+
+
+## 初始化未推进的后续检查与修订（2026-10-09）
+
+用户要求继续检查，并在未正常执行时先部署再重测；此次重新授权仅覆盖手机环境初始化。任务 6cb2dd24 于北京时间 07:37:10 结束，UNCONFIRMED／EXECUTION_TIMEOUT_OR_CANCELLED，SDK 为 cancelled，进程已退出。Planner 耗时约 750 秒，包含模型超时重试及 fallback；stderr 有 Gemini 503 high demand。期间仅生成／核对笔记，未调用 prepare_phone_environment。最终有一个实际导航步骤：点击正式 Android App 的“手机准备”按钮；当前 UI tree、目标 package、按钮 bounds 与 dispatched 记录一致。无 install_started，安装尝试为 0；原占用和失败回执保留。此前 running／首次截图不能证明初始化正常推进。
+
+修订固定初始化指令：中心已核验的关联、硬件及权限不再要求模型重复审计，初始截图即观察输入；先一次调用可信准备工具，由其检查并保留已安装 App，再执行返回的配置和核验说明。监督层在可信准备前拒绝导航。Artemis 的 phone-initialization 专用环境只把 Planner 的每轮笔记迭代由 10 限为 2，保留三轮规划校验和 Pro／Google 模型、动作防护及真实 checkpoint，不影响其他任务。
+
+增加显式 Web 续接的严格证据分支：仅原任务 EXECUTION_TIMEOUT_OR_CANCELLED、SDK cancelled／有结束时间／进程退出、stopped 回执、无安装尝试、无业务或协助未决、全部设备锁释放时核验。SDK 记录必须无动作，或唯一动作是已有正式 App 的“手机准备”导航（实际 UI package／按钮 bounds、成功 dispatched 与监督导航数一致）；任何其他点击、配置、安装、缺失／不一致证据仍拒绝。该分支不自动重发，恢复计数计入原最多两次限制；原 UNCONFIRMED 保留，不伪造归档或补写旧事件。
+
+本轮补充检查：执行器类型检查通过；39 项现有监督／Web 核验单元检查通过，覆盖准备前导航拒绝、准备期间冻结及一次工具限制。它们不证明真机初始化成功。候选部署和真实 Web／Artemis 重测结果在下文补记。

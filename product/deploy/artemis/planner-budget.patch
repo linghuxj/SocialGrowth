@@ -1,0 +1,12 @@
+diff --git a/artemis/agents/planner/planner.py b/artemis/agents/planner/planner.py
+--- a/artemis/agents/planner/planner.py
++++ b/artemis/agents/planner/planner.py
+@@ -16,2 +16,3 @@
+ import json
++import os
+ from pathlib import Path
+@@ -310,2 +311,3 @@
+         max_validation_attempts = 3
+-        max_iterations = 10
++        # Web phone preparation has one fixed next tool; avoid a long plan loop.
++        max_iterations = 2 if os.environ.get("SG_PHONE_INITIALIZATION") == "1" else 10

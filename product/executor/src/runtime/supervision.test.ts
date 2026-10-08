@@ -350,6 +350,7 @@ test("phone preparation uses its bound native capability once, freezes actions, 
     const s = human.open({ taskId: randomUUID(), deviceId: "phone", serial: "RFC_TEST", packageName: "com.socialgrowth.product",
       expectedIdentity: "phone preparation", mode: "diagnostic", expiresAt: new Date(Date.now() + 60000).toISOString(),
       policy: { mode: "connectivity_test", allowPhoneInitialization: true, allowLogin: false } });
+    assert.throws(() => human.supervision.gate(s.sessionId, { action: "click", category: "navigate" }), /PHONE_PREPARATION_REQUIRED_BEFORE_NAVIGATION/);
     await assert.rejects(human.supervision.ensureApp(s.sessionId, async () => "unexpected"), /INSTALL_NOT_AUTHORIZED/);
     assert.equal(await human.supervision.preparePhone(s.sessionId, async () => {
       assert.equal(human.supervision.get(s.sessionId).state, "waiting");
@@ -357,6 +358,7 @@ test("phone preparation uses its bound native capability once, freezes actions, 
       return "trusted preparation completed";
     }), "trusted preparation completed");
     assert.equal(human.supervision.get(s.sessionId).state, "active");
+    assert.equal(human.supervision.gate(s.sessionId, { action: "click", category: "navigate" }).allowed, true);
     await assert.rejects(human.supervision.preparePhone(s.sessionId, async () => "replay"), /INSTALL_BUDGET_EXHAUSTED/);
   } finally { human.close(); store.close(); }
 });

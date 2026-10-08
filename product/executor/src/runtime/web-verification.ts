@@ -69,7 +69,7 @@ type Job = Input & {
   initializationRootRequestId?: string;
   initializationStartupRecoveryCount?: number;
   previousInitializationId?: string;
-  initializationRecovery?: { at: string; traceId: string; serial: string; evidence: "engine_failed_before_actions_and_locks_released"; successorId: string };
+  initializationRecovery?: { at: string; traceId: string; serial: string; evidence: "engine_failed_before_actions_and_locks_released" | "engine_stopped_before_preparation_and_locks_released"; successorId: string };
 };
 const resultSchema = z.object({
   resultCode: z.enum([
@@ -138,7 +138,7 @@ export class WebVerification {
     private assistance: HumanAssistance,
     private config?: VerificationConfig,
     private ports: {
-      client: (root: string, scope: { url: string; token: string; deviceId: string; serial: string }) => ClientPort;
+      client: (root: string, scope: { url: string; token: string; deviceId: string; serial: string; phoneInitialization?: boolean }) => ClientPort;
       device: DevicePort;
     } = {
       client: (root: string, scope: { url: string; token: string; deviceId: string; serial: string }) => new ArtemisMcp(root, scope),
@@ -243,7 +243,7 @@ export class WebVerification {
         const stopped = events.some(e => e.sessionId === control!.sessionId && e.type === "stopped" && Date.parse(e.at) <= Date.parse(original.finishedAt!));
         closedWithoutStop = !stopped;
         requireFact((stopped || (control?.state === "closed" && events.some(e => e.sessionId === control.sessionId && e.type === "opened" && Date.parse(e.at) <= Date.parse(original.finishedAt!))))
-          && events.every(e => ["opened", "stopped"].includes(e.type)), "PHONE_ACTIONS_CANNOT_BE_REPLAYED");
+          && events.every(e => ["opened", "stopped"].includes(e.type) || !automatic && original.errorCode === "EXECUTION_TIMEOUT_OR_CANCELLED" && e.type === "action_permitted" && e.code === "navigate"), "PHONE_ACTIONS_CANNOT_BE_REPLAYED");
         requireFact(!this.assistance.supervision.requests().some(r => r.deviceId === target.deviceId && ["waiting", "responded", "claimed"].includes(r.status)), "SUPERVISION_REQUEST_ACTIVE");
         requireFact(!this.assistance.list().some(c => c.deviceId === target.deviceId && ["waiting", "submitted", "claimed"].includes(c.status)), "ASSISTANCE_REQUEST_ACTIVE");
         requireFact(!this.store.db.prepare("SELECT 1 FROM tasks WHERE device IN (?,?,?,?) AND status IN ('queued','running','unknown','blocked')").get(target.deviceId, serial, target.serial, target.hardwareSerial), "DEVICE_UNRESOLVED_TASK");
@@ -252,12 +252,12 @@ export class WebVerification {
       };
       assertStopped();
       await client.connect();
-      const status = z.object({ trace_id: z.literal(original.traceId!), device_serial: z.literal(serial), status: z.literal("failed"), error: z.string() }).passthrough()
+      const status = z.object({ trace_id: z.literal(original.traceId!), device_serial: z.literal(serial), status: z.enum(["failed", "cancelled"]), error: z.string() }).passthrough()
         .parse(await client.call("mobile_manage_task", { trace_id: original.traceId, action: "status" }, 10000));
       const exec = promisify(execFile);
-      const modelTimeout = /^TimeoutError: LLM call timed out after [0-9]+ seconds\./.test(status.error) && !original.initializationRootRequestId;
+      const modelTimeout = status.status === "failed" && /^TimeoutError: LLM call timed out after [0-9]+ seconds\./.test(status.error) && !original.initializationRootRequestId;
       let startupFailure = false;
-      if (/^(?:DeviceOfflineError|HelperUnavailable):/.test(status.error)) {
+      if (status.status === "failed" && /^(?:DeviceOfflineError|HelperUnavailable):/.test(status.error)) {
         // A failed attach with an empty agent trace proves the model never began
         // device work. Supervision/install checks above remain mandatory. Read
         // the engine's own archived files, never a caller-provided trace path.
@@ -265,7 +265,33 @@ export class WebVerification {
         const evidence = await exec(resolve(artemisRoot, ".venv/bin/python"), ["-c", code, original.traceId!], { cwd: artemisRoot, timeout: 5000, maxBuffer: 1024 });
         startupFailure = z.object({ emptyStartupTrace: z.literal(true) }).strict().safeParse(JSON.parse(evidence.stdout)).success;
       }
-      requireFact(startupFailure || (!automatic && modelTimeout && !closedWithoutStop), "PHONE_NO_ACTION_RECOVERY_EVIDENCE_REQUIRED");
+      let observationOnlyTimeout = false;
+      if (!automatic && !closedWithoutStop && original.errorCode === "EXECUTION_TIMEOUT_OR_CANCELLED" && status.status === "cancelled") {
+        // The stopped engine may have opened the product's preparation page.
+        // Accept only that exact observed navigation, never configuration taps.
+        const code = `import json,sys,sqlite3,re
+from pathlib import Path
+from artemis.config.paths import get_data_engine_db_path
+from artemis.runtime import trace_store
+from artemis.runtime.process_probe import pid_is_alive
+trace=sys.argv[1]
+state=json.loads((Path(trace_store.TRACES_DIR)/trace/'status.json').read_text())
+db=sqlite3.connect('file:'+str(get_data_engine_db_path())+'?mode=ro',uri=True)
+rows=db.execute('SELECT action_taken,last_execution_result,pre_image_name FROM steps WHERE session_id=?',(trace,)).fetchall()
+def harmless(row):
+    actions=json.loads(row[0]); result=json.loads(row[1])
+    tree=db.execute('SELECT ui_tree FROM images WHERE image_name=?',(row[2],)).fetchone()
+    nodes=json.loads(tree[0]) if tree else []
+    return len(actions)==1 and actions[0].get('action')=='tap' and actions[0].get('times')==1 and actions[0].get('target_text')=='手机准备' and result.get('status')=='dispatched' and result.get('incident') is None and result.get('execution')==actions and any(n.get('package')=='com.socialgrowth.product' and n.get('text')=='手机准备' and n.get('class')=='android.widget.Button' and [int(v) for v in re.findall(r'\\d+',n.get('bounds',''))]==actions[0].get('target_bounds') for n in nodes)
+# No installation tool, missing session or living runner can be treated as proof.
+session=db.execute('SELECT 1 FROM sessions WHERE session_id=?',(trace,)).fetchone()
+prepared=db.execute("SELECT 1 FROM traces WHERE session_id=? AND type='tool' AND name IN ('prepare_phone_environment','ensure_trusted_app')",(trace,)).fetchone()
+print(json.dumps({'observationOnlyTimeout':bool(session) and state.get('status')=='cancelled' and bool(state.get('end_time')) and not pid_is_alive(state.get('pid')) and not prepared and len(rows)==int(sys.argv[2]) and len(rows)<=1 and all(harmless(r) for r in rows)}))`;
+        const navigationCount = this.assistance.supervision.events().filter(e => e.taskId === id && e.type === "action_permitted").length;
+        const evidence = await exec(resolve(artemisRoot, ".venv/bin/python"), ["-c", code, original.traceId!, String(navigationCount)], { cwd: artemisRoot, timeout: 5000, maxBuffer: 1024 });
+        observationOnlyTimeout = z.object({ observationOnlyTimeout: z.literal(true) }).strict().safeParse(JSON.parse(evidence.stdout)).success;
+      }
+      requireFact(startupFailure || (!automatic && modelTimeout && !closedWithoutStop) || observationOnlyTimeout, "PHONE_NO_ACTION_RECOVERY_EVIDENCE_REQUIRED");
       // Enumerate every endpoint scope: a 5037-only lookup could miss the
       // isolated 5038 executor's owner or a queued task for the same phone.
       const code = "import json,sys; from artemis.runtime.device_lock import DeviceExecutionLock; aliases=set(sys.argv[1:]); owners=DeviceExecutionLock.get_active_owners().values(); queued=DeviceExecutionLock.get_queued_tasks(); print(json.dumps({'active':any(o.device_id in aliases for o in owners) or any(q.get('device_id') in aliases|{'default','pending','any'} for q in queued)}))";
@@ -284,9 +310,9 @@ export class WebVerification {
           caption: "自动准备可信客户端、单 VPN 网络及管理通道；不执行业务", acknowledgeNoPublication: true },
           { artemisRoot, runtimeUrl, deviceId: target.deviceId, serial: target.serial, bootstrap: { hardwareSerial: target.hardwareSerial, sessionId: target.sessionId },
             initialization: { manifestPath, wirelessPort: target.wirelessPort, rootRequestId: target.requestId, previousJobId: original.id,
-              startupRecoveryCount: startupRecoveryCount + (startupFailure ? 1 : 0) } });
+              startupRecoveryCount: startupRecoveryCount + (startupFailure || observationOnlyTimeout ? 1 : 0) } });
         this.update({ ...original, initializationRecovery: { at: new Date().toISOString(), traceId: original.traceId!, serial,
-          evidence: "engine_failed_before_actions_and_locks_released", successorId: successor.id } });
+          evidence: observationOnlyTimeout ? "engine_stopped_before_preparation_and_locks_released" : "engine_failed_before_actions_and_locks_released", successorId: successor.id } });
         return successor;
       });
     } finally { this.recoveryOperations.delete(target.deviceId); await client.close().catch(() => {}); }
@@ -492,7 +518,7 @@ export class WebVerification {
           progress("configuring_network");
           return { instructions: preparation.instructions, appsVerified: true };
         };
-        client = this.ports.client(cfg.artemisRoot, { url: cfg.runtimeUrl, token, deviceId: cfg.deviceId, serial: cfg.serial });
+        client = this.ports.client(cfg.artemisRoot, { url: cfg.runtimeUrl, token, deviceId: cfg.deviceId, serial: cfg.serial, phoneInitialization: true });
         this.active.get(job.id)!.client = client;
         deadline = Date.now() + 840000;
       }
@@ -523,7 +549,7 @@ export class WebVerification {
             verification_level: cfg.initialization || job.mode === "connectivity_test" && (job.goal.includes("VERIFY_OFFLINE_GUIDE_ONLY") || job.goal.includes("VERIFY_ANDROID_CONNECTION_UI") || job.goal.includes("VERIFY_AUTOMATIC_CONNECTION") || job.goal.includes("VERIFY_PHONE_NETWORK_COEXISTENCE") || job.goal.includes("CHECK_NETWORK_PREPARATION_GUIDE")) ? "checkpoints" : "final",
             task_desc:
               cfg.initialization
-                ? `${networkPreparationInstructions("initialize_phone_environment")}\nFirst observe the actual phone and app readiness. Then call prepare_phone_environment EXACTLY ONCE inside THIS Artemis task. The trusted tool checks the approved catalog, downloads missing apps DIRECTLY from private OSS/S3 to the phone, verifies hashes/signatures/versions/splits, installs without replacing existing apps, and delivers scoped private configuration. Never supply URLs or secrets. Wait for the tool; never issue another device action concurrently. On any failure STOP UNCONFIRMED, no retry, shell, store or alternative download. After appsVerified=true, follow ONLY the returned instructions and perform the FOUR independent actual-screen checkpoints. Request human assistance only for owner system consent or a real blocker.`
+                ? `${networkPreparationInstructions("initialize_phone_environment")}\nThe server has ALREADY verified enrollment, current hardware, exclusive control and approved preparation scope. Do not audit enrollment again or write enrollment reports. Planner: write ONE compact task_plan, with prepare_phone_environment as the first operator step; do not reread/revise notes before execution. The initial screenshot is the required observation. Operator: call prepare_phone_environment EXACTLY ONCE as your FIRST tool before any navigation, even when apps already exist; the tool inspects and preserves them. The trusted tool checks the approved catalog, downloads missing apps DIRECTLY from private OSS/S3 to the phone, verifies hashes/signatures/versions/splits, installs without replacing existing apps, and delivers scoped private configuration. Never supply URLs or secrets. Wait for the tool; never issue another device action concurrently. On any failure STOP UNCONFIRMED, no retry, shell, store or alternative download. After appsVerified=true, follow ONLY the returned instructions and perform the FOUR independent actual-screen checkpoints. Request human assistance only for owner system consent or a real blocker.`
                 : cfg.bootstrap
                 ? `ONE Web-authorized first-phone preparation over THIS exact authenticated reverse ADB transport. Do not switch transport, stop SocialGrowth, close its ongoing notification, disable Wi-Fi or wireless debugging, or re-pair. Only use Artemis visual decisions and ordinary UI in SocialGrowth, launcher, system installer/settings, browser, SFA and FlClash. No shell, arbitrary downloads, credentials in notes, business apps, media accounts, login, publishing, or participation changes. First inspect which required network clients are installed and the SocialGrowth initial-connection status. Use the existing SFA single-VPN plus FlClash non-VPN design; never activate two VPN services or use an exit node. If verified installation packages or device-specific configuration are absent, request human assistance in this same task with the precise missing item; use only operator-supplied verified package/config references, do not search for substitutes or invent configuration. Install/configure SFA and FlClash only within that supplied scope, preserving existing configurations and business unknowns. The phone owner must perform system installation/VPN consent that needs their action; request human assistance and wait. Never disclose or persist access keys, subscription URLs or clipboard content. Verify the clients' actual status with current screenshots. Keep bootstrap connected throughout preparation. Do not terminate it or claim management handoff, formal admission, business readiness or successful recovery; these need independent server verification. If the connection or device authority is lost stop UNCONFIRMED. End with exact JSON {"resultCode":"CONNECTIVITY_SETUP_COMPLETED" or "UNCONFIRMED","loginSubmitCount":0,"finalSubmitClicked":false}, based only on observed setup, and save the same secret-free JSON in connectivity-test-result.`
                 : job.mode === "connectivity_test" && job.goal.includes("VERIFY_PHONE_NETWORK_COEXISTENCE")
