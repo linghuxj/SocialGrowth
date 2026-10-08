@@ -4,6 +4,9 @@ services:
     environment:
       SG_PRODUCT_PHONE_INITIALIZATION_ENABLED: ${SG_PRODUCT_PHONE_INITIALIZATION_ENABLED:-false}
   executor:
+    # adb treats ADB_SERVER_SOCKET as an already-running remote daemon and
+    # cannot start it automatically. Start only this isolated local daemon.
+    command: ["/bin/sh", "-ec", "env -u ADB_SERVER_SOCKET adb -P 5038 start-server; exec node dist/main.js"]
     environment:
       # Separate ADB transport from backend health probes. A slow APK transfer
       # must not cause a probe timeout to disconnect the execution stream.
