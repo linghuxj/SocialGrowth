@@ -1,7 +1,7 @@
 {
   "repository": "https://github.com/google/artemis.git",
   "upstreamRevision": "351ca8422f7b5b54e80a9c1ce03a222e02415b6b",
-  "patchSha256": "6dff956c2bc6c908627de31a366711e678808c542fe5cf71ca0d1e7678865654",
+  "patchSha256": "6021b8ed8e3eefa6fc9beee81d629553d83c79233ee0ecedc88434faca1c2519",
   "python": "3.12",
   "uv": "0.5.11",
   "secretsInImage": false,

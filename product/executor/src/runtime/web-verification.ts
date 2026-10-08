@@ -124,7 +124,7 @@ export async function nativeDiagnosticEnvelope(raw: unknown, root: string, trace
 export class WebVerification {
   private active = new Map<
     string,
-    { client?: ArtemisPort; promise: Promise<void>; cancelled: boolean; cancelReason?: string }
+    { client?: ArtemisPort; promise: Promise<void>; cancelled: boolean; cancelReason?: string; preparePhone?: () => Promise<{ instructions: string; appsVerified: true }> }
   >();
   constructor(
     private store: RuntimeStore,
@@ -301,6 +301,14 @@ export class WebVerification {
       .finally(() => this.active.delete(job.id));
     return job;
   }
+  async preparePhoneEnvironment(token: string) {
+    const session = this.assistance.session(token), control = this.assistance.supervision.get(session.id);
+    requireFact(session.scope.mode === "diagnostic" && session.scope.packageName === "com.socialgrowth.product"
+      && control.policy.mode === "connectivity_test" && control.policy.allowPhoneInitialization, "PHONE_INITIALIZATION_NOT_AUTHORIZED");
+    const active = this.active.get(session.scope.taskId);
+    requireFact(active?.preparePhone && !active.cancelled, "PHONE_INITIALIZATION_NOT_ACTIVE");
+    return this.assistance.supervision.preparePhone(session.id, active!.preparePhone!);
+  }
   private async execute(
     job: Job,
     cfg: VerificationConfig,
@@ -322,7 +330,7 @@ export class WebVerification {
           // Initial enrollment is exclusive. Clear only an offline cached entry
           // on this executor daemon before connecting its trusted target.
           const state = await exec("adb", ["-s", cfg.serial, "get-state"], { timeout: 8000, maxBuffer: 8192 }).catch(() => null);
-          if (state?.stdout.trim() !== "device") await exec("adb", ["disconnect", cfg.serial], { timeout: 8000, maxBuffer: 8192 });
+          if (state?.stdout.trim() !== "device") await exec("adb", ["disconnect", cfg.serial], { timeout: 8000, maxBuffer: 8192 }).catch(() => {});
         }
         await exec("adb", ["connect", cfg.serial], { timeout: 8000, maxBuffer: 8192 });
         const hardware = await exec("adb", ["-s", cfg.serial, "shell", "getprop", "ro.serialno"], { timeout: 8000, maxBuffer: 8192 });
@@ -346,16 +354,22 @@ export class WebVerification {
           }, 15000).unref();
         }
       }
-      if (cfg.initialization) preparation = await initializer!.prepare({ deviceId: cfg.deviceId, serial: cfg.serial, hardwareSerial: cfg.bootstrap!.hardwareSerial, requestId: job.requestId });
       if (cfg.initialization) {
         requireFact(!this.active.get(job.id)?.cancelled, "CANCELLED");
-        // APK transport may be slow. Only open the bounded UI capability once
-        // deterministic installation and private delivery have finished.
+        // One Artemis task owns inspection, trusted download/install and UI setup.
         const session = this.assistance.open({ taskId: job.id, deviceId: cfg.deviceId, serial: cfg.serial,
           packageName: "com.socialgrowth.product", expectedIdentity: `${job.expectedName} / socialgrowth com.socialgrowth.product (diagnostic only)`,
           expiresAt: new Date(Date.now() + 900000).toISOString(), mode: "diagnostic",
-          policy: { mode: "connectivity_test", allowPhoneInitialization: true, allowLogin: false } });
+          policy: { mode: "connectivity_test", allowPhoneInitialization: true, allowTrustedInstall: false, allowLogin: false } });
         token = session.token;
+        this.active.get(job.id)!.preparePhone = async () => {
+          const authorize = () => {
+            const control = this.assistance.supervision.get(session.sessionId);
+            requireFact(!this.active.get(job.id)?.cancelled && control.state === "waiting" && control.reason === "TRUSTED_INSTALL_RUNNING", "PHONE_PREPARATION_STOPPED");
+          };
+          preparation = await initializer!.prepare({ deviceId: cfg.deviceId, serial: cfg.serial, hardwareSerial: cfg.bootstrap!.hardwareSerial, requestId: job.requestId }, authorize);
+          return { instructions: preparation.instructions, appsVerified: true };
+        };
         client = this.ports.client(cfg.artemisRoot, { url: cfg.runtimeUrl, token });
         this.active.get(job.id)!.client = client;
         deadline = Date.now() + 840000;
@@ -386,7 +400,7 @@ export class WebVerification {
             verification_level: cfg.initialization || job.mode === "connectivity_test" && (job.goal.includes("VERIFY_OFFLINE_GUIDE_ONLY") || job.goal.includes("VERIFY_ANDROID_CONNECTION_UI") || job.goal.includes("VERIFY_AUTOMATIC_CONNECTION") || job.goal.includes("VERIFY_PHONE_NETWORK_COEXISTENCE") || job.goal.includes("CHECK_NETWORK_PREPARATION_GUIDE")) ? "checkpoints" : "final",
             task_desc:
               cfg.initialization
-                ? `${networkPreparationInstructions("initialize_phone_environment")}\n${preparation!.instructions}`
+                ? `${networkPreparationInstructions("initialize_phone_environment")}\nFirst observe the actual phone and app readiness. Then call prepare_phone_environment EXACTLY ONCE inside THIS Artemis task. The trusted tool checks the approved catalog, downloads missing apps DIRECTLY from private OSS/S3 to the phone, verifies hashes/signatures/versions/splits, installs without replacing existing apps, and delivers scoped private configuration. Never supply URLs or secrets. Wait for the tool; never issue another device action concurrently. On any failure STOP UNCONFIRMED, no retry, shell, store or alternative download. After appsVerified=true, follow ONLY the returned instructions and perform the FOUR independent actual-screen checkpoints. Request human assistance only for owner system consent or a real blocker.`
                 : cfg.bootstrap
                 ? `ONE Web-authorized first-phone preparation over THIS exact authenticated reverse ADB transport. Do not switch transport, stop SocialGrowth, close its ongoing notification, disable Wi-Fi or wireless debugging, or re-pair. Only use Artemis visual decisions and ordinary UI in SocialGrowth, launcher, system installer/settings, browser, SFA and FlClash. No shell, arbitrary downloads, credentials in notes, business apps, media accounts, login, publishing, or participation changes. First inspect which required network clients are installed and the SocialGrowth initial-connection status. Use the existing SFA single-VPN plus FlClash non-VPN design; never activate two VPN services or use an exit node. If verified installation packages or device-specific configuration are absent, request human assistance in this same task with the precise missing item; use only operator-supplied verified package/config references, do not search for substitutes or invent configuration. Install/configure SFA and FlClash only within that supplied scope, preserving existing configurations and business unknowns. The phone owner must perform system installation/VPN consent that needs their action; request human assistance and wait. Never disclose or persist access keys, subscription URLs or clipboard content. Verify the clients' actual status with current screenshots. Keep bootstrap connected throughout preparation. Do not terminate it or claim management handoff, formal admission, business readiness or successful recovery; these need independent server verification. If the connection or device authority is lost stop UNCONFIRMED. End with exact JSON {"resultCode":"CONNECTIVITY_SETUP_COMPLETED" or "UNCONFIRMED","loginSubmitCount":0,"finalSubmitClicked":false}, based only on observed setup, and save the same secret-free JSON in connectivity-test-result.`
                 : job.mode === "connectivity_test" && job.goal.includes("VERIFY_PHONE_NETWORK_COEXISTENCE")
@@ -533,6 +547,7 @@ STOP with Share now visible and UNTOUCHED. Never publish, upload, schedule, expl
             requireFact(verified.success, "PREFLIGHT_VERIFICATION_INCOMPLETE");
           }
           if (cfg.initialization && result.resultCode === "CONNECTIVITY_SETUP_COMPLETED") {
+            requireFact(preparation, "PHONE_PREPARATION_TOOL_REQUIRED");
             // A task report cannot prove transport stability. Observe the same hardware
             // independently throughout the configured bounded window; never USB fallback.
             const management = await initializer!.managementTarget(job.requestId, cfg.initialization.wirelessPort, cfg.bootstrap!.hardwareSerial);

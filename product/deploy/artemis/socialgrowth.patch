@@ -66,7 +66,7 @@ diff --git a/artemis/agents/operator/operator.py b/artemis/agents/operator/opera
 index d245362..fdf4e21 100644
 --- a/artemis/agents/operator/operator.py
 +++ b/artemis/agents/operator/operator.py
-@@ -58,6 +58,13 @@ from third_party.mobile_use.utils.logger import get_logger
+@@ -58,6 +58,14 @@ from third_party.mobile_use.utils.logger import get_logger
  logger = get_logger(__name__)
  
  DEFERRING_TOOLS = {
@@ -77,6 +77,7 @@ index d245362..fdf4e21 100644
 +    "report_task_blocked",
 +    "finish_observation_task",
 +    "ensure_trusted_app",
++    "prepare_phone_environment",
      "ask_diagnoser",
      "video_analyzer",
      "read_note",
@@ -556,10 +557,9 @@ index 0000000..4d5ddd3
 +        pass
 diff --git a/artemis/tools/socialgrowth_supervision.py b/artemis/tools/socialgrowth_supervision.py
 new file mode 100644
-index 0000000..bfb7cc6
 --- /dev/null
 +++ b/artemis/tools/socialgrowth_supervision.py
-@@ -0,0 +1,287 @@
+@@ -0,0 +1,302 @@
 +"""SocialGrowth runtime gate. No credentials in model tools or device action metadata."""
 +import asyncio
 +import base64
@@ -578,7 +578,7 @@ index 0000000..bfb7cc6
 +from artemis.drivers.factory import get_driver
 +
 +READ_ACTIONS = {"observe_screen", "take_screenshot", "get_ui_hierarchy", "wait_for_delay", "wait_for_text"}
-+SAFE_TOOLS = {"read_note", "list_notes", "save_note", "append_note", "update_note", "human_password_input", "human_otp_input", "request_human_assistance", "revalidate_human_assistance", "report_task_blocked", "finish_observation_task", "ensure_trusted_app"}
++SAFE_TOOLS = {"read_note", "list_notes", "save_note", "append_note", "update_note", "human_password_input", "human_otp_input", "request_human_assistance", "revalidate_human_assistance", "report_task_blocked", "finish_observation_task", "ensure_trusted_app", "prepare_phone_environment"}
 +
 +
 +def enabled() -> bool:
@@ -616,6 +616,8 @@ index 0000000..bfb7cc6
 +    native = scope["control"]["policy"]["mode"] in {"client_test", "connectivity_test"} and scope["packageName"] == "com.socialgrowth.product"
 +    permitted_actions = set(action_names) - ({"manage_app"} if native else set())
 +    permitted_helpers = SAFE_TOOLS - ({"human_password_input", "human_otp_input", "ensure_trusted_app"} if native else set())
++    if not (native and scope["control"]["policy"].get("allowPhoneInitialization") is True):
++        permitted_helpers.discard("prepare_phone_environment")
 +    # Unknown tools, shell, ADB, delegated executors and code execution have no bypass.
 +    return [t for t in tools if t.name.split(":")[-1] in permitted_helpers | permitted_actions]
 +
@@ -834,6 +836,19 @@ index 0000000..bfb7cc6
 +        except Exception:
 +            return "OBSERVATION_RESULT_REJECTED: cannot prove completion."
 +
++    async def prepare_phone_environment() -> str:
++        """After observing the connected phone, run the Web-authorized trusted preparation
++        ONCE in this task. Downloads missing approved apps directly from OSS/S3 to phone,
++        checks bytes/signatures/versions/splits, installs and delivers scoped configuration.
++        No arguments, URLs, keys or package choices. Wait; no concurrent device actions.
++        On success follow returned instructions for UI configuration and FOUR checkpoints.
++        On failure STOP UNCONFIRMED; do not retry, use shell, stores or other downloads.
++        """
++        try:
++            return json.dumps(await asyncio.to_thread(request, "prepare-phone", {}, 780))
++        except Exception:
++            return "PHONE_PREPARATION_UNCONFIRMED: stop and inspect original Web task; no retry."
++
 +    async def ensure_trusted_app() -> str:
 +        """If target App is missing, ask runtime to install ONLY its pre-approved signed APK.
 +        No URL, package or device arguments; all are pinned by Web task. At most one call.
@@ -846,7 +861,7 @@ index 0000000..bfb7cc6
 +            return "TRUSTED_INSTALL_NOT_COMPLETED: inspect Web; do not retry or use shell/store."
 +
 +    return [StructuredTool.from_function(coroutine=f) for f in
-+            (request_human_assistance, revalidate_human_assistance, report_task_blocked, finish_observation_task, ensure_trusted_app)]
++            (request_human_assistance, revalidate_human_assistance, report_task_blocked, finish_observation_task, ensure_trusted_app, prepare_phone_environment)]
 diff --git a/mcp_server/background/task_runner.py b/mcp_server/background/task_runner.py
 index a6f377c..6a56c91 100644
 --- a/mcp_server/background/task_runner.py

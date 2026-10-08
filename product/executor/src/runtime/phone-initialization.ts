@@ -98,7 +98,9 @@ export class PhoneInitialization {
     requireFact(await this.command("adb", ["-s", serial, "shell", "getprop", "ro.serialno"]) === hardwareSerial, "PHONE_HARDWARE_MISMATCH");
     return { address: address as string, serial, nodeKey: peers[0].PublicKey as string };
   }
-  async prepare(target: { deviceId: string; serial: string; hardwareSerial: string; requestId: string }): Promise<{ instructions: string; soakSeconds: number; cleanup: () => Promise<void> }> {
+  async prepare(target: { deviceId: string; serial: string; hardwareSerial: string; requestId: string }, authorize: () => void = () => {}): Promise<{ instructions: string; soakSeconds: number; cleanup: () => Promise<void> }> {
+    authorize();
+    requireFact(process.env.SG_APP_STORAGE_FILE, "PHONE_CLOUD_DOWNLOAD_REQUIRED");
     const manifest = phoneInitializationConfig.parse(JSON.parse((await readPrivatePreparationFile(this.manifestPath)).toString()));
     requireFact(manifest.deviceIds.includes(target.deviceId), "PHONE_INITIALIZATION_NOT_AUTHORIZED");
     requireFact(Date.parse(manifest.authKeyExpiresAt) > Date.now() + 30 * 60_000, "PHONE_AUTH_KEY_EXPIRED");
@@ -111,7 +113,8 @@ export class PhoneInitialization {
     // Inspect optional official Tailscale; never install or activate a second VPN.
     await this.command("adb", ["-s", target.serial, "shell", "pm", "list", "packages", "com.tailscale.ipn"]);
     for (const packageName of ["io.nekohasekai.sfa", "com.follow.clash", "com.facebook.katana", "com.google.android.youtube"])
-      await this.apps.ensure(target.serial, packageName);
+      await this.apps.ensure(target.serial, packageName, true, authorize);
+    authorize();
     requireFact(await adb(["shell", "getprop", "ro.serialno"]) === target.hardwareSerial, "PHONE_HARDWARE_MISMATCH");
     const local = await mkdtemp(join(tmpdir(), "sg-phone-preparation-"));
     const remote = `/sdcard/Download/socialgrowth-${target.requestId}`;
@@ -119,8 +122,11 @@ export class PhoneInitialization {
     try {
       await writeFile(join(local, "network.json"), JSON.stringify(sfa), { mode: 0o600 });
       await writeFile(join(local, "subscription.yaml"), subscription, { mode: 0o600 });
+      authorize();
       await adb(["shell", "mkdir", "-p", remote]);
+      authorize();
       await adb(["push", join(local, "network.json"), `${remote}/network.json`]);
+      authorize();
       await adb(["push", join(local, "subscription.yaml"), `${remote}/subscription.yaml`]);
     } catch (error) { await cleanup().catch(() => {}); throw error; }
     finally { await rm(local, { recursive: true, force: true }); subscription.fill(0); }

@@ -180,6 +180,8 @@ export function createRuntimeServer(options: ServerOptions) {
         }
         else if (path === "/assistance/agent/finish-observation" && req.method === "POST")
           value = assistance.supervision.finishObservation(session.id);
+        else if (path === "/assistance/agent/prepare-phone" && req.method === "POST")
+          value = await verification.preparePhoneEnvironment(bearer);
         else if (path === "/assistance/agent/ensure-app" && req.method === "POST")
           value = await assistance.supervision.ensureApp(session.id, () =>
             apps.ensure(session.scope.serial, session.scope.packageName),

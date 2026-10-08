@@ -61,6 +61,18 @@ class ConnectivityHomeGuard(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(RuntimeError, "SOCIALGROWTH_APP_MISMATCH"):
             await self.invoke(name="click", args={"target": [100, 100]}, foreground="com.example.other", initialization=True)
 
+    async def test_preparation_tool_exists_only_in_explicit_initialization_scope(self):
+        tools = [SimpleNamespace(name=name) for name in
+                 ["prepare_phone_environment", "ensure_trusted_app", "human_password_input", "observe_screen"]]
+        for initialization in [False, True]:
+            scope = {"packageName": "com.socialgrowth.product", "control": {
+                "policy": {"mode": "connectivity_test", "allowPhoneInitialization": initialization}}}
+            with patch.object(guard, "enabled", return_value=True), patch.object(guard, "request", return_value=scope):
+                names = {t.name for t in guard.filter_tools(tools, {"observe_screen"})}
+                self.assertEqual("prepare_phone_environment" in names, initialization)
+                self.assertNotIn("ensure_trusted_app", names)
+                self.assertNotIn("human_password_input", names)
+
     async def test_owner_vpn_consent_is_never_automatically_accepted(self):
         with self.assertRaisesRegex(RuntimeError, "OWNER_VPN_CONSENT_REQUIRED"):
             await self.invoke(name="click", args={"target": [100, 100]}, foreground="com.android.systemui", initialization=True,

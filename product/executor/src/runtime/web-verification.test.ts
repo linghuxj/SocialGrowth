@@ -457,3 +457,19 @@ test("automatic initialization never overrides an existing hold or an unresolved
     assert.throws(() => f.verification.start({ ...f.input, goal: "2026-10-08.phone-environment-v1" }), /PHONE_INITIALIZATION_AUTHORITY_REQUIRED/);
   } finally { await f.close(); }
 });
+
+
+test("phone preparation rejects a valid but unbound native capability and every ordinary diagnostic", async () => {
+  for (const initialization of [false, true]) {
+    const f = fixture({}, "connectivity_test");
+    try {
+      const s = f.assistance.open({ taskId: randomUUID(), deviceId: "device", serial: "RFC_TEST", packageName: "com.socialgrowth.product",
+        expectedIdentity: "unbound native diagnostic", mode: "diagnostic", expiresAt: new Date(Date.now() + 60000).toISOString(),
+        policy: { mode: "connectivity_test", allowPhoneInitialization: initialization, allowLogin: false } });
+      await assert.rejects(f.verification.preparePhoneEnvironment(s.token), new RegExp(initialization
+        ? "PHONE_INITIALIZATION_NOT_ACTIVE" : "PHONE_INITIALIZATION_NOT_AUTHORIZED"));
+      assert.equal(f.assistance.supervision.get(s.sessionId).installAttempts, undefined);
+      assert.equal(f.starts(), 0);
+    } finally { await f.close(); }
+  }
+});

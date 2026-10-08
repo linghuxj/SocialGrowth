@@ -9,6 +9,7 @@ services:
       # must not cause a probe timeout to disconnect the execution stream.
       ADB_SERVER_SOCKET: tcp:127.0.0.1:5038
       SG_PHONE_INITIALIZATION_FILE: /run/socialgrowth/phone-preparation/initialization.json
+      SG_APP_STORAGE_FILE: /run/socialgrowth/phone-preparation/app-storage.json
       SG_APP_CATALOG: /run/socialgrowth/phone-preparation/catalog.json
       SG_ANDROID_BUILD_TOOLS: /usr/bin
     volumes:

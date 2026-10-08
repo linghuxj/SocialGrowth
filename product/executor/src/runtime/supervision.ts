@@ -266,6 +266,17 @@ export class Supervision {
       c.state === "active" && c.policy.mode !== "observe" && c.policy.allowTrustedInstall,
       "INSTALL_NOT_AUTHORIZED",
     );
+    return this.runTrustedPreparation(id, install);
+  }
+  async preparePhone<T>(id: string, prepare: () => Promise<T>): Promise<T> {
+    const c = this.get(id);
+    requireFact(c.state === "active" && c.policy.mode === "connectivity_test"
+      && c.policy.allowPhoneInitialization && !c.policy.allowLogin && !c.policy.allowTrustedInstall,
+    "PHONE_INITIALIZATION_NOT_AUTHORIZED");
+    return this.runTrustedPreparation(id, prepare);
+  }
+  private async runTrustedPreparation<T>(id: string, install: () => Promise<T>): Promise<T> {
+    const c = this.get(id);
     requireFact(!c.installAttempts, "INSTALL_BUDGET_EXHAUSTED");
     this.save({ ...c, installAttempts: 1, state: "waiting", reason: "TRUSTED_INSTALL_RUNNING" });
     this.event(id, "install_started", "TRUSTED_CATALOG_ONLY");
