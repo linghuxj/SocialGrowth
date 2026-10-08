@@ -100,16 +100,18 @@ export class DeviceConnectionApi {
     return scope;
   }
   async bootstrapDevices(): Promise<{ deviceId: string; connected: boolean; mode: "bootstrap" | "managed_verified" }[]> {
-    const rows = (await this.pool.query<{ device_id: string; provider_id: string }>(
-      `SELECT device_id,provider_id FROM ${schema}.device_connection_states WHERE authority_mode IN ('bootstrap','managed_verified') ORDER BY updated_at DESC LIMIT 100`)).rows;
-    const result: { deviceId: string; connected: boolean; mode: "bootstrap" | "managed_verified" }[] = [];
-    for (const row of rows) {
+    const rows = (await this.pool.query<{ device_id: string; provider_id: string; authority_mode: "bootstrap" | "managed_verified" }>(
+      `SELECT device_id,provider_id,authority_mode FROM ${schema}.device_connection_states WHERE authority_mode IN ('bootstrap','managed_verified') ORDER BY updated_at DESC LIMIT 100`)).rows;
+    const results = await Promise.allSettled(rows.map(async row => {
       const scope = await this.providerScopeByIdentity(row.provider_id, row.device_id);
-      if (!scope) continue;
+      if (!scope) return null;
       const fact = await this.projectState(randomUUID(), scope);
-      if (fact.networkState === "bootstrap" || fact.networkState === "managed_verified") result.push({ deviceId: row.device_id, connected: fact.connectionState === "connected", mode: fact.networkState });
-    }
-    return result;
+      const current = fact.networkState === "bootstrap" || fact.networkState === "managed_verified";
+      // Keep an authorized phone's receipt visible when its relay drops. The
+      // historical mode is only a display fallback, never connection authority.
+      return { deviceId: row.device_id, connected: current && fact.connectionState === "connected", mode: current ? fact.networkState as "bootstrap" | "managed_verified" : row.authority_mode };
+    }));
+    return results.flatMap(result => result.status === "fulfilled" && result.value ? [result.value] : []);
   }
   async bootstrapTarget(deviceId: string): Promise<{ deviceId: string; serial: string; hardwareSerial: string; sessionId: string }> {
     const row = await this.currentConnectionState(deviceId);
