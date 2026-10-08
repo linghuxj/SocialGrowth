@@ -312,12 +312,39 @@ export class WebVerification {
     let terminal = false;
     const initializer = cfg.initialization ? new PhoneInitialization(cfg.initialization.manifestPath) : undefined;
     let preparation: Awaited<ReturnType<PhoneInitialization["prepare"]>> | undefined;
+    let keepalive: ReturnType<typeof setInterval> | undefined;
+    const keepaliveAbort = new AbortController();
+    let keepaliveBusy = false;
     try {
       if (cfg.bootstrap) {
         const exec = promisify(execFile);
+        if (cfg.initialization && process.env.ADB_SERVER_SOCKET) {
+          // Initial enrollment is exclusive. Clear only an offline cached entry
+          // on this executor daemon before connecting its trusted target.
+          const state = await exec("adb", ["-s", cfg.serial, "get-state"], { timeout: 8000, maxBuffer: 8192 }).catch(() => null);
+          if (state?.stdout.trim() !== "device") await exec("adb", ["disconnect", cfg.serial], { timeout: 8000, maxBuffer: 8192 });
+        }
         await exec("adb", ["connect", cfg.serial], { timeout: 8000, maxBuffer: 8192 });
         const hardware = await exec("adb", ["-s", cfg.serial, "shell", "getprop", "ro.serialno"], { timeout: 8000, maxBuffer: 8192 });
         requireFact(hardware.stdout.trim() === cfg.bootstrap.hardwareSerial, "BOOTSTRAP_HARDWARE_MISMATCH");
+        if (cfg.initialization) {
+          // The isolated executor connection also needs traffic during local APK
+          // verification or owner/LLM waits; the relay has a 60-second idle limit.
+          // Never reconnect, disconnect, replay an action, or infer success here.
+          keepalive = setInterval(() => {
+            if (keepaliveBusy) return;
+            keepaliveBusy = true;
+            void exec("adb", ["-s", cfg.serial, "shell", "getprop", "ro.serialno"],
+              { timeout: 30000, maxBuffer: 8192, signal: keepaliveAbort.signal }).then(observed => {
+                if (observed.stdout.trim() !== cfg.bootstrap!.hardwareSerial) {
+                  const active = this.active.get(job.id);
+                  if (active) { active.cancelled = true; active.cancelReason = "PHONE_HARDWARE_MISMATCH"; }
+                  if (token) this.assistance.supervision.stop(this.assistance.session(token).id, "PHONE_HARDWARE_MISMATCH");
+                }
+              }).catch(() => { /* A failed read grants no connection/result proof. */ })
+              .finally(() => { keepaliveBusy = false; });
+          }, 15000).unref();
+        }
       }
       if (cfg.initialization) preparation = await initializer!.prepare({ deviceId: cfg.deviceId, serial: cfg.serial, hardwareSerial: cfg.bootstrap!.hardwareSerial, requestId: job.requestId });
       if (cfg.initialization) {
@@ -538,6 +565,8 @@ STOP with Share now visible and UNTOUCHED. Never publish, upload, schedule, expl
       job.resultCode = "UNCONFIRMED";
       job.errorCode ??= this.active.get(job.id)?.cancelReason ?? (error instanceof RuntimeError && /^[A-Z_]{1,80}$/.test(error.code) ? error.code : "INSPECT_DEVICE_EVIDENCE");
     } finally {
+      if (keepalive) clearInterval(keepalive);
+      keepaliveAbort.abort();
       if (!terminal && job.traceId)
         await client?.call("mobile_manage_task", { trace_id: job.traceId, action: "stop" }, 10000)
           .catch(() => {});
