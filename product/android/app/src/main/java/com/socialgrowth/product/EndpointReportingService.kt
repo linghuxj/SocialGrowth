@@ -95,7 +95,7 @@ class EndpointReportingService : Service() {
         val stop = PendingIntent.getService(this, 2, Intent(this, EndpointReportingService::class.java).setAction(STOP), PendingIntent.FLAG_IMMUTABLE)
         val builder = Notification.Builder(this, "endpoint-reporting").setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle("SocialGrowth 正在保持连接")
-            .setContentText(pairingFeedback ?: "首次配对：保持系统弹窗打开，在此输入配对码。")
+            .setContentText(pairingFeedback ?: "正在保持连接。需要操作时，请打开 App 查看。")
             .setVisibility(Notification.VISIBILITY_PRIVATE).setOnlyAlertOnce(true).setOngoing(true)
         if (Build.VERSION.SDK_INT >= 31) builder.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
         if (ProviderSessionStore(this).load() != null && !pairing.get()) {

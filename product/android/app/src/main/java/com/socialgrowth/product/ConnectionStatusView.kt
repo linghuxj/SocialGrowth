@@ -13,12 +13,13 @@ import java.util.Date
 
 /** Only current server facts show a live connection; local VPN presence is insufficient. */
 internal class ConnectionStatusView(context: Context, private val expanded: Boolean, var deviceState: String,
-                                    private val localInstallation: Boolean = false) : LinearLayout(context) {
+                                    private val localInstallation: Boolean = false,
+                                    private val summaryOnly: Boolean = false) : LinearLayout(context) {
     private val neutral = Color.rgb(82, 97, 118)
     private val ink = Color.rgb(23, 43, 77)
     private val success = Color.rgb(20, 108, 67)
     private val warning = Color.rgb(143, 77, 0)
-    private val headline = text("正在检查连接", 20f, ink, true)
+    private val headline = text("正在检查连接", if (summaryOnly) 24f else 20f, ink, true)
     private val detail = text("正在向平台确认，已有的关联不代表当前在线。", 14f, neutral)
     private val timestamp = text("尚未取得连接结果", 12f, neutral)
     private val network = text("待确认", 14f, ink)
@@ -40,9 +41,11 @@ internal class ConnectionStatusView(context: Context, private val expanded: Bool
     init {
         orientation = VERTICAL
         addView(headline, LayoutParams(-1, -2))
-        if (expanded) {
-            row("网络节点", network)
-            row("调试配对", pairing)
+        if (summaryOnly) {
+            // This guide displays settings results separately and only the next manual action.
+        } else if (expanded) {
+            row(if (localInstallation) "网络连接" else "网络节点", network)
+            row(if (localInstallation) "手机配对" else "调试配对", pairing)
             row("平台连接", connection)
             row("执行状态", text(when (deviceState) {
                 "paused" -> "已暂停"
@@ -50,13 +53,13 @@ internal class ConnectionStatusView(context: Context, private val expanded: Bool
                 else -> "待平台核验"
             }, 14f, neutral))
         } else {
-            row("网络节点", network)
-            row("调试配对", pairing)
+            row(if (localInstallation) "网络连接" else "网络节点", network)
+            row(if (localInstallation) "手机配对" else "调试配对", pairing)
         }
-        addView(detail, LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        if (!summaryOnly) addView(detail, LayoutParams(-1, -2).apply { topMargin = dp(8) })
         val footer = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL }
         footer.addView(timestamp, LayoutParams(0, -2, 1f))
-        footer.addView(refresh, LayoutParams(-2, dp(48)))
+        footer.addView(refresh, LayoutParams(-2, -2).apply { marginStart = dp(8) })
         addView(footer, LayoutParams(-1, -2).apply { topMargin = dp(4) })
         render(null)
     }
@@ -70,6 +73,7 @@ internal class ConnectionStatusView(context: Context, private val expanded: Bool
             fact == null -> if (checkedWall == 0L) "正在检查连接" else "连接状态待更新"
             deviceState == "paused" -> "执行已暂停"
             deviceState in setOf("exited", "exit_pending") -> "设备已退出或退出中"
+            fact.connected && localInstallation -> "手机已连接"
             fact.connected && fact.networkState == "bootstrap" -> "首次连接已建立"
             fact.connected -> "平台已连接"
             fact.blockerCode == "NETWORK_AUTHORITY_UNAVAILABLE" -> "平台网络待确认"
@@ -84,13 +88,13 @@ internal class ConnectionStatusView(context: Context, private val expanded: Bool
         }
         color = when {
             automaticPaused -> neutral
-            fact?.connected == true && deviceState !in setOf("paused", "exited", "exit_pending") -> success
+            fact?.connected == true && !failed && deviceState !in setOf("paused", "exited", "exit_pending") -> success
             fact != null && !failed -> warning
             else -> neutral
         }
         headline.setTextColor(color)
         network.text = if (fact?.blockerCode == "NETWORK_AUTHORITY_UNAVAILABLE") "待确认" else when (fact?.networkState) {
-            "bootstrap" -> "首次接入通道（待管理网络切换）"
+            "bootstrap" -> "首次连接已建立"
             "admitted", "managed_verified", "pilot_verified" -> "已确认"
             "blocked" -> "暂未通过"
             "not_configured" -> "未配置"
@@ -116,7 +120,8 @@ internal class ConnectionStatusView(context: Context, private val expanded: Bool
             automaticPaused -> "你已暂停自动连接。请在本机准备中恢复；不会因此恢复业务任务。"
             failed -> "暂时联系不上平台，请重新检查。现在无法判断手机是否离线。"
             fact == null -> "正在重新确认当前连接，不会因此重复配对或启动任务。"
-            fact.connected && fact.networkState == "bootstrap" -> "可由运营从 Web 发起手机准备，管理网络和执行资格仍需核验。"
+            fact.connected && localInstallation -> "需要你操作时，请查看手机准备。"
+            fact.connected && fact.networkState == "bootstrap" -> "可由运营继续准备，尚待核验。"
             fact.connected -> if (expanded) "连接正常。执行资格和任务状态由平台另行核验。" else "网络已确认 · 已配对。连接正常不代表任务已经开始。"
             else -> DeviceConnectionBoundary.message(fact)
         }

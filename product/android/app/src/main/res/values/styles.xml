@@ -13,4 +13,13 @@
         <item name="colorOnSurface">#526176</item>
         <item name="android:fontFamily">sans</item>
     </style>
+    <style name="Theme.SocialGrowth.Preparation" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">#2459C4</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSurface">#FFFFFF</item>
+        <item name="colorOnSurface">#172B4D</item>
+        <item name="colorOnSurfaceVariant">#526176</item>
+        <item name="colorOutline">#526176</item>
+        <item name="android:fontFamily">sans</item>
+    </style>
 </resources>

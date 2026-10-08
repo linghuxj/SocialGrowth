@@ -39,6 +39,7 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.google.android.material.button.MaterialButton
 import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
 import com.journeyapps.barcodescanner.ScanContract
@@ -107,7 +108,7 @@ class MainActivity : ComponentActivity() {
         if (granted) startConnectionChecking()
         else {
             startConnectionChecking()
-            Toast.makeText(this, "自动连接仍会检查。首次配对需要通知，请在 App 设置中允许通知。", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "请在应用设置中允许 SocialGrowth 通知。", Toast.LENGTH_LONG).show()
         }
     }
     private val barcodeLauncher = registerForActivityResult(ScanContract()) { result ->
@@ -550,7 +551,7 @@ class MainActivity : ComponentActivity() {
             setOnClickListener { showInstallationLoading(localProvider = session) }
         }
         local.addView(localAction, matchHeight(54).apply { topMargin = dp(14) })
-        local.addView(label("无需第二台手机。确认关联后，按步骤准备网络与远程连接。", 13f, secondary), matchWrap().apply { topMargin = dp(8) })
+        local.addView(label("需要你完成的操作，会在手机准备中显示。", 13f, secondary), matchWrap().apply { topMargin = dp(8) })
         content.addView(local, matchWrap().apply { topMargin = dp(18) })
         val add = secondaryButton("添加其他手机 · 扫码").apply {
             id = R.id.provider_add_device
@@ -615,7 +616,7 @@ class MainActivity : ComponentActivity() {
                             state.state == "unassociated" -> localStatus.text = "尚未关联。下一步：核对本机并确认归属。"
                             list.any { it.deviceId == state.deviceId } -> {
                                 localStatus.text = "已关联到你的账号 · ${DeviceFactPresentation.state(state.state).removePrefix("已关联 · ")}"
-                                localAction.text = "继续本机准备"
+                                localAction.text = "手机准备"
                                 localConnection.deviceState = state.state
                                 localConnection.visibility = View.VISIBLE
                                 observeConnection(localConnection, generation, session) {
@@ -1014,163 +1015,137 @@ class MainActivity : ComponentActivity() {
         val goBack = returnTo ?: { showInstallationLoading() }
         backAction = goBack
         val root = vertical(20).apply { setBackgroundColor(canvas) }
-        root.addView(backHeader("本机准备") { goBack() }, matchWrap())
-        root.addView(label("让这台手机连接到平台", 27f, ink, Typeface.BOLD), matchWrap().apply { topMargin = dp(18) })
-        val guideIntroduction = label("按下面的步骤完成首次设置。每次从设置返回，我们会自动检查进度。", 15f, secondary)
-        root.addView(guideIntroduction, matchWrap().apply { topMargin = dp(8) })
-        val progress = label("正在检查本机…", 15f, blue, Typeface.BOLD)
-        val connectionSummary = ConnectionStatusView(this, true, state?.state ?: "unassociated", localInstallation = true).apply {
-            setPadding(dp(16), dp(16), dp(16), dp(8))
-            background = rounded(Color.WHITE, 12)
-        }
-        root.addView(connectionSummary, matchWrap().apply { topMargin = dp(16) })
-        root.addView(progress, matchWrap().apply { topMargin = dp(10) })
-        fun section(title: String, explanation: String): LinearLayout {
-            val box = vertical(16).apply { background = rounded(Color.WHITE, 12) }
-            box.addView(label(title, 19f, ink, Typeface.BOLD))
-            box.addView(label(explanation, 15f, secondary), matchWrap().apply { topMargin = dp(8) })
-            root.addView(box, matchWrap().apply { topMargin = dp(14) })
-            return box
-        }
-        val network = section("1 · 建立首次接入", "连接能够上网的稳定 Wi-Fi，完成本机关联后，App 会建立首次接入通道。此时不需要安装 Tailscale 或 SFA。请允许通知并保持连接服务运行。")
-        val networkStatus = label("正在检查网络…", 14f, secondary)
-        network.addView(networkStatus, matchWrap().apply { topMargin = dp(10) })
-        network.addView(secondaryButton("连接 Wi-Fi").apply {
-            setOnClickListener { openPreparationSetting(android.provider.Settings.ACTION_WIFI_SETTINGS, "请连接可用 Wi-Fi。") }
-        }, matchHeight(50).apply { topMargin = dp(10) })
-        network.addView(primaryButton("准备配对通知").apply {
-            setOnClickListener {
-                EndpointReportingService.setAutomaticEnabled(this@MainActivity, true)
-                if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this@MainActivity, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                    connectionPermissionScreen = screenGeneration
-                    connectionNotificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                } else startConnectionChecking()
-            }
-        }, matchHeight(52).apply { topMargin = dp(8) })
-        network.addView(label("先确认通知栏出现 SocialGrowth 保持连接通知，再打开下面的系统设置。首次配对期间，始终保留系统配对弹窗，在通知内提交配对码。", 14f, secondary), matchWrap().apply { topMargin = dp(10) })
+        root.addView(backHeader("手机准备") { goBack() }, matchWrap())
+        val connectionSummary = ConnectionStatusView(this, false, state?.state ?: "unassociated", localInstallation = true, summaryOnly = true)
+        root.addView(connectionSummary, matchWrap().apply { topMargin = dp(24); bottomMargin = dp(20) })
 
-        val debugging = section("2 · 允许远程连接", "平台需要通过系统的“无线调试”连接本机。此项必须由你在这台执行手机上开启。")
-        debugging.addView(label("首次接入需要你按提示完成设置和配对。平台连接成功前，Artemis 无法替你操作这台手机；无需第二台手机或连接电脑。", 14f, secondary), matchWrap().apply { topMargin = dp(8) })
-        val debuggingStatus = label("正在检查设置…", 14f, secondary)
-        debugging.addView(debuggingStatus, matchWrap().apply { topMargin = dp(10) })
-        val developerHelp = label("先打开“关于手机”，连续点击“版本号”7 次，按系统提示验证锁屏密码。Samsung 的版本号在“软件信息”中。", 14f, secondary)
-        debugging.addView(developerHelp, matchWrap().apply { topMargin = dp(8) })
-        val about = secondaryButton("打开关于手机").apply {
-            setOnClickListener { openPreparationSetting(android.provider.Settings.ACTION_DEVICE_INFO_SETTINGS, "请打开设置 → 关于手机 → 软件信息 → 版本号。") }
+        val results = vertical(16).apply { background = rounded(Color.WHITE, 12) }
+        fun resultRow(title: String, first: Boolean = false): TextView {
+            if (!first) results.addView(View(this).apply { setBackgroundColor(dividerColor) }, matchHeight(1))
+            val row = LinearLayout(this).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                minimumHeight = dp(56)
+                setPadding(0, dp(12), 0, dp(12))
+            }
+            row.addView(label(title, 16f, ink), LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(16) })
+            val value = label("检查中", 14f, secondary).apply { gravity = Gravity.END }
+            row.addView(value, LinearLayout.LayoutParams(0, -2, 1f))
+            results.addView(row, matchWrap())
+            return value
         }
-        debugging.addView(about, matchHeight(50).apply { topMargin = dp(10) })
-        debugging.addView(primaryButton("打开开发者选项").apply {
-            setOnClickListener { openPreparationSetting(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS, "请打开系统设置中的开发者选项，再找到“无线调试”。") }
-        }, matchHeight(52).apply { topMargin = dp(8) })
-        debugging.addView(label("找到“无线调试”并开启，按系统提示允许当前 Wi-Fi。返回这里后会自动检查。", 14f, secondary), matchWrap().apply { topMargin = dp(10) })
+        val wifiResult = resultRow("Wi-Fi", true)
+        val notificationResult = resultRow("连接通知")
+        val backgroundResult = resultRow("后台连接")
+        val debuggingResult = resultRow("无线调试")
+        val pairingResult = resultRow("手机配对")
 
-        val pairing = section("3 · 完成连接确认", "完成前两步后，App 会自动检查并连接平台。首次配对时，在系统“无线调试”页面选择“使用配对码配对设备”，记住 6 位数字，保持弹窗打开，下拉通知栏，展开 SocialGrowth 通知并点击“输入配对码”。在通知内输入并发送，看到连接结果后再返回 App。不要切换应用或关闭配对弹窗。")
-        val pairingStatus = label("完成前两步后，等待平台确认连接。", 15f, secondary)
-        pairing.addView(pairingStatus, matchWrap().apply { topMargin = dp(10) })
-        pairing.addView(label("已有有效配对时会尝试恢复连接，无需重复输入配对码。手机重启或切换 Wi-Fi 后，如需重新开启设置，会在这里提示。", 14f, secondary), matchWrap().apply { topMargin = dp(8) })
-        val keepConnected = secondaryButton("暂停自动连接")
-        keepConnected.isEnabled = state?.deviceId != null
-        pairing.addView(keepConnected, matchHeight(52).apply { topMargin = dp(10) })
-        keepConnected.setOnClickListener {
-            if (Build.VERSION.SDK_INT < 34) {
-                Toast.makeText(this, "当前自动连接检查需要 Android 14 或更高版本。", Toast.LENGTH_LONG).show()
-            } else {
-                if (EndpointReportingService.automaticEnabled(this)) {
-                    EndpointReportingService.setAutomaticEnabled(this, false)
-                    startService(Intent(this, EndpointReportingService::class.java).setAction(EndpointReportingService.STOP))
-                } else {
-                    EndpointReportingService.setAutomaticEnabled(this, true)
-                    if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                        connectionPermissionScreen = screenGeneration
-                        connectionNotificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                    } else startConnectionChecking()
-                }
-                updateConnectionControl(keepConnected, state)
-            }
+        val nextTitle = label("正在检查", 20f, ink, Typeface.BOLD)
+        root.addView(nextTitle, matchWrap())
+        val nextInstruction = label("", 16f, secondary)
+        root.addView(nextInstruction, matchWrap().apply { topMargin = dp(8) })
+        val preparationTheme = ContextThemeWrapper(this, R.style.Theme_SocialGrowth_Preparation)
+        fun preparationButton(title: String, primary: Boolean = false): Button = MaterialButton(preparationTheme, null,
+            if (primary) com.google.android.material.R.attr.materialButtonStyle else com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+            text = title
+            isAllCaps = false
+            minimumHeight = dp(52)
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+            insetTop = 0
+            insetBottom = 0
         }
-        pairing.addView(secondaryButton("在本机完成配对").apply {
-            isEnabled = state?.deviceId != null
-            setOnClickListener {
-                val session = sessionStore.load()
-                if (session == null) {
-                    openManagement()
-                    return@setOnClickListener
-                }
-                AlertDialog.Builder(this@MainActivity)
-                    .setTitle("一台手机完成配对")
-                    .setMessage("1. App 会自动开始连接检查；如果你曾主动暂停，请先恢复自动连接。首次配对请在 App 设置中允许通知。\n2. 打开系统“无线调试”，选择“使用配对码配对设备”。\n3. 保持弹窗打开，记住 6 位数字，下拉并展开 SocialGrowth 通知。\n4. 点击通知中的“输入配对码”，输入并发送；等待提示后返回 App 查看连接结果。\n\n不要切换应用或关闭系统弹窗。管理登录失效时请先返回 App 登录，再重新打开系统配对弹窗。")
-                    .setPositiveButton("知道了", null).show()
-            }
-        }, matchHeight(50).apply { topMargin = dp(8) })
-        pairing.addView(label("打开 App 后自动检查；已有配对会自动重连，短暂网络异常会重试。你可以主动暂停自动连接，暂停后须自行恢复。首次系统授权和配对仍需按提示完成。", 14f, secondary), matchWrap().apply { topMargin = dp(8) })
-        pairing.addView(secondaryButton("允许连接通知").apply {
-            setOnClickListener {
-                connectionPermissionScreen = screenGeneration
-                connectionNotificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-            }
-            visibility = if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this@MainActivity, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) View.VISIBLE else View.GONE
-        }, matchHeight(50).apply { topMargin = dp(8) })
-        val businessNetwork = section("4 · 准备业务上网", "平台连接确认后，Artemis 才能协助安装可信客户端、导入平台提供的私有文件和检查上网结果。安装确认、系统 VPN 授权和连接切换仍需你按提示处理。")
-        businessNetwork.addView(label("使用手机订阅：FlClash 关闭 VPN，运行本地代理，保留平台确认的可用节点和 Global 模式。SFA 是唯一开启 VPN 的客户端，负责管理连接和业务分流。不要同时开启官方 Tailscale 或 FlClash VPN，不要选择 Macmini 或其他出口节点。", 14f, secondary), matchWrap().apply { topMargin = dp(10) })
-        businessNetwork.addView(label("首次切换请等待运营确认配置已准备好。只导入平台为本机提供的文件，不要复制另一台手机的配置。打开 SFA，按提示导入文件并允许 VPN 连接，再返回这里检查。切换可能暂时断开远程操作；只有重新显示“平台已连接到这台手机”，且平台确认 Facebook 和 YouTube 能正常读取，才算完成。", 14f, secondary), matchWrap().apply { topMargin = dp(10) })
-        businessNetwork.addView(secondaryButton("打开 SFA").apply { setOnClickListener { openNetworkClient("io.nekohasekai.sfa", "SFA") } }, matchHeight(50).apply { topMargin = dp(10) })
-        businessNetwork.addView(secondaryButton("打开 FlClash").apply { setOnClickListener { openNetworkClient("com.follow.clash", "FlClash") } }, matchHeight(50).apply { topMargin = dp(8) })
-        businessNetwork.addView(label("连接失败时，先检查 SFA 是否已启动、FlClash 核心是否运行且 VPN 关闭。不要删除配置、重新配对或更换账号。仍无法连接时联系运营，按指导恢复此前可用的连接；不要重复执行业务任务。订阅、密码和接入密钥不要发送到普通聊天或截图中。", 14f, secondary), matchWrap().apply { topMargin = dp(10) })
-        val serverStatus = label("正在检查平台连接…", 14f, secondary)
-        if (state?.deviceId == null) serverStatus.text = "当前尚未确认本机关联。请点击“返回完成本机关联”，确认后再继续平台连接。"
-        root.addView(serverStatus, matchWrap().apply { topMargin = dp(18) })
-        val retry = secondaryButton("重新检查")
-        root.addView(retry, matchHeight(50).apply { topMargin = dp(10) })
-        root.addView(secondaryButton("检查通知与后台运行设置").apply {
-            setOnClickListener { openOwnAppSettings() }
-        }, matchHeight(50).apply { topMargin = dp(8) })
-        root.addView(label("完成连接后，还需平台核对设备和账号。不会因为返回页面或重新联网就恢复已暂停的设备。", 13f, secondary), matchWrap().apply { topMargin = dp(12) })
-
-        // Discovery runs only while this guide is visible. Reports and remote
-        // authority are separate; a local candidate never completes step 3.
-        var discovery: NativeEndpointDiscovery? = null
+        val nextButton = preparationButton("继续", primary = true)
+        root.addView(nextButton, matchWrap().apply { topMargin = dp(16) })
+        root.addView(results, matchWrap().apply { topMargin = dp(24) })
+        var nextAction = PreparationAction.NONE
+        var fact: DeviceConnectionSnapshot? = null
+        var failed = false
         var visible = false
         var busy = false
         var checkSequence = 0
-        var remoteConnected = false
-        var networkVerified = false
         var lastServerCheck = 0L
         var lastServerSuccess = 0L
+        var discovery: NativeEndpointDiscovery? = null
         fun current() = screen == screenGeneration && !isDestroyed && !isFinishing
+        fun beginChecking() {
+            if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                connectionPermissionScreen = screenGeneration
+                connectionNotificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            } else startConnectionChecking()
+        }
+
+        val settingsToggle = preparationButton("更多连接设置")
+        settingsToggle.contentDescription = "连接设置，已收起，点击展开"
+        root.addView(settingsToggle, matchWrap().apply { topMargin = dp(24) })
+        val settings = vertical(0).apply { visibility = View.GONE }
+        root.addView(settings, matchWrap().apply { topMargin = dp(8) })
+        settingsToggle.setOnClickListener {
+            val expanded = settings.visibility != View.VISIBLE
+            settings.visibility = if (expanded) View.VISIBLE else View.GONE
+            settingsToggle.text = if (expanded) "收起连接设置" else "更多连接设置"
+            settingsToggle.contentDescription = if (expanded) "连接设置，已展开，点击收起" else "连接设置，已收起，点击展开"
+        }
+        fun settingButton(title: String, action: () -> Unit): Button = preparationButton(title).also {
+            it.setOnClickListener { action() }
+            settings.addView(it, matchWrap().apply { topMargin = dp(8) })
+        }
+        val keepConnected = settingButton("暂停自动连接") {
+            if (EndpointReportingService.automaticEnabled(this)) {
+                EndpointReportingService.setAutomaticEnabled(this, false)
+                startService(Intent(this, EndpointReportingService::class.java).setAction(EndpointReportingService.STOP))
+            } else {
+                EndpointReportingService.setAutomaticEnabled(this, true)
+                beginChecking()
+            }
+        }
+        settingButton("通知设置") {
+            openPreparationSettingWithIntent(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName))
+        }
+        settingButton("后台运行设置") { openOwnAppSettings() }
+        settingButton("无线调试设置") { openPreparationSetting(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS, "请在开发者选项中打开无线调试。") }
+        val installedTools = DevicePreparationChecks.read(this)
+        if (installedTools.sfaInstalled || installedTools.clashInstalled) {
+            settings.addView(label("上网工具仅在工作人员要求时使用。", 13f, secondary), matchWrap().apply { topMargin = dp(16) })
+            if (installedTools.sfaInstalled) settingButton("打开 SFA") { openNetworkClient("io.nekohasekai.sfa", "SFA") }
+            if (installedTools.clashInstalled) settingButton("打开 FlClash") { openNetworkClient("com.follow.clash", "FlClash") }
+        }
+        fun result(view: TextView, text: String, complete: Boolean) {
+            view.text = text
+            view.setTextColor(if (complete) Color.rgb(20, 108, 67) else secondary)
+        }
         fun updateLocal() {
             if (!current()) return
-            val checks = DevicePreparationChecks.read(this)
-            guideIntroduction.text = if (remoteConnected) "连接正常，无需重复配对。下方设置可用于检查与恢复连接；返回设备管理不会启动或停止任务。" else "按下面的步骤完成首次设置。每次从设置返回，我们会自动检查进度。"
+            val local = DevicePreparationChecks.read(this)
+            val automatic = EndpointReportingService.automaticEnabled(this)
             updateConnectionControl(keepConnected, state)
-            networkStatus.text = when {
-                !checks.discoverySupported -> "当前首次接入需要 Android 14 或更高版本。"
-                !checks.wifiConnected -> "请连接稳定的 Wi-Fi。"
-                networkVerified -> "平台已确认当前连接通道。"
-                EndpointReportingService.running -> "首次接入服务已启动，正在联系平台。"
-                else -> "请完成本机关联，并点击“准备配对通知”。"
-            }
-            debuggingStatus.text = when {
-                !checks.discoverySupported -> "当前版本的自动检查需要 Android 14 或更高版本，请联系运营确认支持机型。"
-                checks.developerOptions == false -> "请先开启开发者选项。"
-                checks.wirelessDebugging == false -> "无线调试尚未开启。"
-                checks.wirelessDebugging == true -> "无线调试已开启，接下来确认平台连接。"
-                else -> "暂时无法读取开关，请按系统页面完成设置后返回。"
-            }
-            val found = Build.VERSION.SDK_INT >= 34 && discovery?.snapshot()?.connect?.status == EndpointObservationStatus.CANDIDATE
-            pairingStatus.text = when {
-                remoteConnected -> "平台已连接到这台手机，无需再次配对。可由运营从 Web 继续手机准备。"
-                !networkVerified -> "请先完成本机关联和平台网络确认。"
-                !checks.discoverySupported -> "当前手机暂不能自动完成连接检查。"
-                checks.wirelessDebugging == false -> "请先完成上一步。"
-                found -> "本机已准备好，等待平台确认。首次使用请点击“在本机完成配对”。"
-                else -> "正在检查本机是否可连接；首次使用请点击“在本机完成配对”。"
-            }
-            progress.text = when {
-                remoteConnected -> "本机已连接到平台"
-                !networkVerified || !checks.wifiConnected -> "当前步骤：建立首次接入"
-                checks.wirelessDebugging != true -> "当前步骤：允许远程连接"
-                else -> "当前步骤：等待连接确认"
-            }
+            result(wifiResult, if (local.wifiConnected) "已连接" else "未连接", local.wifiConnected)
+            result(notificationResult, if (local.notificationsAllowed) "已允许" else "待允许", local.notificationsAllowed)
+            result(backgroundResult, when {
+                !automatic -> "已暂停"
+                local.backgroundAllowed -> "未受限制"
+                local.backgroundRestricted == true -> "受限"
+                else -> "待确认"
+            }, automatic && local.backgroundAllowed)
+            val debugging = local.wirelessDebugging == true
+            result(debuggingResult, when (local.wirelessDebugging) { true -> "已开启"; false -> "待开启"; null -> "待确认" }, debugging)
+            result(pairingResult, when (fact?.pairingState) {
+                "paired" -> "已完成"
+                "pairing" -> "配对中"
+                "unknown" -> "核对结果中"
+                "expired" -> "配对码已过期"
+                "awaiting_code", "not_started" -> "待完成"
+                else -> "待平台确认"
+            }, fact?.pairingState == "paired")
+            val prompt = PhonePreparationPrompt.next(local, state?.deviceId != null, automatic,
+                EndpointReportingService.running, sessionStore.load() != null, fact, failed, state?.state ?: "unassociated")
+            nextTitle.text = prompt.title
+            nextInstruction.text = prompt.instruction
+            nextInstruction.visibility = if (prompt.instruction.isEmpty()) View.GONE else View.VISIBLE
+            nextAction = prompt.action
+            nextButton.text = prompt.button
+            nextButton.visibility = if (prompt.button == null) View.GONE else View.VISIBLE
+            nextButton.isEnabled = !busy || prompt.action != PreparationAction.CHECK
+            if (prompt.action == PreparationAction.CHECK && busy) nextButton.text = "检查中…"
         }
         fun checkServer() {
             if (!current() || !visible || busy || state?.deviceId == null) return
@@ -1182,37 +1157,55 @@ class MainActivity : ComponentActivity() {
                 val identity = installationStore.load() ?: error("Missing installation")
                 val token = identity.activeSessionToken() ?: error("Inactive installation")
                 DeviceConnectionApiClient(api).installationState(token, requireNotNull(state.deviceId))
-            }, success = { fact ->
-                busy = false
+            }, success = { observed ->
                 if (current() && visible && sequence == checkSequence) {
+                    busy = false
+                    failed = false
                     lastServerSuccess = android.os.SystemClock.elapsedRealtime()
-                    remoteConnected = fact.connected
-                    networkVerified = fact.networkState in setOf("admitted", "managed_verified", "pilot_verified", "bootstrap")
-                    serverStatus.text = DeviceConnectionBoundary.message(fact)
-                    connectionSummary.accept(fact)
+                    fact = observed
+                    connectionSummary.accept(observed)
                     updateLocal()
                 }
             }, failure = {
-                busy = false
                 if (current() && visible && sequence == checkSequence) {
-                    remoteConnected = false
-                    networkVerified = false
-                    serverStatus.text = "暂时联系不上平台。请检查网络后重试；已完成的系统设置无需重做。"
+                    busy = false
+                    fact = null
+                    failed = true
                     connectionSummary.render(null, failed = true)
                     updateLocal()
                 }
             })
         }
+        nextButton.setOnClickListener {
+            when (nextAction) {
+                PreparationAction.ASSOCIATE -> showInstallationLoading()
+                PreparationAction.WIFI -> openPreparationSetting(android.provider.Settings.ACTION_WIFI_SETTINGS, "请连接 Wi-Fi。")
+                PreparationAction.NOTIFICATIONS -> {
+                    if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) beginChecking()
+                    else openPreparationSettingWithIntent(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName))
+                }
+                PreparationAction.BACKGROUND -> openOwnAppSettings()
+                PreparationAction.RESUME -> { EndpointReportingService.setAutomaticEnabled(this, true); beginChecking() }
+                PreparationAction.START -> beginChecking()
+                PreparationAction.DEVELOPER -> openPreparationSetting(android.provider.Settings.ACTION_DEVICE_INFO_SETTINGS, "请在关于手机中连续点击版本号 7 次。")
+                PreparationAction.DEBUGGING, PreparationAction.PAIR -> openPreparationSetting(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS, "请在开发者选项中打开无线调试。")
+                PreparationAction.LOGIN -> openManagement()
+                PreparationAction.CHECK -> checkServer()
+                PreparationAction.NONE -> Unit
+            }
+            updateLocal()
+        }
         val tick = object : Runnable {
             override fun run() {
                 if (!current() || !visible) return
-                if ((remoteConnected || networkVerified) && android.os.SystemClock.elapsedRealtime() - lastServerSuccess >= 10_000) {
-                    remoteConnected = false
-                    networkVerified = false
-                    serverStatus.text = "正在重新确认平台连接…"
+                if (fact != null && android.os.SystemClock.elapsedRealtime() - lastServerSuccess >= 10_000) {
+                    fact = null
                     connectionSummary.render(null, refreshing = busy)
                 }
-                if (Build.VERSION.SDK_INT >= 34 && discovery?.snapshot()?.active != true) {
+                if (Build.VERSION.SDK_INT >= 34 && state?.deviceId != null &&
+                    state.state in setOf("associated_pending_access", "access_ready") &&
+                    EndpointReportingService.automaticEnabled(this@MainActivity) && discovery?.snapshot()?.active != true) {
                     discovery?.close()
                     discovery = NativeEndpointDiscovery(this@MainActivity).also { it.start() }
                 }
@@ -1224,10 +1217,10 @@ class MainActivity : ComponentActivity() {
         val resume = {
             if (current()) {
                 visible = true
-                remoteConnected = false
-                networkVerified = false
-                connectionSummary.render(null, refreshing = true)
-                if (state?.deviceId != null) serverStatus.text = "正在确认平台连接…"
+                busy = false
+                fact = null
+                failed = false
+                connectionSummary.render(null, refreshing = state?.deviceId != null)
                 mainHandler.removeCallbacks(tick)
                 tick.run()
                 checkServer()
@@ -1235,20 +1228,25 @@ class MainActivity : ComponentActivity() {
         }
         preparationPause = {
             visible = false
+            busy = false
             ++checkSequence
+            fact = null
             mainHandler.removeCallbacks(tick)
             if (Build.VERSION.SDK_INT >= 34) discovery?.close()
             discovery = null
             connectionSummary.render(null)
         }
         preparationResume = resume
-        retry.setOnClickListener { updateLocal(); checkServer() }
-        connectionSummary.refreshAction = { updateLocal(); checkServer() }
+        connectionSummary.refreshAction = { checkServer(); updateLocal() }
         setContentView(ScrollView(this).apply {
             isFillViewport = true
             addView(root, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         })
         resume()
+    }
+
+    private fun openPreparationSettingWithIntent(intent: Intent) {
+        runCatching { startActivity(intent) }.onFailure { openOwnAppSettings() }
     }
 
     private fun startConnectionChecking() {
