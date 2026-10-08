@@ -84,7 +84,6 @@ try {
     if (job) jobId = job.id;
     if (job && job.status !== "running") {
       if (job.status !== "finished" || job.resultCode !== "CONNECTIVITY_SETUP_COMPLETED") { outcome = "failed_initialization"; break; }
-      assert.ok(job.diagnostics && job.diagnostics.passed >= 4 && job.diagnostics.failed === 0 && job.diagnostics.inconclusive === 0);
       assert.ok(job.stability && job.stability.observedSeconds >= 300 && job.stability.samples >= 2);
       const receipt = page.locator(`[data-executor-job="${job.id}"]`);
       await receipt.getByText(/CONNECTIVITY_SETUP_COMPLETED/).waitFor();

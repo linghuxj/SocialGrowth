@@ -252,7 +252,7 @@ export class WebVerification {
       };
       assertStopped();
       await client.connect();
-      const status = z.object({ trace_id: z.literal(original.traceId!), device_serial: z.literal(serial), status: z.enum(["failed", "cancelled"]), error: z.string() }).passthrough()
+      const status = z.object({ trace_id: z.literal(original.traceId!), device_serial: z.literal(serial), status: z.enum(["failed", "cancelled"]), error: z.string().default("") }).passthrough()
         .parse(await client.call("mobile_manage_task", { trace_id: original.traceId, action: "status" }, 10000));
       const exec = promisify(execFile);
       const modelTimeout = status.status === "failed" && /^TimeoutError: LLM call timed out after [0-9]+ seconds\./.test(status.error) && !original.initializationRootRequestId;
