@@ -248,7 +248,9 @@ export class WebVerification {
         .parse(await client.call("mobile_manage_task", { trace_id: original.traceId, action: "status" }, 10000));
       requireFact(/^TimeoutError: LLM call timed out after [0-9]+ seconds\./.test(status.error), "PHONE_MODEL_TIMEOUT_EVIDENCE_REQUIRED");
       const exec = promisify(execFile);
-      const code = "import json,sys; from artemis.runtime.device_lock import DeviceExecutionLock; print(json.dumps({'active':any(DeviceExecutionLock.get_active_owner(s) is not None for s in sys.argv[1:])}))";
+      // Enumerate every endpoint scope: a 5037-only lookup could miss the
+      // isolated 5038 executor's owner or a queued task for the same phone.
+      const code = "import json,sys; from artemis.runtime.device_lock import DeviceExecutionLock; aliases=set(sys.argv[1:]); owners=DeviceExecutionLock.get_active_owners().values(); queued=DeviceExecutionLock.get_queued_tasks(); print(json.dumps({'active':any(o.device_id in aliases for o in owners) or any(q.get('device_id') in aliases|{'default','pending','any'} for q in queued)}))";
       const locks = await exec(resolve(artemisRoot, ".venv/bin/python"), ["-c", code, serial, target.serial, target.hardwareSerial], { cwd: artemisRoot, timeout: 5000, maxBuffer: 1024 });
       z.object({ active: z.literal(false) }).strict().parse(JSON.parse(locks.stdout));
       await exec("adb", ["connect", target.serial], { timeout: 8000, maxBuffer: 8192 });
