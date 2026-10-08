@@ -135,7 +135,7 @@ export function ExecutorConsolePanel({ active, refreshVersion, readOnly, onExpir
             {job.previousInitializationId && <p>衔接原失败任务：{job.previousInitializationId}。原回执保留。</p>}
             {!readOnly && job.expectedName === "手机环境初始化" && job.status === "finished" && job.resultCode === "UNCONFIRMED" && !job.initializationRecovery && (job.initializationStartupRecoveryCount ?? 0) < 2 && <>
               <button type="button" disabled={deviceBusy || !device.connected || working || held?.actor !== "phone-initialization" || uncertain.has(`initialization:${job.id}`)} onClick={() => void mutate("bootstrap-initialization-resume", { deviceId: device.deviceId, id: job.id }, `initialization:${job.id}`, device.deviceId)}>核对原停止证据并继续初始化</button>
-              <p className="muted">平台核对原停止记录、设备锁及当前硬件后继续；仅处理尚未开始手机操作的启动失败，或首次模型超时。启动失败最多恢复两次，安装或配置结果未确认时保留原任务。</p>
+              <p className="muted">平台核对原停止记录、设备锁及当前硬件后继续；仅在确认可信准备尚未开始且原操作可安全衔接时恢复，最多两次。安装或配置结果未确认时保留原任务。</p>
             </>}
           </div>}
           {dispatch && <p>{dispatch.state === "dispatching" ? "正在核对原初始化请求" : dispatch.state === "handing_off" ? "正在核验并切换管理连接" : dispatch.state === "completed" ? "自动准备及连接处理已完成" : dispatch.reason ? dispatchReasons[dispatch.reason] : "初始化等待处理"}</p>}
