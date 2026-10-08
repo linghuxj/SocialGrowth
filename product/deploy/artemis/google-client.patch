@@ -1,0 +1,89 @@
+diff --git a/artemis/agents/explorer/explorer.py b/artemis/agents/explorer/explorer.py
+index f39dfab..6487f88 100644
+--- a/artemis/agents/explorer/explorer.py
++++ b/artemis/agents/explorer/explorer.py
+@@ -29,6 +29,7 @@ import os
+ from typing import Any, Literal
+
+ from google import genai
++from artemis.llm.socialgrowth_google_proxy import google_proxy_http_options
+ from google.genai import types
+
+ from artemis.agents.explorer.constants import DEFAULT_EXPLORER_MODEL
+@@ -146,7 +147,7 @@ class Explorer(PerceptionToolsMixin, UniversalRunnerMixin, RunSetupMixin, Native
+         if client is None:
+             logger.info("Initializing GenAI client on context for connection pooling (Explorer)")
+             api_key = getattr(settings, "GOOGLE_API_KEY", None)
+-            client = genai.Client(api_key=api_key.get_secret_value() if api_key else None)
++            client = genai.Client(api_key=api_key.get_secret_value() if api_key else None, http_options=google_proxy_http_options())
+             self.ctx._genai_client = client
+         self.client = client
+         return client
+diff --git a/artemis/agents/video_analyzer/video_analyzer.py b/artemis/agents/video_analyzer/video_analyzer.py
+index 9704a57..2a3f26f 100644
+--- a/artemis/agents/video_analyzer/video_analyzer.py
++++ b/artemis/agents/video_analyzer/video_analyzer.py
+@@ -37,6 +37,7 @@ import time
+ from typing import Any
+
+ from google import genai
++from artemis.llm.socialgrowth_google_proxy import google_proxy_http_options
+ from google.genai import types
+ from langchain_core.messages import (
+     BaseMessage,
+@@ -431,7 +432,7 @@ class VideoAnalyzer:
+             self.use_native_gemini = True
+         elif has_google_key and is_gemini_model(self.model_name):
+             try:
+-                self.client = genai.Client(api_key=settings.GOOGLE_API_KEY.get_secret_value())
++                self.client = genai.Client(api_key=settings.GOOGLE_API_KEY.get_secret_value(), http_options=google_proxy_http_options())
+                 ctx._genai_client = self.client
+                 self.use_native_gemini = True
+                 asyncio.create_task(cleanup_abandoned_gemini_files(self.client))
+diff --git a/artemis/llm/router.py b/artemis/llm/router.py
+index f2e6b42..40ec680 100644
+--- a/artemis/llm/router.py
++++ b/artemis/llm/router.py
+@@ -28,6 +28,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
+ from pydantic import BaseModel, Field
+
+ from artemis.config.settings import settings
++from artemis.llm.socialgrowth_google_proxy import google_proxy_client_args
+ from artemis.llm.google.provider import supports_thinking_level
+ from third_party.mobile_use.utils.logger import get_logger
+
+@@ -256,6 +257,9 @@ class ModelFactory:
+                     HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+                 },
+             }
++            proxy_args = google_proxy_client_args()
++            if proxy_args:
++                kwargs["client_args"] = proxy_args
+             return ChatGoogleGenerativeAI(**{k: v for k, v in kwargs.items() if v is not None})
+
+         elif provider == ModelProvider.VERTEX_AI:
+diff --git a/artemis/sdk/agent.py b/artemis/sdk/agent.py
+index c0c0da0..9c54e16 100644
+--- a/artemis/sdk/agent.py
++++ b/artemis/sdk/agent.py
+@@ -22,6 +22,7 @@ from pathlib import Path
+
+ from dotenv import load_dotenv
+ from google import genai
++from artemis.llm.socialgrowth_google_proxy import google_proxy_http_options, google_proxy_client_args
+ from langchain_google_genai import ChatGoogleGenerativeAI
+
+ from artemis.clients.screen_client_factory import (
+@@ -153,10 +154,10 @@ class Agent(AgentBase):
+                 return
+
+             # 1. Pre-warm Native SDK client
+-            client = genai.Client(api_key=key)
++            client = genai.Client(api_key=key, http_options=google_proxy_http_options())
+
+             # 2. Pre-warm LangChain client
+-            chat = ChatGoogleGenerativeAI(model="gemini-3.8-flash", google_api_key=key)
++            chat = ChatGoogleGenerativeAI(model="gemini-3.8-flash", google_api_key=key, client_args=google_proxy_client_args())
+
+             # Fire both calls concurrently in the background
+             await asyncio.gather(

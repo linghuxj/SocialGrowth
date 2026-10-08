@@ -23,3 +23,8 @@ ENV PATH=/opt/android/platform-tools:$PATH
 # the fixed SHA-256 is mandatory for every source.
 ARG ANDROID_BUILD_TOOLS_URL=https://dl.google.com/android/repository/build-tools_r36_linux.zip
 RUN ANDROID_BUILD_TOOLS_URL="$ANDROID_BUILD_TOOLS_URL" python -c 'import hashlib,io,os,urllib.request,zipfile; data=urllib.request.urlopen(os.environ["ANDROID_BUILD_TOOLS_URL"],timeout=120).read(); assert hashlib.sha256(data).hexdigest()=="5d9ac77fb6ff43d9da518a337b4fcf8f9097113df531d99ccefe80ef7ce8250b", "BUILD_TOOLS_CHECKSUM_MISMATCH"; z=zipfile.ZipFile(io.BytesIO(data)); root="/opt/android/build-tools/36.0.0"; os.makedirs(root,exist_ok=True); [(os.makedirs(os.path.dirname(root+"/"+n.removeprefix("android-16/")),exist_ok=True),open(root+"/"+n.removeprefix("android-16/"),"wb").write(z.read(n))) for n in z.namelist() if n.startswith("android-16/") and not n.endswith("/")]' && chmod 755 /opt/android/build-tools/36.0.0/aapt /opt/android/build-tools/36.0.0/apksigner && /opt/android/build-tools/36.0.0/apksigner version
+
+# Client-only Google egress; dependencies and Android tools remain unchanged.
+COPY google_proxy.py /opt/artemis/artemis/llm/socialgrowth_google_proxy.py
+COPY google-client.patch /tmp/google-client.patch
+RUN git apply --check /tmp/google-client.patch && git apply /tmp/google-client.patch && rm /tmp/google-client.patch && .venv/bin/python -c 'from artemis.llm.router import ModelFactory; from artemis.llm.socialgrowth_google_proxy import google_proxy_client_args'

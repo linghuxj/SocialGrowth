@@ -1,0 +1,29 @@
+# Optional Google SDK egress only. No host VPN, published port or global proxy.
+# Apply after production/execution overlays; the private node file is not in Git.
+services:
+  google-api-proxy:
+    image: metacubex/mihomo@sha256:bac1a74de365ea59270ba134016762c6be05654d55246518de256113bd1c225e
+    container_name: sg-google-api-proxy
+    network_mode: "service:backend"
+    depends_on:
+      backend:
+        condition: service_healthy
+    command: ["-d", "/tmp/mihomo", "-f", "/run/mihomo/config.yaml"]
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:rw,noexec,nosuid,uid=1000,gid=1000,size=32m"]
+    mem_limit: 128m
+    cpus: 0.5
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: ${SG_GOOGLE_API_PROXY_CONFIG:?required}
+        target: /run/mihomo/config.yaml
+        read_only: true
+        bind: { create_host_path: false }
+  executor:
+    depends_on:
+      google-api-proxy:
+        condition: service_started

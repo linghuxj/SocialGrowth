@@ -46,6 +46,10 @@ jobs:
       - run: pnpm test:config
       - run: pnpm test:product
       - run: pnpm build:product
+      - name: Check isolated Google SDK proxy configuration
+        run: |
+          python3 -m unittest discover -s product/deploy/artemis -p 'test_google_proxy.py' -v
+          SG_GOOGLE_API_PROXY_CONFIG=/tmp/private-google-node.yaml docker compose --env-file product/deploy/.env.production.example -f product/deploy/compose.production.yml -f product/deploy/compose.execution.yml -f product/deploy/compose.google-api-proxy.yml config --quiet
       - run: docker compose --env-file product/deploy/.env.product.example -f product/deploy/compose.product.yml config --quiet
       - run: docker compose --env-file product/deploy/.env.production.example -f product/deploy/compose.production.yml config --quiet
       - run: docker compose --env-file product/deploy/.env.production.example -f product/deploy/compose.production.yml -f product/deploy/compose.execution.yml config --quiet
