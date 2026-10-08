@@ -331,6 +331,9 @@ export function createRuntimeServer(options: ServerOptions) {
         } else if (path === "/phone-initializations" && req.method === "POST") {
           requireFact(process.env.SG_PRODUCT_BOOTSTRAP_ENABLED === "true" && !!process.env.SG_ARTEMIS_ROOT && !!process.env.SG_PHONE_INITIALIZATION_FILE, "PHONE_INITIALIZATION_NOT_CONFIGURED");
           result = verification.startPhoneInitialization(JSON.parse((await body(req, 4096)).toString()), process.env.SG_ARTEMIS_ROOT!, `http://127.0.0.1:${options.port ?? 4318}`, process.env.SG_PHONE_INITIALIZATION_FILE!);
+        } else if (path === "/phone-initializations/resume" && req.method === "POST") {
+          requireFact(process.env.SG_PRODUCT_BOOTSTRAP_ENABLED === "true" && !!process.env.SG_ARTEMIS_ROOT && !!process.env.SG_PHONE_INITIALIZATION_FILE, "PHONE_INITIALIZATION_NOT_CONFIGURED");
+          result = await verification.resumePhoneInitialization(JSON.parse((await body(req, 4096)).toString()), process.env.SG_ARTEMIS_ROOT!, `http://127.0.0.1:${options.port ?? 4318}`, process.env.SG_PHONE_INITIALIZATION_FILE!);
         } else if (path === "/bootstrap-verifications" && req.method === "POST") {
           requireFact(process.env.SG_PRODUCT_BOOTSTRAP_ENABLED === "true" && !!process.env.SG_ARTEMIS_ROOT, "BOOTSTRAP_NOT_CONFIGURED");
           result = verification.startBootstrap(JSON.parse((await body(req, 4096)).toString()), process.env.SG_ARTEMIS_ROOT!, `http://127.0.0.1:${options.port ?? 4318}`);

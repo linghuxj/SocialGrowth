@@ -192,7 +192,7 @@ test("real HTTP handoff enforces operator/device/capability boundaries without s
     };
     assert.equal((await call("/assistance/sessions", device, scope)).ok, false);
     assert.equal((await call("/assistance/sessions", operator, scope)).ok, false);
-    server.runtime.holdDevice("phone", true, "tester");
+    server.runtime.holdDevice("phone", true, "local-operator");
     const { value: session } = await call("/assistance/sessions", operator, scope);
     assert.equal(
       (await call("/device-control", operator, { deviceId: "phone", held: false })).ok,

@@ -1,6 +1,12 @@
 import { z } from "zod";
 
 const key = z.string().min(1).max(256);
+export const phoneInitializationProgressSchema = z.strictObject({
+  phase: z.enum(["checking_device", "inspecting_apps", "preparing_apps", "delivering_configuration", "configuring_network", "observing_stability", "completed", "needs_attention"]),
+  updatedAt: z.string().datetime(),
+  packageName: z.enum(["io.nekohasekai.sfa", "com.follow.clash", "com.facebook.katana", "com.google.android.youtube"]).optional(),
+});
+export type PhoneInitializationProgress = z.infer<typeof phoneInitializationProgressSchema>;
 export const executorVerificationSchema = z.strictObject({
   requestId: z.uuid(), expectedName: z.string().trim().min(1).max(100),
   expectedProfileId: z.string().regex(/^(?:\d{5,30}|UC[A-Za-z0-9_-]{22}|com\.socialgrowth\.product)$/),
@@ -15,6 +21,9 @@ export const executorJobSchema = z.object({
   expectedName: z.string(), expectedProfileId: z.string(), resultCode: z.string().optional(),
   stability: z.object({ observedSeconds: z.int().min(0), samples: z.int().min(1), transport: z.literal("tailnet_and_bootstrap") }).optional(),
   errorCode: z.string().optional(), startedAt: z.string(), finishedAt: z.string().optional(),
+  initializationProgress: phoneInitializationProgressSchema.optional(),
+  previousInitializationId: key.optional(),
+  initializationRecovery: z.object({ at: z.string().datetime(), successorId: key }).optional(),
 });
 export const executorRequestSchema = z.object({
   id: key, taskId: key, deviceId: key, expectedIdentity: z.string(), kind: key,
@@ -28,8 +37,13 @@ export const executorChallengeSchema = z.object({
 export const executorConsoleSchema = z.strictObject({
   bootstrapDevices: z.array(z.strictObject({ deviceId: z.uuid(), connected: z.boolean(), mode: z.enum(["bootstrap", "managed_verified"]) })).default([]),
   automaticPhoneInitialization: z.boolean().default(false),
+  phoneInitializationDispatches: z.array(z.strictObject({ deviceId: z.uuid(),
+    state: z.enum(["dispatching", "handing_off", "blocked", "completed"]),
+    updatedAt: z.string().datetime(),
+    reason: z.enum(["connection_unconfirmed", "executor_unconfirmed", "original_requires_attention", "handoff_unconfirmed"]).optional(),
+  })).default([]),
   configured: z.boolean(), available: z.boolean(), deviceId: key.optional(),
-  tasks: z.array(z.object({ id: key, status: key })),
+  tasks: z.array(z.object({ id: key, status: key, deviceId: key.optional() })),
   holds: z.array(z.object({ device: key, actor: key, since: z.string() })),
   jobs: z.array(executorJobSchema), requests: z.array(executorRequestSchema), challenges: z.array(executorChallengeSchema),
 });

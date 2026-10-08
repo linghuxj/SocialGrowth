@@ -33,6 +33,11 @@ export class ExecutorConsoleController {
     try { return await this.mutate(request, csrf, "bootstrap-handoff", body); }
     catch (error) { rethrowHttp(error, `request-${randomUUID()}`); }
   }
+  @Post("bootstrap-initialization-resume") @Header("Cache-Control", "no-store")
+  async resumeInitialization(@Req() request: Request, @Headers("x-csrf-token") csrf: string | undefined, @Body() body: unknown) {
+    try { return await this.mutate(request, csrf, "bootstrap-initialization-resume", body); }
+    catch (error) { rethrowHttp(error, `request-${randomUUID()}`); }
+  }
   @Post("stop") @Header("Cache-Control", "no-store")
   async stop(@Req() request: Request, @Headers("x-csrf-token") csrf: string | undefined, @Body() body: unknown) {
     try { return await this.mutate(request, csrf, "verifications/stop", executorStopSchema.parse(body)); }

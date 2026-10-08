@@ -7,6 +7,7 @@ import { parseDocument, stringify } from "yaml";
 import { z } from "zod-v3";
 import { AppProvisioner, type Command } from "./app-readiness.js";
 import { requireFact } from "./contracts.js";
+import type { PhoneInitializationProgress } from "@socialgrowth/product-contracts";
 
 export { phoneInitializationVersion } from "@socialgrowth/product-contracts";
 import { phoneInitializationVersion } from "@socialgrowth/product-contracts";
@@ -98,7 +99,8 @@ export class PhoneInitialization {
     requireFact(await this.command("adb", ["-s", serial, "shell", "getprop", "ro.serialno"]) === hardwareSerial, "PHONE_HARDWARE_MISMATCH");
     return { address: address as string, serial, nodeKey: peers[0].PublicKey as string };
   }
-  async prepare(target: { deviceId: string; serial: string; hardwareSerial: string; requestId: string }, authorize: () => void = () => {}): Promise<{ instructions: string; soakSeconds: number; cleanup: () => Promise<void> }> {
+  async prepare(target: { deviceId: string; serial: string; hardwareSerial: string; requestId: string }, authorize: () => void = () => {},
+    progress: (phase: PhoneInitializationProgress["phase"], packageName?: PhoneInitializationProgress["packageName"]) => void = () => {}): Promise<{ instructions: string; soakSeconds: number; cleanup: () => Promise<void> }> {
     authorize();
     requireFact(process.env.SG_APP_STORAGE_FILE, "PHONE_CLOUD_DOWNLOAD_REQUIRED");
     const manifest = phoneInitializationConfig.parse(JSON.parse((await readPrivatePreparationFile(this.manifestPath)).toString()));
@@ -112,9 +114,13 @@ export class PhoneInitialization {
     requireFact(await adb(["shell", "getprop", "ro.serialno"]) === target.hardwareSerial, "PHONE_HARDWARE_MISMATCH");
     // Inspect optional official Tailscale; never install or activate a second VPN.
     await this.command("adb", ["-s", target.serial, "shell", "pm", "list", "packages", "com.tailscale.ipn"]);
-    for (const packageName of ["io.nekohasekai.sfa", "com.follow.clash", "com.facebook.katana", "com.google.android.youtube"])
+    for (const packageName of ["io.nekohasekai.sfa", "com.follow.clash", "com.facebook.katana", "com.google.android.youtube"] as const) {
+      authorize();
+      progress("preparing_apps", packageName);
       await this.apps.ensure(target.serial, packageName, true, authorize);
+    }
     authorize();
+    progress("delivering_configuration");
     requireFact(await adb(["shell", "getprop", "ro.serialno"]) === target.hardwareSerial, "PHONE_HARDWARE_MISMATCH");
     const local = await mkdtemp(join(tmpdir(), "sg-phone-preparation-"));
     const remote = `/sdcard/Download/socialgrowth-${target.requestId}`;

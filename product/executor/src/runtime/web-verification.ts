@@ -11,6 +11,7 @@ import { requireFact, RuntimeError } from "./contracts.js";
 import type { RuntimeStore } from "./store.js";
 import type { HumanAssistance } from "./human-assistance.js";
 import { PhoneInitialization, phoneInitializationVersion } from "./phone-initialization.js";
+import type { PhoneInitializationProgress } from "@socialgrowth/product-contracts";
 import { networkPreparationInstructions } from "../account-preparation-plan.js";
 
 export const verificationInput = z
@@ -36,7 +37,7 @@ export interface VerificationConfig {
   mediaPath?: string;
   mediaSha256?: string;
   bootstrap?: { hardwareSerial: string; sessionId: string };
-  initialization?: { manifestPath: string; wirelessPort: number };
+  initialization?: { manifestPath: string; wirelessPort: number; rootRequestId?: string; previousJobId?: string };
   runtimeUrl: string;
 }
 export const verificationConfigSchema = z
@@ -64,6 +65,10 @@ type Job = Input & {
   managementAddress?: string;
   stability?: { observedSeconds: number; samples: number; transport: "tailnet_and_bootstrap" };
   diagnostics?: { taskStatus: string; passed: number; failed: number; inconclusive: number };
+  initializationProgress?: PhoneInitializationProgress;
+  initializationRootRequestId?: string;
+  previousInitializationId?: string;
+  initializationRecovery?: { at: string; traceId: string; serial: string; evidence: "engine_failed_before_actions_and_locks_released"; successorId: string };
 };
 const resultSchema = z.object({
   resultCode: z.enum([
@@ -122,6 +127,7 @@ export async function nativeDiagnosticEnvelope(raw: unknown, root: string, trace
 
 /** Web-authenticated, fixed no-publication workflow. Does not alter business approval/queue. */
 export class WebVerification {
+  private readonly recoveryOperations = new Set<string>();
   private active = new Map<
     string,
     { client?: ArtemisPort; promise: Promise<void>; cancelled: boolean; cancelReason?: string; preparePhone?: () => Promise<{ instructions: string; appsVerified: true }> }
@@ -131,10 +137,10 @@ export class WebVerification {
     private assistance: HumanAssistance,
     private config?: VerificationConfig,
     private ports: {
-      client: (root: string, scope: { url: string; token: string }) => ClientPort;
+      client: (root: string, scope: { url: string; token: string; deviceId: string; serial: string }) => ClientPort;
       device: DevicePort;
     } = {
-      client: (root: string, scope: { url: string; token: string }) => new ArtemisMcp(root, scope),
+      client: (root: string, scope: { url: string; token: string; deviceId: string; serial: string }) => new ArtemisMcp(root, scope),
       device: new AdbDevice(),
     },
   ) {
@@ -148,6 +154,7 @@ export class WebVerification {
           status: "interrupted",
           resultCode: "UNCONFIRMED",
           errorCode: "RUNTIME_RESTARTED",
+          ...(job.goal === phoneInitializationVersion ? { initializationProgress: { phase: "needs_attention" as const, updatedAt: new Date().toISOString() } } : {}),
         });
   }
   options() {
@@ -179,7 +186,11 @@ export class WebVerification {
       hardwareSerial: z.string().regex(/^[A-Za-z0-9_-]{4,128}$/), sessionId: z.string().uuid(), requestId: z.string().uuid(), wirelessPort: z.number().int().min(32768).max(60999) }).strict().parse(raw);
     requireFact(Number(target.serial.split(":")[1]) <= 65535 && artemisRoot.startsWith("/") && manifestPath.startsWith("/"), "PHONE_TARGET_INVALID");
     return this.store.transaction(() => {
-      const previous = this.list().find(j => j.requestId === target.requestId);
+      const previous = this.list().find(j => j.requestId === target.requestId || j.initializationRootRequestId === target.requestId);
+      if (previous) {
+        requireFact(previous.deviceId === target.deviceId && previous.goal === phoneInitializationVersion, "ID_CONFLICT");
+        return previous;
+      }
       if (!previous) {
         requireFact(!this.store.db.prepare("SELECT 1 FROM tasks WHERE device=? AND status IN ('queued','running','unknown','blocked')").get(target.deviceId), "DEVICE_UNRESOLVED_TASK");
         requireFact(!this.list().some(j => j.deviceId === target.deviceId && j.status === "running"), "DEVICE_BUSY");
@@ -192,6 +203,72 @@ export class WebVerification {
         { artemisRoot, runtimeUrl, deviceId: target.deviceId, serial: target.serial,
           bootstrap: { hardwareSerial: target.hardwareSerial, sessionId: target.sessionId }, initialization: { manifestPath, wirelessPort: target.wirelessPort } });
     });
+  }
+  /** Explicit Web continuation only. Retains the failed receipt and atomically
+   * transfers its own hold; no blind retry or recovery after any phone action. */
+  async resumePhoneInitialization(raw: unknown, artemisRoot: string, runtimeUrl: string, manifestPath: string) {
+    const { id, ...target } = z.object({ id: z.string().uuid(), deviceId: z.string().uuid(), requestId: z.string().uuid(),
+      serial: z.string().regex(/^(?:127\.0\.0\.1|100\.(?:6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.(?:25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})\.(?:25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})):[1-9][0-9]{0,4}$/),
+      hardwareSerial: z.string().regex(/^[A-Za-z0-9_-]{4,128}$/), sessionId: z.string().uuid(), wirelessPort: z.number().int().min(32768).max(60999) }).strict().parse(raw);
+    requireFact(Number(target.serial.split(":")[1]) <= 65535 && artemisRoot.startsWith("/") && manifestPath.startsWith("/"), "PHONE_TARGET_INVALID");
+    const original = this.list().find(j => j.id === id);
+    requireFact(original && original.deviceId === target.deviceId && original.requestId === target.requestId && original.goal === phoneInitializationVersion, "PHONE_ORIGINAL_SCOPE_MISMATCH");
+    if (original.initializationRecovery) {
+      const successor = this.list().find(j => j.id === original.initializationRecovery!.successorId);
+      requireFact(successor && successor.deviceId === original.deviceId && successor.previousInitializationId === original.id, "PHONE_SUCCESSOR_NOT_FOUND");
+      return successor;
+    }
+    requireFact(!original.initializationRootRequestId && original.status === "finished" && original.resultCode === "UNCONFIRMED" && original.traceId && original.finishedAt, "PHONE_RECOVERY_NOT_ELIGIBLE");
+    requireFact(!this.recoveryOperations.has(target.deviceId), "PHONE_RECOVERY_IN_PROGRESS");
+    this.recoveryOperations.add(target.deviceId);
+    const client = new ArtemisMcp(artemisRoot);
+    try {
+      const control = this.assistance.supervision.controls().find(c => c.taskId === id && c.deviceId === target.deviceId);
+      const serial = z.object({ serial: z.string().regex(/^(?:127\.0\.0\.1|100\.[0-9.]+):[1-9][0-9]{0,4}$/) }).parse(control).serial;
+      const assertStopped = () => {
+        const latest = this.list().find(j => j.id === id);
+        requireFact(latest?.status === original.status && latest.traceId === original.traceId && latest.finishedAt === original.finishedAt && !latest.initializationRecovery, "PHONE_ORIGINAL_CHANGED");
+        requireFact(!this.active.has(id) && !this.list().some(j => j.deviceId === target.deviceId && j.status === "running"), "DEVICE_BUSY");
+        requireFact(!this.assistance.deviceBusy(target.deviceId), "ASSISTANCE_SESSION_ACTIVE");
+        const controls = this.assistance.supervision.controls().filter(c => c.deviceId === target.deviceId);
+        requireFact(control && controls.some(c => c.sessionId === control.sessionId && ["stopped", "closed"].includes(c.state) && c.policy.allowPhoneInitialization && c.policy.allowLogin === false && !c.installAttempts)
+          && controls.every(c => ["stopped", "closed"].includes(c.state)), "PHONE_STOP_EVIDENCE_REQUIRED");
+        const events = this.assistance.supervision.events().filter(e => e.taskId === id);
+        requireFact(events.some(e => e.sessionId === control!.sessionId && e.type === "stopped" && Date.parse(e.at) <= Date.parse(original.finishedAt!))
+          && events.every(e => ["opened", "stopped"].includes(e.type)), "PHONE_ACTIONS_CANNOT_BE_REPLAYED");
+        requireFact(!this.assistance.supervision.requests().some(r => r.deviceId === target.deviceId && ["waiting", "responded", "claimed"].includes(r.status)), "SUPERVISION_REQUEST_ACTIVE");
+        requireFact(!this.assistance.list().some(c => c.deviceId === target.deviceId && ["waiting", "submitted", "claimed"].includes(c.status)), "ASSISTANCE_REQUEST_ACTIVE");
+        requireFact(!this.store.db.prepare("SELECT 1 FROM tasks WHERE device IN (?,?,?) AND status IN ('queued','running','unknown','blocked')").get(target.deviceId, serial, target.serial), "DEVICE_UNRESOLVED_TASK");
+        const hold = this.store.db.prepare("SELECT actor,since FROM device_holds WHERE device=?").get(target.deviceId);
+        requireFact(hold?.actor === "phone-initialization" && Math.abs(Date.parse(hold.since as string) - Date.parse(original.startedAt)) < 1000, "PHONE_ORIGINAL_HOLD_MISMATCH");
+      };
+      assertStopped();
+      await client.connect();
+      const status = z.object({ trace_id: z.literal(original.traceId!), device_serial: z.literal(serial), status: z.literal("failed"), error: z.string() }).passthrough()
+        .parse(await client.call("mobile_manage_task", { trace_id: original.traceId, action: "status" }, 10000));
+      requireFact(/^TimeoutError: LLM call timed out after [0-9]+ seconds\./.test(status.error), "PHONE_MODEL_TIMEOUT_EVIDENCE_REQUIRED");
+      const exec = promisify(execFile);
+      const code = "import json,sys; from artemis.runtime.device_lock import DeviceExecutionLock; print(json.dumps({'active':any(DeviceExecutionLock.get_active_owner(s) is not None for s in sys.argv[1:])}))";
+      const locks = await exec(resolve(artemisRoot, ".venv/bin/python"), ["-c", code, serial, target.serial, target.hardwareSerial], { cwd: artemisRoot, timeout: 5000, maxBuffer: 1024 });
+      z.object({ active: z.literal(false) }).strict().parse(JSON.parse(locks.stdout));
+      await exec("adb", ["connect", target.serial], { timeout: 8000, maxBuffer: 8192 });
+      const hardware = await exec("adb", ["-s", target.serial, "shell", "getprop", "ro.serialno"], { timeout: 8000, maxBuffer: 8192 });
+      requireFact(hardware.stdout.trim() === target.hardwareSerial, "PHONE_HARDWARE_MISMATCH");
+      const digest = createHash("sha256").update(`${original.requestId}:${original.id}:model-timeout-continuation`).digest("hex");
+      const requestId = `${digest.slice(0,8)}-${digest.slice(8,12)}-5${digest.slice(13,16)}-8${digest.slice(17,20)}-${digest.slice(20,32)}`;
+      return this.store.transaction(() => {
+        assertStopped();
+        this.store.db.prepare("DELETE FROM device_holds WHERE device=? AND actor='phone-initialization'").run(target.deviceId);
+        this.store.db.prepare("INSERT INTO device_holds VALUES (?,?,?)").run(target.deviceId, "phone-initialization", new Date().toISOString());
+        const successor = this.start({ requestId, expectedName: "手机环境初始化", expectedProfileId: "com.socialgrowth.product", platform: "socialgrowth", mode: "connectivity_test", goal: phoneInitializationVersion,
+          caption: "自动准备可信客户端、单 VPN 网络及管理通道；不执行业务", acknowledgeNoPublication: true },
+          { artemisRoot, runtimeUrl, deviceId: target.deviceId, serial: target.serial, bootstrap: { hardwareSerial: target.hardwareSerial, sessionId: target.sessionId },
+            initialization: { manifestPath, wirelessPort: target.wirelessPort, rootRequestId: original.requestId, previousJobId: original.id } });
+        this.update({ ...original, initializationRecovery: { at: new Date().toISOString(), traceId: original.traceId!, serial,
+          evidence: "engine_failed_before_actions_and_locks_released", successorId: successor.id } });
+        return successor;
+      });
+    } finally { this.recoveryOperations.delete(target.deviceId); await client.close().catch(() => {}); }
   }
   start(raw: unknown, bootstrapConfig?: VerificationConfig) {
     const input = verificationInput.parse(raw), cfg = bootstrapConfig ?? this.config;
@@ -268,6 +345,8 @@ export class WebVerification {
       deviceId: cfg.deviceId,
       status: "running",
       startedAt: new Date().toISOString(),
+      ...(cfg.initialization ? { initializationProgress: { phase: "checking_device" as const, updatedAt: new Date().toISOString() } } : {}),
+      ...(cfg.initialization?.rootRequestId ? { initializationRootRequestId: cfg.initialization.rootRequestId, previousInitializationId: cfg.initialization.previousJobId } : {}),
     };
     const session = cfg.initialization ? undefined : this.assistance.open({
       taskId: job.id,
@@ -286,16 +365,25 @@ export class WebVerification {
     const client = session ? this.ports.client(cfg.artemisRoot, {
       url: cfg.runtimeUrl,
       token: session.token,
+      deviceId: cfg.deviceId,
+      serial: cfg.serial,
     }) : undefined;
     const entry = { client, promise: Promise.resolve(), cancelled: false };
     this.active.set(job.id, entry);
-    entry.promise = this.execute(job, cfg, session?.token, bytes, client)
+    // Defer device work until the enclosing SQLite transaction has committed.
+    // A rolled-back continuation must never reach the phone.
+    entry.promise = Promise.resolve().then(() => {
+      if (cfg.initialization) requireFact(this.list().some(j => j.id === job.id && j.status === "running")
+        && this.store.db.prepare("SELECT 1 FROM device_holds WHERE device=? AND actor='phone-initialization'").get(cfg.deviceId), "PHONE_INITIALIZATION_STATE_NOT_COMMITTED");
+      return this.execute(job, cfg, session?.token, bytes, client);
+    })
       .catch(() => {
         this.update({
           ...job,
           status: "interrupted",
           resultCode: "UNCONFIRMED",
           errorCode: "EXECUTION_FAILED",
+          ...(cfg.initialization ? { initializationProgress: { phase: "needs_attention" as const, updatedAt: new Date().toISOString() } } : {}),
         });
       })
       .finally(() => this.active.delete(job.id));
@@ -323,6 +411,11 @@ export class WebVerification {
     let keepalive: ReturnType<typeof setInterval> | undefined;
     const keepaliveAbort = new AbortController();
     let keepaliveBusy = false;
+    const progress = (phase: PhoneInitializationProgress["phase"], packageName?: PhoneInitializationProgress["packageName"]) => {
+      if (!cfg.initialization) return;
+      job.initializationProgress = { phase, updatedAt: new Date().toISOString(), ...(packageName ? { packageName } : {}) };
+      this.update(job);
+    };
     try {
       if (cfg.bootstrap) {
         const exec = promisify(execFile);
@@ -367,10 +460,17 @@ export class WebVerification {
             const control = this.assistance.supervision.get(session.sessionId);
             requireFact(!this.active.get(job.id)?.cancelled && control.state === "waiting" && control.reason === "TRUSTED_INSTALL_RUNNING", "PHONE_PREPARATION_STOPPED");
           };
-          preparation = await initializer!.prepare({ deviceId: cfg.deviceId, serial: cfg.serial, hardwareSerial: cfg.bootstrap!.hardwareSerial, requestId: job.requestId }, authorize);
+          try {
+            preparation = await initializer!.prepare({ deviceId: cfg.deviceId, serial: cfg.serial, hardwareSerial: cfg.bootstrap!.hardwareSerial, requestId: job.requestId }, authorize, progress);
+          } catch (error) {
+            job.errorCode = error instanceof RuntimeError && /^[A-Z_]{1,80}$/.test(error.code) ? error.code : "PHONE_PREPARATION_UNCONFIRMED";
+            progress("needs_attention");
+            throw error;
+          }
+          progress("configuring_network");
           return { instructions: preparation.instructions, appsVerified: true };
         };
-        client = this.ports.client(cfg.artemisRoot, { url: cfg.runtimeUrl, token });
+        client = this.ports.client(cfg.artemisRoot, { url: cfg.runtimeUrl, token, deviceId: cfg.deviceId, serial: cfg.serial });
         this.active.get(job.id)!.client = client;
         deadline = Date.now() + 840000;
       }
@@ -387,6 +487,7 @@ export class WebVerification {
             );
       requireFact(!this.active.get(job.id)?.cancelled, "CANCELLED");
       await client.connect();
+      progress("inspecting_apps");
       const launch = z.object({ trace_id: z.string().uuid() }).parse(
         await client.call(
           "mobile_run_task",
@@ -548,6 +649,7 @@ STOP with Share now visible and UNTOUCHED. Never publish, upload, schedule, expl
           }
           if (cfg.initialization && result.resultCode === "CONNECTIVITY_SETUP_COMPLETED") {
             requireFact(preparation, "PHONE_PREPARATION_TOOL_REQUIRED");
+            progress("observing_stability");
             // A task report cannot prove transport stability. Observe the same hardware
             // independently throughout the configured bounded window; never USB fallback.
             const management = await initializer!.managementTarget(job.requestId, cfg.initialization.wirelessPort, cfg.bootstrap!.hardwareSerial);
@@ -609,6 +711,7 @@ STOP with Share now visible and UNTOUCHED. Never publish, upload, schedule, expl
           : "cancelled"
         : "finished";
       job.finishedAt = new Date().toISOString();
+      if (cfg.initialization) progress(job.resultCode === "CONNECTIVITY_SETUP_COMPLETED" ? "completed" : "needs_attention");
       this.update(job);
     }
   }

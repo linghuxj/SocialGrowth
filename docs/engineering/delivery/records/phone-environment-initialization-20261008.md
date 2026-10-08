@@ -65,3 +65,11 @@ SFA／FlClash 已上传到已有私有 OSS 并通过服务器完整 GET 的 SHA-
 实际生产 Web 的登录、项目列表、会话重载和退出全部通过，业务写入为 0。复现命令：`SG_PRODUCT_WEB_SCOPE=deployment SG_PRODUCT_WEB_URL=https://growth.mhtm.top SG_PRODUCT_DEPLOYMENT_LOGIN_FILE=.runtime/bootstrap-b1-20261007/production-login.json SG_PRODUCT_DEPLOYMENT_OUTPUT=output/playwright/phone-initialization-deploy-c617dc1 pnpm test:playwright`。
 
 本轮自动准备通过 `scripts/verify-product-phone-initialization-playwright.mts` 从实际 Web 执行，使用 `SG_PRODUCT_WEB_SCOPE=phone-initialization`、固定 Samsung deviceId 和首次 `SG_PHONE_INITIALIZATION_RETURN_CONTROL=true`。证据保存在 `output/playwright/phone-initialization-live-1a94dbd`；观察窗口返回 `pending_original_job`，后续 Web 查询确认上述失败。云下载授权、包校验、CI 和网页检查均不代替应用安装、网络配置、FB／YT、5 分钟交接和长期稳定性验收。
+
+## 优先初始化及多机候选（2026-10-09）
+
+用户暂停测试并确认优先手机环境初始化。已在 dev 开发不同手机独立派发、同机互斥、持久步骤回执、分机 Web 进度及人工待办。修正初始化 Artemis 客户端没有显式传入当前设备编号／远程序列号的问题；不使用默认 Samsung 标识代替其他手机。
+
+只读查询原 trace `cf73171e-4afc-43f1-b174-66bce6158343` 确认其状态为 failed，错误为模型调用超过 180 秒；原监督仅有 opened／stopped，没有安装或手机动作事件。固定 `bb52422` 部署后的既有 Google SDK 记录显示 8 条记录全部成功（含最终汇总），时间晚于原失败；复用该记录，没有重新运行 SDK 测试。这不证明手机初始化成功。受保护初始化清单只允许现有 Samsung，接入密钥到期为 2026-10-14；未输出密钥或订阅。
+
+新增受控 Web 续接入口：仅在原模型超时且无手机动作的严格停止证据、原占用归属和当前硬件／所有别名锁核对通过后，原子交接至一个固定后续任务。原 UNCONFIRMED 保留，并记录 successor；不会静默把旧结果改成成功，也不通用于安装／配置未知或无限自动重试。代码尚须以实际部署和运行结果更新本节，当前没有新增验收通过结论。
