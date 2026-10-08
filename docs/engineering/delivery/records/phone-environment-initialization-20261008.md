@@ -2,7 +2,7 @@
 
 ## 当前结果
 
-已补齐连接核验后的自动派发、固定执行库、可信应用安装、私有配置交付、Artemis 准备权限、四项实际画面检查和双通道观察／交接代码。生产开关保持关闭；新流程尚未通过生产实机验收。用户已批准本轮先将固定候选晋级 main、通过 CI 后部署，再验证现有 Samsung；新手机与长期稳定性分别验收。
+已补齐连接核验后的自动派发、Artemis 任务内可信云下载／安装、私有配置交付、四项实际画面检查和双通道观察／交接代码，并部署至香港生产服务器。Samsung 恢复连接后，真实 Web 交还原人工接管，平台自动创建了初始化任务；模型上游返回“当前无可用凭证”，任务结束为未确认，未进入应用下载、安装及配置步骤。生产自动准备开关已暂时关闭，保留原任务和初始化接管。新流程尚未通过生产实机验收；用户已批准本轮先晋级 main、通过 CI 后部署，再验证现有 Samsung。新手机与长期稳定性分别验收。
 
 使用用户提供的受保护 Clash YAML。解析通过：292 个代理、5 个组；部署副本关闭 TUN 与局域网监听，只保留回环代理。没有记录节点密码、订阅地址或接入密钥。
 
@@ -29,7 +29,7 @@
 
 `28c9507` 已晋级 main，GitHub Actions 37762435686 的 TypeScript／Playwright 与 Android 两项任务全部成功。随后补齐独立执行连接的 15 秒只读保活，以及初始化开始前清理该独立服务中的离线目标缓存；保活不重连、不重发操作、不充当成功证据。该补充修改的执行器构建与回执相关 21 项测试通过，须以更新候选的 main CI 作为部署门禁。
 
-当前生产仍为原版本。历史失败准备任务及人工接管保留；没有创建本轮 Artemis 初始化任务，没有账号变更或业务发布。
+上述阶段的生产仍为原版本，尚未创建本轮初始化任务；后续部署和实际触发结果见下文。历史失败任务保留，没有账号变更或业务发布。
 
 
 ## Artemis 内的云下载候选
@@ -48,4 +48,20 @@ SFA／FlClash 已上传到已有私有 OSS 并通过服务器完整 GET 的 SHA-
 
 工具候选 `1a94dbd` 的 main CI 37777616990 两项通过，三服务已部署；运行用户对私有清单、凭据、配置、全部 15 个包及 Build Tools 的可读／可执行核验通过。手机打开 App 后真实 Web 再次观察到 Samsung 的 bootstrap 连接已核验。
 
-部署后的检查发现设置 `ADB_SERVER_SOCKET=tcp:127.0.0.1:5038` 时，ADB 不会自行启动远端守护服务；全新执行容器中 5038 尚未监听。修订初始化 overlay，在执行器启动时显式启动唯一的本地 5038 服务，再 exec 正式 Node 入口。原人工接管仍保留，本轮自动 Artemis 任务尚未创建；须验证更新容器可自行启动该服务后再交还接管。
+部署后的检查发现设置 `ADB_SERVER_SOCKET=tcp:127.0.0.1:5038` 时，ADB 不会自行启动远端守护服务；全新执行容器中 5038 尚未监听。修订初始化 overlay，在执行器启动时显式启动唯一的本地 5038 服务，再 exec 正式 Node 入口。该修订前的定位轮次手动启动独立服务，未将其计为自动启动通过。
+
+## 实际自动触发及上游阻断
+
+用户打开手机 App 后，生产 Web 核验原 Samsung 的 bootstrap 连接；实际点击“交还自动准备”后，平台自动派发任务 `aeacdfc1-9a19-4277-8ad5-9633b1181ae4`，Artemis trace 为 `cf73171e-4afc-43f1-b174-66bce6158343`。任务没有通过直接接口创建，也没有用 USB 或固定手机点击脚本替代 Artemis。
+
+主模型 `gemini-3.8-flash` 与备用模型 `gemini-3.7-flash` 的上游 `api.qiuqiutoken.jiawuyu.com` 连续返回 HTTP 500。相同配置的独立最小文本请求也均返回 `bad_response_status_code`／“当前无可用凭证”；模型目录 GET 为 200 不能证明推理可用。此外，目录未列出配置中的 `gemini-3.5-flash-lite` 和 `gemini-robotics-er-2-preview`，恢复后须核对所需工具模型支持。未切换提供方、密钥或模型来绕过此故障。
+
+真实 Web 观察到原任务 `finished`、`UNCONFIRMED`、`INSPECT_DEVICE_EVIDENCE`；没有安装开始事件或可信准备调用。Artemis 子进程已退出，原任务、trace 和接管保留，没有自动重试新任务。需要上游恢复可用渠道后再对原结果核对并继续，不能把本轮自动触发称为手机初始化成功。
+
+启动修订 `c617dc180dba18c107c488011edb79fe8122ef10` 的 main CI 37778981672 两项均通过；确认无在途任务后完成 SQLite、PostgreSQL、私有运行状态和生产配置备份（`/opt/socialgrowth/backups/phone-cloud-20261008T125928Z`），并部署三服务。自动准备保持关闭，手机业务数据和原授权保持。
+
+部署后核对：三服务镜像 revision 均为完整 `c617dc1` SHA，backend／executor 健康；在全新执行容器中、没有手动启动 ADB 的条件下，5038 连接核验通过。原 Artemis trace 的独立状态为 `failed`，无剩余 Artemis 子进程；原任务仅有 `opened`／`stopped` 事件。
+
+实际生产 Web 的登录、项目列表、会话重载和退出全部通过，业务写入为 0。复现命令：`SG_PRODUCT_WEB_SCOPE=deployment SG_PRODUCT_WEB_URL=https://growth.mhtm.top SG_PRODUCT_DEPLOYMENT_LOGIN_FILE=.runtime/bootstrap-b1-20261007/production-login.json SG_PRODUCT_DEPLOYMENT_OUTPUT=output/playwright/phone-initialization-deploy-c617dc1 pnpm test:playwright`。
+
+本轮自动准备通过 `scripts/verify-product-phone-initialization-playwright.mts` 从实际 Web 执行，使用 `SG_PRODUCT_WEB_SCOPE=phone-initialization`、固定 Samsung deviceId 和首次 `SG_PHONE_INITIALIZATION_RETURN_CONTROL=true`。证据保存在 `output/playwright/phone-initialization-live-1a94dbd`；观察窗口返回 `pending_original_job`，后续 Web 查询确认上述失败。云下载授权、包校验、CI 和网页检查均不代替应用安装、网络配置、FB／YT、5 分钟交接和长期稳定性验收。
