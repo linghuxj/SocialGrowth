@@ -80,3 +80,13 @@ pnpm test:playwright
 可复现 Web 入口新增 `SG_PRODUCT_WEB_SCOPE=core-material-upload`，复用 `pnpm test:playwright`。登录由 `SG_PRODUCT_DEPLOYMENT_LOGIN_FILE` 保护文件提供，文件路径由 `SG_PRODUCT_REAL_MATERIAL_FILES` JSON 数组提供；指定原项目名及 `SG_PRODUCT_REAL_MATERIAL_AUTHORIZED=1`。`SG_PRODUCT_REAL_MATERIAL_INSPECT_INVENTORY=1` 只读原票据；默认遇到已有待校验票据会停止，不重传。只有明确选择 `SG_PRODUCT_REAL_MATERIAL_CREATE_IF_MISSING=1` 才创建缺失筹备项目。
 
 受控证据：`output/playwright/core-flow-fixed-candidate-identity/`、`core-flow-deploy-original-final/`、`core-material-online-originals/`、`core-material-online-reconcile/`、`core-material-online-second/`、`core-material-local-fixed-candidate/`。均不提交 Git。线上已有真实字节记录解决了“线上无真实上传记录”的问题；本地上传、正式准备派发与核验身份仍阻断完整链路，部署健康不能替代这些业务结果。
+
+## 固定候选归档
+
+身份回写、同机互斥、讨论文档及本轮 Web 脚本已单独提交到 `dev`：`e42051d0d4e2b8d894357e889da0796d15a62049`。保留其他任务的工作区修改，没有批量提交账号运营、素材 AI 或其他未提交变更。提交树与隔离检查候选 `02198cfa7aae722a2ceb89fc2e2a155c0098c280` 完全一致；它保留已提交的手机初始化修订 `40e8b5a`。38 项检查在该候选的前一固定树通过，随后合入停止回执的可选错误字段修订，再补查执行器类型及 26 项身份组件，均通过。真实 Web 身份同步阻断／重读／重载 3 项在 `054fd00` 基线的隔离候选通过，原件 `output/playwright/core-flow-db97b00-identity/`；不是成功绑定验收。
+
+源码通过 Git 固定提交归档，已传至服务器 `/opt/socialgrowth/candidates/core-flow/e42051d0d4e2b8d894357e889da0796d15a62049/source.tar.gz`，同目录保存保护权限的 manifest。服务器与本地 SHA-256 均为 `f5ce3a828a61ec2cdff9df17ca747ca15af39b2da27b2e7a8f7fc54113ec8f03`。归档不含运行目录、账号秘密、素材或截图。
+
+本轮**仅准备源码候选，没有构建该候选的线上镜像、执行线上 0052 迁移或切换服务**。归档后正式服务仍为手机初始化候选 `054fd002083cf32b5c294a924008dd4b8095ff3d`，它在本轮期间由另一项手机初始化工作切换；不是本身份回写候选的上线结果。`main`、发布标签和远端推送未改动。部署后须独立核对迁移、版本、原占用、真实身份派发和原回执，不能把本次源码归档或既有素材上传当作上线验收。正式 Web 07:48:21 的只读补验仍为发布身份 0、原初始化占用及 6 条 `UNCONFIRMED` 回执，业务写入 0。
+
+本轮自有临时 Web／后端均已退出，3100／4320 无监听；原业务数据库与手机执行服务保留。
