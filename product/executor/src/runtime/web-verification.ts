@@ -230,6 +230,7 @@ export class WebVerification {
     try {
       const control = this.assistance.supervision.controls().find(c => c.taskId === id && c.deviceId === target.deviceId);
       const serial = z.object({ serial: z.string().regex(/^(?:127\.0\.0\.1|100\.[0-9.]+):[1-9][0-9]{0,4}$/) }).parse(control).serial;
+      let closedWithoutStop = false;
       const assertStopped = () => {
         const latest = this.list().find(j => j.id === id);
         requireFact(latest?.status === original.status && latest.traceId === original.traceId && latest.finishedAt === original.finishedAt && !latest.initializationRecovery, "PHONE_ORIGINAL_CHANGED");
@@ -239,7 +240,9 @@ export class WebVerification {
         requireFact(control && controls.some(c => c.sessionId === control.sessionId && ["stopped", "closed"].includes(c.state) && c.policy.allowPhoneInitialization && c.policy.allowLogin === false && !c.installAttempts)
           && controls.every(c => ["stopped", "closed"].includes(c.state)), "PHONE_STOP_EVIDENCE_REQUIRED");
         const events = this.assistance.supervision.events().filter(e => e.taskId === id);
-        requireFact(events.some(e => e.sessionId === control!.sessionId && e.type === "stopped" && Date.parse(e.at) <= Date.parse(original.finishedAt!))
+        const stopped = events.some(e => e.sessionId === control!.sessionId && e.type === "stopped" && Date.parse(e.at) <= Date.parse(original.finishedAt!));
+        closedWithoutStop = !stopped;
+        requireFact((stopped || (control?.state === "closed" && events.some(e => e.sessionId === control.sessionId && e.type === "opened" && Date.parse(e.at) <= Date.parse(original.finishedAt!))))
           && events.every(e => ["opened", "stopped"].includes(e.type)), "PHONE_ACTIONS_CANNOT_BE_REPLAYED");
         requireFact(!this.assistance.supervision.requests().some(r => r.deviceId === target.deviceId && ["waiting", "responded", "claimed"].includes(r.status)), "SUPERVISION_REQUEST_ACTIVE");
         requireFact(!this.assistance.list().some(c => c.deviceId === target.deviceId && ["waiting", "submitted", "claimed"].includes(c.status)), "ASSISTANCE_REQUEST_ACTIVE");
@@ -262,7 +265,7 @@ export class WebVerification {
         const evidence = await exec(resolve(artemisRoot, ".venv/bin/python"), ["-c", code, original.traceId!], { cwd: artemisRoot, timeout: 5000, maxBuffer: 1024 });
         startupFailure = z.object({ emptyStartupTrace: z.literal(true) }).strict().safeParse(JSON.parse(evidence.stdout)).success;
       }
-      requireFact(startupFailure || (!automatic && modelTimeout), "PHONE_NO_ACTION_RECOVERY_EVIDENCE_REQUIRED");
+      requireFact(startupFailure || (!automatic && modelTimeout && !closedWithoutStop), "PHONE_NO_ACTION_RECOVERY_EVIDENCE_REQUIRED");
       // Enumerate every endpoint scope: a 5037-only lookup could miss the
       // isolated 5038 executor's owner or a queued task for the same phone.
       const code = "import json,sys; from artemis.runtime.device_lock import DeviceExecutionLock; aliases=set(sys.argv[1:]); owners=DeviceExecutionLock.get_active_owners().values(); queued=DeviceExecutionLock.get_queued_tasks(); print(json.dumps({'active':any(o.device_id in aliases for o in owners) or any(q.get('device_id') in aliases|{'default','pending','any'} for q in queued)}))";
@@ -722,6 +725,12 @@ STOP with Share now visible and UNTOUCHED. Never publish, upload, schedule, expl
         /* report cannot invent a result or trigger another attempt */
       }
       if (preparation) await preparation.cleanup().catch(() => {});
+      // A missing final screenshot must not suppress the stopped receipt. Engine
+      // outcome and supervision closure are recorded independently of pixels.
+      if (cfg.initialization && job.resultCode !== "CONNECTIVITY_SETUP_COMPLETED") {
+        const control = this.assistance.supervision.controls().find(c => c.taskId === job.id && c.deviceId === cfg.deviceId);
+        if (control && !["stopped", "closed"].includes(control.state)) this.assistance.supervision.stop(control.sessionId, job.errorCode ?? "UNCONFIRMED");
+      }
       if (token) this.assistance.closeSession(token);
       await client?.close().catch(() => {});
       job.status = this.active.get(job.id)?.cancelled
