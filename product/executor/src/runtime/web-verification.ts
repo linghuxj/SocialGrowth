@@ -7,9 +7,10 @@ import { resolve } from "node:path";
 import { z } from "zod-v3";
 import { ArtemisMcp, type ArtemisPort } from "./artemis.js";
 import { AdbDevice, artemisStructuredResult, type DevicePort } from "./device-executor.js";
-import { requireFact } from "./contracts.js";
+import { requireFact, RuntimeError } from "./contracts.js";
 import type { RuntimeStore } from "./store.js";
 import type { HumanAssistance } from "./human-assistance.js";
+import { PhoneInitialization, phoneInitializationVersion } from "./phone-initialization.js";
 import { networkPreparationInstructions } from "../account-preparation-plan.js";
 
 export const verificationInput = z
@@ -35,6 +36,7 @@ export interface VerificationConfig {
   mediaPath?: string;
   mediaSha256?: string;
   bootstrap?: { hardwareSerial: string; sessionId: string };
+  initialization?: { manifestPath: string; wirelessPort: number };
   runtimeUrl: string;
 }
 export const verificationConfigSchema = z
@@ -59,6 +61,8 @@ type Job = Input & {
   loginSubmitCount?: number;
   finalSubmitClicked?: boolean;
   errorCode?: string;
+  managementAddress?: string;
+  stability?: { observedSeconds: number; samples: number; transport: "tailnet_and_bootstrap" };
   diagnostics?: { taskStatus: string; passed: number; failed: number; inconclusive: number };
 };
 const resultSchema = z.object({
@@ -120,7 +124,7 @@ export async function nativeDiagnosticEnvelope(raw: unknown, root: string, trace
 export class WebVerification {
   private active = new Map<
     string,
-    { client: ArtemisPort; promise: Promise<void>; cancelled: boolean; cancelReason?: string }
+    { client?: ArtemisPort; promise: Promise<void>; cancelled: boolean; cancelReason?: string }
   >();
   constructor(
     private store: RuntimeStore,
@@ -170,8 +174,28 @@ export class WebVerification {
       platform: "socialgrowth", mode: "connectivity_test", goal: "BOOTSTRAP_PHONE_PREPARATION", caption: "首次接入后的管理网络准备，不执行业务", acknowledgeNoPublication: true },
       { artemisRoot, runtimeUrl, deviceId: target.deviceId, serial: target.serial, bootstrap: { hardwareSerial: target.hardwareSerial, sessionId: target.sessionId } });
   }
+  startPhoneInitialization(raw: unknown, artemisRoot: string, runtimeUrl: string, manifestPath: string) {
+    const target = z.object({ deviceId: z.string().uuid(), serial: z.string().regex(/^(?:127\.0\.0\.1|100\.(?:6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.(?:25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})\.(?:25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})):[1-9][0-9]{0,4}$/),
+      hardwareSerial: z.string().regex(/^[A-Za-z0-9_-]{4,128}$/), sessionId: z.string().uuid(), requestId: z.string().uuid(), wirelessPort: z.number().int().min(32768).max(60999) }).strict().parse(raw);
+    requireFact(Number(target.serial.split(":")[1]) <= 65535 && artemisRoot.startsWith("/") && manifestPath.startsWith("/"), "PHONE_TARGET_INVALID");
+    return this.store.transaction(() => {
+      const previous = this.list().find(j => j.requestId === target.requestId);
+      if (!previous) {
+        requireFact(!this.store.db.prepare("SELECT 1 FROM tasks WHERE device=? AND status IN ('queued','running','unknown','blocked')").get(target.deviceId), "DEVICE_UNRESOLVED_TASK");
+        requireFact(!this.list().some(j => j.deviceId === target.deviceId && j.status === "running"), "DEVICE_BUSY");
+        requireFact(!this.store.db.prepare("SELECT 1 FROM device_holds WHERE device=?").get(target.deviceId), "DEVICE_ALREADY_HELD");
+        this.store.db.prepare("INSERT INTO device_holds VALUES (?,?,?)").run(target.deviceId, "phone-initialization", new Date().toISOString());
+      }
+      return this.start({ requestId: target.requestId, expectedName: "手机环境初始化", expectedProfileId: "com.socialgrowth.product",
+        platform: "socialgrowth", mode: "connectivity_test", goal: phoneInitializationVersion,
+        caption: "可信应用、管理连接与 FB/YT 网络初始化，不执行业务", acknowledgeNoPublication: true },
+        { artemisRoot, runtimeUrl, deviceId: target.deviceId, serial: target.serial,
+          bootstrap: { hardwareSerial: target.hardwareSerial, sessionId: target.sessionId }, initialization: { manifestPath, wirelessPort: target.wirelessPort } });
+    });
+  }
   start(raw: unknown, bootstrapConfig?: VerificationConfig) {
     const input = verificationInput.parse(raw), cfg = bootstrapConfig ?? this.config;
+    requireFact(input.goal !== phoneInitializationVersion || !!bootstrapConfig?.initialization, "PHONE_INITIALIZATION_AUTHORITY_REQUIRED");
     requireFact(!input.goal.includes("BOOTSTRAP_PHONE_PREPARATION") || !!bootstrapConfig?.bootstrap, "BOOTSTRAP_AUTHORITY_REQUIRED");
     requireFact(cfg, "WEB_VERIFICATION_NOT_CONFIGURED");
     const previous = this.list().find((j) => j.requestId === input.requestId);
@@ -245,7 +269,7 @@ export class WebVerification {
       status: "running",
       startedAt: new Date().toISOString(),
     };
-    const session = this.assistance.open({
+    const session = cfg.initialization ? undefined : this.assistance.open({
       taskId: job.id,
       deviceId: cfg.deviceId,
       serial: cfg.serial,
@@ -254,18 +278,18 @@ export class WebVerification {
       expectedIdentity: `${input.expectedName} / ${input.platform} ${input.expectedProfileId} (diagnostic only)`,
       expiresAt: new Date(Date.now() + 900000).toISOString(),
       mode: "diagnostic",
-      policy: { mode: input.mode, allowTrustedInstall: input.mode === "preflight", allowParticipationWithdrawal: input.allowParticipationWithdrawal, allowNetworkCoexistenceCheck: networkCoexistence },
+      policy: { mode: input.mode, allowTrustedInstall: input.mode === "preflight", allowParticipationWithdrawal: input.allowParticipationWithdrawal, allowNetworkCoexistenceCheck: networkCoexistence, allowPhoneInitialization: !!cfg.initialization, allowLogin: !cfg.bootstrap && !networkCoexistence },
     });
     this.store.db
       .prepare("INSERT INTO web_verifications(id,request_id,body) VALUES (?,?,?)")
       .run(job.id, input.requestId, JSON.stringify(job));
-    const client = this.ports.client(cfg.artemisRoot, {
+    const client = session ? this.ports.client(cfg.artemisRoot, {
       url: cfg.runtimeUrl,
       token: session.token,
-    });
+    }) : undefined;
     const entry = { client, promise: Promise.resolve(), cancelled: false };
     this.active.set(job.id, entry);
-    entry.promise = this.execute(job, cfg, session.token, bytes, client)
+    entry.promise = this.execute(job, cfg, session?.token, bytes, client)
       .catch(() => {
         this.update({
           ...job,
@@ -280,12 +304,14 @@ export class WebVerification {
   private async execute(
     job: Job,
     cfg: VerificationConfig,
-    token: string,
+    token: string | undefined,
     bytes: Buffer,
-    client: ClientPort,
+    client: ClientPort | undefined,
   ) {
-    const deadline = Date.now() + 840000;
+    let deadline = Date.now() + 840000;
     let terminal = false;
+    const initializer = cfg.initialization ? new PhoneInitialization(cfg.initialization.manifestPath) : undefined;
+    let preparation: Awaited<ReturnType<PhoneInitialization["prepare"]>> | undefined;
     try {
       if (cfg.bootstrap) {
         const exec = promisify(execFile);
@@ -293,6 +319,21 @@ export class WebVerification {
         const hardware = await exec("adb", ["-s", cfg.serial, "shell", "getprop", "ro.serialno"], { timeout: 8000, maxBuffer: 8192 });
         requireFact(hardware.stdout.trim() === cfg.bootstrap.hardwareSerial, "BOOTSTRAP_HARDWARE_MISMATCH");
       }
+      if (cfg.initialization) preparation = await initializer!.prepare({ deviceId: cfg.deviceId, serial: cfg.serial, hardwareSerial: cfg.bootstrap!.hardwareSerial, requestId: job.requestId });
+      if (cfg.initialization) {
+        requireFact(!this.active.get(job.id)?.cancelled, "CANCELLED");
+        // APK transport may be slow. Only open the bounded UI capability once
+        // deterministic installation and private delivery have finished.
+        const session = this.assistance.open({ taskId: job.id, deviceId: cfg.deviceId, serial: cfg.serial,
+          packageName: "com.socialgrowth.product", expectedIdentity: `${job.expectedName} / socialgrowth com.socialgrowth.product (diagnostic only)`,
+          expiresAt: new Date(Date.now() + 900000).toISOString(), mode: "diagnostic",
+          policy: { mode: "connectivity_test", allowPhoneInitialization: true, allowLogin: false } });
+        token = session.token;
+        client = this.ports.client(cfg.artemisRoot, { url: cfg.runtimeUrl, token });
+        this.active.get(job.id)!.client = client;
+        deadline = Date.now() + 840000;
+      }
+      requireFact(client && token, "VERIFICATION_CAPABILITY_REQUIRED");
       const media =
         job.mode !== "preflight"
           ? ""
@@ -315,9 +356,11 @@ export class WebVerification {
             // is foreground. Package restriction remains on preflight tasks.
             ...(job.mode === "preflight" ? { locked_app_package: "com.facebook.katana" } : {}),
             model: "Pro",
-            verification_level: job.mode === "connectivity_test" && (job.goal.includes("VERIFY_OFFLINE_GUIDE_ONLY") || job.goal.includes("VERIFY_ANDROID_CONNECTION_UI") || job.goal.includes("VERIFY_AUTOMATIC_CONNECTION") || job.goal.includes("VERIFY_PHONE_NETWORK_COEXISTENCE") || job.goal.includes("CHECK_NETWORK_PREPARATION_GUIDE")) ? "checkpoints" : "final",
+            verification_level: cfg.initialization || job.mode === "connectivity_test" && (job.goal.includes("VERIFY_OFFLINE_GUIDE_ONLY") || job.goal.includes("VERIFY_ANDROID_CONNECTION_UI") || job.goal.includes("VERIFY_AUTOMATIC_CONNECTION") || job.goal.includes("VERIFY_PHONE_NETWORK_COEXISTENCE") || job.goal.includes("CHECK_NETWORK_PREPARATION_GUIDE")) ? "checkpoints" : "final",
             task_desc:
-              cfg.bootstrap
+              cfg.initialization
+                ? `${networkPreparationInstructions("initialize_phone_environment")}\n${preparation!.instructions}`
+                : cfg.bootstrap
                 ? `ONE Web-authorized first-phone preparation over THIS exact authenticated reverse ADB transport. Do not switch transport, stop SocialGrowth, close its ongoing notification, disable Wi-Fi or wireless debugging, or re-pair. Only use Artemis visual decisions and ordinary UI in SocialGrowth, launcher, system installer/settings, browser, SFA and FlClash. No shell, arbitrary downloads, credentials in notes, business apps, media accounts, login, publishing, or participation changes. First inspect which required network clients are installed and the SocialGrowth initial-connection status. Use the existing SFA single-VPN plus FlClash non-VPN design; never activate two VPN services or use an exit node. If verified installation packages or device-specific configuration are absent, request human assistance in this same task with the precise missing item; use only operator-supplied verified package/config references, do not search for substitutes or invent configuration. Install/configure SFA and FlClash only within that supplied scope, preserving existing configurations and business unknowns. The phone owner must perform system installation/VPN consent that needs their action; request human assistance and wait. Never disclose or persist access keys, subscription URLs or clipboard content. Verify the clients' actual status with current screenshots. Keep bootstrap connected throughout preparation. Do not terminate it or claim management handoff, formal admission, business readiness or successful recovery; these need independent server verification. If the connection or device authority is lost stop UNCONFIRMED. End with exact JSON {"resultCode":"CONNECTIVITY_SETUP_COMPLETED" or "UNCONFIRMED","loginSubmitCount":0,"finalSubmitClicked":false}, based only on observed setup, and save the same secret-free JSON in connectivity-test-result.`
                 : job.mode === "connectivity_test" && job.goal.includes("VERIFY_PHONE_NETWORK_COEXISTENCE")
                 ? `${networkPreparationInstructions("verify_network_coexistence")}\nONE Web-authorized phone network coexistence READ-ONLY test. This task must use the configured remote ADB transport to Samsung RFCW40MYYCV; no USB fallback. Only ordinary launcher/navigation UI in SFA (io.nekohasekai.sfa), FlClash (com.follow.clash), Facebook and YouTube. To switch apps use the actual Android system Home button to reach the launcher; never press Back to exit the FlClash main activity and never swipe it away from Recents. Do not tap service run/stop controls or VPN/TUN switches while inspecting them. No shell/ADB tools, manage_app, launch_app, delegation, network changes, stopping services, settings changes, configuration editors, credentials, login, account switching, pairing, identity creation, upload, comments, reactions, draft or publication. Observe SFA service is running. IMPORTANT: SFA can resume its Service settings page (服務, battery permission card) when its launcher icon is tapped. Use the ordinary Android Back button INSIDE SFA to return to its Dashboard (儀表盤) and observe 已啟動. This is navigation only; do not change any setting. Home then reopening SFA resumes the same settings page, so do not repeat that loop. Observe FlClash core is running with VPN option off, without opening subscription/profile editors. Through the launcher open Facebook, refresh the current home feed once, then use ordinary Facebook search for NASA Artemis and verify actual newly loaded online search results; cached feed alone is insufficient. Never touch composer or accounts. Through the launcher open YouTube, use ordinary search for NASA, open one public NASA video, wait 20 seconds, and verify actual moving playback with advancing time rather than a thumbnail/spinner. Do not subscribe, like, comment or publish. If app login/consent is required or any requested fact cannot be observed, stop UNCONFIRMED; do not fix it. At EACH corresponding currently visible app screen declare and check its actual UI assertion before leaving that app: running non-VPN FlClash, running SFA, Facebook newly loaded online search results, YouTube moving playback with advancing time. Use verify checkpoint items at these actual UI milestones and mark each observed milestone complete while its screen is visible, so the SDK checks its anchored evidence; do not defer checks of historical screens to the final video screen. No assertions comparing note strings. Retain one final assertion for the currently playing YouTube video. End on the playing public video. Only if ALL requested facts are observed save exact unescaped JSON {"resultCode":"CONNECTIVITY_SETUP_COMPLETED","loginSubmitCount":0,"finalSubmitClicked":false} in connectivity-test-result and return it; otherwise UNCONFIRMED. Remote transport, VPN owner and absence of exit node are independently verified by the controller. This proves only networking, never login/business/publication acceptance.`
@@ -413,7 +456,7 @@ STOP with Share now visible and UNTOUCHED. Never publish, upload, schedule, expl
             requireFact(result.resultCode === "CONNECTIVITY_SETUP_COMPLETED" || result.resultCode === "UNCONFIRMED", "CONNECTIVITY_RESULT_INVALID");
             requireFact(result.loginSubmitCount === 0, "CONNECTIVITY_LOGIN_NOT_AUTHORIZED");
             requireFact(result.resultCode !== "CONNECTIVITY_SETUP_COMPLETED" || summary.success && summary.data.test_summary.task_status === "completed" && summary.data.test_summary.passed > 0 && summary.data.test_summary.failed === 0 && summary.data.test_summary.inconclusive === 0, "CONNECTIVITY_CHECKER_UNCONFIRMED");
-            if (job.goal.includes("VERIFY_PHONE_NETWORK_COEXISTENCE"))
+            if (job.goal.includes("VERIFY_PHONE_NETWORK_COEXISTENCE") || cfg.initialization)
               requireFact(result.resultCode !== "CONNECTIVITY_SETUP_COMPLETED" || summary.success
                 && summary.data.test_summary.passed >= 4 && summary.data.test_summary.unchecked === 0,
               "NETWORK_CHECKER_COVERAGE_UNCONFIRMED");
@@ -462,26 +505,48 @@ STOP with Share now visible and UNTOUCHED. Never publish, upload, schedule, expl
               .safeParse(structured);
             requireFact(verified.success, "PREFLIGHT_VERIFICATION_INCOMPLETE");
           }
+          if (cfg.initialization && result.resultCode === "CONNECTIVITY_SETUP_COMPLETED") {
+            // A task report cannot prove transport stability. Observe the same hardware
+            // independently throughout the configured bounded window; never USB fallback.
+            const management = await initializer!.managementTarget(job.requestId, cfg.initialization.wirelessPort, cfg.bootstrap!.hardwareSerial);
+            const observedAt = Date.now(), until = observedAt + preparation!.soakSeconds * 1000, exec = promisify(execFile);
+            let samples = 0;
+            do {
+              requireFact(!this.active.get(job.id)?.cancelled, "CANCELLED");
+              const hardware = await exec("adb", ["-s", cfg.serial, "shell", "getprop", "ro.serialno"], { timeout: 8000, maxBuffer: 8192 });
+              requireFact(hardware.stdout.trim() === cfg.bootstrap!.hardwareSerial, "PHONE_TRANSPORT_UNCONFIRMED");
+              const currentManagement = await initializer!.managementTarget(job.requestId, cfg.initialization.wirelessPort, cfg.bootstrap!.hardwareSerial);
+              requireFact(currentManagement.address === management.address && currentManagement.nodeKey === management.nodeKey, "PHONE_MANAGEMENT_NODE_CHANGED");
+              samples += 1;
+              if (Date.now() < until) await new Promise(resolve => setTimeout(resolve, Math.min(15000, until - Date.now())));
+            } while (Date.now() < until);
+            // Final sample closes the entire observation window, not the preceding interval.
+            const finalManagement = await initializer!.managementTarget(job.requestId, cfg.initialization.wirelessPort, cfg.bootstrap!.hardwareSerial);
+            requireFact(finalManagement.address === management.address && finalManagement.nodeKey === management.nodeKey, "PHONE_MANAGEMENT_NODE_CHANGED");
+            job.managementAddress = management.address;
+            job.stability = { observedSeconds: Math.floor((Date.now() - observedAt) / 1000), samples: samples + 1, transport: "tailnet_and_bootstrap" };
+            await preparation!.cleanup();
+            this.store.db.prepare("DELETE FROM device_holds WHERE device=? AND actor='phone-initialization'").run(cfg.deviceId);
+          }
           Object.assign(job, result);
           break;
         }
         await new Promise((resolve) => setTimeout(resolve, 2000));
       }
       requireFact(terminal, "EXECUTION_TIMEOUT_OR_CANCELLED");
-    } catch {
+    } catch (error) {
       job.resultCode = "UNCONFIRMED";
-      job.errorCode ??= this.active.get(job.id)?.cancelReason ?? "INSPECT_DEVICE_EVIDENCE";
+      job.errorCode ??= this.active.get(job.id)?.cancelReason ?? (error instanceof RuntimeError && /^[A-Z_]{1,80}$/.test(error.code) ? error.code : "INSPECT_DEVICE_EVIDENCE");
     } finally {
       if (!terminal && job.traceId)
-        await client
-          .call("mobile_manage_task", { trace_id: job.traceId, action: "stop" }, 10000)
+        await client?.call("mobile_manage_task", { trace_id: job.traceId, action: "stop" }, 10000)
           .catch(() => {});
       try {
         const screenshot = await this.ports.device.screenshot(cfg.serial);
         this.store.db
           .prepare("UPDATE web_verifications SET screenshot=? WHERE id=?")
           .run(screenshot, job.id);
-        this.assistance.report(token, {
+        if (token) this.assistance.report(token, {
           resultCode:
             ["OBSERVATION_COMPLETED", "CLIENT_TEST_COMPLETED"].includes(job.resultCode ?? "")
               ? "COMPLETED"
@@ -491,8 +556,9 @@ STOP with Share now visible and UNTOUCHED. Never publish, upload, schedule, expl
       } catch {
         /* report cannot invent a result or trigger another attempt */
       }
-      this.assistance.closeSession(token);
-      await client.close().catch(() => {});
+      if (preparation) await preparation.cleanup().catch(() => {});
+      if (token) this.assistance.closeSession(token);
+      await client?.close().catch(() => {});
       job.status = this.active.get(job.id)?.cancelled
         ? this.active.get(job.id)?.cancelReason === "RUNTIME_RESTARTED"
           ? "interrupted"

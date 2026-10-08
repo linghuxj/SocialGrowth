@@ -1,3 +1,4 @@
+import { phoneInitializationVersion } from "@socialgrowth/product-contracts";
 import type { BootstrapManagement } from "./bootstrap-management.js";
 import { BootstrapRelay, type BootstrapNetwork, type BootstrapScope } from "./bootstrap-relay.js";
 import { createHash, randomUUID } from "node:crypto";
@@ -128,6 +129,22 @@ export class DeviceConnectionApi {
       || !row.connect_port || !bindingDigest(network).equals(row.network_binding_digest)) throw denied();
     const target = this.target(network, "connect", row.connect_port);
     return { deviceId, serial: `${target.address}:${target.port}`, hardwareSerial: row.verified_hardware_serial, sessionId: row.source_epoch };
+  }
+  async initializationTarget(deviceId: string): Promise<{ deviceId: string; serial: string; hardwareSerial: string; sessionId: string; requestId: string; wirelessPort: number }> {
+    const initialRow = await this.currentConnectionState(deviceId);
+    const initial = initialRow ? await this.providerScopeByIdentity(initialRow.provider_id, deviceId) : null;
+    if (!initial) throw denied();
+    const target = await this.preparationTarget(deviceId);
+    const current = await this.providerScopeByIdentity(initial.providerId, deviceId);
+    const row = await this.currentConnectionState(deviceId);
+    if (!current || !sameScope(initial, current) || row?.source_epoch !== target.sessionId) throw stale();
+    // A relay restart must not rerun initialization. Re-enrollment or owner change
+    // does require a new fixed request. The runtime retains interrupted results.
+    const digest = createHash("sha256").update(JSON.stringify([phoneInitializationVersion, deviceId, initial.providerId,
+      initial.installationId, String(initial.installationGeneration), String(initial.ownershipVersion)])).digest("hex");
+    const requestId = `${digest.slice(0,8)}-${digest.slice(8,12)}-5${digest.slice(13,16)}-8${digest.slice(17,20)}-${digest.slice(20,32)}`;
+    if (!row?.connect_port) throw stale();
+    return { ...target, requestId, wirelessPort: row.connect_port };
   }
   async handoffBootstrap(deviceId: string, address: string): Promise<void> {
     if (!this.management || !this.adb || !this.bootstrap) throw denied();

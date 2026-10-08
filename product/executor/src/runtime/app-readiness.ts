@@ -9,12 +9,12 @@ import { requireFact } from "./contracts.js";
 const exec = promisify(execFile);
 export type Command = (file: string, args: string[]) => Promise<string>;
 const command: Command = async (file, args) =>
-  (await exec(file, args, { timeout: 120000, maxBuffer: 8 * 1024 * 1024 })).stdout.trim();
+  (await exec(file, args, { timeout: args.some(v => v === "install" || v === "install-multiple") ? 30 * 60_000 : 120000, maxBuffer: 8 * 1024 * 1024 })).stdout.trim();
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
 export const appCatalogSchema = z.object({
   schemaVersion: z.literal(1),
   apps: z.array(z.object({
-    packageName: z.enum(["com.facebook.katana", "com.google.android.youtube"]),
+    packageName: z.enum(["com.facebook.katana", "com.google.android.youtube", "io.nekohasekai.sfa", "com.follow.clash"]),
     versionName: z.string().min(1),
     versionCode: z.string().regex(/^\d+$/),
     source: z.string().url(),
@@ -42,7 +42,7 @@ export class AppProvisioner {
 
   async ensure(serial: string, packageName: string, installMissing = true): Promise<AppReadiness> {
     requireFact(/^[A-Za-z0-9._:-]+$/.test(serial) && !serial.startsWith("emulator-"), "PHYSICAL_DEVICE_REQUIRED");
-    requireFact(["com.facebook.katana", "com.google.android.youtube"].includes(packageName), "APP_NOT_ALLOWED");
+    requireFact(["com.facebook.katana", "com.google.android.youtube", "io.nekohasekai.sfa", "com.follow.clash"].includes(packageName), "APP_NOT_ALLOWED");
     const run = this.options.command ?? command;
     const adb = (args: string[]) => run("adb", ["-s", serial, ...args]);
     requireFact(await adb(["get-state"]) === "device", "DEVICE_UNAVAILABLE");

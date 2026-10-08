@@ -25,6 +25,13 @@ export class ArtemisMcp implements ArtemisPort {
     },
   ) {}
   async connect() {
+    const adbServer = process.env.ADB_SERVER_SOCKET;
+    let adbPort: string | undefined;
+    if (adbServer !== undefined) {
+      const match = /^tcp:127\.0\.0\.1:(\d{1,5})$/.exec(adbServer);
+      requireFact(match && Number(match[1]) >= 1024 && Number(match[1]) <= 65535, "ARTEMIS_ADB_SERVER_INVALID");
+      adbPort = match![1];
+    }
     const requestBudget = process.env.ARTEMIS_PROXY_MAX_BODY_BYTES;
     if (requestBudget !== undefined) requireFact(/^\d+$/.test(requestBudget) && Number(requestBudget) > 0 &&
       Number(requestBudget) <= 1_572_864, "ARTEMIS_PROXY_REQUEST_BUDGET_INVALID");
@@ -53,6 +60,7 @@ export class ArtemisMcp implements ArtemisPort {
       env: {
         ...getDefaultEnvironment(),
         ARTEMIS_STANDALONE: "1",
+        ...(adbServer !== undefined ? { ADB_SERVER_SOCKET: adbServer, ADB_HOST: "127.0.0.1", ADB_PORT: adbPort! } : {}),
         ...(requestBudget !== undefined ? { ARTEMIS_PROXY_MAX_BODY_BYTES: requestBudget } : {}),
         ...(this.assistance
           ? {

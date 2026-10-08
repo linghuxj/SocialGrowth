@@ -16,6 +16,8 @@ export const assistanceScopeSchema = z
     policy: executionPolicy.optional(),
   })
   .strict().refine(scope =>
+    (!scope.policy?.allowPhoneInitialization || (scope.packageName === "com.socialgrowth.product" && scope.mode === "diagnostic"
+      && scope.policy.mode === "connectivity_test" && scope.policy.allowLogin === false && !scope.policy.allowTrustedInstall && !scope.policy.allowIdentityCreation)) &&
     (scope.packageName === "com.socialgrowth.product") === (["client_test", "connectivity_test"].includes(scope.policy?.mode ?? "")) &&
     (!["client_test", "connectivity_test"].includes(scope.policy?.mode ?? "") || (scope.mode === "diagnostic" && !scope.policy?.allowTrustedInstall && !scope.policy?.allowIdentityCreation)),
     "Client tests require the diagnostic SocialGrowth package and no credential or installation scope",

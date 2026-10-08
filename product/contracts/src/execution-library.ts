@@ -32,8 +32,9 @@ export const preparationExecutionLibrary: readonly OperationDefinition[] = [
 
 // Network preparation shares this library but has its own scope. Definitions
 // do not grant installation, credential or VPN-switch authority.
+export const phoneInitializationVersion = "2026-10-08.phone-environment-v1" as const;
 export const networkPreparationOperationIdSchema = z.enum([
-  "inspect_network_clients", "prepare_subscription_proxy", "activate_network_coexistence", "verify_network_coexistence",
+  "inspect_network_clients", "prepare_subscription_proxy", "activate_network_coexistence", "verify_network_coexistence", "initialize_phone_environment",
 ]);
 export type NetworkPreparationOperationId = z.infer<typeof networkPreparationOperationIdSchema>;
 export const networkPreparationExecutionLibrary: readonly {
@@ -43,6 +44,9 @@ export const networkPreparationExecutionLibrary: readonly {
   completionFacts: readonly string[];
   instructions: string;
 }[] = [
+  { id: "initialize_phone_environment", actor: "artemis", requiredInputs: ["current_enrollment_scope", "verified_remote_device", "exclusive_device_control", "trusted_app_catalog", "private_device_configuration", "private_subscription_delivery"],
+    completionFacts: ["trusted_clients_installed", "sfa_running", "clash_core_running_vpn_off", "facebook_fresh_response", "youtube_playback_advances", "bounded_remote_stability"],
+    instructions: "Run the fixed server-supplied phone initialization once for the current enrollment. Installation and private file delivery are controller infrastructure; configuration and app checks use Artemis visual decisions. SFA is the sole VPN with embedded Tailscale; official Tailscale is inspected but not activated. FlClash provides loopback SOCKS with VPN off. Preserve bootstrap while configuring. Stop for owner-required system consent, missing trusted assets, transport loss or an unknown operation; never guess or blindly retry. No credentials in model text, login, identity creation, account changes, business execution or publication. Check real fresh Facebook access and advancing YouTube playback independently. Report only the actual bounded stability window; never infer long-term reliability from a short check." },
   { id: "inspect_network_clients", actor: "artemis", requiredInputs: ["verified_remote_device", "exclusive_device_control"],
     completionFacts: ["client_versions", "proxy_core_state", "vpn_owner", "current_remote_connection"],
     instructions: "Check the exact connected phone. Observe FlClash and SFA. Do not change services or open a subscription or key editor. A local VPN icon does not prove a center connection or business internet access." },

@@ -9,7 +9,41 @@ type Mutation = "bootstrap-handoff" | "bootstrap-verifications" | "verifications
 type Screenshot = "supervision" | "verifications" | "assistance";
 export class ExecutorConsoleService {
   private readonly preparationOperations = new Set<string>();
-  constructor(private readonly auth: ConsoleAuth, private readonly config: { url: string; token: string } | null, private readonly connections?: DeviceConnectionApi) {}
+  constructor(private readonly auth: ConsoleAuth, private readonly config: { url: string; token: string } | null, private readonly connections?: Pick<DeviceConnectionApi, "bootstrapDevices" | "preparationTarget" | "initializationTarget" | "handoffBootstrap">, private readonly automaticPhoneInitialization = false) {}
+  private initializationTimer?: ReturnType<typeof setInterval>;
+  private initializationTickRunning = false;
+  onModuleInit() {
+    if (!this.automaticPhoneInitialization || !this.config || !this.connections) return;
+    this.initializationTimer = setInterval(() => { void this.initializeConnectedPhones(); }, 15000);
+    this.initializationTimer.unref();
+    void this.initializeConnectedPhones();
+  }
+  onModuleDestroy() { if (this.initializationTimer) clearInterval(this.initializationTimer); }
+  async initializeConnectedPhones(): Promise<void> {
+    if (!this.automaticPhoneInitialization || !this.config || !this.connections || this.initializationTickRunning) return;
+    this.initializationTickRunning = true;
+    try {
+      for (const device of await this.connections.bootstrapDevices()) {
+        if (!device.connected || this.preparationOperations.has(device.deviceId)) continue;
+        this.preparationOperations.add(device.deviceId);
+        try {
+          const target = await this.connections.initializationTarget(device.deviceId);
+          // Same deterministic request ID on network loss; the runtime returns the
+          // original job and never starts a second attempt, including unknowns.
+          const original = await this.value(await this.request("phone-initializations", target));
+          const completed = z.object({ deviceId: z.string().uuid(), status: z.literal("finished"), resultCode: z.literal("CONNECTIVITY_SETUP_COMPLETED"),
+            managementAddress: z.string(), stability: z.object({ observedSeconds: z.number().min(300), transport: z.literal("tailnet_and_bootstrap") }) }).safeParse(original);
+          if (device.mode === "bootstrap" && completed.success && completed.data.deviceId === device.deviceId) {
+            // Rechecks the live node, enrollment and paired hardware before ending
+            // bootstrap. Failed/unknown setup never triggers a handoff.
+            await this.connections.handoffBootstrap(device.deviceId, completed.data.managementAddress);
+          }
+        } catch { /* No credential/error body logging or destructive retries. Status retains the original job/hold. */ }
+        finally { this.preparationOperations.delete(device.deviceId); }
+      }
+    } catch { /* Next read-only scope scan may recover; dispatch remains idempotent. */ }
+    finally { this.initializationTickRunning = false; }
+  }
   private async request(path: string, body?: unknown): Promise<Response> {
     if (!this.config) throw new ProductTransactionError("FACT_VERSION_STALE", "执行服务尚未配置");
     try {
@@ -30,7 +64,7 @@ export class ExecutorConsoleService {
   }
   async read(token: string): Promise<ExecutorConsole> {
     await this.auth.authenticateSession(token);
-    const empty = { configured: !!this.config, bootstrapDevices: this.connections ? await this.connections.bootstrapDevices() : [], available: false, tasks: [], holds: [], jobs: [], requests: [], challenges: [] };
+    const empty = { automaticPhoneInitialization: this.automaticPhoneInitialization, configured: !!this.config, bootstrapDevices: this.connections ? await this.connections.bootstrapDevices() : [], available: false, tasks: [], holds: [], jobs: [], requests: [], challenges: [] };
     if (!this.config) return executorConsoleSchema.parse(empty);
     const raw = await this.value(await this.request("status"));
     if (!raw || typeof raw !== "object") throw new Error("EXECUTOR_STATUS_INVALID");

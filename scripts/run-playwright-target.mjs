@@ -15,6 +15,7 @@ const scope = process.env.SG_PRODUCT_WEB_SCOPE ?? "identity";
 productScripts["deployment"] = "scripts/verify-product-deployment-playwright.mts";
 productScripts["executor-console"] = "scripts/verify-product-executor-console-playwright.mts";
 productScripts["network-coexistence"] = "scripts/verify-product-network-coexistence-playwright.mts";
+productScripts["phone-initialization"] = "scripts/verify-product-phone-initialization-playwright.mts";
 if (target !== "product" || !(scope in productScripts)) {
   console.error("[playwright] Only product is supported; choose an existing product scope.");
   process.exit(2);

@@ -242,7 +242,7 @@ const providerAuthProvider = {
     operatorAuthProvider,
     { provide: ExecutorConsoleService, inject: [OperatorAuthService, DeviceConnectionApi], useFactory: (auth: OperatorAuthService, connections: DeviceConnectionApi) => {
       const url = process.env.SG_PRODUCT_EXECUTION_RUNTIME_URL, token = process.env.SG_PRODUCT_EXECUTION_RUNTIME_TOKEN;
-      return new ExecutorConsoleService(auth, url && token ? { url, token } : null, connections);
+      return new ExecutorConsoleService(auth, url && token ? { url, token } : null, connections, process.env.SG_PRODUCT_PHONE_INITIALIZATION_ENABLED === "true");
     } },
     invitationManagementProvider,
     identityTransactionProvider,

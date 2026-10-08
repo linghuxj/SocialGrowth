@@ -76,7 +76,7 @@ export function configReport(env: NodeJS.ProcessEnv, profile: "local" | "product
     check("screenshot_storage", () => readScreenshotStorageConfig(env));
     if (Object.keys(env).some(key => key.startsWith("SG_MINIO_"))) checks.push({ capability: "legacy_screenshot_config", status: "incomplete", note: "旧 SG_MINIO_* 不再读取；需显式迁移为 SG_SCREENSHOT_*，已有文件未修改" });
     group("app_provisioning", ["SG_APP_CATALOG", "SG_ANDROID_BUILD_TOOLS"]);
-    files("executor_paths", ["SG_ARTEMIS_ROOT", "SG_APP_CATALOG", "SG_ANDROID_BUILD_TOOLS", "SG_PYTHON_PATH"]);
+    files("executor_paths", ["SG_ARTEMIS_ROOT", "SG_APP_CATALOG", "SG_ANDROID_BUILD_TOOLS", "SG_PYTHON_PATH", "SG_PHONE_INITIALIZATION_FILE"]);
     if (runtime && env.SG_ARTEMIS_ROOT && !existsSync(join(env.SG_ARTEMIS_ROOT, ".venv/bin/python"))) checks.push({ capability: "executor_python", status: "missing_dependency", missing: ["ARTEMIS_ROOT/.venv/bin/python"] });
   }
   return checks;

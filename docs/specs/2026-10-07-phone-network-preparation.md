@@ -23,7 +23,7 @@ Android 每个用户只能有一个活动 VPN，切换会停止原 VPN，见[And
 | `verify_network_coexistence` | 实际 Web 发起，Artemis 经远程连接核对 | SFA 运行、FlClash 核心运行且 VPN 关闭、FB 新响应、YT 播放时间推进；每项独立检查 |
 | 进入业务 | 查询原操作，核对设备、账号及发布身份 | 未知结果先核清；联网不恢复发布或扩大权限 |
 
-库位于 `product/contracts/src/execution-library.ts`，executor 使用 `networkPreparationInstructions`，正式 Web 共存检查已调用该库。其他准备定义已登记，但尚无通用网络安装／私有配置下发消费者，不能把登记当作自动派发完成。缺失步骤由 App 第 4 步和运营协助处理；不另建执行系统。
+库位于 `product/contracts/src/execution-library.ts`，executor 使用 `networkPreparationInstructions`，正式 Web 共存检查已调用该库。上表及流程图记录此前的人工交接方式。2026-10-08 新候选复用 B1 反向连接，补齐自动安装／私有配置交付和检查消费者；首次不需要先启动官方 Tailscale VPN，实际新流程见[连接后的环境初始化](2026-10-08-phone-environment-initialization.md)。候选尚未生产验收，不能把登记或构建结果当作自动派发成功。
 
 ## 断线恢复
 

@@ -1,0 +1,28 @@
+# Optional overlay AFTER production and execution. Secrets and APKs remain host files.
+services:
+  backend:
+    environment:
+      SG_PRODUCT_PHONE_INITIALIZATION_ENABLED: ${SG_PRODUCT_PHONE_INITIALIZATION_ENABLED:-false}
+  executor:
+    environment:
+      # Separate ADB transport from backend health probes. A slow APK transfer
+      # must not cause a probe timeout to disconnect the execution stream.
+      ADB_SERVER_SOCKET: tcp:127.0.0.1:5038
+      SG_PHONE_INITIALIZATION_FILE: /run/socialgrowth/phone-preparation/initialization.json
+      SG_APP_CATALOG: /run/socialgrowth/phone-preparation/catalog.json
+      SG_ANDROID_BUILD_TOOLS: /usr/bin
+    volumes:
+      - type: bind
+        source: /usr/bin/tailscale
+        target: /usr/local/bin/tailscale
+        read_only: true
+        bind: { create_host_path: false }
+      - type: bind
+        source: /var/run/tailscale/tailscaled.sock
+        target: /var/run/tailscale/tailscaled.sock
+        bind: { create_host_path: false }
+      - type: bind
+        source: ${SG_PHONE_PREPARATION_DIR:?required}
+        target: /run/socialgrowth/phone-preparation
+        read_only: true
+        bind: { create_host_path: false }

@@ -43,6 +43,24 @@ function setup() {
   return { api, internal, row, scope, binding, pool, pair, pairCalls: () => pairCalls };
 }
 
+test("initialization identity survives relay epochs but changes with enrollment; a concurrent ownership change is rejected", async () => {
+  const f = setup();
+  f.internal.providerScopeByIdentity = async () => structuredClone(f.scope);
+  f.api.preparationTarget = async deviceId => ({ deviceId, serial: "127.0.0.1:41234", hardwareSerial: "TEST_PHONE", sessionId: String(f.row.source_epoch) });
+  const first = await f.api.initializationTarget(f.scope.deviceId);
+  assert.equal(first.wirelessPort, 40000);
+  assert.match(first.requestId, /^[a-f0-9]{8}-[a-f0-9]{4}-5[a-f0-9]{3}-8[a-f0-9]{3}-[a-f0-9]{12}$/);
+  f.row.source_epoch = "00000000-0000-4000-8000-000000000003";
+  assert.equal((await f.api.initializationTarget(f.scope.deviceId)).requestId, first.requestId);
+  f.scope.installationGeneration = "2";
+  assert.notEqual((await f.api.initializationTarget(f.scope.deviceId)).requestId, first.requestId);
+  f.api.preparationTarget = async deviceId => {
+    f.scope.ownershipVersion = "3";
+    return { deviceId, serial: "127.0.0.1:41234", hardwareSerial: "TEST_PHONE", sessionId: String(f.row.source_epoch) };
+  };
+  await assert.rejects(f.api.initializationTarget(f.scope.deviceId));
+});
+
 test("an unresolved pairing survives reporter restart and replacement pairing port", async () => {
   const f = setup();
   const epoch = await f.api.beginEpoch("unused", { protocolVersion: "device-connection-v1", requestId: "new-epoch" });

@@ -13,6 +13,7 @@ export const executorVerificationSchema = z.strictObject({
 export const executorJobSchema = z.object({
   id: key, requestId: z.uuid(), deviceId: key, status: key, mode: key.default("unknown"),
   expectedName: z.string(), expectedProfileId: z.string(), resultCode: z.string().optional(),
+  stability: z.object({ observedSeconds: z.int().min(0), samples: z.int().min(1), transport: z.literal("tailnet_and_bootstrap") }).optional(),
   errorCode: z.string().optional(), startedAt: z.string(), finishedAt: z.string().optional(),
 });
 export const executorRequestSchema = z.object({
@@ -26,6 +27,7 @@ export const executorChallengeSchema = z.object({
 });
 export const executorConsoleSchema = z.strictObject({
   bootstrapDevices: z.array(z.strictObject({ deviceId: z.uuid(), connected: z.boolean(), mode: z.enum(["bootstrap", "managed_verified"]) })).default([]),
+  automaticPhoneInitialization: z.boolean().default(false),
   configured: z.boolean(), available: z.boolean(), deviceId: key.optional(),
   tasks: z.array(z.object({ id: key, status: key })),
   holds: z.array(z.object({ device: key, actor: key, since: z.string() })),

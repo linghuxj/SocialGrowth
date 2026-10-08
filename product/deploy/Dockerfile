@@ -36,7 +36,7 @@ COPY product/deploy/Caddyfile /etc/caddy/Caddyfile
 # Explicit full runtime targets; ordinary CI backend/web do not fetch Artemis.
 FROM ${ARTEMIS_IMAGE} AS execution-base
 COPY --from=build /usr/local/bin/node /usr/local/bin/node
-RUN groupadd --gid 1000 node && useradd --uid 1000 --gid 1000 --create-home node && mkdir -p /var/lib/socialgrowth/artemis/traces /var/lib/socialgrowth/artemis/tmp && rm -rf /opt/artemis/traces /opt/artemis/tmp && ln -s /var/lib/socialgrowth/artemis/traces /opt/artemis/traces && ln -s /var/lib/socialgrowth/artemis/tmp /opt/artemis/tmp && chown -R node:node /var/lib/socialgrowth
+RUN groupadd --gid 1000 node && useradd --uid 1000 --gid 1000 --create-home node && mkdir -p /var/lib/socialgrowth/artemis/traces /var/lib/socialgrowth/artemis/tmp /tmp/artemis && rm -rf /opt/artemis/traces /opt/artemis/tmp && ln -s /var/lib/socialgrowth/artemis/traces /opt/artemis/traces && ln -s /var/lib/socialgrowth/artemis/tmp /opt/artemis/tmp && chown -R node:node /var/lib/socialgrowth && chown node:node /tmp/artemis
 ENV NODE_ENV=production SG_ARTEMIS_ROOT=/opt/artemis TRACES_PATH=/var/lib/socialgrowth/artemis/traces
 COPY --chown=node:node scripts/artemis-business-model.py /scripts/artemis-business-model.py
 

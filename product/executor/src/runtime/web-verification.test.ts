@@ -430,3 +430,30 @@ test("bootstrap launch rejects arbitrary targets and cannot bypass a device hold
     assert.equal(f.verification.list().length, 0);
   } finally { await f.close(); }
 });
+
+test("automatic initialization never overrides an existing hold or an unresolved task; interrupted scope is not replayed", async () => {
+  const f = fixture({}, "connectivity_test");
+  const deviceId = randomUUID(), target = { deviceId, wirelessPort: 37111, requestId: randomUUID(), sessionId: randomUUID(), hardwareSerial: "TEST_PHONE",
+    serial: "127.0.0.1:12345" };
+  try {
+    f.store.db.prepare("INSERT INTO device_holds VALUES (?,?,?)").run(deviceId, "original-operator", new Date().toISOString());
+    assert.throws(() => f.verification.startPhoneInitialization(target, "/sdk", "http://127.0.0.1:4318", "/private/init.json"), /DEVICE_ALREADY_HELD/);
+    assert.equal(f.store.db.prepare("SELECT actor FROM device_holds WHERE device=?").get(deviceId)?.actor, "original-operator");
+    f.store.db.prepare("DELETE FROM device_holds WHERE device=?").run(deviceId);
+    for (const status of ["queued", "running", "unknown", "blocked"]) {
+      f.store.db.prepare("INSERT OR REPLACE INTO tasks(id,schedule,attempt,identity,device,status,body) VALUES (?,?,?,?,?,?,?)").run("original", "schedule", "attempt", "identity", deviceId, status, "{}");
+      assert.throws(() => f.verification.startPhoneInitialization(target, "/sdk", "http://127.0.0.1:4318", "/private/init.json"), /DEVICE_UNRESOLVED_TASK/);
+    }
+    assert.equal(f.store.db.prepare("SELECT COUNT(*) AS n FROM device_holds").get()?.n, 0);
+    f.store.db.prepare("DELETE FROM tasks").run();
+    const job = { requestId: target.requestId, expectedName: "手机环境初始化", expectedProfileId: "com.socialgrowth.product", platform: "socialgrowth",
+      mode: "connectivity_test", goal: "2026-10-08.phone-environment-v1", caption: "可信应用、管理连接与 FB/YT 网络初始化，不执行业务",
+      acknowledgeNoPublication: true, allowLocalParticipationStart: false, allowEndpointReportingStart: false, allowParticipationWithdrawal: false,
+      id: randomUUID(), deviceId, status: "interrupted", resultCode: "UNCONFIRMED", startedAt: new Date().toISOString() };
+    f.store.db.prepare("INSERT INTO web_verifications(id,request_id,body) VALUES (?,?,?)").run(job.id, job.requestId, JSON.stringify(job));
+    const original = f.verification.startPhoneInitialization({ ...target, serial: "127.0.0.1:54321", sessionId: randomUUID() }, "/sdk", "http://127.0.0.1:4318", "/private/init.json");
+    assert.equal(original.id, job.id); assert.equal(original.status, "interrupted"); assert.equal(f.starts(), 0);
+    assert.equal(f.store.db.prepare("SELECT COUNT(*) AS n FROM device_holds").get()?.n, 0);
+    assert.throws(() => f.verification.start({ ...f.input, goal: "2026-10-08.phone-environment-v1" }), /PHONE_INITIALIZATION_AUTHORITY_REQUIRED/);
+  } finally { await f.close(); }
+});

@@ -2,7 +2,7 @@ FROM python:3.12-slim-bookworm
 ARG ARTEMIS_REVISION=351ca8422f7b5b54e80a9c1ce03a222e02415b6b
 LABEL org.opencontainers.image.source=https://github.com/google/artemis
 LABEL socialgrowth.artemis.upstream=$ARTEMIS_REVISION
-RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates adb ffmpeg libgl1 libglib2.0-0 && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates adb aapt apksigner default-jre-headless ffmpeg libgl1 libglib2.0-0 && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir uv==0.5.11
 WORKDIR /opt/artemis
 RUN git init && git remote add origin https://github.com/google/artemis.git && git fetch --depth 1 origin "$ARTEMIS_REVISION" && git checkout --detach FETCH_HEAD

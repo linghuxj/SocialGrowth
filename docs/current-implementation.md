@@ -65,4 +65,4 @@ Playwright 的流程范围由 [runner](../scripts/run-playwright-target.mjs)定�
 
 当前手机网络共存候选使用 SFA 的唯一 VPN、内置 Tailscale endpoint 与现有 FlClash 非 VPN 订阅代理。当前手机的在线节点、真实远程读取、已通过的 Android 平台连接检查及 FB/YT 共存 Web 验证见[网络共存记录](engineering/delivery/records/phone-network-coexistence-20261006.md)。新节点产品绑定、零准备设备引导与恢复场景分别验证，不从该候选推定正式业务验收完成。
 
-2026-10-07 已把网络检查、订阅代理准备、人工 VPN 切换及共存核验登记到原执行库；Web 共存检查引用库指令。Android 本机准备新增第 4 步、客户端入口及失败恢复说明，检测到 SFA 后不恢复官方 Tailscale VPN。通用网络安装和私有配置交付消费者尚未接线，新手机全自动准备未验收。操作规则见[手机网络准备](specs/2026-10-07-phone-network-preparation.md)。用户已授权原系列切片正常发布，本轮无需引流地址；当前业务验收仍需原 Page 核验、真实发布与回执、指标及复盘。
+2026-10-07 已把网络检查、订阅代理准备、人工 VPN 切换及共存核验登记到原执行库；Web 共存检查引用库指令。Android 本机准备新增第 4 步、客户端入口及失败恢复说明，检测到 SFA 后不恢复官方 Tailscale VPN。2026-10-08 候选已接入连接后的自动派发、可信安装与私有配置交付，生产开关默认关闭；实机初始化与新手机全流程尚未验收，见[连接后的初始化](specs/2026-10-08-phone-environment-initialization.md)。既有操作规则见[手机网络准备](specs/2026-10-07-phone-network-preparation.md)。用户已授权原系列切片正常发布，本轮无需引流地址；当前业务验收仍需原 Page 核验、真实发布与回执、指标及复盘。

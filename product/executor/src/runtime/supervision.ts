@@ -14,6 +14,7 @@ export const executionPolicy = z
     allowIdentityCreation: z.boolean().default(false),
     allowParticipationWithdrawal: z.boolean().default(false),
     allowNetworkCoexistenceCheck: z.boolean().default(false),
+    allowPhoneInitialization: z.boolean().default(false),
     allowLogin: z.boolean().default(true),
   })
   .strict();
