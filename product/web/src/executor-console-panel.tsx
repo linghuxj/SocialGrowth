@@ -133,14 +133,14 @@ export function ExecutorConsolePanel({ active, refreshVersion, readOnly, onExpir
             <a href={executorScreenshot("verifications", job.id)} target="_blank" rel="noreferrer">查看这台手机的结果截图</a>
             {!readOnly && job.status === "running" && <button type="button" disabled={deviceBusy} onClick={() => void mutate("stop", { id: job.id }, undefined, device.deviceId)}>请求停止这台手机</button>}
             {job.previousInitializationId && <p>衔接原失败任务：{job.previousInitializationId}。原回执保留。</p>}
-            {!readOnly && job.expectedName === "手机环境初始化" && job.status === "finished" && job.resultCode === "UNCONFIRMED" && !job.previousInitializationId && !job.initializationRecovery && <>
+            {!readOnly && job.expectedName === "手机环境初始化" && job.status === "finished" && job.resultCode === "UNCONFIRMED" && !job.initializationRecovery && (job.initializationStartupRecoveryCount ?? 0) < 2 && <>
               <button type="button" disabled={deviceBusy || !device.connected || working || held?.actor !== "phone-initialization" || uncertain.has(`initialization:${job.id}`)} onClick={() => void mutate("bootstrap-initialization-resume", { deviceId: device.deviceId, id: job.id }, `initialization:${job.id}`, device.deviceId)}>核对原停止证据并继续初始化</button>
-              <p className="muted">仅支持模型超时且尚未进行手机操作的原任务；平台核对原 trace、监督记录、设备锁及当前硬件后继续一次。其他未确认结果保留。</p>
+              <p className="muted">平台核对原停止记录、设备锁及当前硬件后继续；仅处理尚未开始手机操作的启动失败，或首次模型超时。启动失败最多恢复两次，安装或配置结果未确认时保留原任务。</p>
             </>}
           </div>}
           {dispatch && <p>{dispatch.state === "dispatching" ? "正在核对原初始化请求" : dispatch.state === "handing_off" ? "正在核验并切换管理连接" : dispatch.state === "completed" ? "自动准备及连接处理已完成" : dispatch.reason ? dispatchReasons[dispatch.reason] : "初始化等待处理"}</p>}
           {requests.map(request => <p key={request.id} role="status">需要机主处理：{request.message}（原任务 {request.taskId}，请在下方人工协助回复）</p>)}
-          {held && <p>占用：{held.actor} · 自 {held.since} 起。{held.actor !== "local-operator" && held.actor !== "phone-initialization" ? "请核对原操作，不能覆盖占用。" : held.actor === "phone-initialization" && !working ? "原初始化结果待核对；不自动重新派发。" : ""}</p>}
+          {held && <p>占用：{held.actor} · 自 {held.since} 起。{held.actor !== "local-operator" && held.actor !== "phone-initialization" ? "请核对原操作，不能覆盖占用。" : held.actor === "phone-initialization" && !working ? "原初始化结果待核对；仅在执行前失败证据完整时自动恢复。" : ""}</p>}
           {!readOnly && <div className="header-actions">
             {facts.automaticPhoneInitialization ? <button type="button" disabled={deviceBusy || !device.connected || working || held?.actor !== "local-operator"} onClick={() => void mutate("hold", { deviceId: device.deviceId, held: false }, undefined, device.deviceId)}>交还自动准备</button> : <button type="button" disabled={deviceBusy || !device.connected || working || (!!held && held.actor !== "local-operator")} onClick={() => void mutate("hold", { deviceId: device.deviceId, held: true }, undefined, device.deviceId)}>接管这台手机</button>}
             {!facts.automaticPhoneInitialization && <button type="button" disabled={deviceBusy || !!phonePending[device.deviceId] || !device.connected || working || held?.actor !== "local-operator"} onClick={() => void startBootstrap(device.deviceId)}>开始手机准备（不执行业务）</button>}

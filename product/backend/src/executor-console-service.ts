@@ -45,7 +45,19 @@ export class ExecutorConsoleService {
         phase = "executor_unconfirmed";
         // Same deterministic request ID on network loss; the runtime returns the
         // original job and never starts a second attempt, including unknowns.
-        const original = await this.value(await this.request("phone-initializations", target));
+        let original = await this.value(await this.request("phone-initializations", target));
+        const recoverable = executorJobSchema.safeParse(original);
+        if (recoverable.success && recoverable.data.deviceId === device.deviceId && recoverable.data.expectedName === "手机环境初始化"
+          && recoverable.data.status === "finished" && recoverable.data.resultCode === "UNCONFIRMED" && !recoverable.data.initializationRecovery
+          && recoverable.data.initializationStartupRecoveryCount !== undefined && recoverable.data.initializationStartupRecoveryCount < 2
+          && Date.now() - Date.parse(recoverable.data.finishedAt ?? "") >= 30000) {
+          try {
+            // Only new-policy jobs qualify automatically; runtime independently
+            // proves failed startup/zero actions/cleared engine locks and transfers
+            // its own hold atomically. Unknown installs/configuration stay blocked.
+            original = await this.value(await this.request("phone-initializations/resume", { ...target, id: recoverable.data.id, automatic: true }));
+          } catch { dispatch("blocked", "original_requires_attention"); return; }
+        }
         const completed = z.object({ deviceId: z.string().uuid(), status: z.literal("finished"), resultCode: z.literal("CONNECTIVITY_SETUP_COMPLETED"),
           managementAddress: z.string(), stability: z.object({ observedSeconds: z.number().min(300), transport: z.literal("tailnet_and_bootstrap") }) }).safeParse(original);
         if (device.mode === "bootstrap" && completed.success && completed.data.deviceId === device.deviceId) {

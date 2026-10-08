@@ -13,5 +13,6 @@
   "androidBuildTools": {
     "version": "36.0.0",
     "linuxArchiveSha256": "5d9ac77fb6ff43d9da518a337b4fcf8f9097113df531d99ccefe80ef7ce8250b"
-  }
+  },
+  "helperTimeoutPatchSha256": "a0a44a5537d7bb7b3a1bc4a5be35ff05f110c821eddf66c134fca971827ef86a"
 }
