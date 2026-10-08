@@ -72,7 +72,14 @@ export class MediaAccountStore {
       LEFT JOIN ${s}.media_credentials c ON c.account_id=a.account_id AND c.platform=a.platform
       LEFT JOIN ${s}.media_credential_revisions cr ON (cr.credential_id,cr.account_id,cr.platform,cr.revision)=(c.credential_id,c.account_id,c.platform,c.revision)
       LEFT JOIN LATERAL (SELECT jsonb_agg(jsonb_build_object('identityId',p.identity_id,'canonicalIdentityRef',p.canonical_identity_ref,
-        'verificationState','registered_unverified','managementState','unknown') ORDER BY p.identity_id) AS identities
+        'verificationState',CASE WHEN EXISTS (SELECT 1 FROM ${s}.account_identity_verifications v
+          WHERE v.identity_id=p.identity_id AND v.credential_id=c.credential_id AND v.credential_revision=c.revision
+            AND lower(v.login_identifier)=a.normalized_login_identifier AND cr.state='stored_unverified'
+            AND a.parent_login_verification='verified') THEN 'verified' ELSE 'registered_unverified' END,
+        'managementState',CASE WHEN EXISTS (SELECT 1 FROM ${s}.account_identity_verifications v
+          WHERE v.identity_id=p.identity_id AND v.credential_id=c.credential_id AND v.credential_revision=c.revision
+            AND lower(v.login_identifier)=a.normalized_login_identifier AND cr.state='stored_unverified'
+            AND a.parent_login_verification='verified') THEN 'managed' ELSE 'unknown' END) ORDER BY p.identity_id) AS identities
         FROM ${s}.publishing_identities p WHERE p.account_id=a.account_id) i ON true
       LEFT JOIN LATERAL (SELECT jsonb_build_object('projectId',r.project_id,'deviceId',r.device_id,'state',r.state,
         'handoverRequested',r.handover_requested) AS assignment FROM ${s}.project_media_account_assignments r WHERE r.account_id=a.account_id) x ON true

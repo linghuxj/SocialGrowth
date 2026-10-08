@@ -37,12 +37,11 @@ export function AccountPreparationPanel({ projectId, active, readOnly, onExpired
   const [mode, setMode] = useState<"check_only" | "prepare_if_missing">("check_only");
   const [account, setAccount] = useState(""), [device, setDevice] = useState("");
   const [name, setName] = useState(""), [expectedId, setExpectedId] = useState("");
-  const [category, setCategory] = useState(""), [description, setDescription] = useState(""), [handle, setHandle] = useState("");
-  const [scope, setScope] = useState(""), [install, setInstall] = useState(false), [create, setCreate] = useState(false);
+  const [scope, setScope] = useState(""), [install, setInstall] = useState(false);
   const pending = useRef<PreparedAccountPreparation | null>(null), readEpoch = useRef(0);
   const alive = useRef(true), expired = useRef(onExpired); expired.current = onExpired;
   useEffect(() => { alive.current = true; return () => { alive.current = false; readEpoch.current++; }; }, []);
-  const pendingKind = useRef<"request" | "recheck" | "execution-review">("request");
+  const pendingKind = useRef<"request" | "recheck" | "execution-review" | "identity-sync">("request");
   async function refresh() {
     const epoch = ++readEpoch.current;
     setLoading(true); setReadError("");
@@ -59,7 +58,7 @@ export function AccountPreparationPanel({ projectId, active, readOnly, onExpired
     else if ([assignments, names, phones].some(f => f.status !== "loaded")) setReadError("部分资源资料读取失败，未知名称不代表资源丢失；请重试读取。");
   }
   useEffect(() => { if (active) void refresh(); return () => { readEpoch.current++; }; }, [active, projectId]); // eslint-disable-line react-hooks/exhaustive-deps
-  async function send(kind: "request" | "recheck" | "execution-review", task?: AccountPreparationTaskView) {
+  async function send(kind: "request" | "recheck" | "execution-review" | "identity-sync", task?: AccountPreparationTaskView) {
     if (!view || readOnly || busy || loading || readError) return;
     const sameSession = captureOperatorWriteSession();
     setBusy(true); setMessage("");
@@ -69,7 +68,7 @@ export function AccountPreparationPanel({ projectId, active, readOnly, onExpired
         const metadata = { contractVersion, requestId: `request-${crypto.randomUUID()}`, idempotencyKey: newIdempotencyKey() };
         const base = { metadata, protocolVersion: executionLibraryVersion, projectId };
         let request: unknown;
-        if (kind === "execution-review" && task) request = { ...base, taskId: task.taskId, expectedTaskVersion: task.taskVersion, expectedResourceVersion: view.resourceVersion };
+        if ((kind === "execution-review" || kind === "identity-sync") && task) request = { ...base, taskId: task.taskId, expectedTaskVersion: task.taskVersion, expectedResourceVersion: view.resourceVersion };
         else if (kind === "recheck" && task) request = { ...base, taskId: task.taskId, expectedTaskVersion: task.taskVersion, expectedResourceVersion: view.resourceVersion,
           selectedAccountId: task.selectedAccountId ?? null, selectedDeviceId: task.selectedDeviceId ?? null };
         else {
@@ -77,23 +76,26 @@ export function AccountPreparationPanel({ projectId, active, readOnly, onExpired
           if (!bound) throw new Error("需要先完成本项目账号与手机分配");
           request = { ...base, expectedProjectVersion: view.projectVersion, expectedResourceVersion: view.resourceVersion,
             intent: { accountId: bound.accountId, deviceId: bound.deviceId, mode,
-              target: platform === "facebook" ? { platform, name, expectedId: expectedId || null, category: category || null, description }
-                : { platform, name, expectedId: expectedId || null, handle: handle || null },
-              scopeRef: scope, allowTrustedInstall: mode === "prepare_if_missing" && install, allowIdentityCreation: mode === "prepare_if_missing" && create } };
+              target: platform === "facebook" ? { platform, name, expectedId: expectedId || null, category: null, description: "" }
+                : { platform, name, expectedId: expectedId || null, handle: null },
+              scopeRef: scope, allowTrustedInstall: mode === "prepare_if_missing" && install, allowIdentityCreation: false } };
         }
         pending.current = new PreparedAccountPreparation(kind, request);
       }
       readEpoch.current++; const next = await pending.current.send();
       if (!alive.current) return; sameSession();
       setView(next); pending.current = null; setUnresolved(false); onFactsChanged?.();
-      setMessage(pendingKind.current === "execution-review" ? "执行条件核验已记录；条件未满足，本次未派发手机动作。"
+      setMessage(pendingKind.current === "identity-sync" ? "原身份核验已回写，账号与发布身份已关联；执行时仍需检查手机、身份与原任务状态。"
+        : pendingKind.current === "execution-review" ? "执行条件核验已记录；条件未满足，本次未派发手机动作。"
         : "检查请求已记录，当前阻断已保存；尚未操作手机或创建 Page／频道。");
     } catch (e) {
       if (!alive.current) return;
       try { sameSession(); } catch { if (hasCsrfToken()) return; }
       if (e instanceof ProductApiError && e.status === 401) { expired.current(e); return; }
       if (isDefinitiveProjectRejection(e) || (!pending.current && !(e instanceof ProductApiError))) {
-        pending.current = null; setUnresolved(false); setMessage("输入或事实版本需要核对，请读取当前记录后再提交；原任务没有被替换。");
+        pending.current = null; setUnresolved(false); setMessage(kind === "identity-sync"
+          ? "当前条件或原核验回执尚不完整，请读取原记录核对；本次没有派发手机动作或替换身份。"
+          : "输入或事实版本需要核对，请读取当前记录后再提交；原任务没有被替换。");
       } else { setUnresolved(true); setMessage("本次请求结果尚未确认。输入已锁定，请接续原请求，不要重新创建任务。"); }
     } finally { if (alive.current) setBusy(false); }
   }
@@ -113,10 +115,10 @@ export function AccountPreparationPanel({ projectId, active, readOnly, onExpired
           {selectedAssignment && <details><summary>查看所选资源编号</summary>账号 {selectedAssignment.accountId} · 手机 {selectedAssignment.deviceId}</details>}
           <label>Page／频道准确名称<input value={name} onChange={e => setName(e.target.value)} required maxLength={100} /></label>
           <label>已有完整 Page／频道 ID（可留空）<input value={expectedId} onChange={e => setExpectedId(e.target.value)} maxLength={100} /></label>
-          <label>初始化范围<select aria-label="初始化范围" value={mode} onChange={e => { setMode(e.target.value as "check_only" | "prepare_if_missing"); setCreate(false); setInstall(false); }}><option value="check_only">仅检查已有条件</option><option value="prepare_if_missing">检查并准备缺少的条件</option></select></label>
+          <label>初始化范围<select aria-label="初始化范围" value={mode} onChange={e => { setMode(e.target.value as "check_only" | "prepare_if_missing"); setInstall(false); }}><option value="check_only">仅检查已有条件</option><option value="prepare_if_missing">检查并准备缺少的条件</option></select></label>
           <label>操作范围依据记录<input value={scope} onChange={e => setScope(e.target.value)} required maxLength={150} pattern="[A-Za-z0-9_-]+" /></label>
-          {mode === "prepare_if_missing" && <><label className="preparation-choice"><input type="checkbox" checked={install} onChange={e => setInstall(e.target.checked)} />允许缺少时安装可信 App</label><label className="preparation-choice"><input type="checkbox" checked={create} onChange={e => setCreate(e.target.checked)} />允许确认缺少时创建一个 Page／频道</label></>}
-          {mode === "prepare_if_missing" && create && (platform === "facebook" ? <><label>Page 类别<input value={category} onChange={e => setCategory(e.target.value)} required maxLength={100} /></label><label>Page 简介<textarea value={description} onChange={e => setDescription(e.target.value)} maxLength={1000} /></label></> : <label>频道标识名<input value={handle} onChange={e => setHandle(e.target.value)} required maxLength={100} /></label>)}
+          {mode === "prepare_if_missing" && <label className="preparation-choice"><input type="checkbox" checked={install} onChange={e => setInstall(e.target.checked)} />允许缺少时安装可信 App</label>}
+          <p>本期只核验一个已有 Page／频道；缺失或身份不明确时保留待处理，不创建或修改身份。</p>
         </fieldset>
         <p className="form-note">登录标识与当前凭据由服务端从所选账号的持久分配读取；页面不收集平台账号 ID、密码或验证码。</p>
         <div className="project-save-actions"><button disabled={busy || unresolved || loading || !!readError || !projectAssignments?.assignments.some(a => a.platform === platform)} type="submit">{busy ? "检查中…" : "发起初始化检查"}</button>{unresolved && <button className="outline-button" type="button" disabled={busy || loading || !!readError} onClick={() => void send("request")}>接续原初始化请求</button>}</div>
@@ -125,14 +127,17 @@ export function AccountPreparationPanel({ projectId, active, readOnly, onExpired
       <p>资源分配由运营核对；手机参与、网络和原操作需核实当前记录；执行端或证据链路未接通需工程接入，重复提交不会补齐这些条件。</p>
       <div className="project-save-actions">{onOpenMediaAccounts && <button className="outline-button" onClick={onOpenMediaAccounts}>核对项目账号与手机分配</button>}{onOpenDevices && <button className="outline-button" onClick={onOpenDevices}>核对手机当前状态</button>}</div>
       {view.tasks.length === 0 ? <p>尚无初始化检查记录。</p> : <div className="table-wrap"><table><thead><tr><th>发布身份</th><th>当前状态</th><th>下一步／缺少条件</th><th>处理</th></tr></thead><tbody>{view.tasks.map(t => {
-        const review = view.executionReviews.find(r => r.taskId === t.taskId);
+      const review = view.executionReviews.find(r => r.taskId === t.taskId);
+        const identity = view.identityVerifications.find(v => v.taskId === t.taskId);
         return <tr key={t.taskId}><td>{t.intent.target.name}<small>{t.intent.target.platform === "facebook" ? "Facebook Page" : "YouTube 频道"} · 任务 {t.taskId.slice(0, 8)} · v{t.taskVersion}{(!t.selectedAccountId || !t.selectedDeviceId) && " · 历史未绑定账号/手机，仅供查阅"}</small></td><td>{statuses[t.state]}</td><td>{t.nextOperationId && <p>下一步：{preparationExecutionLibrary.find(o => o.id === t.nextOperationId)?.name}</p>}{t.blockers.map(b => <p key={b}>{reasons[b] ?? "条件需要核对"}</p>)}
           {review && <details><summary>执行条件核验记录 · v{review.taskVersion}</summary>
             <p>核验时间：{new Date(review.reviewedAt).toLocaleString("zh-CN")} · 资源版本 {review.resourceVersion}</p>
             {(review.taskVersion !== t.taskVersion || review.resourceVersion !== view.resourceVersion) && <p>该记录对应较早事实，请重新核验当前条件。</p>}
             {review.blockers.map(b => <p key={b}>{reasons[b] ?? "条件需要核对"}</p>)}<p>本次核验未派发手机动作。</p></details>}
+          {identity && <p>{identity.currentCredentialMatches ? "已有身份及管理权限已核验" : "历史核验与当前凭据不一致，需重新核验"} · ID {identity.canonicalIdentityRef} · {new Date(identity.verifiedAt).toLocaleString("zh-CN")}</p>}
         </td><td>{readOnly ? "转电脑处理" : <><button className="text-button" disabled={busy || unresolved || loading || !!readError || !t.selectedAccountId || !t.selectedDeviceId} onClick={() => void send("recheck", t)}>重新检查原任务</button>
-          <button className="text-button" disabled={busy || unresolved || loading || !!readError || !t.selectedAccountId || !t.selectedDeviceId} onClick={() => void send("execution-review", t)}>核验执行条件</button></>}</td></tr>;
+          <button className="text-button" disabled={busy || unresolved || loading || !!readError || !t.selectedAccountId || !t.selectedDeviceId} onClick={() => void send("execution-review", t)}>核验执行条件</button>
+          <button className="text-button" disabled={busy || unresolved || loading || !!readError || !t.selectedAccountId || !t.selectedDeviceId || !!identity} onClick={() => void send("identity-sync", t)}>同步原身份核验</button></>}</td></tr>;
       })}</tbody></table></div>}
       <h4>原操作与回执</h4>
       {view.originalOperations.length === 0 ? <p>尚无原手机操作记录；没有派发手机动作。</p> : <ul>{view.originalOperations.map(o => <li key={o.taskAttemptId}>

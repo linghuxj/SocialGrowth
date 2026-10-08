@@ -308,7 +308,9 @@ export function createRuntimeServer(options: ServerOptions) {
         } else if ((path === "/business-plan-executions" || path.startsWith("/business-plan-executions/")) && req.method === "GET") {
           requireFact(executionBridge, "BUSINESS_PLAN_EXECUTOR_UNAVAILABLE");
           result = path === "/business-plan-executions" ? executionBridge.list() : executionBridge.read(path.split("/").at(-1)!);
-        } else if (path === '/onboarding' && req.method === 'POST')
+        } else if (/^\/onboarding\/receipts\/[^/]+$/.test(path) && req.method === 'GET')
+          result = onboarding.receipt(id.parse(path.split('/').at(-1)));
+        else if (path === '/onboarding' && req.method === 'POST')
           result = onboarding.start(JSON.parse((await body(req, 4096)).toString()));
         else if (path === '/onboarding/stop' && req.method === 'POST')
           result = onboarding.stop(id.parse(JSON.parse((await body(req, 2048)).toString()).id));

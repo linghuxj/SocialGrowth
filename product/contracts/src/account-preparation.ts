@@ -13,7 +13,8 @@ export const accountPreparationIntentSchema = z.strictObject({
 export const requestAccountPreparationSchema = z.strictObject({ metadata,
   protocolVersion: z.literal(executionLibraryVersion), projectId: uuidSchema,
   expectedProjectVersion: version, expectedResourceVersion: version,
-  intent: accountPreparationIntentSchema.extend({ accountId: uuidSchema, deviceId: uuidSchema, parentLoginRef: z.null().optional() }),
+  // New requests are existing-identity only. Historical task reads retain their original scope.
+  intent: accountPreparationIntentSchema.extend({ accountId: uuidSchema, deviceId: uuidSchema, parentLoginRef: z.null().optional(), allowIdentityCreation:z.literal(false) }),
 });
 export const recheckAccountPreparationSchema = z.strictObject({ metadata,
   protocolVersion: z.literal(executionLibraryVersion), projectId: uuidSchema, taskId: uuidSchema, expectedTaskVersion: version,
@@ -53,6 +54,10 @@ export const accountPreparationWorkspaceSchema = z.strictObject({
   devices: z.array(z.strictObject({ deviceId: uuidSchema })).max(100),
   executionReviews: z.array(accountPreparationExecutionReviewSchema).max(50),
   originalOperations: z.array(accountPreparationOriginalOperationSchema).max(100),
+  identityVerifications: z.array(z.strictObject({
+    taskId: uuidSchema, identityId: uuidSchema, canonicalIdentityRef: ref,
+    verifiedAt: timestampSchema, currentCredentialMatches: z.boolean(),
+  })).max(50).default([]),
 });
 export type AccountPreparationIntent = z.infer<typeof accountPreparationIntentSchema>;
 export type AccountPreparationTaskView = z.infer<typeof accountPreparationTaskViewSchema>;

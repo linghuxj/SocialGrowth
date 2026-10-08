@@ -7,6 +7,8 @@
 | 文档 | 用途 |
 | --- | --- |
 | [当前实现](../../current-implementation.md) | 实际接线、默认关闭条件和现有业务边界 |
+| [核心流程开发清单](core-flow-development-checklist.md) | 核心业务衔接和未完成范围 |
+| [Artemis 指令在线维护讨论](../../specs/2026-10-09-artemis-instruction-templates-discussion.md) | 待核心链路稳定后再调整；当前只记录、不实施 |
 | [工程覆盖与阻断](delivery-tracker.md) | 工作包与当前工程、证据及未完成范围对应 |
 | [当前风险](engineering-review.md) | 沿用风险编号，核对当前条件与关闭判据 |
 | [工作包](work-packages.md) | 责任范围和依赖定义，不代表全部未开始或已完成 |

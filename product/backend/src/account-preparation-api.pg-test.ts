@@ -75,7 +75,7 @@ test("concurrent same-scope requests create one central task and one check; chan
   const results = await Promise.all([request(f, "request", r), request(f, "request", { ...r, metadata: metadata() })]);
   const ids = results.map(r => workspace(r).tasks[0]!.taskId); assert.equal(ids[0], ids[1]);
   assert.deepEqual(await totals(), { tasks: before.tasks + 1, commands: before.commands + 2, checks: before.checks + 1, audits: before.audits + 1 });
-  const current = await totals(); code(await request(f, "request", { ...r, metadata: metadata(), intent: { ...r.intent, allowIdentityCreation: true } }), 409, "FACT_VERSION_STALE"); assert.deepEqual(await totals(), current);
+  const current = await totals(); code(await request(f, "request", { ...r, metadata: metadata(), intent: { ...r.intent, allowIdentityCreation: true } }), 400, "INPUT_INVALID"); assert.deepEqual(await totals(), current);
 });
 test("same key cannot change payload/kind; forged evidence/permissions and wrong paths are rejected", async () => {
   const f = await fixture(), r = input(f); workspace(await request(f, "request", r)); const before = await totals();

@@ -33,6 +33,10 @@ export class BusinessPlanExecutionRuntime {
     };
     const assess = async (scope: BusinessPlanWorkflowScope, ownOperationId?: string): Promise<WorkflowReadiness> => {
       const business = await this.readiness(scope);
+      if (scope.reservedDeviceId !== this.config.productDeviceId || scope.identityId !== this.config.productIdentityId
+        || scope.platform !== "facebook" || scope.form !== "facebook_video") {
+        return { ...business, businessState: "blocked", blockers: [...business.blockers, "runtime_target_scope_mismatch"] };
+      }
       const localPreflightExceptions = new Set(["network_not_admitted", "stop_unconfirmed", "action_inspector_unavailable"]);
       const businessBlockers = business.blockers.filter(blocker => !localPreflightExceptions.has(blocker));
       if (businessBlockers.length || (business.businessState !== "ready" && !(business.businessState === "blocked" && business.blockers.length > 0))) {
@@ -41,22 +45,29 @@ export class BusinessPlanExecutionRuntime {
       try {
         const [statusRaw, deviceRaw] = await Promise.all([request("/api/runtime/status"), request("/api/runtime/devices/states")]);
         const status = statusRaw as { bindings?: Array<{ id: string; deviceId: string; serial: string; platform: string; validUntil: string }>;
-          tasks?: Array<{ status: string; task?: { binding?: { deviceId?: string } } }>;
+          tasks?: Array<{ status: string; task?: { binding?: { deviceId?: string; serial?: string } } }>;
           deviceHolds?: Array<{ device: string; actor?: string }>;
           supervision?: { controls?: Array<{ deviceId: string; taskId: string; state: string }>;
             requests?: Array<{ deviceId: string; taskId: string; status: string }> };
           pauses?: Array<{ scope: string; reason: string }> };
         const devices = deviceRaw as { devices?: Array<{ serial: string; adbStatus: string; status: string }> };
+        if (![status.bindings, status.tasks, status.deviceHolds, status.pauses, status.supervision?.controls,
+          status.supervision?.requests, devices.devices].every(Array.isArray)) throw new Error("RUNTIME_STATUS_INCOMPLETE");
+        // The product UUID and the execution/ADB identifiers refer to the same
+        // reserved phone. Unknown and blocked original work remains exclusive.
+        const targetIds = new Set([this.config.deviceId, this.config.serial, this.config.productDeviceId]);
+        const onTarget = (value: string | undefined) => value !== undefined && targetIds.has(value);
         const binding = status.bindings?.find(item => item.id === this.config.bindingId && item.deviceId === this.config.deviceId
           && item.serial === this.config.serial && item.platform === "facebook" && Date.parse(item.validUntil) > Date.now());
         const device = devices.devices?.find(item => item.serial === this.config.serial && item.adbStatus === "device");
-        const activeTask = status.tasks?.some(item => ["queued", "running"].includes(item.status) && item.task?.binding?.deviceId === this.config.deviceId);
-        const deviceHolds = status.deviceHolds?.filter(item => item.device === this.config.deviceId || item.device === this.config.serial) ?? [];
+        const activeTask = status.tasks?.some(item => ["queued", "running", "unknown", "blocked"].includes(item.status)
+          && (onTarget(item.task?.binding?.deviceId) || onTarget(item.task?.binding?.serial)));
+        const deviceHolds = status.deviceHolds?.filter(item => onTarget(item.device)) ?? [];
         const ownHoldConfirmed = Boolean(ownOperationId && deviceHolds.some(item => item.actor === ownOperationId));
         const held = deviceHolds.some(item => item.actor !== ownOperationId);
-        const activeControl = status.supervision?.controls?.some(item => item.deviceId === this.config.deviceId && item.taskId !== ownOperationId && ["active", "waiting", "revalidate"].includes(item.state));
-        const activeRequest = status.supervision?.requests?.some(item => item.deviceId === this.config.deviceId && item.taskId !== ownOperationId && ["waiting", "claimed"].includes(item.status));
-        const paused = status.pauses?.some(item => item.scope === `device:${this.config.deviceId}` || item.scope === `device:${this.config.serial}`);
+        const activeControl = status.supervision?.controls?.some(item => onTarget(item.deviceId) && item.taskId !== ownOperationId && ["active", "waiting", "revalidate"].includes(item.state));
+        const activeRequest = status.supervision?.requests?.some(item => onTarget(item.deviceId) && item.taskId !== ownOperationId && ["waiting", "claimed", "responded"].includes(item.status));
+        const paused = status.pauses?.some(item => item.scope.startsWith("device:") && onTarget(item.scope.slice("device:".length)));
         const localInspectorReady = Boolean(binding && device && !activeTask && !held && !activeControl && !activeRequest);
         const nonLocalBlockers = businessBlockers;
         const blockers = [...nonLocalBlockers, ...(!binding ? ["runtime_binding_unavailable"] : []), ...(!device ? ["physical_device_offline"] : []),
@@ -80,9 +91,12 @@ export class BusinessPlanExecutionRuntime {
       } },
       executor: { execute: async ({ scope, operationId, claimId }) => {
         if (scope.platform !== "facebook" || scope.form !== "facebook_video" || scope.expectedFiles.length !== 1) throw new Error("UNSUPPORTED_EXECUTION_SCOPE");
-        const file = scope.expectedFiles[0]!, facts = await this.facts(scope), content = await this.bytes(scope, file);
-        if (scope.identityId !== this.config.productIdentityId || facts.canonicalIdentityRef !== this.config.canonicalIdentityRef
+        if (scope.reservedDeviceId !== this.config.productDeviceId) throw new Error("EXECUTION_DEVICE_CONFIGURATION_MISMATCH");
+        if (scope.identityId !== this.config.productIdentityId) throw new Error("EXECUTION_IDENTITY_CONFIGURATION_MISMATCH");
+        const file = scope.expectedFiles[0]!, facts = await this.facts(scope);
+        if (facts.canonicalIdentityRef !== this.config.canonicalIdentityRef
           || facts.accountId !== this.config.accountId || !facts.pageName.trim()) throw new Error("EXECUTION_IDENTITY_CONFIGURATION_MISMATCH");
+        const content = await this.bytes(scope, file);
         if (content.length !== file.bytes || createHash("sha256").update(content).digest("hex") !== file.sha256) throw new Error("VERIFIED_ASSET_MISMATCH");
         await request("/api/runtime/assets", { method: "POST", headers: { "content-type": "application/octet-stream", "x-content-sha256": file.sha256 }, body: new Uint8Array(content) });
         const scopeFingerprint = createHash("sha256").update(canonicalJson(scope)).digest("hex");

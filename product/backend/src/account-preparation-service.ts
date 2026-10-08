@@ -12,6 +12,9 @@ import { parsePhoneControlRecord } from "./action-permission-core.js";
 import { loadCurrentLocalParticipation } from "./local-participation-service.js";
 import { parseAdmissionRecord } from "./network-admission-record.js";
 import { readArtemisPreparationHistory } from "./artemis-preparation-history.js";
+import { syncAccountPreparationIdentitySchema } from "@socialgrowth/product-contracts";
+import type { IdentityVerificationSource } from "./identity-verification-source.js";
+import { validateIdentityVerification } from "./identity-verification-core.js";
 const s = "socialgrowth_product";
 const digest = (v: unknown) => createHash("sha256").update(canonicalMaterial(v)).digest("hex");
 const unavailable = () => new ProductTransactionError("INTERNAL_ERROR", "Preparation service unavailable", true);
@@ -35,7 +38,8 @@ function view(r: Row): AccountPreparationTaskView {
 // Authenticated CENTRAL requests and check history. No caller facts, no SDK call
 // inside locks, and no automatic reset/relaunch by recheck or another request key.
 export class AccountPreparationService {
-  constructor(private readonly pool: Pool, private readonly auth: OperatorAuthService) {}
+  constructor(private readonly pool: Pool, private readonly auth: OperatorAuthService,
+    private readonly identitySource: IdentityVerificationSource | null = null) {}
   private async tx<T>(token: string, csrf: string | null, fn: (c: PoolClient, actor: string) => Promise<T>): Promise<T> {
     let c: PoolClient; try { c = await this.pool.connect(); } catch { throw unavailable(); }
     try {
@@ -67,8 +71,107 @@ export class AccountPreparationService {
     const executionReviews = reviews.rows.map(r => accountPreparationExecutionReviewSchema.parse(r.record));
     if (executionReviews.some(r => r.projectId !== projectId || !rows.rows.some(t => t.task_id === r.taskId))) throw unavailable();
     const originalOperations = await this.originalOperations(c, projectId);
+    const identityVerifications = await c.query(`SELECT v.task_id AS "taskId",v.identity_id AS "identityId",
+      p.canonical_identity_ref AS "canonicalIdentityRef",v.verified_at AS "verifiedAt",
+      coalesce(c.credential_id=v.credential_id AND c.revision=v.credential_revision
+        AND cr.state='stored_unverified' AND a.normalized_login_identifier=lower(v.login_identifier)
+        AND a.parent_login_verification='verified',false) AS "currentCredentialMatches"
+      FROM ${s}.account_identity_verifications v JOIN ${s}.publishing_identities p USING(identity_id)
+      JOIN ${s}.media_accounts a ON a.account_id=v.account_id
+      LEFT JOIN ${s}.media_credentials c ON c.account_id=v.account_id
+      LEFT JOIN ${s}.media_credential_revisions cr ON cr.credential_id=c.credential_id AND cr.revision=c.revision
+      WHERE v.project_id=$1 ORDER BY v.task_id`, [projectId]);
     return accountPreparationWorkspaceSchema.parse({ protocolVersion: executionLibraryVersion, projectId, projectVersion, resourceVersion,
-      tasks: rows.rows.map(view), accounts: accounts.rows, devices: devices.rows, executionReviews, originalOperations });
+      tasks: rows.rows.map(view), accounts: accounts.rows, devices: devices.rows, executionReviews, originalOperations,
+      identityVerifications: identityVerifications.rows.map(r => ({ ...r, verifiedAt: r.verifiedAt.toISOString() })) });
+  }
+  async syncIdentity(token: string, csrf: string, raw: unknown) {
+    const r = syncAccountPreparationIdentitySchema.parse(raw);
+    const { requestId: _requestId, ...metadata } = r.metadata;
+    const payload = digest({ ...r, metadata, kind: "identity-sync" });
+    const load = async (c: PoolClient, actor: string) => {
+      await this.project(c, r.projectId);
+      if ((await c.query(`SELECT 1 FROM ${s}.account_preparation_execution_reviews WHERE actor_id=$1 AND request_key=$2`,
+        [actor, r.metadata.idempotencyKey])).rowCount) throw new ProductTransactionError("IDEMPOTENCY_KEY_REUSED", "Preparation request key belongs to an execution review");
+      const command = (await c.query<{ payload_digest: string; task_id: string; kind: string }>(
+        `SELECT payload_digest,task_id,kind FROM ${s}.account_preparation_commands WHERE actor_id=$1 AND request_key=$2`,
+        [actor, r.metadata.idempotencyKey])).rows[0];
+      if (command) {
+        if (command.payload_digest !== payload || command.task_id !== r.taskId || command.kind !== "identity-sync")
+          throw new ProductTransactionError("IDEMPOTENCY_KEY_REUSED", "Preparation request key belongs to different input");
+        return { replay: true as const };
+      }
+      const task = (await c.query<Row>(`SELECT * FROM ${s}.account_preparation_tasks WHERE task_id=$1 AND project_id=$2 FOR UPDATE`, [r.taskId, r.projectId])).rows[0];
+      const resourceVersion = Number((await c.query(`SELECT version FROM ${s}.resource_reservation_guard`)).rows[0]?.version);
+      if (!task || Number(task.task_version) !== r.expectedTaskVersion || resourceVersion !== r.expectedResourceVersion
+        || !task.selected_account_id || !task.selected_device_id) throw stale();
+      const intent = accountPreparationIntentSchema.parse(task.intent);
+      if (digest(intent) !== task.intent_digest || intent.allowIdentityCreation) throw stale();
+      const account = (await c.query<{ login_identifier: string; canonical_account_ref: string | null; parent_login_verification: string;
+        credential_id: string; revision: string; legacy_declared_canonical_account_ref: string | null }>(
+        `SELECT a.*,c.credential_id,c.revision FROM ${s}.media_accounts a
+        JOIN ${s}.media_credentials c ON c.account_id=a.account_id
+        JOIN ${s}.media_credential_revisions cr ON cr.credential_id=c.credential_id AND cr.revision=c.revision
+        JOIN ${s}.project_media_account_assignments m ON m.account_id=a.account_id
+        JOIN ${s}.project_account_reservations ar ON ar.account_id=m.account_id AND ar.project_id=m.project_id
+        JOIN ${s}.project_device_reservations dr ON dr.device_id=m.device_id AND dr.project_id=m.project_id
+        WHERE a.account_id=$1 AND m.project_id=$2 AND m.device_id=$3 AND m.handover_requested=false
+          AND a.platform=$4 AND cr.state='stored_unverified' FOR UPDATE OF a,c`,
+        [task.selected_account_id, r.projectId, task.selected_device_id, intent.target.platform])).rows[0];
+      if (!account?.login_identifier || account.parent_login_verification === "blocked"
+        || account.legacy_declared_canonical_account_ref !== null) throw stale();
+      const checked = await this.check(c, r.projectId, intent);
+      if (checked.state !== "waiting_executor") throw new ProductTransactionError("FACT_VERSION_STALE", "Original phone operation and current resources must be checked");
+      return { replay: false as const, task, intent, account };
+    };
+    const first = await this.tx(token, csrf, load);
+    if (first.replay) return this.read(token, r.projectId);
+    if (!this.identitySource) throw new ProductTransactionError("FACT_VERSION_STALE", "Trusted identity source is unavailable");
+    // Auth and all scope checks happen before fetching. No network I/O inside
+    // database locks; facts are compared again before an atomic writeback.
+    let receipt;
+    try { receipt = await this.identitySource.read(r.taskId); }
+    catch { throw new ProductTransactionError("INTERNAL_ERROR", "Trusted identity source is unavailable", true); }
+    if (!receipt) throw new ProductTransactionError("FACT_VERSION_STALE", "Original identity verification has no complete trusted receipt");
+    return this.tx(token, csrf, async (c, actor) => {
+      const current = await load(c, actor);
+      if (current.replay) return this.workspace(c, r.projectId);
+      if (current.account.credential_id !== first.account.credential_id || current.account.revision !== first.account.revision
+        || current.account.login_identifier !== first.account.login_identifier) throw stale();
+      const now = (await c.query<{ now: Date }>("SELECT clock_timestamp() AS now")).rows[0]!.now;
+      const verified = validateIdentityVerification(receipt, { taskId: r.taskId, projectId: r.projectId,
+        accountId: current.task.selected_account_id!, deviceId: current.task.selected_device_id!,
+        intentDigest: current.task.intent_digest, intent: current.intent, loginIdentifier: current.account.login_identifier,
+        canonicalAccountRef: current.account.canonical_account_ref }, now);
+      const fingerprint = digest(verified);
+      const old = (await c.query<{ receipt_digest: string }>(`SELECT receipt_digest FROM ${s}.account_identity_verifications WHERE task_id=$1`, [r.taskId])).rows[0];
+      if (old && old.receipt_digest !== fingerprint) throw stale();
+      if (!old) {
+        const identities = (await c.query<{ identity_id: string; account_id: string; canonical_identity_ref: string }>(
+          `SELECT identity_id,account_id,canonical_identity_ref FROM ${s}.publishing_identities
+          WHERE account_id=$1 OR (platform=$2 AND canonical_identity_ref=$3)`, [verified.accountId, verified.platform, verified.canonicalIdentityRef])).rows;
+        if (identities.length > 1 || identities.some(i => i.account_id !== verified.accountId || i.canonical_identity_ref !== verified.canonicalIdentityRef)) throw stale();
+        const identityId = identities[0]?.identity_id ?? randomUUID();
+        const reservation = (await c.query<{ identity_id: string; account_id: string; project_id: string; device_id: string }>(
+          `SELECT * FROM ${s}.project_identity_reservations WHERE identity_id=$1 OR (device_id=$2 AND platform=$3)`,
+          [identityId, verified.deviceId, verified.platform])).rows;
+        if (reservation.some(v => v.identity_id !== identityId || v.account_id !== verified.accountId
+          || v.project_id !== verified.projectId || v.device_id !== verified.deviceId)) throw stale();
+        await c.query(`UPDATE ${s}.media_accounts SET canonical_account_ref=$2,parent_login_verification='verified' WHERE account_id=$1`, [verified.accountId, verified.canonicalAccountRef]);
+        if (!identities.length) await c.query(`INSERT INTO ${s}.publishing_identities(identity_id,account_id,platform,canonical_identity_ref) VALUES($1,$2,$3,$4)`, [identityId, verified.accountId, verified.platform, verified.canonicalIdentityRef]);
+        if (!reservation.length) await c.query(`INSERT INTO ${s}.project_identity_reservations(identity_id,account_id,platform,device_id,project_id,reserved_by_operator_id) VALUES($1,$2,$3,$4,$5,$6)`, [identityId, verified.accountId, verified.platform, verified.deviceId, verified.projectId, actor]);
+        await c.query(`INSERT INTO ${s}.account_identity_verifications(task_id,source_job_id,identity_id,account_id,project_id,device_id,platform,
+          credential_id,credential_revision,login_identifier,receipt_digest,receipt,verified_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+        [r.taskId, verified.sourceJobId, identityId, verified.accountId, verified.projectId, verified.deviceId, verified.platform,
+          current.account.credential_id, current.account.revision, current.account.login_identifier, fingerprint, verified, verified.verifiedAt]);
+        await c.query(`UPDATE ${s}.resource_reservation_guard SET version=version+1`);
+      }
+      await c.query(`INSERT INTO ${s}.account_preparation_commands(actor_id,request_key,payload_digest,task_id,kind) VALUES($1,$2,$3,$4,'identity-sync')`, [actor, r.metadata.idempotencyKey, payload, r.taskId]);
+      await c.query(`INSERT INTO ${s}.audit_records(audit_record_id,actor_type,actor_id,action,object_type,object_id,request_id,facts)
+        VALUES($1,'operator',$2,'account_preparation.identity_sync','account_preparation_task',$3,$4,$5)`,
+      [randomUUID(), actor, r.taskId, r.metadata.requestId, { sourceJobId: verified.sourceJobId, receiptDigest: fingerprint, publicationAllowed: false }]);
+      return this.workspace(c, r.projectId);
+    });
   }
   private async originalOperations(c: PoolClient, projectId: string) {
     const rows = await c.query<{ task_id: string; task_version: string; task_attempt_id: string; operation_id: string;

@@ -1,5 +1,7 @@
 # 正式工程部署与恢复边界
 
+2026-10-09 用户确认：正式业务验证入口为 `https://growth.mhtm.top`，服务器管理通过 `ssh -J root@chenqm root@mh`。
+
 当前本地服务由根 `pnpm dev` 管理，见[服务组脚本](../../scripts/product-local-live.mts)。[compose.product.yml](compose.product.yml)只配置 PostgreSQL、Redis 和 MinIO 依赖；不包含业务应用部署，不是生产已上线的证明。根本地服务组的实际依赖及保留数据按脚本处理，不重建原业务库。
 
 可以只读检查示例配置结构：

@@ -13,10 +13,12 @@ function fixture(
   facts: unknown,
   screenshotFails = false,
   platform: "facebook" | "youtube" = "facebook",
+  deviceId = "phone",
+  canonicalIds = false,
 ) {
   const store = new RuntimeStore(":memory:"),
     human = new HumanAssistance(store),
-    e = new FirstLoopEngine();
+    e = new FirstLoopEngine(undefined, canonicalIds ? { nextId: () => randomUUID() } : {});
   const ctx = { actorId: "test", correlationId: "identity" };
   const p = e.saveProjectDraft(
     {
@@ -35,7 +37,7 @@ function fixture(
       platform,
       owner: "test",
       positioning: "test",
-      deviceRef: "phone",
+      deviceRef: deviceId,
     },
     ctx,
   ).value!;
@@ -56,7 +58,7 @@ function fixture(
   store.save(e.snapshot());
   store.db
     .prepare("INSERT INTO device_holds VALUES (?,?,?)")
-    .run("phone", "test", new Date().toISOString());
+    .run(deviceId, "test", new Date().toISOString());
   let starts = 0;
   let launchArgs: Record<string, unknown> | undefined;
   const service = new IdentityOnboarding(
@@ -64,7 +66,7 @@ function fixture(
     human,
     {
       artemisRoot: "/test",
-      deviceId: "phone",
+      deviceId,
       serial: "RFC_TEST",
       mediaPath: "/unused",
       mediaSha256: "a".repeat(64),
@@ -87,7 +89,7 @@ function fixture(
           }
           if (facts && typeof facts === "object" && "error" in facts)
             return { status: "failed", error: facts.error, result: null };
-          return { status: "completed", result: facts };
+          return { trace_id: args.trace_id, device_serial: "RFC_TEST", status: "completed", result: facts };
         },
       }),
     },
@@ -136,6 +138,27 @@ const initialized = {
   loginIdentityVerified: true,
   identityCreated: false,
 };
+for (const platform of ["facebook", "youtube"] as const)
+  test(`existing ${platform} identity verification preserves the logged-in session and prohibits login, install and creation`, async () => {
+    const expectedId = platform === "facebook" ? "123456789" : "UCabcdefghijklmnopqrstuv";
+    const f = fixture({ ...verified, observedId: expectedId, identityKind: platform === "facebook" ? "facebook_page" : "youtube_channel" }, false, platform);
+    try {
+      const original = { ...f.input, expectedId };
+      const job = f.service.start(original);
+      assert.equal(f.service.start(original).id, job.id);
+      const control = f.human.supervision.controls()[0]!;
+      assert.equal(control.policy.allowLogin, false);
+      assert.equal(control.policy.allowTrustedInstall, false);
+      assert.equal(control.policy.allowIdentityCreation, false);
+      assert.throws(() => f.human.supervision.credential(control.sessionId, "password"), /LOGIN_NOT_AUTHORIZED/);
+      assert.throws(() => f.human.supervision.gate(control.sessionId, { action: "create", category: "create_identity" }), /IDENTITY_CREATION_NOT_AUTHORIZED/);
+      const result = await f.done();
+      assert.equal(result.status, "verified");
+      assert.equal(result.observedId, expectedId);
+      assert.equal(f.starts(), 1);
+      assert.equal(f.store.db.prepare("SELECT count(*) AS n FROM bindings").get()?.n, 0);
+    } finally { await f.close(); }
+  });
 function initialization(f: ReturnType<typeof fixture>, mode = "existing_only") {
   return {
     ...f.input,
@@ -146,6 +169,35 @@ function initialization(f: ReturnType<typeof fixture>, mode = "existing_only") {
     category: "Video creator",
   };
 }
+test("formal receipt requires exact parent readback, immutable intent and intact native evidence", async () => {
+  const f = fixture({ ...initialized, observedLoginIdentifier: "authorized-parent", observedParentCanonicalRef: "987654321" },
+    false, "facebook", randomUUID(), true);
+  try {
+    const input = { ...initialization(f), preparationIntentDigest: "a".repeat(64), authorizationRef: "authorized_scope" };
+    const job = f.service.start(input); await f.done();
+    const receipt = f.service.receipt(input.requestId)!;
+    assert.equal(receipt.requestId, input.requestId);
+    assert.equal(receipt.sourceJobId, job.id);
+    assert.equal(receipt.canonicalAccountRef, "987654321");
+    assert.equal(receipt.canonicalIdentityRef, "123456789");
+    assert.equal(receipt.noPublication, true);
+    assert.equal(f.service.receipt(randomUUID()), null);
+    f.store.db.prepare("UPDATE identity_jobs SET screenshot=? WHERE id=?").run(Buffer.concat([png, Buffer.from("tampered")]), job.id);
+    assert.throws(() => f.service.receipt(input.requestId), /IDENTITY_EVIDENCE_CHANGED/);
+  } finally { await f.close(); }
+});
+test("legacy successful flags and an incorrect parent cannot produce a formal binding receipt", async () => {
+  for (const observed of [undefined, "other-parent"]) {
+    const f = fixture({ ...initialized, ...(observed ? { observedLoginIdentifier: observed, observedParentCanonicalRef: "987654321" } : {}) });
+    try {
+      const input = { ...initialization(f), preparationIntentDigest: "a".repeat(64) };
+      f.service.start(input); const job = await f.done();
+      assert.notEqual(job.status, "verified");
+      assert.equal(job.reason, "PARENT_LOGIN_READBACK_REQUIRED");
+      assert.equal(f.service.receipt(input.requestId), null);
+    } finally { await f.close(); }
+  }
+});
 test("initialization inspects app, login and existing identity in ONE Agent task without content or publication", async () => {
   const f = fixture(initialized);
   try {

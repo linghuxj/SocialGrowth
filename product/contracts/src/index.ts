@@ -49,3 +49,5 @@ export const livenessResponseSchema = z.object({
 });
 
 export type LivenessResponse = z.infer<typeof livenessResponseSchema>;
+
+export * from "./identity-verification.js";

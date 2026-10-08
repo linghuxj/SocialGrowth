@@ -1,3 +1,4 @@
+import { RuntimeIdentityVerificationSource } from "./identity-verification-source.js";
 import { BootstrapManagement } from "./bootstrap-management.js";
 import { BootstrapRelay } from "./bootstrap-relay.js";
 import { AliyunSmsDeliveryPort, readAliyunSmsConfig } from "./aliyun-sms.js";
@@ -237,7 +238,10 @@ const providerAuthProvider = {
       },
     },
 
-    { provide: AccountPreparationService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => new AccountPreparationService(pool, auth) },
+    { provide: AccountPreparationService, inject: [Pool, OperatorAuthService], useFactory: (pool: Pool, auth: OperatorAuthService) => {
+      const url = process.env.SG_PRODUCT_EXECUTION_RUNTIME_URL, token = process.env.SG_PRODUCT_EXECUTION_RUNTIME_TOKEN;
+      return new AccountPreparationService(pool, auth, url && token ? new RuntimeIdentityVerificationSource({ url, token }) : null);
+    } },
     poolProvider,
     operatorAuthProvider,
     { provide: ExecutorConsoleService, inject: [OperatorAuthService, DeviceConnectionApi], useFactory: (auth: OperatorAuthService, connections: DeviceConnectionApi) => {
