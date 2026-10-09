@@ -182,6 +182,10 @@ export function createRuntimeServer(options: ServerOptions) {
           value = assistance.supervision.finishObservation(session.id);
         else if (path === "/assistance/agent/prepare-phone" && req.method === "POST")
           value = await verification.preparePhoneEnvironment(bearer);
+        else if (path === "/assistance/agent/phone-network-ready" && req.method === "POST") {
+          const input = z.object({ stage: z.enum(["proxy", "vpn"]) }).strict().parse(JSON.parse((await body(req, 2048)).toString()));
+          value = await verification.checkPhoneNetwork(bearer, input.stage);
+        }
         else if (path === "/assistance/agent/ensure-app" && req.method === "POST")
           value = await assistance.supervision.ensureApp(session.id, () =>
             apps.ensure(session.scope.serial, session.scope.packageName),

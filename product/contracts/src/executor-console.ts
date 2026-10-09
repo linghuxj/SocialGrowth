@@ -2,7 +2,7 @@ import { z } from "zod";
 
 const key = z.string().min(1).max(256);
 export const phoneInitializationProgressSchema = z.strictObject({
-  phase: z.enum(["checking_device", "inspecting_apps", "preparing_apps", "delivering_configuration", "configuring_network", "observing_stability", "completed", "needs_attention"]),
+  phase: z.enum(["checking_device", "inspecting_apps", "preparing_apps", "delivering_configuration", "configuring_network", "checking_proxy", "checking_vpn", "recovering_connection", "observing_stability", "completed", "needs_attention"]),
   updatedAt: z.string().datetime(),
   packageName: z.enum(["io.nekohasekai.sfa", "com.follow.clash", "com.facebook.katana", "com.google.android.youtube"]).optional(),
 });

@@ -36,3 +36,7 @@ RUN git apply --check /tmp/helper-timeout.patch && git apply /tmp/helper-timeout
 # Bound initial planning only in the Web-authorized phone initialization task.
 COPY planner-budget.patch /tmp/planner-budget.patch
 RUN git apply --check /tmp/planner-budget.patch && git apply /tmp/planner-budget.patch && rm /tmp/planner-budget.patch
+
+# Enforce local proxy readiness before SFA actions in phone initialization only.
+COPY phone-network.patch /tmp/phone-network.patch
+RUN git apply --check /tmp/phone-network.patch && git apply /tmp/phone-network.patch && rm /tmp/phone-network.patch && .venv/bin/python -m py_compile artemis/tools/socialgrowth_supervision.py

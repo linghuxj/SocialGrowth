@@ -468,6 +468,8 @@ test("phone preparation rejects a valid but unbound native capability and every 
         policy: { mode: "connectivity_test", allowPhoneInitialization: initialization, allowLogin: false } });
       await assert.rejects(f.verification.preparePhoneEnvironment(s.token), new RegExp(initialization
         ? "PHONE_INITIALIZATION_NOT_ACTIVE" : "PHONE_INITIALIZATION_NOT_AUTHORIZED"));
+      for (const stage of ["proxy", "vpn"] as const) await assert.rejects(f.verification.checkPhoneNetwork(s.token, stage), new RegExp(initialization
+        ? "PHONE_INITIALIZATION_NOT_ACTIVE" : "PHONE_INITIALIZATION_NOT_AUTHORIZED"));
       assert.equal(f.assistance.supervision.get(s.sessionId).installAttempts, undefined);
       assert.equal(f.starts(), 0);
     } finally { await f.close(); }
