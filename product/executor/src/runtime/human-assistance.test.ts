@@ -192,7 +192,7 @@ test("real HTTP handoff enforces operator/device/capability boundaries without s
     };
     assert.equal((await call("/assistance/sessions", device, scope)).ok, false);
     assert.equal((await call("/assistance/sessions", operator, scope)).ok, false);
-    server.runtime.holdDevice("phone", true, "tester");
+    server.runtime.holdDevice("phone", true, "local-operator");
     const { value: session } = await call("/assistance/sessions", operator, scope);
     assert.equal(
       (await call("/device-control", operator, { deviceId: "phone", held: false })).ok,
@@ -306,4 +306,23 @@ test("real HTTP handoff enforces operator/device/capability boundaries without s
     await server.close();
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("only scoped phone initialization accepts a 65-minute capability; ordinary login limits remain 15 minutes", () => {
+  const store = new RuntimeStore(":memory:");
+  let now = Date.now();
+  const service = new HumanAssistance(store, () => now);
+  const scope = { taskId: "phone-prepare", deviceId: "phone", serial: "RFC_TEST", packageName: "com.socialgrowth.product", mode: "diagnostic",
+    expectedIdentity: "phone initialization", expiresAt: new Date(now + 65 * 60_000).toISOString(),
+    policy: { mode: "connectivity_test", allowPhoneInitialization: true, allowLogin: false } };
+  try {
+    assert.throws(() => service.open({ ...scope, expiresAt: new Date(now + 65 * 60_000 + 1).toISOString() }), /ASSISTANCE_EXPIRY_INVALID/);
+    assert.throws(() => service.open({ ...scope, policy: { mode: "connectivity_test", allowPhoneInitialization: false, allowLogin: false } }), /ASSISTANCE_EXPIRY_INVALID/);
+    assert.throws(() => service.open({ ...scope, packageName: "com.facebook.katana" }));
+    assert.throws(() => service.open({ ...scope, policy: { ...scope.policy, allowLogin: true } }));
+    const session = service.open(scope);
+    assert.throws(() => service.beginCredential(session.token, "password"), /LOGIN_NOT_AUTHORIZED/);
+    now += 64 * 60_000; assert.equal(service.session(session.token).id, session.sessionId);
+    now += 60_001; assert.throws(() => service.session(session.token), /ASSISTANCE_SESSION_INVALID/);
+  } finally { service.close(); store.close(); }
 });

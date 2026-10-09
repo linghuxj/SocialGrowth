@@ -468,8 +468,60 @@ test("phone preparation rejects a valid but unbound native capability and every 
         policy: { mode: "connectivity_test", allowPhoneInitialization: initialization, allowLogin: false } });
       await assert.rejects(f.verification.preparePhoneEnvironment(s.token), new RegExp(initialization
         ? "PHONE_INITIALIZATION_NOT_ACTIVE" : "PHONE_INITIALIZATION_NOT_AUTHORIZED"));
+      for (const stage of ["proxy", "vpn"] as const) await assert.rejects(f.verification.checkPhoneNetwork(s.token, stage), new RegExp(initialization
+        ? "PHONE_INITIALIZATION_NOT_ACTIVE" : "PHONE_INITIALIZATION_NOT_AUTHORIZED"));
       assert.equal(f.assistance.supervision.get(s.sessionId).installAttempts, undefined);
       assert.equal(f.starts(), 0);
+    } finally { await f.close(); }
+  }
+});
+
+
+test("prepared flag requires completed trusted preparation; failed preparation keeps original unknown receipt", async () => {
+  for (const succeeded of [false, true]) {
+    const f = fixture({}, "connectivity_test"), taskId = randomUUID(), sessionId = randomUUID();
+    try {
+      const job = { ...f.input, id: taskId, deviceId: "device", goal: "2026-10-08.phone-environment-v1", status: "finished", resultCode: "UNCONFIRMED", startedAt: new Date().toISOString() };
+      f.store.db.prepare("INSERT INTO web_verifications(id,request_id,body) VALUES (?,?,?)").run(taskId, job.requestId, JSON.stringify(job));
+      f.assistance.supervision.open({ sessionId, taskId, deviceId: "device", expectedIdentity: "phone", expiresAt: new Date(Date.now() + 60000).toISOString() }, { mode: "connectivity_test", allowPhoneInitialization: true, allowLogin: false });
+      assert.equal(f.verification.list()[0].initializationPrepared, undefined);
+      const preparation = f.assistance.supervision.preparePhone(sessionId, async () => { if (!succeeded) throw new Error("fixture failure"); });
+      if (succeeded) await preparation; else await assert.rejects(preparation, /fixture failure/);
+      assert.equal(f.verification.list()[0].initializationPrepared, succeeded ? true : undefined);
+      assert.equal(f.verification.list()[0].resultCode, "UNCONFIRMED");
+    } finally { await f.close(); }
+  }
+});
+
+test("capability-rejected continuation cannot use a missing prepared parent, invented trace, or unreviewed parent", async () => {
+  for (const kind of ["missing_parent", "unreviewed_parent", "invented_trace"] as const) {
+    const f = fixture({}, "connectivity_test"), deviceId = randomUUID(), requestId = randomUUID(), preparedRequest = randomUUID(), originalId = randomUUID(), parentId = randomUUID();
+    try {
+      const parent = { ...f.input, id: parentId, requestId: preparedRequest, deviceId, goal: "2026-10-08.phone-environment-v1", status: "finished", resultCode: "UNCONFIRMED", initializationPrepared: true,
+        startedAt: new Date().toISOString(), initializationRecovery: { at: new Date().toISOString(), successorId: originalId,
+          evidence: kind === "unreviewed_parent" ? "engine_failed_before_actions_and_locks_released" : "trusted_preparation_completed_and_engine_stopped" } };
+      if (kind !== "missing_parent") f.store.db.prepare("INSERT INTO web_verifications(id,request_id,body) VALUES (?,?,?)").run(parentId, preparedRequest, JSON.stringify(parent));
+      const original = { ...f.input, id: originalId, requestId: randomUUID(), deviceId, goal: "2026-10-08.phone-environment-v1", status: "finished", resultCode: "UNCONFIRMED", errorCode: "ASSISTANCE_EXPIRY_INVALID",
+        initializationRootRequestId: requestId, initializationPreparationRequestId: preparedRequest, previousInitializationId: parentId, initializationStartupRecoveryCount: 2,
+        ...(kind === "invented_trace" ? { traceId: randomUUID() } : {}), startedAt: new Date().toISOString(), finishedAt: new Date().toISOString() };
+      f.store.db.prepare("INSERT INTO web_verifications(id,request_id,body) VALUES (?,?,?)").run(originalId, original.requestId, JSON.stringify(original));
+      await assert.rejects(f.verification.resumePhoneInitialization({ id: originalId, deviceId, requestId, serial: "127.0.0.1:12345", hardwareSerial: "RFC_TEST", sessionId: randomUUID(), wirelessPort: 40000 }, "/nonexistent-sdk", "http://127.0.0.1:4318", "/nonexistent-manifest"), new RegExp(kind === "invented_trace" ? "PHONE_STARTUP_RECOVERY_LIMIT" : "PHONE_CAPABILITY_REJECTION_EVIDENCE_REQUIRED"));
+      assert.equal(f.starts(), 0); assert.equal(f.verification.list().find(j => j.id === originalId)?.initializationRecovery, undefined);
+    } finally { await f.close(); }
+  }
+});
+
+
+test("prepared configuration continuation is bounded and cannot automatically extend a completed preparation", async () => {
+  for (const [count, automatic] of [[2, false], [1, true], [-1, false], [3, false]] as const) {
+    const f = fixture({}, "connectivity_test"), deviceId = randomUUID(), requestId = randomUUID(), id = randomUUID();
+    try {
+      const original = { ...f.input, id, requestId, deviceId, goal: "2026-10-08.phone-environment-v1", status: "finished", resultCode: "UNCONFIRMED", errorCode: "EXECUTION_TIMEOUT_OR_CANCELLED",
+        traceId: randomUUID(), initializationPrepared: true, initializationPreparationRequestId: randomUUID(), initializationConfigurationRecoveryCount: count,
+        initializationStartupRecoveryCount: 2, startedAt: new Date().toISOString(), finishedAt: new Date().toISOString() };
+      f.store.db.prepare("INSERT INTO web_verifications(id,request_id,body) VALUES (?,?,?)").run(id, requestId, JSON.stringify(original));
+      await assert.rejects(f.verification.resumePhoneInitialization({ id, automatic, deviceId, requestId, serial: "127.0.0.1:12345", hardwareSerial: "RFC_TEST", sessionId: randomUUID(), wirelessPort: 40000 }, "/nonexistent-sdk", "http://127.0.0.1:4318", "/nonexistent-manifest"), /PHONE_(?:CONFIGURATION|STARTUP)_RECOVERY_LIMIT/);
+      assert.equal(f.starts(), 0); assert.equal(f.verification.list().find(j => j.id === id)?.initializationRecovery, undefined);
     } finally { await f.close(); }
   }
 });

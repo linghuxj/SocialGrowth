@@ -44,6 +44,8 @@ class EndpointReportingService : Service() {
     private val pairWorker = Executors.newSingleThreadExecutor()
     @Volatile private var tunnel: BootstrapTunnel? = null
     private var choseTransport = false
+    private var authorityRecoveryAttempted = false
+    private var originalDeviceId: UUID? = null
     private var tunnelSession: String? = null
     private var discovery: NativeEndpointDiscovery? = null
     private var pending: JSONObject? = null // A lost ACK retries exactly the same report.
@@ -171,7 +173,10 @@ class EndpointReportingService : Service() {
                 val token = requireNotNull(originalToken)
                 if (!choseTransport) {
                     val local = AssociationApiClient(http).installationState(token)
-                    val fact = DeviceConnectionApiClient(http).installationState(token, requireNotNull(local.deviceId))
+                    val deviceId = requireNotNull(local.deviceId)
+                    require(originalDeviceId == null || originalDeviceId == deviceId)
+                    originalDeviceId = deviceId
+                    val fact = DeviceConnectionApiClient(http).installationState(token, deviceId)
                     if (fact.networkState !in setOf("admitted", "pilot_verified", "managed_verified")) {
                         tunnel?.close()
                         tunnel = BootstrapTunnel(token).also { it.update(snapshot); it.ensureConnected() }
@@ -210,13 +215,28 @@ class EndpointReportingService : Service() {
                 if (e.code in setOf("HTTP_409", "FACT_VERSION_STALE")) {
                     epoch = null; pending = null; sequence = 0; epochRequestId = UUID.randomUUID().toString()
                 }
-                if (e.code in setOf("HTTP_403", "AUTHORIZATION_DENIED") && (tunnel == null || tunnel?.handedOff == true)) {
-                    // Recheck authority before falling back; a revoked association
-                    // cannot open a new authenticated bootstrap session.
-                    choseTransport = false; epoch = null; pending = null; sequence = 0
-                    epochRequestId = UUID.randomUUID().toString()
+                fatal = e.code in setOf("HTTP_401", "HTTP_403", "AUTHENTICATION_REQUIRED", "AUTHORIZATION_DENIED", "PILOT_DEVICE_NOT_ALLOWED", "DEVICE_CONNECTION_SCOPE_REJECTED")
+                if (e.code in setOf("HTTP_403", "AUTHORIZATION_DENIED") && !authorityRecoveryAttempted) {
+                    authorityRecoveryAttempted = true
+                    // A deployment can invalidate a relay/epoch while the installation
+                    // remains authorized. Recheck that exact identity once; never treat
+                    // a denied report as authority or retry a revoked association.
+                    val authorized = runCatching {
+                        val identity = requireNotNull(InstallationIdentityStore(this).load())
+                        require(identity.activeSessionToken() == originalToken)
+                        val current = AssociationApiClient(http).installationState(requireNotNull(originalToken))
+                        require(current.installationId.toString() == identity.installationId)
+                        require(originalDeviceId != null && current.deviceId == originalDeviceId && current.state in setOf("associated_pending_access", "access_ready"))
+                        require(InstallationIdentityStore(this).load() == identity)
+                    }.isSuccess
+                    if (authorized && live.get() && automaticEnabled(this)) {
+                        tunnel?.close(); tunnel = null; tunnelSession = null
+                        choseTransport = false; epoch = null; pending = null; sequence = 0
+                        epochRequestId = UUID.randomUUID().toString()
+                        fatal = false
+                        android.util.Log.i("SGConnection", "transport_authority_recheck_confirmed")
+                    }
                 }
-                fatal = e.code in setOf("HTTP_401", "HTTP_403", "AUTHENTICATION_REQUIRED", "PILOT_DEVICE_NOT_ALLOWED", "DEVICE_CONNECTION_SCOPE_REJECTED")
             } catch (e: Exception) {
                 if (failures == 0) android.util.Log.w("SGConnection", "report_failed category=${e.javaClass.simpleName}")
             }
@@ -224,6 +244,7 @@ class EndpointReportingService : Service() {
                 busy = false
                 if (!live.get()) return@post
                 if (fatal) { shutdown(); return@post }
+                if (success) authorityRecoveryAttempted = false
                 failures = if (success) 0 else failures + 1
                 status = if (success) "正在保持连接，请按页面提示继续" else "暂时联系不上平台，正在重试"
                 // Stop retrying a report after its bounded observation validity.

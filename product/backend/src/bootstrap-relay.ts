@@ -58,7 +58,7 @@ export class BootstrapRelay {
     const s: Session = { id: randomUUID(), scope, ws, token, checkedAt: Date.now(), bornAt: Date.now(), checking: false, pong: true,
       servers: new Map(), ports: new Map(), endpoints: { pairing: null, connect: null, at: 0 }, streams: new Map() };
     this.sessions.set(scope.deviceId, s);
-    ws.on("error", () => this.drop(s)); ws.on("close", () => this.drop(s)); ws.on("pong", () => { s.pong = true; });
+    ws.on("error", () => this.drop(s, "SOCKET_ERROR")); ws.on("close", () => this.drop(s, "TRANSPORT_CLOSED")); ws.on("pong", () => { s.pong = true; });
     ws.on("message", (raw, binary) => {
       try {
         if (binary || this.sessions.get(scope.deviceId) !== s) throw new Error("FRAME_INVALID");
@@ -78,7 +78,7 @@ export class BootstrapRelay {
           stream.receiving = false;
           try { send(ws, { type: "ack", id: msg.id }); } catch { this.drop(s); }
         });
-      } catch { this.drop(s); }
+      } catch (error) { this.drop(s, error instanceof Error && error.message === "UNEXPECTED_ACK" ? "UNEXPECTED_ACK" : "FRAME_REJECTED"); }
     });
     try {
       for (const purpose of ["pairing", "connect"] as const) {
@@ -121,14 +121,14 @@ export class BootstrapRelay {
     try { send(s.ws, { type: "close", id }); } catch { /* Session cleanup follows. */ }
   }
   private async check(s: Session): Promise<void> {
-    if (s.checking) { if (Date.now() - s.checkedAt > 12_000) this.drop(s); return; }
-    if (!s.pong || Date.now() - s.bornAt > 60 * 60_000 || Date.now() - s.checkedAt > 12_000) { this.drop(s); return; }
+    if (s.checking) { if (Date.now() - s.checkedAt > 12_000) this.drop(s, "AUTHORITY_CHECK_TIMEOUT"); return; }
+    if (!s.pong || Date.now() - s.bornAt > 60 * 60_000 || Date.now() - s.checkedAt > 12_000) { this.drop(s, !s.pong ? "HEARTBEAT_LOST" : "SESSION_EXPIRED"); return; }
     s.pong = false; s.ws.ping(); s.checking = true;
     try {
       const current = await this.authenticate!(s.token);
-      if (!same(current, s.scope)) this.drop(s); else s.checkedAt = Date.now();
+      if (!same(current, s.scope)) this.drop(s, "AUTHORITY_CHANGED"); else s.checkedAt = Date.now();
       if (s.endpoints.at && Date.now() - s.endpoints.at > 15_000) for (const id of s.streams.keys()) this.closeStream(s, id);
-    } catch { this.drop(s); } finally { s.checking = false; }
+    } catch { this.drop(s, "AUTHORITY_UNAVAILABLE"); } finally { s.checking = false; }
   }
   current(scope: PilotDeviceNetworkScope): BootstrapNetwork | null {
     const s = this.sessions.get(scope.deviceId);
@@ -162,8 +162,12 @@ export class BootstrapRelay {
     setTimeout(() => this.drop(s), 1000).unref();
   }
   end(network: BootstrapNetwork): void { this.drop(this.require(network)); }
-  private drop(s: Session): void {
-    if (this.sessions.get(s.scope.deviceId) === s) this.sessions.delete(s.scope.deviceId);
+  private drop(s: Session, reason = "SESSION_CLOSED"): void {
+    if (this.sessions.get(s.scope.deviceId) === s) {
+      // Bounded diagnostic codes only; never log tokens, frames or wire bytes.
+      console.info(JSON.stringify({ component: "bootstrap-relay", deviceId: s.scope.deviceId, sessionId: s.id, reason, streams: s.streams.size }));
+      this.sessions.delete(s.scope.deviceId);
+    }
     for (const id of s.streams.keys()) this.closeStream(s, id);
     for (const listener of s.servers.values()) listener.close();
     s.token = ""; s.ws.terminate();

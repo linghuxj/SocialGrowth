@@ -1,0 +1,21 @@
+diff --git a/artemis/agents/planner/planner.py b/artemis/agents/planner/planner.py
+--- a/artemis/agents/planner/planner.py
++++ b/artemis/agents/planner/planner.py
+@@ -14,6 +14,7 @@
+
+ import base64
+ import json
++import os
+ from pathlib import Path
+
+ from jinja2 import Template
+@@ -308,7 +309,8 @@
+
+         current_messages = messages
+         max_validation_attempts = 3
+-        max_iterations = 10
++        # Web phone preparation has one fixed next tool; avoid a long plan loop.
++        max_iterations = 2 if os.environ.get("SG_PHONE_INITIALIZATION") == "1" else 10
+
+         for validation_attempt in range(max_validation_attempts):
+             tool_called = False

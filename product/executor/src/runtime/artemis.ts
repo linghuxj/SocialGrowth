@@ -22,6 +22,7 @@ export class ArtemisMcp implements ArtemisPort {
       deviceId?: string;
       serial?: string;
       workerId?: string;
+      phoneInitialization?: boolean;
     },
   ) {}
   async connect() {
@@ -33,6 +34,9 @@ export class ArtemisMcp implements ArtemisPort {
       adbPort = match![1];
     }
     const requestBudget = process.env.ARTEMIS_PROXY_MAX_BODY_BYTES;
+    const helperPingTimeout = process.env.ARTEMIS_HELPER_PING_TIMEOUT_SECONDS;
+    if (helperPingTimeout !== undefined) requireFact(Number.isFinite(Number(helperPingTimeout)) &&
+      Number(helperPingTimeout) >= 2 && Number(helperPingTimeout) <= 30, "ARTEMIS_HELPER_TIMEOUT_INVALID");
     if (requestBudget !== undefined) requireFact(/^\d+$/.test(requestBudget) && Number(requestBudget) > 0 &&
       Number(requestBudget) <= 1_572_864, "ARTEMIS_PROXY_REQUEST_BUDGET_INVALID");
     if (this.assistance)
@@ -60,8 +64,10 @@ export class ArtemisMcp implements ArtemisPort {
       env: {
         ...getDefaultEnvironment(),
         ARTEMIS_STANDALONE: "1",
+        ...(this.assistance?.phoneInitialization ? { SG_PHONE_INITIALIZATION: "1" } : {}),
         ...(adbServer !== undefined ? { ADB_SERVER_SOCKET: adbServer, ADB_HOST: "127.0.0.1", ADB_PORT: adbPort! } : {}),
         ...(requestBudget !== undefined ? { ARTEMIS_PROXY_MAX_BODY_BYTES: requestBudget } : {}),
+        ...(helperPingTimeout !== undefined ? { ARTEMIS_HELPER_PING_TIMEOUT_SECONDS: helperPingTimeout } : {}),
         ...(this.assistance
           ? {
               SG_ASSISTANCE_URL: this.assistance.url,

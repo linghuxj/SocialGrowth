@@ -176,12 +176,16 @@ export class ExecutionRuntime {
           .get(device, this.now()),
         "DEVICE_PREPARATION_ACTIVE",
       );
+      const originalHold = this.store.db.prepare("SELECT actor FROM device_holds WHERE device=?").get(device);
+      // Taking over or returning a human hold cannot erase an execution's
+      // original uncertain operation. Its own trusted reconciliation releases it.
+      requireFact(!originalHold || originalHold.actor === actor, "DEVICE_HELD_BY_ORIGINAL_OPERATION");
       if (held)
         this.store.db
           .prepare("INSERT OR REPLACE INTO device_holds VALUES (?,?,?)")
           .run(device, actor, this.now());
       else {
-        this.store.db.prepare("DELETE FROM device_holds WHERE device=?").run(device);
+        this.store.db.prepare("DELETE FROM device_holds WHERE device=? AND actor=?").run(device, actor);
         this.store.db
           .prepare(
             "UPDATE preparations SET phase='waiting',lease=NULL,next_check=? WHERE task IN (SELECT id FROM tasks WHERE device=? AND status='queued')",

@@ -11,6 +11,7 @@ services:
       # Separate ADB transport from backend health probes. A slow APK transfer
       # must not cause a probe timeout to disconnect the execution stream.
       ADB_SERVER_SOCKET: tcp:127.0.0.1:5038
+      ARTEMIS_HELPER_PING_TIMEOUT_SECONDS: ${SG_ARTEMIS_HELPER_PING_TIMEOUT_SECONDS:-8}
       SG_PHONE_INITIALIZATION_FILE: /run/socialgrowth/phone-preparation/initialization.json
       SG_APP_STORAGE_FILE: /run/socialgrowth/phone-preparation/app-storage.json
       SG_APP_CATALOG: /run/socialgrowth/phone-preparation/catalog.json

@@ -13,5 +13,8 @@
   "androidBuildTools": {
     "version": "36.0.0",
     "linuxArchiveSha256": "5d9ac77fb6ff43d9da518a337b4fcf8f9097113df531d99ccefe80ef7ce8250b"
-  }
+  },
+  "helperTimeoutPatchSha256": "a0a44a5537d7bb7b3a1bc4a5be35ff05f110c821eddf66c134fca971827ef86a",
+  "plannerBudgetPatchSha256": "2408d2c577bd639ee9a375cf72a76592bd63b41a7a9237566585b538984943e0",
+  "phoneNetworkPatchSha256": "4de2f7d26ef59d266ed5dfd1b6f26c052839b16e0e33183839ec275f5e843992"
 }

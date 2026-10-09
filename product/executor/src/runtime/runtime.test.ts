@@ -18,6 +18,20 @@ import {
 import type { ExecutionReceipt } from "./domain/execution-receipt.js";
 import { executeDeviceTask } from "./device-executor.js";
 import { inspectPreparation } from "./preparation.js";
+
+test("human takeover and return preserve the original execution hold until its owner reconciles it", () => {
+  const f = setup();
+  try {
+    const since = f.runtime.now();
+    f.store.db.prepare("INSERT INTO device_holds VALUES(?,?,?)").run("phone", "original-unknown-operation", since);
+    for (const held of [true, false]) assert.throws(() => f.runtime.holdDevice("phone", held, "local-operator"), /DEVICE_HELD_BY_ORIGINAL_OPERATION/);
+    const hold = f.store.db.prepare("SELECT actor,since FROM device_holds WHERE device=?").get("phone");
+    assert.equal(hold?.actor, "original-unknown-operation"); assert.equal(hold?.since, since);
+    f.runtime.holdDevice("another-phone", true, "local-operator");
+    f.runtime.holdDevice("another-phone", false, "local-operator");
+    assert.equal(f.store.db.prepare("SELECT 1 FROM device_holds WHERE device=?").get("another-phone"), undefined);
+  } finally { f.store.close(); }
+});
 import { runWorker } from "./worker-cli.js";
 
 test("daily strategy without traffic destination can enter the runtime queue", () => {

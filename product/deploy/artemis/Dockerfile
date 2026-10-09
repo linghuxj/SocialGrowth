@@ -28,3 +28,15 @@ RUN ANDROID_BUILD_TOOLS_URL="$ANDROID_BUILD_TOOLS_URL" python -c 'import hashlib
 COPY google_proxy.py /opt/artemis/artemis/llm/socialgrowth_google_proxy.py
 COPY google-client.patch /tmp/google-client.patch
 RUN git apply --check /tmp/google-client.patch && git apply /tmp/google-client.patch && rm /tmp/google-client.patch && .venv/bin/python -c 'from artemis.llm.router import ModelFactory; from artemis.llm.socialgrowth_google_proxy import google_proxy_client_args'
+
+# Remote helper health probes need a configurable round-trip budget.
+COPY helper-timeout.patch /tmp/helper-timeout.patch
+RUN git apply --check /tmp/helper-timeout.patch && git apply /tmp/helper-timeout.patch && rm /tmp/helper-timeout.patch
+
+# Bound initial planning only in the Web-authorized phone initialization task.
+COPY planner-budget.patch /tmp/planner-budget.patch
+RUN git apply --check /tmp/planner-budget.patch && git apply /tmp/planner-budget.patch && rm /tmp/planner-budget.patch
+
+# Enforce local proxy readiness before SFA actions in phone initialization only.
+COPY phone-network.patch /tmp/phone-network.patch
+RUN git apply --check /tmp/phone-network.patch && git apply /tmp/phone-network.patch && rm /tmp/phone-network.patch && .venv/bin/python -m py_compile artemis/tools/socialgrowth_supervision.py

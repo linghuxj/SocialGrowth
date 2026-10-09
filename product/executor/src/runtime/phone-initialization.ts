@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { lstat, readFile, mkdtemp, writeFile, rm } from "node:fs/promises";
@@ -6,7 +7,8 @@ import { join, isAbsolute } from "node:path";
 import { parseDocument, stringify } from "yaml";
 import { z } from "zod-v3";
 import { AppProvisioner, type Command } from "./app-readiness.js";
-import { requireFact } from "./contracts.js";
+import { RuntimeError, requireFact } from "./contracts.js";
+import type { PhoneInitializationProgress } from "@socialgrowth/product-contracts";
 
 export { phoneInitializationVersion } from "@socialgrowth/product-contracts";
 import { phoneInitializationVersion } from "@socialgrowth/product-contracts";
@@ -43,6 +45,9 @@ export function deviceSfaConfiguration(raw: unknown, centerIp: string, enrollmen
   const inbounds = objects(config.inbounds), tun = inbounds.find(v => v.type === "tun");
   requireFact(inbounds.length === 1 && tun?.auto_route === true && tun.strict_route === true
     && Array.isArray(tun.exclude_package) && tun.exclude_package.includes("com.follow.clash") && tun.exclude_package.includes("com.tailscale.ipn"), "PHONE_VPN_LOOP_UNSAFE");
+  // Keep management TLS outside the business VPN, including during core startup.
+  tun!.exclude_package = [...new Set([...(tun!.exclude_package as string[]), "com.socialgrowth.product"])];
+  requireFact(!(tun!.exclude_package as string[]).some(v => ["com.facebook.katana", "com.google.android.youtube"].includes(v)), "PHONE_BUSINESS_ROUTE_BYPASSED");
   const outbounds = objects(config.outbounds), proxy = outbounds.find(v => v.tag === "phone-subscription");
   requireFact(outbounds.length === 2 && proxy?.type === "socks" && proxy.server === "127.0.0.1" && proxy.server_port === 7890
     && outbounds.some(v => v.type === "direct" && v.tag === "local-direct"), "PHONE_PROXY_INVALID");
@@ -81,9 +86,52 @@ export function subscriptionConfiguration(raw: Buffer): Buffer {
   return Buffer.from(stringify(config));
 }
 
+/** Active NetworkAgentInfo entries only: NOT_VPN capabilities and remembered
+ * vpn_management packages are not evidence of an established VPN. */
+export function activePhoneVpns(connectivity: string): string[] {
+  return connectivity.split("\n").filter(line => line.trim().startsWith("NetworkAgentInfo{") && /Transports: VPN(?:\||\s)/.test(line));
+}
+export function verifyPhoneVpn(connectivity: string, uids: { sfa: number; management: number; clash: number; facebook: number; youtube: number }): void {
+  const networks = activePhoneVpns(connectivity);
+  requireFact(networks.length === 1 && new RegExp(`OwnerUid: ${uids.sfa}(?:\\s|$)`).test(networks[0]), "PHONE_SFA_VPN_NOT_ACTIVE");
+  const rawRanges = networks[0].match(/Uids: <([^>]+)>/)?.[1]?.trim();
+  // Android NetworkCapabilities renders ArraySet<UidRange> with outer braces.
+  const ranges = rawRanges?.match(/^\{([^{}]+)\}$/)?.[1] ?? rawRanges;
+  requireFact(ranges && /^\s*\d+(?:-\d+)?(?:\s*,\s*\d+(?:-\d+)?)*\s*$/.test(ranges), "PHONE_VPN_UIDS_UNCONFIRMED");
+  const includes = (uid: number) => ranges!.split(",").some(range => {
+    const [start, end = start] = range.trim().split("-").map(Number);
+    return uid >= start && uid <= end;
+  });
+  requireFact(!includes(uids.management) && !includes(uids.clash), "PHONE_MANAGEMENT_VPN_NOT_EXCLUDED");
+  requireFact(includes(uids.facebook) && includes(uids.youtube), "PHONE_BUSINESS_ROUTE_BYPASSED");
+}
+
 export class PhoneInitialization {
   constructor(private readonly manifestPath: string, private readonly apps = new AppProvisioner(), private readonly command: Command = async (file, args) =>
-    (await promisify(execFile)(file, args, { timeout: 120000, maxBuffer: 8 * 1024 * 1024 })).stdout.trim()) {}
+    (await promisify(execFile)(file, args, { timeout: args.some(v => ["curl", "dumpsys", "getprop", "packages"].includes(v)) ? 20000 : 120000, maxBuffer: 8 * 1024 * 1024 })).stdout.trim()) {}
+
+  async networkReady(serial: string, hardwareSerial: string, stage: "proxy" | "vpn"): Promise<void> {
+    const adb = (args: string[]) => this.command("adb", ["-s", serial, ...args]);
+    requireFact(await adb(["shell", "getprop", "ro.serialno"]) === hardwareSerial, "PHONE_HARDWARE_MISMATCH");
+    const connectivity = await adb(["shell", "dumpsys", "connectivity"]);
+    const uid = async (packageName: string) => {
+      const value = (await adb(["shell", "pm", "list", "packages", "-U", packageName])).split("\n")
+        .find(line => line.startsWith(`package:${packageName} uid:`))?.match(/ uid:(\d+)$/)?.[1];
+      requireFact(value, "PHONE_PACKAGE_UID_UNCONFIRMED");
+      return Number(value);
+    };
+    const sfa = await uid("io.nekohasekai.sfa");
+    requireFact(activePhoneVpns(connectivity).every(line => new RegExp(`OwnerUid: ${sfa}(?:\\s|$)`).test(line)), "PHONE_SECOND_VPN_ACTIVE");
+    let code: string;
+    try {
+      // No cookies, account data, credentials or response body; prove local SOCKS
+      // serves an actual HTTPS request rather than just listening on a port.
+      code = await adb(["shell", "curl", "--silent", "--fail", "--connect-timeout", "5", "--max-time", "12", "--proxy", "socks5h://127.0.0.1:7890", "--output", "/dev/null", "--write-out", "%{http_code}", "https://www.youtube.com/generate_204"]);
+    } catch { throw new RuntimeError("PHONE_LOCAL_PROXY_NOT_READY"); }
+    requireFact(code === "204", "PHONE_LOCAL_PROXY_NOT_READY");
+    if (stage === "vpn") verifyPhoneVpn(connectivity, { sfa, management: await uid("com.socialgrowth.product"), clash: await uid("com.follow.clash"),
+      facebook: await uid("com.facebook.katana"), youtube: await uid("com.google.android.youtube") });
+  }
 
   async managementTarget(enrollmentId: string, wirelessPort: number, hardwareSerial: string): Promise<{ address: string; serial: string; nodeKey: string }> {
     const status = object(JSON.parse(await this.command("/usr/local/bin/tailscale", ["status", "--json"])));
@@ -98,7 +146,8 @@ export class PhoneInitialization {
     requireFact(await this.command("adb", ["-s", serial, "shell", "getprop", "ro.serialno"]) === hardwareSerial, "PHONE_HARDWARE_MISMATCH");
     return { address: address as string, serial, nodeKey: peers[0].PublicKey as string };
   }
-  async prepare(target: { deviceId: string; serial: string; hardwareSerial: string; requestId: string }, authorize: () => void = () => {}): Promise<{ instructions: string; soakSeconds: number; cleanup: () => Promise<void> }> {
+  async prepare(target: { deviceId: string; serial: string; hardwareSerial: string; requestId: string; verifyInstalledOnly?: boolean }, authorize: () => void = () => {},
+    progress: (phase: PhoneInitializationProgress["phase"], packageName?: PhoneInitializationProgress["packageName"]) => void = () => {}): Promise<{ instructions: string; soakSeconds: number; cleanup: () => Promise<void> }> {
     authorize();
     requireFact(process.env.SG_APP_STORAGE_FILE, "PHONE_CLOUD_DOWNLOAD_REQUIRED");
     const manifest = phoneInitializationConfig.parse(JSON.parse((await readPrivatePreparationFile(this.manifestPath)).toString()));
@@ -112,25 +161,35 @@ export class PhoneInitialization {
     requireFact(await adb(["shell", "getprop", "ro.serialno"]) === target.hardwareSerial, "PHONE_HARDWARE_MISMATCH");
     // Inspect optional official Tailscale; never install or activate a second VPN.
     await this.command("adb", ["-s", target.serial, "shell", "pm", "list", "packages", "com.tailscale.ipn"]);
-    for (const packageName of ["io.nekohasekai.sfa", "com.follow.clash", "com.facebook.katana", "com.google.android.youtube"])
-      await this.apps.ensure(target.serial, packageName, true, authorize);
+    for (const packageName of ["io.nekohasekai.sfa", "com.follow.clash", "com.facebook.katana", "com.google.android.youtube"] as const) {
+      authorize();
+      progress("preparing_apps", packageName);
+      const readiness = await this.apps.ensure(target.serial, packageName, !target.verifyInstalledOnly, authorize);
+      requireFact(readiness.status !== "missing", "PHONE_PREPARED_APP_MISSING");
+    }
     authorize();
+    progress("delivering_configuration");
     requireFact(await adb(["shell", "getprop", "ro.serialno"]) === target.hardwareSerial, "PHONE_HARDWARE_MISMATCH");
     const local = await mkdtemp(join(tmpdir(), "sg-phone-preparation-"));
     const remote = `/sdcard/Download/socialgrowth-${target.requestId}`;
+    const profileName = `sg-${target.requestId.slice(0, 18)}-management-v2`, networkFile = `${profileName}.json`;
     const cleanup = async () => { await adb(["shell", "rm", "-rf", remote]); };
     try {
-      await writeFile(join(local, "network.json"), JSON.stringify(sfa), { mode: 0o600 });
+      await writeFile(join(local, networkFile), JSON.stringify(sfa), { mode: 0o600 });
       await writeFile(join(local, "subscription.yaml"), subscription, { mode: 0o600 });
       authorize();
       await adb(["shell", "mkdir", "-p", remote]);
       authorize();
-      await adb(["push", join(local, "network.json"), `${remote}/network.json`]);
+      await adb(["push", join(local, networkFile), `${remote}/${networkFile}`]);
       authorize();
       await adb(["push", join(local, "subscription.yaml"), `${remote}/subscription.yaml`]);
+      for (const [name, bytes] of [[networkFile, Buffer.from(JSON.stringify(sfa))], ["subscription.yaml", subscription]] as const) {
+        authorize();
+        requireFact((await adb(["shell", "sha256sum", `${remote}/${name}`])).split(/\s/)[0] === createHash("sha256").update(bytes).digest("hex"), "PHONE_PRIVATE_CONFIGURATION_MISMATCH");
+      }
     } catch (error) { await cleanup().catch(() => {}); throw error; }
     finally { await rm(local, { recursive: true, force: true }); subscription.fill(0); }
     return { soakSeconds: manifest.soakSeconds, cleanup,
-      instructions: `Trusted apps have been verified/installed on this exact phone. Import ONLY supplied local files using ordinary file pickers: ${remote}/subscription.yaml in FlClash and ${remote}/network.json in SFA. These files contain secrets: do not open editors, previews, share, copy, export, read contents, or include credentials in notes/screenshots. Preserve unrelated profiles. Use FlClash local proxy port 7890, VPN OFF, Global mode; select group ${JSON.stringify(manifest.proxyGroup)}. ${manifest.proxyNode ? `Use ONLY approved node ${JSON.stringify(manifest.proxyNode)}.` : "Use only a proxy or proxy group from the supplied profile with an observed successful finite delay; never DIRECT, REJECT, an expired/quota notice entry, or an arbitrary new node. A failed check is a blocker, not permission for repeated node switches."} Confirm core running. SFA profile name sg-${target.requestId.slice(0, 18)}; use this profile as sole VPN, never activate official Tailscale, never exit node. Request owner assistance for Android VPN consent or unknown permissions and wait; never approve system VPN consent for the owner. Preserve SocialGrowth foreground service and wireless-debug pairing. Confirm running SFA and FlClash core independently at actual screens. Then read a fresh Facebook online response and observe public YouTube playback time advance at least 20 seconds. Login/consent needed by FB/YT is a blocker, no login or account changes. Each of these FOUR actual screen milestones requires an independent checkpoint while visible. No business actions, publication or acceptance claim. Stop UNCONFIRMED on loss of transport. Use system Home to switch apps, never swipe services away or use Back to close FlClash. Return exact JSON {"resultCode":"CONNECTIVITY_SETUP_COMPLETED" or "UNCONFIRMED","loginSubmitCount":0,"finalSubmitClicked":false}, save the same JSON in connectivity-test-result. The controller checks hardware and transport afterward; this is a bounded networking check, not long-term stability acceptance.` };
+      instructions: `Trusted apps have been verified/installed on this exact phone. First observe current app screens and pending dialogs. First configure FlClash and call check_phone_network(stage="proxy"); do not enter SFA setup until it passes. Import ONLY missing supplied profiles using ordinary file pickers: ${remote}/subscription.yaml in FlClash and ${remote}/${networkFile} in SFA. The SFA management-v2 file excludes SocialGrowth management TLS from the VPN. A legacy profile named sg-${target.requestId.slice(0, 18)} does NOT contain this repair: keep it inactive as rollback and import the delivered management-v2 profile ONCE. If the matching management-v2 profile already exists, reuse it; never duplicate it. Preserve the same embedded Tailscale hostname and state directory. Do not read or edit JSON contents. These files contain secrets: do not open editors, previews, share, copy, export, read contents, or include credentials in notes/screenshots. Preserve unrelated profiles. Use FlClash local proxy port 7890, VPN OFF, Global mode; select group ${JSON.stringify(manifest.proxyGroup)}. ${manifest.proxyNode ? `Use ONLY approved node ${JSON.stringify(manifest.proxyNode)}.` : "Use only a proxy or proxy group from the supplied profile with an observed successful finite delay; never DIRECT, REJECT, an expired/quota notice entry, or an arbitrary new node. A failed check is a blocker, not permission for repeated node switches."} Confirm core running, VPN OFF, and obtain a successful check_phone_network(stage="proxy") before SFA actions. SFA profile name ${profileName}, inherited from the supplied filename; do not rename it; In ordinary SFA settings select VPN service mode, NOT Proxy-only mode, before starting this profile. If SFA is already running an older profile or Proxy-only service, stop ONLY SFA through its normal UI to apply the matching management-v2 profile and VPN mode; preserve FlClash and SocialGrowth. Then use this profile as sole VPN, never activate official Tailscale, never exit node. Request owner assistance for Android VPN consent or unknown permissions and wait; never approve system VPN consent for the owner. Preserve SocialGrowth foreground service and wireless-debug pairing. Confirm running SFA and FlClash core independently at actual screens, then call check_phone_network(stage="vpn"). Service presence alone is insufficient; a failed runtime check means UNCONFIRMED, never completion. Then read a fresh Facebook online response and observe public YouTube playback time advance at least 20 seconds. Login/consent needed by FB/YT is a blocker, no login or account changes. Each of these FOUR actual screen milestones requires an independent checkpoint while visible. No business actions, publication or acceptance claim. Stop UNCONFIRMED on loss of transport. Use system Home to switch apps, never swipe services away or use Back to close FlClash. Return exact JSON {"resultCode":"CONNECTIVITY_SETUP_COMPLETED" or "UNCONFIRMED","loginSubmitCount":0,"finalSubmitClicked":false}, save the same JSON in connectivity-test-result. The controller checks hardware and transport afterward; this is a bounded networking check, not long-term stability acceptance.` };
   }
 }
