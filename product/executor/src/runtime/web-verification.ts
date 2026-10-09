@@ -524,6 +524,7 @@ print(json.dumps({'confirmedPreparation':bool(prepared) and state.get('status')=
             keepaliveBusy = true;
             void exec("adb", ["-s", cfg.serial, "shell", "getprop", "ro.serialno"],
               { timeout: 30000, maxBuffer: 8192, signal: keepaliveAbort.signal }).then(observed => {
+                if (keepaliveAbort.signal.aborted) return;
                 if (disconnectedAt !== undefined && observed.stdout.trim() === cfg.bootstrap!.hardwareSerial) {
                   disconnectedAt = undefined;
                   progress(interruptedPhase ?? "configuring_network");
@@ -535,6 +536,7 @@ print(json.dumps({'confirmedPreparation':bool(prepared) and state.get('status')=
                   if (token) this.assistance.supervision.stop(this.assistance.session(token).id, "PHONE_HARDWARE_MISMATCH");
                 }
               }).catch(() => {
+                if (keepaliveAbort.signal.aborted) return;
                 // Only read the original endpoint during a brief transport interruption.
                 // Never replay UI/install commands or substitute a different device.
                 if (disconnectedAt === undefined) {
