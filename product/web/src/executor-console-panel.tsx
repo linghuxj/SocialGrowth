@@ -133,7 +133,7 @@ export function ExecutorConsolePanel({ active, refreshVersion, readOnly, onExpir
             <a href={executorScreenshot("verifications", job.id)} target="_blank" rel="noreferrer">查看这台手机的结果截图</a>
             {!readOnly && job.status === "running" && <button type="button" disabled={deviceBusy} onClick={() => void mutate("stop", { id: job.id }, undefined, device.deviceId)}>请求停止这台手机</button>}
             {job.previousInitializationId && <p>衔接原失败任务：{job.previousInitializationId}。原回执保留。</p>}
-            {!readOnly && job.expectedName === "手机环境初始化" && job.status === "finished" && job.resultCode === "UNCONFIRMED" && !job.initializationRecovery && ((job.initializationStartupRecoveryCount ?? 0) < 2 || job.initializationPrepared && !job.initializationPreparationRequestId) && <>
+            {!readOnly && job.expectedName === "手机环境初始化" && job.status === "finished" && job.resultCode === "UNCONFIRMED" && !job.initializationRecovery && ((job.initializationStartupRecoveryCount ?? 0) < 2 || job.initializationPrepared && !job.initializationPreparationRequestId || job.errorCode === "ASSISTANCE_EXPIRY_INVALID") && <>
               <button type="button" disabled={deviceBusy || !device.connected || working || held?.actor !== "phone-initialization" || uncertain.has(`initialization:${job.id}`)} onClick={() => void mutate("bootstrap-initialization-resume", { deviceId: device.deviceId, id: job.id }, `initialization:${job.id}`, device.deviceId)}>核对原停止证据并继续初始化</button>
               <p className="muted">平台核对原停止记录、设备锁及当前硬件后继续；准备前失败最多恢复两次；已经完成的可信准备可核对后衔接配置一次。安装或配置结果未确认时保留原任务。</p>
             </>}

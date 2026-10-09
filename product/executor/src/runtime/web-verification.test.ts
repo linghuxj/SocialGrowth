@@ -492,3 +492,21 @@ test("prepared flag requires completed trusted preparation; failed preparation k
     } finally { await f.close(); }
   }
 });
+
+test("capability-rejected continuation cannot use a missing prepared parent, invented trace, or unreviewed parent", async () => {
+  for (const kind of ["missing_parent", "unreviewed_parent", "invented_trace"] as const) {
+    const f = fixture({}, "connectivity_test"), deviceId = randomUUID(), requestId = randomUUID(), preparedRequest = randomUUID(), originalId = randomUUID(), parentId = randomUUID();
+    try {
+      const parent = { ...f.input, id: parentId, requestId: preparedRequest, deviceId, goal: "2026-10-08.phone-environment-v1", status: "finished", resultCode: "UNCONFIRMED", initializationPrepared: true,
+        startedAt: new Date().toISOString(), initializationRecovery: { at: new Date().toISOString(), successorId: originalId,
+          evidence: kind === "unreviewed_parent" ? "engine_failed_before_actions_and_locks_released" : "trusted_preparation_completed_and_engine_stopped" } };
+      if (kind !== "missing_parent") f.store.db.prepare("INSERT INTO web_verifications(id,request_id,body) VALUES (?,?,?)").run(parentId, preparedRequest, JSON.stringify(parent));
+      const original = { ...f.input, id: originalId, requestId: randomUUID(), deviceId, goal: "2026-10-08.phone-environment-v1", status: "finished", resultCode: "UNCONFIRMED", errorCode: "ASSISTANCE_EXPIRY_INVALID",
+        initializationRootRequestId: requestId, initializationPreparationRequestId: preparedRequest, previousInitializationId: parentId, initializationStartupRecoveryCount: 2,
+        ...(kind === "invented_trace" ? { traceId: randomUUID() } : {}), startedAt: new Date().toISOString(), finishedAt: new Date().toISOString() };
+      f.store.db.prepare("INSERT INTO web_verifications(id,request_id,body) VALUES (?,?,?)").run(originalId, original.requestId, JSON.stringify(original));
+      await assert.rejects(f.verification.resumePhoneInitialization({ id: originalId, deviceId, requestId, serial: "127.0.0.1:12345", hardwareSerial: "RFC_TEST", sessionId: randomUUID(), wirelessPort: 40000 }, "/nonexistent-sdk", "http://127.0.0.1:4318", "/nonexistent-manifest"), new RegExp(kind === "invented_trace" ? "PHONE_STARTUP_RECOVERY_LIMIT" : "PHONE_CAPABILITY_REJECTION_EVIDENCE_REQUIRED"));
+      assert.equal(f.starts(), 0); assert.equal(f.verification.list().find(j => j.id === originalId)?.initializationRecovery, undefined);
+    } finally { await f.close(); }
+  }
+});
