@@ -26,10 +26,48 @@
              "uninstall", "clear data", "reset", "编辑", "编辑配置", "編輯", "分享", "导出", "匯出",
              "复制", "複製", "删除", "刪除", "卸载", "清除数据", "重置"
          } for v in labels):
-@@ -179,6 +180,11 @@
-             and "vpn" in (screen.ui_hierarchy_xml or "").lower()
-             and any(label in (screen.ui_hierarchy_xml or "").lower() for label in ("connection request", "连接请求", "連線要求"))):
-         raise RuntimeError("SOCIALGROWTH_OWNER_VPN_CONSENT_REQUIRED")
+@@ -170,15 +171,44 @@
+                 and scope["packageName"] == "com.socialgrowth.product"
+                 and scope.get("mode") == "diagnostic"
+                 and control["policy"].get("allowPhoneInitialization") is True):
+-            connectivity_packages = {"com.socialgrowth.product", "io.nekohasekai.sfa", "com.follow.clash", "com.facebook.katana", "com.google.android.youtube", "com.android.documentsui", "com.google.android.documentsui"}
++            connectivity_packages = {"com.socialgrowth.product", "io.nekohasekai.sfa", "com.follow.clash", "com.facebook.katana", "com.google.android.youtube", "com.android.documentsui", "com.google.android.documentsui", "com.android.vpndialogs"}
+         if curr_pkg not in connectivity_packages and not is_launcher_or_system:
+             raise RuntimeError("SOCIALGROWTH_APP_MISMATCH")
+     screen = await driver.get_screen_data()
+     category = action_category(name, args, screen.ui_hierarchy_xml or "", screen.width, screen.height, control["policy"].get("allowPhoneInitialization") is True)
+-    if (control["policy"].get("allowPhoneInitialization") is True and name not in READ_ACTIONS
+-            and "vpn" in (screen.ui_hierarchy_xml or "").lower()
+-            and any(label in (screen.ui_hierarchy_xml or "").lower() for label in ("connection request", "连接请求", "連線要求"))):
+-        raise RuntimeError("SOCIALGROWTH_OWNER_VPN_CONSENT_REQUIRED")
++    if (control["policy"].get("allowPhoneInitialization") is True and name != "manage_app"
++            and (curr_pkg == "com.android.vpndialogs" or (
++                "vpn" in (screen.ui_hierarchy_xml or "").lower()
++                and any(label in (screen.ui_hierarchy_xml or "").lower() for label in ("connection request", "连接请求", "連線要求"))))):
++        # Dismissal does not grant VPN consent. Require this exact native scope;
++        # all approval taps, unknown targets and other actions still fail closed.
++        native_scope = (control["policy"]["mode"] == "connectivity_test"
++                        and scope["packageName"] == "com.socialgrowth.product"
++                        and scope.get("mode") == "diagnostic")
++        dismiss = name == "press_key" and str(args.get("key", "")).lower() in {"back", "keycode_back", "4"}
++        target = args.get("target")
++        if (name == "click" and isinstance(target, (list, tuple)) and len(target) == 2
++                and all(type(v) in {int, float} and 0 <= v <= 1000 for v in target)
++                and type(args.get("times", 1)) is int and args.get("times", 1) == 1
++                and screen.width > 0 and screen.height > 0):
++            x, y = target[0] * screen.width / 1000, target[1] * screen.height / 1000
++            for node in ET.fromstring(screen.ui_hierarchy_xml or "<hierarchy/>").iter("node"):
++                bounds = [int(v) for v in re.findall(r"-?\d+", node.get("bounds", ""))]
++                if (node.get("package") == "com.android.vpndialogs"
++                        and node.get("resource-id") == "android:id/button2"
++                        and node.get("class") == "android.widget.Button"
++                        and node.get("text", "").strip().lower() in {"cancel", "取消"}
++                        and node.get("enabled") == "true" and node.get("clickable") == "true"
++                        and len(bounds) == 4 and bounds[0] < x < bounds[2] and bounds[1] < y < bounds[3]):
++                    dismiss = True
++        if not native_scope or not dismiss:
++            raise RuntimeError("SOCIALGROWTH_OWNER_VPN_CONSENT_REQUIRED")
++        category = "navigate"
 +    if (control["policy"].get("allowPhoneInitialization") is True
 +            and scope.get("mode") == "diagnostic" and scope["packageName"] == "com.socialgrowth.product"
 +            and name != "manage_app" and curr_pkg == "io.nekohasekai.sfa"):
@@ -38,7 +76,7 @@
      if category == "participation_withdrawal":
          category = "navigate" if (control["policy"].get("allowParticipationWithdrawal") is True and control["policy"]["mode"] == "client_test" and scope["packageName"] == "com.socialgrowth.product" and scope.get("mode") == "diagnostic") else "unmanaged"
      protected_value = any(n.get("password") == "true" and n.get("text", "")
-@@ -287,6 +293,21 @@
+@@ -287,6 +317,21 @@
          except Exception:
              return "PHONE_PREPARATION_UNCONFIRMED: stop and inspect original Web task; no retry."
 
@@ -60,7 +98,7 @@
      async def ensure_trusted_app() -> str:
          """If target App is missing, ask runtime to install ONLY its pre-approved signed APK.
          No URL, package or device arguments; all are pinned by Web task. At most one call.
-@@ -299,4 +320,4 @@
+@@ -299,4 +344,4 @@
              return "TRUSTED_INSTALL_NOT_COMPLETED: inspect Web; do not retry or use shell/store."
 
      return [StructuredTool.from_function(coroutine=f) for f in
