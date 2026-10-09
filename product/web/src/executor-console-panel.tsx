@@ -17,7 +17,7 @@ function readPhonePending(): Record<string, string> {
     return Object.fromEntries(Object.entries(value).filter(([deviceId, requestId]) => uuid.test(deviceId) && typeof requestId === "string" && uuid.test(requestId)));
   } catch { return {}; }
 }
-const phaseLabels = { checking_device: "核对手机连接", inspecting_apps: "观察现有环境", preparing_apps: "检查及准备可信 App", delivering_configuration: "准备本机网络配置", configuring_network: "配置网络并核验实际连接", observing_stability: "观察双通道稳定性", completed: "环境准备已完成", needs_attention: "原操作需处理" };
+const phaseLabels = { checking_device: "核对手机连接", inspecting_apps: "观察现有环境", preparing_apps: "检查及准备可信 App", delivering_configuration: "准备本机网络配置", configuring_network: "配置网络并核验实际连接", checking_proxy: "核验本机代理实际可用", checking_vpn: "核验唯一 VPN 与管理通道隔离", recovering_connection: "短暂断链，核对原连接恢复", observing_stability: "观察双通道稳定性", completed: "环境准备已完成", needs_attention: "原操作需处理" };
 const packageLabels = { "io.nekohasekai.sfa": "SFA", "com.follow.clash": "FlClash", "com.facebook.katana": "Facebook", "com.google.android.youtube": "YouTube" };
 const dispatchReasons = { connection_unconfirmed: "当前手机连接或授权范围未确认", executor_unconfirmed: "执行服务响应未确认，请查询原操作", original_requires_attention: "原初始化没有取得成功回执", handoff_unconfirmed: "管理连接切换尚未确认，保留原通道" };
 export function ExecutorConsolePanel({ active, refreshVersion, readOnly, onExpired }: { active: boolean; refreshVersion: number; readOnly: boolean; onExpired(error: unknown): void }) {

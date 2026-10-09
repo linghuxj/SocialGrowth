@@ -133,7 +133,7 @@ export class WebVerification {
   private readonly recoveryOperations = new Set<string>();
   private active = new Map<
     string,
-    { client?: ArtemisPort; promise: Promise<void>; cancelled: boolean; cancelReason?: string; preparePhone?: () => Promise<{ instructions: string; appsVerified: true }> }
+    { client?: ArtemisPort; promise: Promise<void>; cancelled: boolean; cancelReason?: string; preparePhone?: () => Promise<{ instructions: string; appsVerified: true }>; checkPhoneNetwork?: (stage: "proxy" | "vpn") => Promise<void> }
   >();
   constructor(
     private store: RuntimeStore,
@@ -471,6 +471,16 @@ print(json.dumps({'confirmedPreparation':bool(prepared) and state.get('status')=
     requireFact(active?.preparePhone && !active.cancelled, "PHONE_INITIALIZATION_NOT_ACTIVE");
     return this.assistance.supervision.preparePhone(session.id, active!.preparePhone!);
   }
+  async checkPhoneNetwork(token: string, stage: "proxy" | "vpn") {
+    const session = this.assistance.session(token), control = this.assistance.supervision.get(session.id);
+    requireFact(session.scope.mode === "diagnostic" && session.scope.packageName === "com.socialgrowth.product"
+      && control.policy.mode === "connectivity_test" && control.policy.allowPhoneInitialization, "PHONE_INITIALIZATION_NOT_AUTHORIZED");
+    const active = this.active.get(session.scope.taskId);
+    requireFact(active?.checkPhoneNetwork && !active.cancelled, "PHONE_INITIALIZATION_NOT_ACTIVE");
+    requireFact(control.state === "active", "PHONE_NETWORK_CHECK_FROZEN");
+    await active!.checkPhoneNetwork!(stage);
+    return { ready: true, stage };
+  }
   private async execute(
     job: Job,
     cfg: VerificationConfig,
@@ -486,6 +496,8 @@ print(json.dumps({'confirmedPreparation':bool(prepared) and state.get('status')=
     let keepalive: ReturnType<typeof setInterval> | undefined;
     const keepaliveAbort = new AbortController();
     let keepaliveBusy = false;
+    let disconnectedAt: number | undefined;
+    let interruptedPhase: PhoneInitializationProgress["phase"] | undefined;
     const progress = (phase: PhoneInitializationProgress["phase"], packageName?: PhoneInitializationProgress["packageName"]) => {
       if (!cfg.initialization) return;
       job.initializationProgress = { phase, updatedAt: new Date().toISOString(), ...(packageName ? { packageName } : {}) };
@@ -512,12 +524,29 @@ print(json.dumps({'confirmedPreparation':bool(prepared) and state.get('status')=
             keepaliveBusy = true;
             void exec("adb", ["-s", cfg.serial, "shell", "getprop", "ro.serialno"],
               { timeout: 30000, maxBuffer: 8192, signal: keepaliveAbort.signal }).then(observed => {
+                if (disconnectedAt !== undefined && observed.stdout.trim() === cfg.bootstrap!.hardwareSerial) {
+                  disconnectedAt = undefined;
+                  progress(interruptedPhase ?? "configuring_network");
+                  interruptedPhase = undefined;
+                }
                 if (observed.stdout.trim() !== cfg.bootstrap!.hardwareSerial) {
                   const active = this.active.get(job.id);
                   if (active) { active.cancelled = true; active.cancelReason = "PHONE_HARDWARE_MISMATCH"; }
                   if (token) this.assistance.supervision.stop(this.assistance.session(token).id, "PHONE_HARDWARE_MISMATCH");
                 }
-              }).catch(() => { /* A failed read grants no connection/result proof. */ })
+              }).catch(() => {
+                // Only read the original endpoint during a brief transport interruption.
+                // Never replay UI/install commands or substitute a different device.
+                if (disconnectedAt === undefined) {
+                  disconnectedAt = Date.now();
+                  interruptedPhase = job.initializationProgress?.phase;
+                  progress("recovering_connection");
+                } else if (Date.now() - disconnectedAt >= 60000) {
+                  const active = this.active.get(job.id);
+                  if (active) { active.cancelled = true; active.cancelReason = "PHONE_MANAGEMENT_RECOVERY_EXPIRED"; }
+                  if (token) this.assistance.supervision.stop(this.assistance.session(token).id, "PHONE_MANAGEMENT_RECOVERY_EXPIRED");
+                }
+              })
               .finally(() => { keepaliveBusy = false; });
           }, 15000).unref();
         }
@@ -545,6 +574,12 @@ print(json.dumps({'confirmedPreparation':bool(prepared) and state.get('status')=
           job.initializationPrepared = true;
           progress("configuring_network");
           return { instructions: preparation.instructions, appsVerified: true };
+        };
+        this.active.get(job.id)!.checkPhoneNetwork = async stage => {
+          requireFact(preparation && job.initializationPrepared, "PHONE_PREPARATION_TOOL_REQUIRED");
+          progress(stage === "proxy" ? "checking_proxy" : "checking_vpn");
+          await initializer!.networkReady(cfg.serial, cfg.bootstrap!.hardwareSerial, stage);
+          progress("configuring_network");
         };
         client = this.ports.client(cfg.artemisRoot, { url: cfg.runtimeUrl, token, deviceId: cfg.deviceId, serial: cfg.serial, phoneInitialization: true });
         this.active.get(job.id)!.client = client;
@@ -729,6 +764,7 @@ STOP with Share now visible and UNTOUCHED. Never publish, upload, schedule, expl
           }
           if (cfg.initialization && result.resultCode === "CONNECTIVITY_SETUP_COMPLETED") {
             requireFact(preparation, "PHONE_PREPARATION_TOOL_REQUIRED");
+            await initializer!.networkReady(cfg.serial, cfg.bootstrap!.hardwareSerial, "vpn");
             progress("observing_stability");
             // A task report cannot prove transport stability. Observe the same hardware
             // independently throughout the configured bounded window; never USB fallback.
@@ -741,12 +777,14 @@ STOP with Share now visible and UNTOUCHED. Never publish, upload, schedule, expl
               requireFact(hardware.stdout.trim() === cfg.bootstrap!.hardwareSerial, "PHONE_TRANSPORT_UNCONFIRMED");
               const currentManagement = await initializer!.managementTarget(cfg.initialization.preparationRequestId ?? job.requestId, cfg.initialization.wirelessPort, cfg.bootstrap!.hardwareSerial);
               requireFact(currentManagement.address === management.address && currentManagement.nodeKey === management.nodeKey, "PHONE_MANAGEMENT_NODE_CHANGED");
+              await initializer!.networkReady(cfg.serial, cfg.bootstrap!.hardwareSerial, "vpn");
               samples += 1;
               if (Date.now() < until) await new Promise(resolve => setTimeout(resolve, Math.min(15000, until - Date.now())));
             } while (Date.now() < until);
             // Final sample closes the entire observation window, not the preceding interval.
             const finalManagement = await initializer!.managementTarget(cfg.initialization.preparationRequestId ?? job.requestId, cfg.initialization.wirelessPort, cfg.bootstrap!.hardwareSerial);
             requireFact(finalManagement.address === management.address && finalManagement.nodeKey === management.nodeKey, "PHONE_MANAGEMENT_NODE_CHANGED");
+            await initializer!.networkReady(cfg.serial, cfg.bootstrap!.hardwareSerial, "vpn");
             job.managementAddress = management.address;
             job.stability = { observedSeconds: Math.floor((Date.now() - observedAt) / 1000), samples: samples + 1, transport: "tailnet_and_bootstrap" };
             await preparation!.cleanup();

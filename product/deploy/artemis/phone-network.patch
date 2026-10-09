@@ -1,0 +1,68 @@
+--- a/artemis/tools/socialgrowth_supervision.py
++++ b/artemis/tools/socialgrowth_supervision.py
+@@ -16,7 +16,7 @@
+ from artemis.drivers.factory import get_driver
+
+ READ_ACTIONS = {"observe_screen", "take_screenshot", "get_ui_hierarchy", "wait_for_delay", "wait_for_text"}
+-SAFE_TOOLS = {"read_note", "list_notes", "save_note", "append_note", "update_note", "human_password_input", "human_otp_input", "request_human_assistance", "revalidate_human_assistance", "report_task_blocked", "finish_observation_task", "ensure_trusted_app", "prepare_phone_environment"}
++SAFE_TOOLS = {"read_note", "list_notes", "save_note", "append_note", "update_note", "human_password_input", "human_otp_input", "request_human_assistance", "revalidate_human_assistance", "report_task_blocked", "finish_observation_task", "ensure_trusted_app", "prepare_phone_environment", "check_phone_network"}
+
+
+ def enabled() -> bool:
+@@ -56,6 +56,7 @@
+     permitted_helpers = SAFE_TOOLS - ({"human_password_input", "human_otp_input", "ensure_trusted_app"} if native else set())
+     if not (native and scope["control"]["policy"].get("allowPhoneInitialization") is True):
+         permitted_helpers.discard("prepare_phone_environment")
++        permitted_helpers.discard("check_phone_network")
+     # Unknown tools, shell, ADB, delegated executors and code execution have no bypass.
+     return [t for t in tools if t.name.split(":")[-1] in permitted_helpers | permitted_actions]
+
+@@ -84,7 +85,7 @@
+             if len(bounds) == 4 and bounds[0] <= x <= bounds[2] and bounds[1] <= y <= bounds[3]:
+                 labels.extend([n.get("text", "").strip().lower(), n.get("content-desc", "").strip().lower()])
+         if protect_configuration and any(v in {
+-            "edit", "edit config", "edit configuration", "share", "export", "copy", "delete",
++            "edit", "edit config", "edit configuration", "json editor", "json viewer", "json 编辑器", "json 查看器", "share", "export", "copy", "delete",
+             "uninstall", "clear data", "reset", "编辑", "编辑配置", "編輯", "分享", "导出", "匯出",
+             "复制", "複製", "删除", "刪除", "卸载", "清除数据", "重置"
+         } for v in labels):
+@@ -179,6 +180,11 @@
+             and "vpn" in (screen.ui_hierarchy_xml or "").lower()
+             and any(label in (screen.ui_hierarchy_xml or "").lower() for label in ("connection request", "连接请求", "連線要求"))):
+         raise RuntimeError("SOCIALGROWTH_OWNER_VPN_CONSENT_REQUIRED")
++    if (control["policy"].get("allowPhoneInitialization") is True
++            and scope.get("mode") == "diagnostic" and scope["packageName"] == "com.socialgrowth.product"
++            and name != "manage_app" and curr_pkg == "io.nekohasekai.sfa"):
++        # Never let an SFA setup/start action race a stopped or unreachable local core.
++        await asyncio.to_thread(request, "phone-network-ready", {"stage": "proxy"}, 45)
+     if category == "participation_withdrawal":
+         category = "navigate" if (control["policy"].get("allowParticipationWithdrawal") is True and control["policy"]["mode"] == "client_test" and scope["packageName"] == "com.socialgrowth.product" and scope.get("mode") == "diagnostic") else "unmanaged"
+     protected_value = any(n.get("password") == "true" and n.get("text", "")
+@@ -287,6 +293,21 @@
+         except Exception:
+             return "PHONE_PREPARATION_UNCONFIRMED: stop and inspect original Web task; no retry."
+
++    async def check_phone_network(stage: str = "proxy") -> str:
++        """Read-only checks pinned to this Web phone initialization. Use proxy after
++        FlClash Global/local 7890/VPN OFF is ready, BEFORE SFA configuration. Use vpn
++        after SFA starts: verify sole active SFA VPN, management excluded, FB/YT routed.
++        No shell, URL, device, node or credentials arguments. Failed checks are blockers;
++        never infer completion from service presence or repeatedly switch nodes.
++        """
++        if stage not in {"proxy", "vpn"}:
++            return "PHONE_NETWORK_STAGE_INVALID"
++        try:
++            return json.dumps(await asyncio.to_thread(request, "phone-network-ready", {"stage": stage}, 45))
++        except Exception as error:
++            code = str(error)
++            return code if re.fullmatch(r"[A-Z_]{1,80}", code) else "PHONE_NETWORK_UNCONFIRMED"
++
+     async def ensure_trusted_app() -> str:
+         """If target App is missing, ask runtime to install ONLY its pre-approved signed APK.
+         No URL, package or device arguments; all are pinned by Web task. At most one call.
+@@ -299,4 +320,4 @@
+             return "TRUSTED_INSTALL_NOT_COMPLETED: inspect Web; do not retry or use shell/store."
+
+     return [StructuredTool.from_function(coroutine=f) for f in
+-            (request_human_assistance, revalidate_human_assistance, report_task_blocked, finish_observation_task, ensure_trusted_app, prepare_phone_environment)]
++            (request_human_assistance, revalidate_human_assistance, report_task_blocked, finish_observation_task, ensure_trusted_app, prepare_phone_environment, check_phone_network)]

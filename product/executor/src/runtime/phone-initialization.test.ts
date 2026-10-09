@@ -87,3 +87,52 @@ test("prepared continuation refuses a missing app without reinstalling or delive
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("management exclusion is added without mutating template, state or business route", () => {
+  const raw = config();
+  const result = deviceSfaConfiguration(raw, "100.95.244.67", enrollment);
+  assert.deepEqual((result.inbounds as { exclude_package: string[] }[])[0].exclude_package,
+    ["com.follow.clash", "com.tailscale.ipn", "com.socialgrowth.product"]);
+  assert.deepEqual(raw.inbounds[0].exclude_package, ["com.follow.clash", "com.tailscale.ipn"]);
+  assert.deepEqual(result.route, raw.route);
+  assert.equal((result.endpoints as { state_directory: string }[])[0].state_directory, `tailscale-sg-${enrollment}`);
+  raw.inbounds[0].exclude_package.push("com.facebook.katana");
+  assert.throws(() => deviceSfaConfiguration(raw, "100.95.244.67", enrollment), /PHONE_BUSINESS_ROUTE_BYPASSED/);
+});
+
+test("actual VPN proof requires sole SFA owner and effective UID exclusion while business apps remain routed", async () => {
+  const { activePhoneVpns, verifyPhoneVpn } = await import("./phone-initialization.js");
+  const uids = { sfa: 10403, management: 10404, clash: 10405, facebook: 10300, youtube: 10301 };
+  const network = "NetworkAgentInfo{network{300} Transports: VPN Capabilities: INTERNET Uids: <0-10402, 10406-99999> OwnerUid: 10403 AdminUids: [10403]}";
+  assert.doesNotThrow(() => verifyPhoneVpn(network, uids));
+  assert.deepEqual(activePhoneVpns("NetworkAgentInfo{Transports: WIFI Capabilities: NOT_VPN}\nRemembered VPN OwnerUid: 10403"), []);
+  for (const [value, code] of [
+    ["", "PHONE_SFA_VPN_NOT_ACTIVE"],
+    [network + "\n" + network, "PHONE_SFA_VPN_NOT_ACTIVE"],
+    [network.replace("OwnerUid: 10403", "OwnerUid: 10405"), "PHONE_SFA_VPN_NOT_ACTIVE"],
+    [network.replace("Uids: <0-10402, 10406-99999>", "Uids: <0-99999>"), "PHONE_MANAGEMENT_VPN_NOT_EXCLUDED"],
+    [network.replace("Uids: <0-10402, 10406-99999>", "Uids: <1-200>"), "PHONE_BUSINESS_ROUTE_BYPASSED"],
+    [network.replace("Uids: <0-10402, 10406-99999>", ""), "PHONE_VPN_UIDS_UNCONFIRMED"],
+  ]) assert.throws(() => verifyPhoneVpn(value, uids), new RegExp(code));
+});
+
+test("proxy readiness is hardware pinned, uses actual SOCKS HTTPS and rejects unavailable or second VPN", async () => {
+  const calls: string[][] = [];
+  let hardware = "RFC_TEST", connectivity = "NetworkAgentInfo{Transports: WIFI Capabilities: NOT_VPN}", response = "204", curlFails = false;
+  const init = new PhoneInitialization("unused", new AppProvisioner(), async (_file, args) => {
+    calls.push(args);
+    assert.deepEqual(args.slice(0, 2), ["-s", "127.0.0.1:12345"]);
+    if (args.includes("ro.serialno")) return hardware;
+    if (args.includes("connectivity")) return connectivity;
+    if (args.includes("packages")) return "package:io.nekohasekai.sfa uid:10403";
+    if (args.includes("curl")) { if (curlFails) throw new Error("private upstream error"); return response; }
+    throw new Error("unexpected command");
+  });
+  await init.networkReady("127.0.0.1:12345", "RFC_TEST", "proxy");
+  assert.ok(calls.some(args => args.includes("socks5h://127.0.0.1:7890") && args.includes("https://www.youtube.com/generate_204")));
+  response = "200"; await assert.rejects(init.networkReady("127.0.0.1:12345", "RFC_TEST", "proxy"), /PHONE_LOCAL_PROXY_NOT_READY/);
+  curlFails = true; await assert.rejects(init.networkReady("127.0.0.1:12345", "RFC_TEST", "proxy"), /PHONE_LOCAL_PROXY_NOT_READY/);
+  connectivity = "NetworkAgentInfo{Transports: VPN Capabilities: INTERNET OwnerUid: 10405 }";
+  await assert.rejects(init.networkReady("127.0.0.1:12345", "RFC_TEST", "proxy"), /PHONE_SECOND_VPN_ACTIVE/);
+  hardware = "OTHER"; await assert.rejects(init.networkReady("127.0.0.1:12345", "RFC_TEST", "proxy"), /PHONE_HARDWARE_MISMATCH/);
+});
