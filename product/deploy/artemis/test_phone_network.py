@@ -66,6 +66,62 @@ class PhoneNetworkGuard(unittest.IsolatedAsyncioTestCase):
             await namespace['guard_action'](None, 'click', {'target': [500, 500]})
         self.assertFalse(any(path == 'gate' for path, _ in self.calls))
 
+    def vpn_dialog(self, label='取消', enabled='true', resource='android:id/button2', package='com.android.vpndialogs') -> None:
+        self.package = 'com.android.vpndialogs'
+        self.xml = (f'<hierarchy><node text="連線要求 VPN"/>'
+                    f'<node package="{package}" resource-id="{resource}" class="android.widget.Button" '
+                    f'text="{label}" enabled="{enabled}" clickable="true" bounds="[0,1800][400,2200]"/>'
+                    '<node package="com.android.vpndialogs" resource-id="android:id/button1" '
+                    'class="android.widget.Button" text="OK" enabled="true" clickable="true" '
+                    'bounds="[500,1800][1000,2200]"/></hierarchy>')
+
+    async def test_actual_native_cancel_and_back_are_navigation_only(self) -> None:
+        for label in ['取消', 'Cancel']:
+            self.vpn_dialog(label)
+            await namespace['guard_action'](None, 'click', {'target': [200, 833]})
+            self.assertEqual(self.calls[-1], ('gate', {'action': 'click', 'category': 'navigate'}))
+        for key in ['BACK', 'KEYCODE_BACK', '4']:
+            await namespace['guard_action'](None, 'press_key', {'key': key})
+            self.assertEqual(self.calls[-1], ('gate', {'action': 'press_key', 'category': 'navigate'}))
+        self.assertFalse(any(path == 'phone-network-ready' for path, _ in self.calls))
+
+    async def test_vpn_approval_unknown_actions_and_unobserved_cancel_are_denied(self) -> None:
+        for name, args in [('click', {'target': [750, 833]}), ('click', {'target': [450, 833]}),
+                           ('click', {'target': [200, 833], 'times': 2}),
+                           ('click', {'target': [float('nan'), 833]}), ('input_text', {'text': 'yes'}),
+                           ('swipe', {}), ('press_key', {'key': 'ENTER'})]:
+            self.vpn_dialog()
+            self.calls.clear()
+            with self.assertRaisesRegex(RuntimeError, 'OWNER_VPN_CONSENT_REQUIRED'):
+                await namespace['guard_action'](None, name, args)
+            self.assertFalse(any(path == 'gate' for path, _ in self.calls))
+        for options in [{'label': 'OK'}, {'enabled': 'false'}, {'resource': 'android:id/button1'},
+                        {'package': 'com.example.other'}]:
+            self.vpn_dialog(**options)
+            self.calls.clear()
+            with self.assertRaisesRegex(RuntimeError, 'OWNER_VPN_CONSENT_REQUIRED'):
+                await namespace['guard_action'](None, 'click', {'target': [200, 833]})
+            self.assertFalse(any(path == 'gate' for path, _ in self.calls))
+        self.xml = '<hierarchy/>'
+        with self.assertRaisesRegex(RuntimeError, 'OWNER_VPN_CONSENT_REQUIRED'):
+            await namespace['guard_action'](None, 'click', {'target': [200, 833]})
+
+    async def test_dialog_dismissal_keeps_scope_freeze_and_credentials_guards(self) -> None:
+        self.vpn_dialog()
+        self.scope['control']['policy']['allowPhoneInitialization'] = False
+        with self.assertRaisesRegex(RuntimeError, 'APP_MISMATCH'):
+            await namespace['guard_action'](None, 'click', {'target': [200, 833]})
+        self.scope['control']['policy']['allowPhoneInitialization'] = True
+        for change, error in [({'state': 'stopped'}, 'DEVICE_ACTIONS_FROZEN'),
+                              ({'credentialReady': True}, 'PROTECTED_INPUT_PENDING')]:
+            self.scope['control'].update(change)
+            with self.assertRaisesRegex(RuntimeError, error):
+                await namespace['guard_action'](None, 'press_key', {'key': 'BACK'})
+            self.scope['control'].update(state='active', credentialReady=False)
+        self.scope['mode'] = 'business'
+        with self.assertRaisesRegex(RuntimeError, 'APP_MISMATCH'):
+            await namespace['guard_action'](None, 'press_key', {'key': 'BACK'})
+
     async def test_json_editor_and_exports_remain_unmanaged(self) -> None:
         for label in ['JSON Editor', 'JSON Viewer', 'Delete', 'Export', 'Share']:
             xml = f'<hierarchy><node text="{label}" bounds="[0,0][1080,2400]"/></hierarchy>'

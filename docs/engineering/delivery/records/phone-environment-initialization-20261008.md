@@ -211,3 +211,25 @@ SFA／FlClash 已上传到已有私有 OSS 并通过服务器完整 GET 的 SHA-
 客户端另补 `7edeb66`，固定 APK 候选 `7b3c66ff661ccfecabcbd4ac8c542cf25cf95f90`：修正权限拒绝分支一边安排通道重核、一边立即 fatal 停止的冲突。仅原 token／安装身份和原 deviceId，经服务器确认仍关联有效且未显式暂停后重核一次；新建通道与 epoch 后仍接受服务器验证，撤权／身份变化／重复拒绝继续停止，无 VPN、配对、账号或业务动作。成功回报才重置一次恢复预算。此为代码确认的恢复缺口，不是缺失手机日志情况下对本次故障的确定归因。
 
 候选 Android Debug APK（生产 HTTPS API）`assembleDebug --no-daemon` 编译成功；本地保护路径 `.runtime/phone-vpn-fix-20261009/android-recovery-7b3c66f/`，build.json 保留 SHA。手机离线，新 APK 未送达、未安装，客户端恢复及完整初始化没有通过真机验收；main 未晋级。服务端在线的是 db67de6，不能称 Android 7b3c66f 已部署到手机。后续须先恢复原手机管理入口，再由现有可信准备链路交付更新，从实际 Web 续接原任务，完成实际 SFA VPN／业务出口检查、300 秒双通道观察与交接。
+
+
+## 2026-10-09 用户授权 USB 清理后重新初始化
+
+用户要求先通过 USB 删除初始化 App，然后合并部署并重新初始化，同时授权必要的数据调整。USB 目标为 Samsung SM-S9110 / RFCW40MYYCV；删除前核对服务端无运行中验证、无未决业务、原监督均 stopped／closed，实际 VPN 数为 0。SFA `io.nekohasekai.sfa`、FlClash `com.follow.clash` 卸载均返回 Success 且包不存在；保留 SocialGrowth、FB／YT 与账号数据。新管理 APK `1.0.3-recovery` / versionCode 8 使用原正式签名，USB `install -r` 成功，设备身份保留，Web 重新识别同一已关联手机；远程 ADB 再次核对硬件、版本 8 和两个网络 App 均缺失。
+
+初始化范围候选合并至 main `a4ddc4e`，没有纳入工作区其他账号／素材开发。首次 CI 的未配置控制台测试漏断言新增空调度数组，修正 dev `34d5372`、main `3526e26427a904b08ddd9f10e88a9d491b0db8ee`，4 项对应测试通过。dev 已以相同源码树合并保留 main 历史；工作区其他未提交修改保持。正式 APK SHA-256 `eeb0b1460ef3f5a43820223a340c28924d6fce614a1cad6e1f2352efcf0fabe2`，原签名一致。
+
+待检查通过后的数据调整限定为此设备的 6 条旧手机环境初始化记录：备份完整 SQLite 并单独归档原回执后从当前初始化索引移除，旧监督与其他 3 条准备记录保留；将该设备原 phone-initialization 占用改为 local-operator，防止清理后自动抢跑。实际 Web 点击“交还自动准备”后才启动新流程，可信安装仍由 Artemis 任务内工具调用执行。未改账号、Page／频道、业务结果或伪造成功状态。部署、归档执行和新任务结果随后追加。
+
+
+12:00 CST main `3526e26427a904b08ddd9f10e88a9d491b0db8ee` 已部署，准确提交的 GitHub CI `37881287743` 两项作业均 success（含真实浏览器 identity 检查、Android lint／单元／发布门禁），三应用构建及健康检查通过。部署备份 `/opt/socialgrowth/backups/phone-usb-release-20261009T035915Z`；部署时旧回执／占用保持，Postgres／Redis 未重启、主机路由和 Google 专用代理隔离不变。新版 APK 公共下载 `/downloads/socialgrowth.apk` 已更新为 versionCode 8，原包私有备份保留。
+
+部署后正式 Web 与远程 ADB 均重新识别同一硬件，确认网络 App 缺失与管理版本 8。12:00:54 CST 按用户授权完成限定数据归档：6 条旧初始化回执与整库备份在 `/opt/socialgrowth/backups/phone-usb-reset-20261009T040054Z`，原监督及其他 3 条准备记录保留；仅此设备占用改为 local-operator，其他手机及业务数据不变，没有写入成功回执。实际 Web Playwright 新一轮证据保留 `output/playwright/phone-initialization-20261009-r7/`，任务结果待补充。USB 在卸载／升级完成后已拔出，后续由服务器远程 Artemis 执行。
+
+
+12:01:18 CST 实际 Web 点击“交还自动准备”后产生全新任务 `1c44dbf3-830a-41ff-b7b3-daeef22b3a2d`，trace `425290bf-eb70-4a2b-b8bb-e519d7129674`。该任务无 prepared continuation 标记，恢复次数从 0 开始；SDK 已实际调用一次 `prepare_phone_environment`，监督 install_started／TRUSTED_INSTALL_RUNNING，正在重新准备缺失 App；模型调用正常，尚未取得安装完成或网络验收结果。另从真实 `/register` 页面点击“下载 Android APK”，Playwright 下载后的 SHA 与 versionCode 8 签名包完全一致，补充脚本及证据保留 `.runtime/phone-reset-20261009/download-apk.mts` 与 download-result.json，不构成手机初始化通过。
+
+
+12:18 CST，r7 在 FlClash 的 Android 系统 VPN 弹窗阻断：Artemis 正确选择“取消”，但 SDK 先拒绝 com.android.vpndialogs（APP_MISMATCH），其返回动作同样未派发。系统节点和两个失败步骤均保留，17 个实际动作取得监督许可，后两个取消／返回没有执行许可；无代理检查通过、无活动 VPN 证据，不是辅助通道失联。原 Web 收到机主手工取消请求。12:20:04 CST 从真实 Web 点击“请求停止”，任务 cancelled／UNCONFIRMED／OPERATOR_CANCELLED，SDK cancelled 且有结束时间，监督 stopped，未提交虚假的机主反馈。临时停止脚本首次误把终态限定为 finished，断言失败；只读补充确认实际 cancelled 终态，失败记录保留。
+
+针对真实缺口调整 phone-network.patch：仅在准确手机初始化诊断范围允许原生 VPN 弹窗中可见、可点击、启用的 android:id/button2“取消／Cancel”单击，或系统 Back；同意、未知目标、非单击、不可见／禁用取消及其他作用域仍拒绝，撤权／冻结／凭据防护保持。9 项 SDK 防护检查通过，源码编译通过；这不是 VPN 启动成功证据。后续固定版本、部署及重测回执待追加。
