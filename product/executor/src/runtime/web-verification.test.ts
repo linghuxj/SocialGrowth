@@ -473,3 +473,20 @@ test("phone preparation rejects a valid but unbound native capability and every 
     } finally { await f.close(); }
   }
 });
+
+
+test("prepared flag requires completed trusted preparation; failed preparation keeps original unknown receipt", async () => {
+  for (const succeeded of [false, true]) {
+    const f = fixture({}, "connectivity_test"), taskId = randomUUID(), sessionId = randomUUID();
+    try {
+      const job = { ...f.input, id: taskId, deviceId: "device", goal: "2026-10-08.phone-environment-v1", status: "finished", resultCode: "UNCONFIRMED", startedAt: new Date().toISOString() };
+      f.store.db.prepare("INSERT INTO web_verifications(id,request_id,body) VALUES (?,?,?)").run(taskId, job.requestId, JSON.stringify(job));
+      f.assistance.supervision.open({ sessionId, taskId, deviceId: "device", expectedIdentity: "phone", expiresAt: new Date(Date.now() + 60000).toISOString() }, { mode: "connectivity_test", allowPhoneInitialization: true, allowLogin: false });
+      assert.equal(f.verification.list()[0].initializationPrepared, undefined);
+      const preparation = f.assistance.supervision.preparePhone(sessionId, async () => { if (!succeeded) throw new Error("fixture failure"); });
+      if (succeeded) await preparation; else await assert.rejects(preparation, /fixture failure/);
+      assert.equal(f.verification.list()[0].initializationPrepared, succeeded ? true : undefined);
+      assert.equal(f.verification.list()[0].resultCode, "UNCONFIRMED");
+    } finally { await f.close(); }
+  }
+});

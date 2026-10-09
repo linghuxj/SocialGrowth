@@ -1,9 +1,10 @@
+import { AppProvisioner, type AppReadiness } from "./app-readiness.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, writeFile, chmod, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { deviceSfaConfiguration, readPrivatePreparationFile } from "./phone-initialization.js";
+import { PhoneInitialization, phoneInitializationVersion, deviceSfaConfiguration, readPrivatePreparationFile } from "./phone-initialization.js";
 
 const enrollment = "11111111-1111-4111-8111-111111111111";
 function config() { return {
@@ -55,4 +56,34 @@ test("subscription import preserves approved proxy credentials but disables TUN 
   assert.deepEqual(normalized.proxies, [{ name: "fixture", type: "ss", server: "fixture.invalid", password: "fixture-only-secret", port: 443 }]);
   for (const text of ['encodedscalar', 'proxies: []', 'proxies: &items []\ncopy: *items', 'proxies:\n - name: a\n   type: ss\nproxy-providers: {}'])
     assert.throws(() => subscriptionConfiguration(Buffer.from(text)));
+});
+
+
+test("prepared continuation refuses a missing app without reinstalling or delivering files", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sg-prepared-resume-"));
+  const saved = process.env.SG_APP_STORAGE_FILE;
+  const calls: string[][] = [];
+  class MissingApp extends AppProvisioner {
+    override async ensure(_serial: string, packageName: string, installMissing = true): Promise<AppReadiness> {
+      assert.equal(installMissing, false);
+      return { packageName, status: "missing" };
+    }
+  }
+  try {
+    const manifestPath = join(root, "manifest.json"), template = join(root, "sfa.json"), subscription = join(root, "subscription.yaml");
+    await writeFile(template, JSON.stringify(config()), { mode: 0o600 });
+    await writeFile(subscription, "proxies:\n - name: fixture\n   type: ss\n   server: fixture.invalid\n", { mode: 0o600 });
+    await writeFile(manifestPath, JSON.stringify({ version: phoneInitializationVersion, deviceIds: [enrollment], centerTailnetIp: "100.95.244.67",
+      authKeyExpiresAt: new Date(Date.now() + 3600000).toISOString(), sfaTemplate: template, subscriptionFile: subscription, proxyGroup: "fixture" }), { mode: 0o600 });
+    process.env.SG_APP_STORAGE_FILE = "fixture-storage";
+    const initializer = new PhoneInitialization(manifestPath, new MissingApp(), async (file, args) => {
+      calls.push([file, ...args]);
+      return file.endsWith("tailscale") ? "100.95.244.67" : args.includes("ro.serialno") ? "RFC_TEST" : "";
+    });
+    await assert.rejects(initializer.prepare({ deviceId: enrollment, requestId: enrollment, serial: "127.0.0.1:12345", hardwareSerial: "RFC_TEST", verifyInstalledOnly: true }), /PHONE_PREPARED_APP_MISSING/);
+    assert.equal(calls.some(c => c.includes("push") || c.includes("install")), false);
+  } finally {
+    if (saved === undefined) delete process.env.SG_APP_STORAGE_FILE; else process.env.SG_APP_STORAGE_FILE = saved;
+    await rm(root, { recursive: true, force: true });
+  }
 });

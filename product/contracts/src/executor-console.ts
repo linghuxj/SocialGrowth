@@ -23,6 +23,8 @@ export const executorJobSchema = z.object({
   errorCode: z.string().optional(), startedAt: z.string(), finishedAt: z.string().optional(),
   initializationProgress: phoneInitializationProgressSchema.optional(),
   previousInitializationId: key.optional(),
+  initializationPrepared: z.boolean().optional(),
+  initializationPreparationRequestId: z.uuid().optional(),
   initializationStartupRecoveryCount: z.int().min(0).max(2).optional(),
   initializationRecovery: z.object({ at: z.string().datetime(), successorId: key }).optional(),
 });
