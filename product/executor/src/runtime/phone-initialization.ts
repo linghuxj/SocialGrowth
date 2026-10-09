@@ -94,7 +94,9 @@ export function activePhoneVpns(connectivity: string): string[] {
 export function verifyPhoneVpn(connectivity: string, uids: { sfa: number; management: number; clash: number; facebook: number; youtube: number }): void {
   const networks = activePhoneVpns(connectivity);
   requireFact(networks.length === 1 && new RegExp(`OwnerUid: ${uids.sfa}(?:\\s|$)`).test(networks[0]), "PHONE_SFA_VPN_NOT_ACTIVE");
-  const ranges = networks[0].match(/Uids: <([^>]+)>/)?.[1];
+  const rawRanges = networks[0].match(/Uids: <([^>]+)>/)?.[1]?.trim();
+  // Android NetworkCapabilities renders ArraySet<UidRange> with outer braces.
+  const ranges = rawRanges?.match(/^\{([^{}]+)\}$/)?.[1] ?? rawRanges;
   requireFact(ranges && /^\s*\d+(?:-\d+)?(?:\s*,\s*\d+(?:-\d+)?)*\s*$/.test(ranges), "PHONE_VPN_UIDS_UNCONFIRMED");
   const includes = (uid: number) => ranges!.split(",").some(range => {
     const [start, end = start] = range.trim().split("-").map(Number);

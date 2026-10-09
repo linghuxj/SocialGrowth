@@ -105,6 +105,9 @@ test("actual VPN proof requires sole SFA owner and effective UID exclusion while
   const uids = { sfa: 10403, management: 10404, clash: 10405, facebook: 10300, youtube: 10301 };
   const network = "NetworkAgentInfo{network{300} Transports: VPN Capabilities: INTERNET Uids: <0-10402, 10406-99999> OwnerUid: 10403 AdminUids: [10403]}";
   assert.doesNotThrow(() => verifyPhoneVpn(network, uids));
+  assert.doesNotThrow(() => verifyPhoneVpn(network.replace("<0-10402, 10406-99999>", "<{0-10402, 10406-99999}>"), uids));
+  assert.throws(() => verifyPhoneVpn(network.replace("<0-10402, 10406-99999>", "<{0-99999}>"), uids), /PHONE_MANAGEMENT_VPN_NOT_EXCLUDED/);
+  assert.throws(() => verifyPhoneVpn(network.replace("<0-10402, 10406-99999>", "<{{0-10402, 10406-99999}}>"), uids), /PHONE_VPN_UIDS_UNCONFIRMED/);
   assert.deepEqual(activePhoneVpns("NetworkAgentInfo{Transports: WIFI Capabilities: NOT_VPN}\nRemembered VPN OwnerUid: 10403"), []);
   for (const [value, code] of [
     ["", "PHONE_SFA_VPN_NOT_ACTIVE"],
