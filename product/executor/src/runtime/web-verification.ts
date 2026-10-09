@@ -37,7 +37,7 @@ export interface VerificationConfig {
   mediaPath?: string;
   mediaSha256?: string;
   bootstrap?: { hardwareSerial: string; sessionId: string };
-  initialization?: { manifestPath: string; wirelessPort: number; rootRequestId?: string; previousJobId?: string; startupRecoveryCount?: number };
+  initialization?: { manifestPath: string; wirelessPort: number; rootRequestId?: string; previousJobId?: string; startupRecoveryCount?: number; preparationRequestId?: string };
   runtimeUrl: string;
 }
 export const verificationConfigSchema = z
@@ -68,8 +68,10 @@ type Job = Input & {
   initializationProgress?: PhoneInitializationProgress;
   initializationRootRequestId?: string;
   initializationStartupRecoveryCount?: number;
+  initializationPrepared?: boolean;
+  initializationPreparationRequestId?: string;
   previousInitializationId?: string;
-  initializationRecovery?: { at: string; traceId: string; serial: string; evidence: "engine_failed_before_actions_and_locks_released" | "engine_stopped_before_preparation_and_locks_released"; successorId: string };
+  initializationRecovery?: { at: string; traceId: string; serial: string; evidence: "engine_failed_before_actions_and_locks_released" | "engine_stopped_before_preparation_and_locks_released" | "trusted_preparation_completed_and_engine_stopped"; successorId: string };
 };
 const resultSchema = z.object({
   resultCode: z.enum([
@@ -164,10 +166,13 @@ export class WebVerification {
       : { available: false };
   }
   list(): Job[] {
-    return this.store.db
-      .prepare("SELECT body FROM web_verifications ORDER BY rowid DESC")
-      .all()
-      .map((r) => JSON.parse(r.body as string));
+    const events = this.assistance.supervision.events();
+    const prepared = new Set(this.assistance.supervision.controls().filter(c => c.policy.allowPhoneInitialization && c.installAttempts === 1
+      && events.some(e => e.sessionId === c.sessionId && e.type === "install_finished")).map(c => c.taskId));
+    return this.store.db.prepare("SELECT body FROM web_verifications ORDER BY rowid DESC").all().map(r => {
+      const job = JSON.parse(r.body as string) as Job;
+      return job.goal === phoneInitializationVersion && prepared.has(job.id) ? { ...job, initializationPrepared: true } : job;
+    });
   }
   private update(job: Job) {
     this.store.db
@@ -221,8 +226,10 @@ export class WebVerification {
     }
     requireFact(original.status === "finished" && original.resultCode === "UNCONFIRMED" && original.traceId && original.finishedAt, "PHONE_RECOVERY_NOT_ELIGIBLE");
     z.string().uuid().parse(original.traceId);
+    const preparedContinuation = !automatic && original.initializationPrepared === true && !original.initializationPreparationRequestId
+      && original.errorCode === "EXECUTION_TIMEOUT_OR_CANCELLED";
     const startupRecoveryCount = original.initializationStartupRecoveryCount ?? 0;
-    requireFact(Number.isInteger(startupRecoveryCount) && startupRecoveryCount >= 0 && startupRecoveryCount < 2, "PHONE_STARTUP_RECOVERY_LIMIT");
+    requireFact(Number.isInteger(startupRecoveryCount) && startupRecoveryCount >= 0 && (startupRecoveryCount < 2 || preparedContinuation && startupRecoveryCount === 2), "PHONE_STARTUP_RECOVERY_LIMIT");
     requireFact(!automatic || original.initializationStartupRecoveryCount !== undefined, "PHONE_AUTOMATIC_RECOVERY_LEGACY");
     requireFact(!this.recoveryOperations.has(target.deviceId), "PHONE_RECOVERY_IN_PROGRESS");
     this.recoveryOperations.add(target.deviceId);
@@ -237,13 +244,13 @@ export class WebVerification {
         requireFact(!this.active.has(id) && !this.list().some(j => j.deviceId === target.deviceId && j.status === "running"), "DEVICE_BUSY");
         requireFact(!this.assistance.deviceBusy(target.deviceId), "ASSISTANCE_SESSION_ACTIVE");
         const controls = this.assistance.supervision.controls().filter(c => c.deviceId === target.deviceId);
-        requireFact(control && controls.some(c => c.sessionId === control.sessionId && ["stopped", "closed"].includes(c.state) && c.policy.allowPhoneInitialization && c.policy.allowLogin === false && !c.installAttempts)
+        requireFact(control && controls.some(c => c.sessionId === control.sessionId && ["stopped", "closed"].includes(c.state) && c.policy.allowPhoneInitialization && c.policy.allowLogin === false && (preparedContinuation ? c.installAttempts === 1 : !c.installAttempts))
           && controls.every(c => ["stopped", "closed"].includes(c.state)), "PHONE_STOP_EVIDENCE_REQUIRED");
         const events = this.assistance.supervision.events().filter(e => e.taskId === id);
         const stopped = events.some(e => e.sessionId === control!.sessionId && e.type === "stopped" && Date.parse(e.at) <= Date.parse(original.finishedAt!));
         closedWithoutStop = !stopped;
         requireFact((stopped || (control?.state === "closed" && events.some(e => e.sessionId === control.sessionId && e.type === "opened" && Date.parse(e.at) <= Date.parse(original.finishedAt!))))
-          && events.every(e => ["opened", "stopped"].includes(e.type) || !automatic && original.errorCode === "EXECUTION_TIMEOUT_OR_CANCELLED" && e.type === "action_permitted" && e.code === "navigate"), "PHONE_ACTIONS_CANNOT_BE_REPLAYED");
+          && events.every(e => ["opened", "stopped"].includes(e.type) || !automatic && original.errorCode === "EXECUTION_TIMEOUT_OR_CANCELLED" && e.type === "action_permitted" && e.code === "navigate" || preparedContinuation && ["install_started", "install_finished"].includes(e.type)), "PHONE_ACTIONS_CANNOT_BE_REPLAYED");
         requireFact(!this.assistance.supervision.requests().some(r => r.deviceId === target.deviceId && ["waiting", "responded", "claimed"].includes(r.status)), "SUPERVISION_REQUEST_ACTIVE");
         requireFact(!this.assistance.list().some(c => c.deviceId === target.deviceId && ["waiting", "submitted", "claimed"].includes(c.status)), "ASSISTANCE_REQUEST_ACTIVE");
         requireFact(!this.store.db.prepare("SELECT 1 FROM tasks WHERE device IN (?,?,?,?) AND status IN ('queued','running','unknown','blocked')").get(target.deviceId, serial, target.serial, target.hardwareSerial), "DEVICE_UNRESOLVED_TASK");
@@ -265,6 +272,7 @@ export class WebVerification {
         const evidence = await exec(resolve(artemisRoot, ".venv/bin/python"), ["-c", code, original.traceId!], { cwd: artemisRoot, timeout: 5000, maxBuffer: 1024 });
         startupFailure = z.object({ emptyStartupTrace: z.literal(true) }).strict().safeParse(JSON.parse(evidence.stdout)).success;
       }
+      let confirmedPreparation = false;
       let observationOnlyTimeout = false;
       if (!automatic && !closedWithoutStop && original.errorCode === "EXECUTION_TIMEOUT_OR_CANCELLED" && status.status === "cancelled") {
         // The stopped engine may have opened the product's preparation page.
@@ -291,7 +299,23 @@ print(json.dumps({'observationOnlyTimeout':bool(session) and state.get('status')
         const evidence = await exec(resolve(artemisRoot, ".venv/bin/python"), ["-c", code, original.traceId!, String(navigationCount)], { cwd: artemisRoot, timeout: 5000, maxBuffer: 1024 });
         observationOnlyTimeout = z.object({ observationOnlyTimeout: z.literal(true) }).strict().safeParse(JSON.parse(evidence.stdout)).success;
       }
-      requireFact(startupFailure || (!automatic && modelTimeout && !closedWithoutStop) || observationOnlyTimeout, "PHONE_NO_ACTION_RECOVERY_EVIDENCE_REQUIRED");
+      if (preparedContinuation && !closedWithoutStop && status.status === "cancelled") {
+        const code = `import json,sys,sqlite3
+from pathlib import Path
+from artemis.config.paths import get_data_engine_db_path
+from artemis.runtime import trace_store
+from artemis.runtime.process_probe import pid_is_alive
+trace=sys.argv[1]
+state=json.loads((Path(trace_store.TRACES_DIR)/trace/'status.json').read_text())
+db=sqlite3.connect('file:'+str(get_data_engine_db_path())+'?mode=ro',uri=True)
+rows=db.execute('SELECT last_execution_result FROM steps WHERE session_id=?',(trace,)).fetchall()
+prepared=db.execute("SELECT 1 FROM traces WHERE session_id=? AND type='tool' AND name='prepare_phone_environment' AND status='success'",(trace,)).fetchone()
+print(json.dumps({'confirmedPreparation':bool(prepared) and state.get('status')=='cancelled' and bool(state.get('end_time')) and not pid_is_alive(state.get('pid')) and len(rows)==int(sys.argv[2]) and all(json.loads(r[0]).get('status')=='dispatched' and json.loads(r[0]).get('incident') is None for r in rows)}))`;
+        const count = this.assistance.supervision.events().filter(e => e.taskId === id && e.type === "action_permitted").length;
+        const evidence = await exec(resolve(artemisRoot, ".venv/bin/python"), ["-c", code, original.traceId!, String(count)], { cwd: artemisRoot, timeout: 5000, maxBuffer: 1024 });
+        confirmedPreparation = z.object({ confirmedPreparation: z.literal(true) }).strict().safeParse(JSON.parse(evidence.stdout)).success;
+      }
+      requireFact(startupFailure || (!automatic && modelTimeout && !closedWithoutStop) || observationOnlyTimeout || confirmedPreparation, "PHONE_NO_ACTION_RECOVERY_EVIDENCE_REQUIRED");
       // Enumerate every endpoint scope: a 5037-only lookup could miss the
       // isolated 5038 executor's owner or a queued task for the same phone.
       const code = "import json,sys; from artemis.runtime.device_lock import DeviceExecutionLock; aliases=set(sys.argv[1:]); owners=DeviceExecutionLock.get_active_owners().values(); queued=DeviceExecutionLock.get_queued_tasks(); print(json.dumps({'active':any(o.device_id in aliases for o in owners) or any(q.get('device_id') in aliases|{'default','pending','any'} for q in queued)}))";
@@ -310,9 +334,10 @@ print(json.dumps({'observationOnlyTimeout':bool(session) and state.get('status')
           caption: "自动准备可信客户端、单 VPN 网络及管理通道；不执行业务", acknowledgeNoPublication: true },
           { artemisRoot, runtimeUrl, deviceId: target.deviceId, serial: target.serial, bootstrap: { hardwareSerial: target.hardwareSerial, sessionId: target.sessionId },
             initialization: { manifestPath, wirelessPort: target.wirelessPort, rootRequestId: target.requestId, previousJobId: original.id,
-              startupRecoveryCount: startupRecoveryCount + (startupFailure || observationOnlyTimeout ? 1 : 0) } });
+              startupRecoveryCount: startupRecoveryCount + (startupFailure || observationOnlyTimeout ? 1 : 0),
+              ...(confirmedPreparation ? { preparationRequestId: original.requestId } : {}) } });
         this.update({ ...original, initializationRecovery: { at: new Date().toISOString(), traceId: original.traceId!, serial,
-          evidence: observationOnlyTimeout ? "engine_stopped_before_preparation_and_locks_released" : "engine_failed_before_actions_and_locks_released", successorId: successor.id } });
+          evidence: confirmedPreparation ? "trusted_preparation_completed_and_engine_stopped" : observationOnlyTimeout ? "engine_stopped_before_preparation_and_locks_released" : "engine_failed_before_actions_and_locks_released", successorId: successor.id } });
         return successor;
       });
     } finally { this.recoveryOperations.delete(target.deviceId); await client.close().catch(() => {}); }
@@ -393,7 +418,8 @@ print(json.dumps({'observationOnlyTimeout':bool(session) and state.get('status')
       status: "running",
       startedAt: new Date().toISOString(),
       ...(cfg.initialization ? { initializationProgress: { phase: "checking_device" as const, updatedAt: new Date().toISOString() },
-        initializationStartupRecoveryCount: cfg.initialization.startupRecoveryCount ?? 0 } : {}),
+        initializationStartupRecoveryCount: cfg.initialization.startupRecoveryCount ?? 0,
+        ...(cfg.initialization.preparationRequestId ? { initializationPreparationRequestId: cfg.initialization.preparationRequestId } : {}) } : {}),
       ...(cfg.initialization?.rootRequestId ? { initializationRootRequestId: cfg.initialization.rootRequestId, previousInitializationId: cfg.initialization.previousJobId } : {}),
     };
     const session = cfg.initialization ? undefined : this.assistance.open({
@@ -452,7 +478,8 @@ print(json.dumps({'observationOnlyTimeout':bool(session) and state.get('status')
     bytes: Buffer,
     client: ClientPort | undefined,
   ) {
-    let deadline = Date.now() + 840000;
+    const executionWindow = cfg.initialization ? 40 * 60_000 : 840000;
+    let deadline = Date.now() + executionWindow;
     let terminal = false;
     const initializer = cfg.initialization ? new PhoneInitialization(cfg.initialization.manifestPath) : undefined;
     let preparation: Awaited<ReturnType<PhoneInitialization["prepare"]>> | undefined;
@@ -500,7 +527,7 @@ print(json.dumps({'observationOnlyTimeout':bool(session) and state.get('status')
         // One Artemis task owns inspection, trusted download/install and UI setup.
         const session = this.assistance.open({ taskId: job.id, deviceId: cfg.deviceId, serial: cfg.serial,
           packageName: "com.socialgrowth.product", expectedIdentity: `${job.expectedName} / socialgrowth com.socialgrowth.product (diagnostic only)`,
-          expiresAt: new Date(Date.now() + 900000).toISOString(), mode: "diagnostic",
+          expiresAt: new Date(Date.now() + executionWindow + 300000).toISOString(), mode: "diagnostic",
           policy: { mode: "connectivity_test", allowPhoneInitialization: true, allowTrustedInstall: false, allowLogin: false } });
         token = session.token;
         this.active.get(job.id)!.preparePhone = async () => {
@@ -509,18 +536,19 @@ print(json.dumps({'observationOnlyTimeout':bool(session) and state.get('status')
             requireFact(!this.active.get(job.id)?.cancelled && control.state === "waiting" && control.reason === "TRUSTED_INSTALL_RUNNING", "PHONE_PREPARATION_STOPPED");
           };
           try {
-            preparation = await initializer!.prepare({ deviceId: cfg.deviceId, serial: cfg.serial, hardwareSerial: cfg.bootstrap!.hardwareSerial, requestId: job.requestId }, authorize, progress);
+            preparation = await initializer!.prepare({ deviceId: cfg.deviceId, serial: cfg.serial, hardwareSerial: cfg.bootstrap!.hardwareSerial, requestId: cfg.initialization!.preparationRequestId ?? job.requestId, verifyInstalledOnly: !!cfg.initialization!.preparationRequestId }, authorize, progress);
           } catch (error) {
             job.errorCode = error instanceof RuntimeError && /^[A-Z_]{1,80}$/.test(error.code) ? error.code : "PHONE_PREPARATION_UNCONFIRMED";
             progress("needs_attention");
             throw error;
           }
+          job.initializationPrepared = true;
           progress("configuring_network");
           return { instructions: preparation.instructions, appsVerified: true };
         };
         client = this.ports.client(cfg.artemisRoot, { url: cfg.runtimeUrl, token, deviceId: cfg.deviceId, serial: cfg.serial, phoneInitialization: true });
         this.active.get(job.id)!.client = client;
-        deadline = Date.now() + 840000;
+        deadline = Date.now() + executionWindow;
       }
       requireFact(client && token, "VERIFICATION_CAPABILITY_REQUIRED");
       const media =
@@ -603,6 +631,10 @@ STOP with Share now visible and UNTOUCHED. Never publish, upload, schedule, expl
           30000,
         );
         const status = z.object({ status: z.string(), result: z.unknown().optional() }).parse(raw);
+        if (cfg.initialization && preparation && job.initializationProgress?.phase === "configuring_network") {
+          const action = this.assistance.supervision.events().find(e => e.taskId === job.id && e.type === "action_permitted");
+          if (action && Date.parse(action.at) > Date.parse(job.initializationProgress.updatedAt)) progress("configuring_network");
+        }
         if (!["pending", "running"].includes(status.status)) {
           terminal = true;
           const summary = z
@@ -700,20 +732,20 @@ STOP with Share now visible and UNTOUCHED. Never publish, upload, schedule, expl
             progress("observing_stability");
             // A task report cannot prove transport stability. Observe the same hardware
             // independently throughout the configured bounded window; never USB fallback.
-            const management = await initializer!.managementTarget(job.requestId, cfg.initialization.wirelessPort, cfg.bootstrap!.hardwareSerial);
+            const management = await initializer!.managementTarget(cfg.initialization.preparationRequestId ?? job.requestId, cfg.initialization.wirelessPort, cfg.bootstrap!.hardwareSerial);
             const observedAt = Date.now(), until = observedAt + preparation!.soakSeconds * 1000, exec = promisify(execFile);
             let samples = 0;
             do {
               requireFact(!this.active.get(job.id)?.cancelled, "CANCELLED");
               const hardware = await exec("adb", ["-s", cfg.serial, "shell", "getprop", "ro.serialno"], { timeout: 8000, maxBuffer: 8192 });
               requireFact(hardware.stdout.trim() === cfg.bootstrap!.hardwareSerial, "PHONE_TRANSPORT_UNCONFIRMED");
-              const currentManagement = await initializer!.managementTarget(job.requestId, cfg.initialization.wirelessPort, cfg.bootstrap!.hardwareSerial);
+              const currentManagement = await initializer!.managementTarget(cfg.initialization.preparationRequestId ?? job.requestId, cfg.initialization.wirelessPort, cfg.bootstrap!.hardwareSerial);
               requireFact(currentManagement.address === management.address && currentManagement.nodeKey === management.nodeKey, "PHONE_MANAGEMENT_NODE_CHANGED");
               samples += 1;
               if (Date.now() < until) await new Promise(resolve => setTimeout(resolve, Math.min(15000, until - Date.now())));
             } while (Date.now() < until);
             // Final sample closes the entire observation window, not the preceding interval.
-            const finalManagement = await initializer!.managementTarget(job.requestId, cfg.initialization.wirelessPort, cfg.bootstrap!.hardwareSerial);
+            const finalManagement = await initializer!.managementTarget(cfg.initialization.preparationRequestId ?? job.requestId, cfg.initialization.wirelessPort, cfg.bootstrap!.hardwareSerial);
             requireFact(finalManagement.address === management.address && finalManagement.nodeKey === management.nodeKey, "PHONE_MANAGEMENT_NODE_CHANGED");
             job.managementAddress = management.address;
             job.stability = { observedSeconds: Math.floor((Date.now() - observedAt) / 1000), samples: samples + 1, transport: "tailnet_and_bootstrap" };
@@ -750,7 +782,7 @@ STOP with Share now visible and UNTOUCHED. Never publish, upload, schedule, expl
       } catch {
         /* report cannot invent a result or trigger another attempt */
       }
-      if (preparation) await preparation.cleanup().catch(() => {});
+      if (preparation && job.resultCode === "CONNECTIVITY_SETUP_COMPLETED") await preparation.cleanup().catch(() => {});
       // A missing final screenshot must not suppress the stopped receipt. Engine
       // outcome and supervision closure are recorded independently of pixels.
       if (cfg.initialization && job.resultCode !== "CONNECTIVITY_SETUP_COMPLETED") {

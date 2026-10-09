@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { lstat, readFile, mkdtemp, writeFile, rm } from "node:fs/promises";
@@ -99,7 +100,7 @@ export class PhoneInitialization {
     requireFact(await this.command("adb", ["-s", serial, "shell", "getprop", "ro.serialno"]) === hardwareSerial, "PHONE_HARDWARE_MISMATCH");
     return { address: address as string, serial, nodeKey: peers[0].PublicKey as string };
   }
-  async prepare(target: { deviceId: string; serial: string; hardwareSerial: string; requestId: string }, authorize: () => void = () => {},
+  async prepare(target: { deviceId: string; serial: string; hardwareSerial: string; requestId: string; verifyInstalledOnly?: boolean }, authorize: () => void = () => {},
     progress: (phase: PhoneInitializationProgress["phase"], packageName?: PhoneInitializationProgress["packageName"]) => void = () => {}): Promise<{ instructions: string; soakSeconds: number; cleanup: () => Promise<void> }> {
     authorize();
     requireFact(process.env.SG_APP_STORAGE_FILE, "PHONE_CLOUD_DOWNLOAD_REQUIRED");
@@ -117,7 +118,8 @@ export class PhoneInitialization {
     for (const packageName of ["io.nekohasekai.sfa", "com.follow.clash", "com.facebook.katana", "com.google.android.youtube"] as const) {
       authorize();
       progress("preparing_apps", packageName);
-      await this.apps.ensure(target.serial, packageName, true, authorize);
+      const readiness = await this.apps.ensure(target.serial, packageName, !target.verifyInstalledOnly, authorize);
+      requireFact(readiness.status !== "missing", "PHONE_PREPARED_APP_MISSING");
     }
     authorize();
     progress("delivering_configuration");
@@ -134,9 +136,13 @@ export class PhoneInitialization {
       await adb(["push", join(local, "network.json"), `${remote}/network.json`]);
       authorize();
       await adb(["push", join(local, "subscription.yaml"), `${remote}/subscription.yaml`]);
+      for (const [name, bytes] of [["network.json", Buffer.from(JSON.stringify(sfa))], ["subscription.yaml", subscription]] as const) {
+        authorize();
+        requireFact((await adb(["shell", "sha256sum", `${remote}/${name}`])).split(/\s/)[0] === createHash("sha256").update(bytes).digest("hex"), "PHONE_PRIVATE_CONFIGURATION_MISMATCH");
+      }
     } catch (error) { await cleanup().catch(() => {}); throw error; }
     finally { await rm(local, { recursive: true, force: true }); subscription.fill(0); }
     return { soakSeconds: manifest.soakSeconds, cleanup,
-      instructions: `Trusted apps have been verified/installed on this exact phone. Import ONLY supplied local files using ordinary file pickers: ${remote}/subscription.yaml in FlClash and ${remote}/network.json in SFA. These files contain secrets: do not open editors, previews, share, copy, export, read contents, or include credentials in notes/screenshots. Preserve unrelated profiles. Use FlClash local proxy port 7890, VPN OFF, Global mode; select group ${JSON.stringify(manifest.proxyGroup)}. ${manifest.proxyNode ? `Use ONLY approved node ${JSON.stringify(manifest.proxyNode)}.` : "Use only a proxy or proxy group from the supplied profile with an observed successful finite delay; never DIRECT, REJECT, an expired/quota notice entry, or an arbitrary new node. A failed check is a blocker, not permission for repeated node switches."} Confirm core running. SFA profile name sg-${target.requestId.slice(0, 18)}; use this profile as sole VPN, never activate official Tailscale, never exit node. Request owner assistance for Android VPN consent or unknown permissions and wait; never approve system VPN consent for the owner. Preserve SocialGrowth foreground service and wireless-debug pairing. Confirm running SFA and FlClash core independently at actual screens. Then read a fresh Facebook online response and observe public YouTube playback time advance at least 20 seconds. Login/consent needed by FB/YT is a blocker, no login or account changes. Each of these FOUR actual screen milestones requires an independent checkpoint while visible. No business actions, publication or acceptance claim. Stop UNCONFIRMED on loss of transport. Use system Home to switch apps, never swipe services away or use Back to close FlClash. Return exact JSON {"resultCode":"CONNECTIVITY_SETUP_COMPLETED" or "UNCONFIRMED","loginSubmitCount":0,"finalSubmitClicked":false}, save the same JSON in connectivity-test-result. The controller checks hardware and transport afterward; this is a bounded networking check, not long-term stability acceptance.` };
+      instructions: `Trusted apps have been verified/installed on this exact phone. First observe current app screens and pending dialogs. Preserve an already-imported matching scoped profile and continue its unfinished setup; never create a duplicate or blindly repeat imports. Import ONLY missing supplied profiles using ordinary file pickers: ${remote}/subscription.yaml in FlClash and ${remote}/network.json in SFA. These files contain secrets: do not open editors, previews, share, copy, export, read contents, or include credentials in notes/screenshots. Preserve unrelated profiles. Use FlClash local proxy port 7890, VPN OFF, Global mode; select group ${JSON.stringify(manifest.proxyGroup)}. ${manifest.proxyNode ? `Use ONLY approved node ${JSON.stringify(manifest.proxyNode)}.` : "Use only a proxy or proxy group from the supplied profile with an observed successful finite delay; never DIRECT, REJECT, an expired/quota notice entry, or an arbitrary new node. A failed check is a blocker, not permission for repeated node switches."} Confirm core running. SFA profile name sg-${target.requestId.slice(0, 18)}; use this profile as sole VPN, never activate official Tailscale, never exit node. Request owner assistance for Android VPN consent or unknown permissions and wait; never approve system VPN consent for the owner. Preserve SocialGrowth foreground service and wireless-debug pairing. Confirm running SFA and FlClash core independently at actual screens. Then read a fresh Facebook online response and observe public YouTube playback time advance at least 20 seconds. Login/consent needed by FB/YT is a blocker, no login or account changes. Each of these FOUR actual screen milestones requires an independent checkpoint while visible. No business actions, publication or acceptance claim. Stop UNCONFIRMED on loss of transport. Use system Home to switch apps, never swipe services away or use Back to close FlClash. Return exact JSON {"resultCode":"CONNECTIVITY_SETUP_COMPLETED" or "UNCONFIRMED","loginSubmitCount":0,"finalSubmitClicked":false}, save the same JSON in connectivity-test-result. The controller checks hardware and transport afterward; this is a bounded networking check, not long-term stability acceptance.` };
   }
 }
