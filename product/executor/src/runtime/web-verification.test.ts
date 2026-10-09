@@ -510,3 +510,18 @@ test("capability-rejected continuation cannot use a missing prepared parent, inv
     } finally { await f.close(); }
   }
 });
+
+
+test("prepared configuration continuation is bounded and cannot automatically extend a completed preparation", async () => {
+  for (const [count, automatic] of [[2, false], [1, true], [-1, false], [3, false]] as const) {
+    const f = fixture({}, "connectivity_test"), deviceId = randomUUID(), requestId = randomUUID(), id = randomUUID();
+    try {
+      const original = { ...f.input, id, requestId, deviceId, goal: "2026-10-08.phone-environment-v1", status: "finished", resultCode: "UNCONFIRMED", errorCode: "EXECUTION_TIMEOUT_OR_CANCELLED",
+        traceId: randomUUID(), initializationPrepared: true, initializationPreparationRequestId: randomUUID(), initializationConfigurationRecoveryCount: count,
+        initializationStartupRecoveryCount: 2, startedAt: new Date().toISOString(), finishedAt: new Date().toISOString() };
+      f.store.db.prepare("INSERT INTO web_verifications(id,request_id,body) VALUES (?,?,?)").run(id, requestId, JSON.stringify(original));
+      await assert.rejects(f.verification.resumePhoneInitialization({ id, automatic, deviceId, requestId, serial: "127.0.0.1:12345", hardwareSerial: "RFC_TEST", sessionId: randomUUID(), wirelessPort: 40000 }, "/nonexistent-sdk", "http://127.0.0.1:4318", "/nonexistent-manifest"), /PHONE_(?:CONFIGURATION|STARTUP)_RECOVERY_LIMIT/);
+      assert.equal(f.starts(), 0); assert.equal(f.verification.list().find(j => j.id === id)?.initializationRecovery, undefined);
+    } finally { await f.close(); }
+  }
+});

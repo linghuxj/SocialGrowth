@@ -80,7 +80,7 @@ export class HumanAssistance {
     requireFact(!scope.serial.startsWith("emulator-"), "PHYSICAL_DEVICE_REQUIRED");
     requireFact(
       Date.parse(scope.expiresAt) > this.now() &&
-        Date.parse(scope.expiresAt) <= this.now() + (scope.policy?.allowPhoneInitialization ? 45 * 60_000 : 900000),
+        Date.parse(scope.expiresAt) <= this.now() + (scope.policy?.allowPhoneInitialization ? 65 * 60_000 : 900000),
       "ASSISTANCE_EXPIRY_INVALID",
     );
     requireFact(

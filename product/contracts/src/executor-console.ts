@@ -24,6 +24,7 @@ export const executorJobSchema = z.object({
   initializationProgress: phoneInitializationProgressSchema.optional(),
   previousInitializationId: key.optional(),
   initializationPrepared: z.boolean().optional(),
+  initializationConfigurationRecoveryCount: z.int().min(0).max(2).optional(),
   initializationPreparationRequestId: z.uuid().optional(),
   initializationStartupRecoveryCount: z.int().min(0).max(2).optional(),
   initializationRecovery: z.object({ at: z.string().datetime(), successorId: key }).optional(),

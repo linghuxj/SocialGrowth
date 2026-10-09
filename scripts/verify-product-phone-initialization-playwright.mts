@@ -63,7 +63,7 @@ try {
   if (process.env.SG_PHONE_INITIALIZATION_RESUME === "true") {
     const original = facts.jobs.find(j => j.deviceId === deviceId && j.expectedName === "手机环境初始化");
     assert.ok(original && original.status === "finished" && original.resultCode === "UNCONFIRMED" && !original.initializationRecovery);
-    assert.ok((original.initializationStartupRecoveryCount ?? 0) < 2 || original.initializationPrepared && !original.initializationPreparationRequestId || original.errorCode === "ASSISTANCE_EXPIRY_INVALID");
+    assert.ok((original.initializationStartupRecoveryCount ?? 0) < 2 || original.initializationPrepared && (original.initializationConfigurationRecoveryCount ?? (original.initializationPreparationRequestId ? 1 : 0)) < 2 || original.errorCode === "ASSISTANCE_EXPIRY_INVALID");
     step = "resume_original";
     await writeFile(resolve(output, "resume-intent.json"), JSON.stringify({ at: new Date().toISOString(), deviceId, originalId: original.id }), { mode: 0o600 });
     const response = page.waitForResponse(r => r.request().method() === "POST" && new URL(r.url()).pathname === "/api/operator/executor/bootstrap-initialization-resume");

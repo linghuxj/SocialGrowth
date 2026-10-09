@@ -37,7 +37,7 @@ export interface VerificationConfig {
   mediaPath?: string;
   mediaSha256?: string;
   bootstrap?: { hardwareSerial: string; sessionId: string };
-  initialization?: { manifestPath: string; wirelessPort: number; rootRequestId?: string; previousJobId?: string; startupRecoveryCount?: number; preparationRequestId?: string };
+  initialization?: { manifestPath: string; wirelessPort: number; rootRequestId?: string; previousJobId?: string; startupRecoveryCount?: number; configurationRecoveryCount?: number; preparationRequestId?: string };
   runtimeUrl: string;
 }
 export const verificationConfigSchema = z
@@ -68,6 +68,7 @@ type Job = Input & {
   initializationProgress?: PhoneInitializationProgress;
   initializationRootRequestId?: string;
   initializationStartupRecoveryCount?: number;
+  initializationConfigurationRecoveryCount?: number;
   initializationPrepared?: boolean;
   initializationPreparationRequestId?: string;
   previousInitializationId?: string;
@@ -228,7 +229,9 @@ export class WebVerification {
       return this.resumeRejectedPhoneCapability(original, target, artemisRoot, runtimeUrl, manifestPath);
     requireFact(original.status === "finished" && original.resultCode === "UNCONFIRMED" && original.traceId && original.finishedAt, "PHONE_RECOVERY_NOT_ELIGIBLE");
     z.string().uuid().parse(original.traceId);
-    const preparedContinuation = !automatic && original.initializationPrepared === true && !original.initializationPreparationRequestId
+    const configurationRecoveryCount = original.initializationConfigurationRecoveryCount ?? (original.initializationPreparationRequestId ? 1 : 0);
+    requireFact(Number.isInteger(configurationRecoveryCount) && configurationRecoveryCount >= 0 && configurationRecoveryCount <= 2, "PHONE_CONFIGURATION_RECOVERY_LIMIT");
+    const preparedContinuation = !automatic && original.initializationPrepared === true && configurationRecoveryCount < 2
       && original.errorCode === "EXECUTION_TIMEOUT_OR_CANCELLED";
     const startupRecoveryCount = original.initializationStartupRecoveryCount ?? 0;
     requireFact(Number.isInteger(startupRecoveryCount) && startupRecoveryCount >= 0 && (startupRecoveryCount < 2 || preparedContinuation && startupRecoveryCount === 2), "PHONE_STARTUP_RECOVERY_LIMIT");
@@ -337,7 +340,8 @@ print(json.dumps({'confirmedPreparation':bool(prepared) and state.get('status')=
           { artemisRoot, runtimeUrl, deviceId: target.deviceId, serial: target.serial, bootstrap: { hardwareSerial: target.hardwareSerial, sessionId: target.sessionId },
             initialization: { manifestPath, wirelessPort: target.wirelessPort, rootRequestId: target.requestId, previousJobId: original.id,
               startupRecoveryCount: startupRecoveryCount + (startupFailure || observationOnlyTimeout ? 1 : 0),
-              ...(confirmedPreparation ? { preparationRequestId: original.requestId } : {}) } });
+              ...(confirmedPreparation ? { preparationRequestId: original.initializationPreparationRequestId ?? original.requestId,
+                configurationRecoveryCount: configurationRecoveryCount + 1 } : {}) } });
         this.update({ ...original, initializationRecovery: { at: new Date().toISOString(), traceId: original.traceId!, serial,
           evidence: confirmedPreparation ? "trusted_preparation_completed_and_engine_stopped" : observationOnlyTimeout ? "engine_stopped_before_preparation_and_locks_released" : "engine_failed_before_actions_and_locks_released", successorId: successor.id } });
         return successor;
@@ -394,7 +398,8 @@ print(json.dumps({'confirmedPreparation':bool(prepared) and state.get('status')=
           caption: "自动准备可信客户端、单 VPN 网络及管理通道；不执行业务", acknowledgeNoPublication: true },
           { artemisRoot, runtimeUrl, deviceId: target.deviceId, serial: target.serial, bootstrap: { hardwareSerial: target.hardwareSerial, sessionId: target.sessionId },
             initialization: { manifestPath, wirelessPort: target.wirelessPort, rootRequestId: target.requestId, previousJobId: original.id,
-              startupRecoveryCount: original.initializationStartupRecoveryCount, preparationRequestId: original.initializationPreparationRequestId } });
+              startupRecoveryCount: original.initializationStartupRecoveryCount, configurationRecoveryCount: original.initializationConfigurationRecoveryCount ?? 1,
+              preparationRequestId: original.initializationPreparationRequestId } });
         this.update({ ...original, initializationRecovery: { at: new Date().toISOString(), serial: target.serial, evidence: "capability_rejected_before_engine_start", successorId: successor.id } });
         return successor;
       });
@@ -477,7 +482,8 @@ print(json.dumps({'confirmedPreparation':bool(prepared) and state.get('status')=
       startedAt: new Date().toISOString(),
       ...(cfg.initialization ? { initializationProgress: { phase: "checking_device" as const, updatedAt: new Date().toISOString() },
         initializationStartupRecoveryCount: cfg.initialization.startupRecoveryCount ?? 0,
-        ...(cfg.initialization.preparationRequestId ? { initializationPreparationRequestId: cfg.initialization.preparationRequestId } : {}) } : {}),
+        ...(cfg.initialization.preparationRequestId ? { initializationPreparationRequestId: cfg.initialization.preparationRequestId,
+          initializationConfigurationRecoveryCount: cfg.initialization.configurationRecoveryCount ?? 1 } : {}) } : {}),
       ...(cfg.initialization?.rootRequestId ? { initializationRootRequestId: cfg.initialization.rootRequestId, previousInitializationId: cfg.initialization.previousJobId } : {}),
     };
     const session = cfg.initialization ? undefined : this.assistance.open({
@@ -546,7 +552,7 @@ print(json.dumps({'confirmedPreparation':bool(prepared) and state.get('status')=
     bytes: Buffer,
     client: ClientPort | undefined,
   ) {
-    const executionWindow = cfg.initialization ? 40 * 60_000 : 840000;
+    const executionWindow = cfg.initialization ? 60 * 60_000 : 840000;
     let deadline = Date.now() + executionWindow;
     let terminal = false;
     const initializer = cfg.initialization ? new PhoneInitialization(cfg.initialization.manifestPath) : undefined;
