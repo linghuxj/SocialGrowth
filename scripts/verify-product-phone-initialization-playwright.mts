@@ -19,11 +19,13 @@ const browser = await chromium.launch({ headless: true, ...(process.env.SG_PRODU
 const page = await browser.newPage({ locale: "zh-CN", viewport: { width: 1465, height: 1074 } });
 let step = "login", jobId: string | undefined;
 let outcome = "unconfirmed";
+let lastFacts: ExecutorConsole | undefined;
 async function refresh(): Promise<ExecutorConsole> {
   const response = page.waitForResponse(r => r.request().method() === "GET" && new URL(r.url()).pathname === "/api/operator/executor/status");
   await page.getByRole("button", { name: "查询原任务", exact: true }).click();
   const result = await response; assert.equal(result.status(), 200);
-  return executorConsoleSchema.parse(await result.json());
+  lastFacts = executorConsoleSchema.parse(await result.json());
+  return lastFacts;
 }
 try {
   await page.goto(url, { waitUntil: "networkidle" });
@@ -39,6 +41,7 @@ try {
   assert.equal(facts.automaticPhoneInitialization, true, "Production initialization must be explicitly enabled");
   await page.getByText("手机连接核验后自动准备环境。需要机主操作时会显示提示；准备结果见下方回执。", { exact: true }).waitFor();
   const specified = process.env.SG_PHONE_INITIALIZATION_DEVICE;
+  step = "connection";
   const connectionDeadline = Date.now() + 60000;
   while (!facts.bootstrapDevices.some(d => (!specified || d.deviceId === specified) && d.connected) && Date.now() < connectionDeadline) {
     await page.waitForTimeout(5000); facts = await refresh();
@@ -109,7 +112,9 @@ try {
   await page.getByRole("button", { name: "退出登录", exact: true }).first().click();
   await page.getByRole("heading", { name: "登录正式产品" }).waitFor();
 } catch (error) {
-  await writeFile(resolve(output, "failure.json"), JSON.stringify({ outcome: "failed", step, jobId, category: error instanceof Error ? error.name : "Unknown" }), { mode: 0o600 });
+  await writeFile(resolve(output, "failure.json"), JSON.stringify({ outcome: "failed", step, jobId, category: error instanceof Error ? error.name : "Unknown",
+    bootstrapDevices: lastFacts?.bootstrapDevices, automaticPhoneInitialization: lastFacts?.automaticPhoneInitialization,
+    originalJobs: lastFacts?.jobs.filter(j => j.deviceId === process.env.SG_PHONE_INITIALIZATION_DEVICE).map(j => ({ id: j.id, status: j.status, resultCode: j.resultCode, errorCode: j.errorCode, initializationPrepared: j.initializationPrepared })) }), { mode: 0o600 });
   console.error(JSON.stringify({ outcome: "failed", step, jobId })); process.exitCode = 1;
 } finally {
   // A browser timeout never cancels or recreates a phone task. Reconcile its ID.
