@@ -147,3 +147,5 @@ SFA／FlClash 已上传到已有私有 OSS 并通过服务器完整 GET 的 SHA-
 第三轮 Playwright 通过正式 Web 登录及进入执行台，但手机连接等待 60 秒仍为 connected=false，未点击续接、没有新任务。08:21 的正式 Web 只读复核同样显示 bootstrap／connected=false、原 34241355 UNCONFIRMED、phone-initialization 原占用。后台数据库最后有效连接／端点回报停在 08:18:48，安装会话有效至 2026-11-06 且未撤销；新容器 ADB 无已连设备，没有 USB。当前阻断是反向连接未恢复，不能写成续接安全门禁或 Artemis 执行失败。尚无手机侧日志证明断开及未重连的准确原因；需在手机打开 SocialGrowth，恢复通道后读取日志并由 Web 继续原任务。浏览器和服务器读取不能替代真实连接。
 
 第三轮受控证据 output/playwright/phone-initialization-20261009-r3/failure.json；正式 Web 连接复核 .runtime/phone-multi-20261009/operation/latest.json、phone-card.png。验收脚本补充失败阶段及只含连接／任务状态的诊断记录，不保存登录凭据或原始上游正文。
+
+机主回复手机暂时不在身边，无法现场打开客户端。继续通过正式 Web 只读观察仍为 connected=false；原失败任务、占用和配置保留，尚无新的手机任务，配置续接与完整初始化验收仍阻断。待手机连接恢复后，需从 Web 核对原任务并继续，准确未重连原因须结合手机日志确认。
