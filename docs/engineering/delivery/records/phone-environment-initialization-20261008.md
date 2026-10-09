@@ -179,3 +179,35 @@ SFA／FlClash 已上传到已有私有 OSS 并通过服务器完整 GET 的 SHA-
 验收需正式 Web 发起、Artemis 真机操作：覆盖 FlClash 未就绪时拒绝启用 SFA、启用 VPN 时管理通道仍可用、FB／YT 走批准业务出口、短暂断连后同硬件恢复且原任务不重放、至少 300 秒双通道观察及最终管理交接。单元检查、服务存在或当前 ADB 可用不能代替验收。本轮没有重新运行初始化。
 
 依据：[Android VPN 按 App 排除](https://developer.android.com/develop/connectivity/vpn#per-app)、[sing-box TUN exclude_package](https://sing-box.sagernet.org/configuration/inbound/tun/#exclude_package)。受保护只读脚本及 SDK 最后画面在 .runtime/phone-vpn-diagnosis-20261009，均不提交 Git。
+
+## 2026-10-09 管理通道隔离修复与实际 Web 重测
+
+用户明确授权实施上述修复。单负责人在 dev 完成 `9aa46e1`、`9ccef27`、`a2f76e9`，从当前线上固定候选按范围集成为 `b58c59bac3641d51d99fe5b06ae9e4bfd0aa25de`，未包含工作区其他账号／素材开发改动。
+
+- SFA 生成配置补入 `com.socialgrowth.product` 排除项，保持原节点 hostname、状态目录、中心 ACL 和业务代理；拒绝把 FB／YT 排除出业务 VPN。
+- 按原准备请求交付独立 `sg-<原请求前缀>-management-v2.json`。Artemis 仅导入一次新配置；旧配置保留但不选用，已有修复配置复用，不编辑或读取配置原文。应用内导入仍须实际执行，文件交付不等于生效。
+- 新增受原任务权限约束的只读代理／VPN 检查。SFA 手机动作前硬性检查 FlClash 本机 SOCKS 的无账号 HTTPS 204 响应；最终及观察期间检查 Android 实际唯一活动 SFA VPN、管理及 FlClash UID 排除、FB／YT UID 覆盖。保留原四项原生画面 checkpoint 和至少 300 秒双通道观察。
+- 原端点短暂失败显示逐手机恢复中，只读探测；持续失败超过 60 秒停止并保留未知与占用，不自动重放动作、替换设备或重复安装。
+- Node24.16.0 路径与 SQLite 检查通过；48 项执行器检查通过，类型检查及指定文件 lint 通过；固定服务器 SDK 镜像中 6 项防护检查通过。这些检查不代表真机准备成功。
+
+10:28 CST 已部署 b58c59b。备份 `/opt/socialgrowth/backups/phone-vpn-fix-20261009T022803Z`；三应用镜像 revision 一致、服务健康、历史任务及占用未改变；Postgres／Redis 未重启，主机路由及 Google 专用代理隔离保持。main 仍未晋级；当前为开发候选部署。
+
+实际 Playwright 从 `https://growth.mhtm.top` 登录、打开执行与人工协助、点击原任务续接，创建任务 `db10eb8a-431b-4bac-a765-d67f6d4e2e4e`（10:28:50–10:29:04 CST）。结果为 UNCONFIRMED／`ASSISTANCE_EXPIRY_INVALID`：无 SDK trace、无监督 capability／事件、未调用准备工具，手机未执行新配置操作。部署后反向连接已恢复，后端与执行器均识别同一硬件，未发生本轮 VPN 启动断链。证据保留于受保护 `output/playwright/phone-initialization-20261009-r4/`。
+
+继续修复 `ba583e0`：仅手机初始化 capability 允许 45 分钟，覆盖 40 分钟执行及 5 分钟观察；其他任务仍为 15 分钟。此准确启动前拒绝仅允许从 Web 核对已审查准备父任务、零 capability／事件、设备别名锁、未知业务、原占用和当前硬件后继续一次，固定后续请求编号，沿用原准备请求并禁止重装。56 项执行器／权限检查通过，类型检查及指定 lint 通过。后续候选 `83930f7f3c1d16c0a0364eea825b2a95584bfc10` 的部署与真机结果待记录，不预先宣称初始化通过。
+
+10:36 CST 已部署 `83930f7f3c1d16c0a0364eea825b2a95584bfc10`，备份 `/opt/socialgrowth/backups/phone-vpn-fix-20261009T023613Z`；健康、固定镜像标签、历史回执／占用、路由及有状态服务保持检查再次通过。实际 Web 第二次续接创建 `469382cc-195f-47f7-9aa7-e5d1dd1b99d7`，已进入 running／观察现有环境，不再触发 capability 时限拒绝。后端与执行器已通过新的反向端点确认同一原硬件。受保护证据目录 `output/playwright/phone-initialization-20261009-r5/`。任务尚在执行，不能据此宣称网络准备或验收完成。
+
+
+11:17:15 CST，r5 任务最终为 `UNCONFIRMED / EXECUTION_TIMEOUT_OR_CANCELLED`，trace `e0103e3d-4b4a-4282-ae9a-77562798203c`。可信准备工具仅一次、只核验已安装应用，52 个实际 SDK 动作均完成且与 52 条监督许可匹配，无动作 incident。11:10:34 本机代理检查通过，随后进入 SFA 配置；整轮 40 分钟没有管理断链，但 SFA 尚无实际活动 VPN，未完成四项原生网络检查与 300 秒双通道观察。SDK cancelled、有结束时间、进程退出、监督停止，原回执保留。此结果证明辅助通道已能驱动真实手机，不能证明初始化完成。
+
+`31ca0d0` 兼容 Android 实际 UID ArraySet 花括号输出，不放宽未知格式；候选 `4de69006797c9b61f0e276cc1ef8a03ab63cb8b5` 于 11:20 CST 部署，备份 `/opt/socialgrowth/backups/phone-vpn-fix-20261009T031941Z`，历史回执及占用、健康、有状态服务、主机路由与专用代理检查保持通过。
+
+后续修复 `7e2650f`：明确 SFA VPN 服务模式；初始化执行 60 分钟与 capability 65 分钟，其他任务时限不变。准备完成后的显式配置续接最多两次，持久计数，仍须完整停止／动作／占用／硬件证据；最初准备请求及节点身份保持，不重装、不自动重放。新增上限与自动续接拒绝检查通过（本次 32 项，前轮 56 项）；执行器、Web 类型检查通过。固定候选为 `db67de6a202046a1053325c00b194cd70283b6ce`。首次候选构建发生归档传输与读取重叠，完整性复核失败，构建已失败且未部署；失败目录保留，补入归档 SHA 校验。进一步确认 Git 归档逐文件与提交一致，服务器原 tar 解包损坏生成 JSON；改用 Python 解包并逐文件字节校验，未改写生成契约或跳过生成检查。后续部署及 r6 真机结果待记录。
+
+
+11:33 CST 已部署服务端候选 `db67de6a202046a1053325c00b194cd70283b6ce`，三应用构建与生成契约检查通过；备份 `/opt/socialgrowth/backups/phone-vpn-fix-20261009T033323Z`，全部应用健康，原回执及占用保持，Postgres／Redis 未重启、主机路由不变。正式 Web Playwright r6 与 r6b 登录／进入控制台／查询原任务后均在连接步骤失败：目标 connected=false，尚未点击续接，无新任务、无新手机操作。受保护证据目录 `output/playwright/phone-initialization-20261009-r6/` 与 `r6b/`。最后有效端点回报为 11:19:39 CST；安装会话有效至 2026-11-06，未撤销。无当前手机日志，不能把此次部署后离线直接归因 VPN 或特定拒绝码。
+
+客户端另补 `7edeb66`，固定 APK 候选 `7b3c66ff661ccfecabcbd4ac8c542cf25cf95f90`：修正权限拒绝分支一边安排通道重核、一边立即 fatal 停止的冲突。仅原 token／安装身份和原 deviceId，经服务器确认仍关联有效且未显式暂停后重核一次；新建通道与 epoch 后仍接受服务器验证，撤权／身份变化／重复拒绝继续停止，无 VPN、配对、账号或业务动作。成功回报才重置一次恢复预算。此为代码确认的恢复缺口，不是缺失手机日志情况下对本次故障的确定归因。
+
+候选 Android Debug APK（生产 HTTPS API）`assembleDebug --no-daemon` 编译成功；本地保护路径 `.runtime/phone-vpn-fix-20261009/android-recovery-7b3c66f/`，build.json 保留 SHA。手机离线，新 APK 未送达、未安装，客户端恢复及完整初始化没有通过真机验收；main 未晋级。服务端在线的是 db67de6，不能称 Android 7b3c66f 已部署到手机。后续须先恢复原手机管理入口，再由现有可信准备链路交付更新，从实际 Web 续接原任务，完成实际 SFA VPN／业务出口检查、300 秒双通道观察与交接。
