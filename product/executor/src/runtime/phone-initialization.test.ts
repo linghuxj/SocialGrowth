@@ -136,3 +136,42 @@ test("proxy readiness is hardware pinned, uses actual SOCKS HTTPS and rejects un
   await assert.rejects(init.networkReady("127.0.0.1:12345", "RFC_TEST", "proxy"), /PHONE_SECOND_VPN_ACTIVE/);
   hardware = "OTHER"; await assert.rejects(init.networkReady("127.0.0.1:12345", "RFC_TEST", "proxy"), /PHONE_HARDWARE_MISMATCH/);
 });
+
+test("prepared continuation delivers one scoped management-v2 profile with unchanged endpoint namespace and no private data in instructions", async () => {
+  const { readFile } = await import("node:fs/promises"), { createHash } = await import("node:crypto");
+  const root = await mkdtemp(join(tmpdir(), "sg-management-profile-")), saved = process.env.SG_APP_STORAGE_FILE;
+  const files = new Map<string, Buffer>();
+  class InstalledApps extends AppProvisioner {
+    override async ensure(_serial: string, packageName: string, installMissing = true): Promise<AppReadiness> {
+      assert.equal(installMissing, false); return { packageName, status: "installed" };
+    }
+  }
+  try {
+    const manifestPath = join(root, "manifest.json"), template = join(root, "sfa.json"), subscription = join(root, "subscription.yaml");
+    await writeFile(template, JSON.stringify(config()), { mode: 0o600 });
+    await writeFile(subscription, "proxies:\n - name: fixture\n   type: ss\n   server: fixture.invalid\n   password: fixture-private-password\n", { mode: 0o600 });
+    await writeFile(manifestPath, JSON.stringify({ version: phoneInitializationVersion, deviceIds: [enrollment], centerTailnetIp: "100.95.244.67",
+      authKeyExpiresAt: new Date(Date.now() + 3600000).toISOString(), sfaTemplate: template, subscriptionFile: subscription, proxyGroup: "fixture" }), { mode: 0o600 });
+    process.env.SG_APP_STORAGE_FILE = "fixture-storage";
+    const init = new PhoneInitialization(manifestPath, new InstalledApps(), async (file, args) => {
+      if (file.endsWith("tailscale")) return "100.95.244.67";
+      if (args.includes("ro.serialno")) return "RFC_TEST";
+      const push = args.indexOf("push"); if (push >= 0) files.set(args[push + 2], await readFile(args[push + 1]));
+      if (args.includes("sha256sum")) return createHash("sha256").update(files.get(args.at(-1)!)!).digest("hex") + "  file";
+      return "";
+    });
+    const result = await init.prepare({ deviceId: enrollment, requestId: enrollment, serial: "127.0.0.1:12345", hardwareSerial: "RFC_TEST", verifyInstalledOnly: true });
+    const filename = `/sdcard/Download/socialgrowth-${enrollment}/sg-${enrollment.slice(0, 18)}-management-v2.json`;
+    const delivered = JSON.parse(files.get(filename)!.toString()) as ReturnType<typeof config>;
+    assert.ok(delivered.inbounds[0].exclude_package.includes("com.socialgrowth.product"));
+    assert.equal((delivered.endpoints[0] as unknown as { hostname: string }).hostname, `sg-${enrollment.slice(0, 18)}`);
+    assert.equal(files.size, 2); assert.ok(result.instructions.includes(filename));
+    assert.equal(result.instructions.includes("fixture-key-not-real"), false);
+    assert.equal(result.instructions.includes("fixture-private-password"), false);
+    assert.match(result.instructions, /check_phone_network\(stage="proxy"\)/);
+    assert.match(result.instructions, /legacy profile/);
+  } finally {
+    if (saved === undefined) delete process.env.SG_APP_STORAGE_FILE; else process.env.SG_APP_STORAGE_FILE = saved;
+    await rm(root, { recursive: true, force: true });
+  }
+});
