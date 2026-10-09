@@ -2,7 +2,7 @@
 
 ## 当前结果
 
-截至 2026-10-09，可信准备已完成，但第二轮 SFA 配置超时，原回执仍为 UNCONFIRMED。已将时限和安全配置衔接修订提交 dev，并部署手机固定候选 9c04033 到 mh；第三轮正式 Web 等待连接未通过，未新建手机任务。当前反向连接未恢复，已请求机主打开 SocialGrowth，随后才能继续核验。main 保持 bb52422，初始化尚未成功；下文前半部分为历史记录，最新结果见末尾。
+截至 2026-10-09 10 时，可信准备已完成，但第二轮 SFA 配置超时，原回执仍为 UNCONFIRMED。手机固定候选 9c04033 已部署 mh；第三轮正式 Web 在连接核对阶段阻断，未新建手机任务。目前同硬件反向通道已恢复，本轮只读复核确认 VPN 管理通道隔离和启动前置检查有缺口，但没有证据将此前离线直接归因于 VPN 或手机故障。修正建议已记录，尚未实施或重测完整初始化；main 保持 bb52422。下文前半部分为历史记录，最新结果见末尾。
 
 使用用户提供的受保护 Clash YAML。解析通过：292 个代理、5 个组；部署副本关闭 TUN 与局域网监听，只保留回环代理。没有记录节点密码、订阅地址或接入密钥。
 
@@ -149,3 +149,33 @@ SFA／FlClash 已上传到已有私有 OSS 并通过服务器完整 GET 的 SHA-
 第三轮受控证据 output/playwright/phone-initialization-20261009-r3/failure.json；正式 Web 连接复核 .runtime/phone-multi-20261009/operation/latest.json、phone-card.png。验收脚本补充失败阶段及只含连接／任务状态的诊断记录，不保存登录凭据或原始上游正文。
 
 机主回复手机暂时不在身边，无法现场打开客户端。继续通过正式 Web 只读观察仍为 connected=false；原失败任务、占用和配置保留，尚无新的手机任务，配置续接与完整初始化验收仍阻断。待手机连接恢复后，需从 Web 核对原任务并继续，准确未重连原因须结合手机日志确认。
+
+
+## VPN 断链假设复核与修正建议（2026-10-09 10 时）
+
+用户提出初始化连接 VPN 导致断链的假设，要求先确认问题再讨论修复。本轮只读取既有记录、部署前备份和手机状态，没有修改 VPN／应用配置、重启服务或发起手机任务。此前“手机离线”仅描述结果，不是手机故障诊断。
+
+| 北京时间 | 已核对事实 |
+| --- | --- |
+| 07:54:28 | 原 34241355 任务完成可信准备。 |
+| 08:04:31 | 第 16 个已执行动作关闭输入键盘；最后保留画面仍为 SFA 配置名称编辑。16 个实际动作中没有 VPN 启动或同意 VPN 授权。 |
+| 08:04:51 | 原任务被 14 分钟父时限终止，SDK cancelled，结果 UNCONFIRMED。 |
+| 08:18:42／08:18:48 | 部署前 PostgreSQL 备份中的硬件连接检查及端点回报仍有效，同硬件 RFCW40MYYCV。使用 pg_restore 仅向内存导出该表，未恢复或修改数据库。 |
+| 08:18:51 | 新 backend 容器开始运行。第三轮 Web 随后未确认连接，未提交续接。 |
+| 09:57:27／09:57:28 | 当前手机日志显示 bootstrap_connecting／bootstrap_ready；10 时服务器再次核验同硬件成功。恢复触发原因尚不明。 |
+
+因此现有时间线不支持“这次原任务在点击 VPN 启动时立即断链”的直接归因；原任务在部署前已结束且连接仍正常。也没有证据说明手机硬件或系统故障。部署会结束原进程内反向会话，但部署后的长时间未恢复缺少当时完整手机日志，不能断言全部因部署、VPN或某个拒绝码造成。当前手机日志只保留此次恢复片段。
+
+与此同时确认存在 VPN 切换风险。读取实际生产私有模板的非敏感字段：TUN exclude_package 仅 com.follow.clash、com.tailscale.ipn；缺少 com.socialgrowth.product。route.final 为 phone-subscription，指向回环 SOCKS 127.0.0.1:7890。当前 API／WebSocket 客户端未将管理请求显式绑定非 VPN 网络；已有 NSD 的 NOT_VPN 仅用于端口发现，不能证明 API／WebSocket 绕过 VPN。Android 官方说明排除 App 使用系统网络；sing-box exclude_package 支持按包排除。因此在 SFA VPN 启用、FlClash 本地代理尚未就绪时，管理连接可能一起进入不可用代理。这是由代码和配置确认的风险，不是本次已复现的根因。
+
+10 时只读手机检查：Android connectivity 没有活动 VPN 网络；SFA 有 ProxyService 服务记录，FlClash 没有运行服务，SocialGrowth EndpointReportingService 为前台服务。服务记录不等于 SFA VPN、代理核心或业务出口成功；当前不是完成初始化状态。最后 SDK 保留画面为“编辑设置档”，与步骤记录一致。
+
+最小修正建议，尚未实施：
+
+1. 生成并校验 SFA 配置时，将 com.socialgrowth.product 加入现有包排除名单，保留 FlClash、Tailscale 排除及既定节点、Tailnet ACL。仅隔离管理 App，FB／YT 继续走业务出口，不改全局代理或开启第二个 VPN。已有 SFA 导入配置必须由 Artemis 更新本次作用域的同一配置，仅重投 Download 文件不算已更新；保留名称与 Tailscale 状态目录，不重复创建配置。
+2. 在同一 Artemis 任务中强制 FlClash 非 VPN 核心、批准节点及回环代理先通过实际检查，再允许启动 SFA VPN。准备文件或提前导入 SFA 可以进行，但不得提前启用。启动前后核对反向通道；最终增加 Android 实际活动 VPN 归属校验，不能只看 SFA“运行”或 ProxyService。完成 FB／YT 检查和 300 秒双通道观察后再交接，原通道在此之前保留。
+3. 针对网络切换／服务器会话更新完善有界重连和事件诊断，复用已有 BootstrapTunnel、端点服务与 epoch 处理，记录不含凭据的网络角色、会话变化、最后硬件核验和恢复耗时。Web 每台手机区分切换、恢复中、阻断与真正机主待办。连接恢复后核验原任务和已完成步骤，未知安装或点击不盲目重放，不因重连伪造初始化成功。此次实际长恢复的准确触发原因仍待补充日志，不能先据假设改写权限拒绝规则。
+
+验收需正式 Web 发起、Artemis 真机操作：覆盖 FlClash 未就绪时拒绝启用 SFA、启用 VPN 时管理通道仍可用、FB／YT 走批准业务出口、短暂断连后同硬件恢复且原任务不重放、至少 300 秒双通道观察及最终管理交接。单元检查、服务存在或当前 ADB 可用不能代替验收。本轮没有重新运行初始化。
+
+依据：[Android VPN 按 App 排除](https://developer.android.com/develop/connectivity/vpn#per-app)、[sing-box TUN exclude_package](https://sing-box.sagernet.org/configuration/inbound/tun/#exclude_package)。受保护只读脚本及 SDK 最后画面在 .runtime/phone-vpn-diagnosis-20261009，均不提交 Git。
